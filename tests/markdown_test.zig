@@ -147,3 +147,13 @@ test "gfm table alignment" {
     try std.testing.expectEqual(.start, table.aligns[0]);
     try std.testing.expectEqual(.end, table.aligns[1]);
 }
+
+test "nested list indentation" {
+    var doc = try zant.markdown.parse(std.testing.allocator, "- a\n  - b\n    - c\n");
+    defer doc.deinit();
+    const list = doc.blocks[0].list;
+    try std.testing.expectEqual(@as(usize, 3), list.items.len);
+    try std.testing.expectEqual(@as(u2, 0), list.indents[0]);
+    try std.testing.expectEqual(@as(u2, 1), list.indents[1]);
+    try std.testing.expectEqual(@as(u2, 2), list.indents[2]);
+}

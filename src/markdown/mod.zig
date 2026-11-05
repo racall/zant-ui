@@ -25,6 +25,7 @@ pub const List = struct {
     start: usize,
     items: []const []const Span,
     checked: []const ?bool,
+    indents: []const u2 = &.{},
 };
 
 pub const Table = struct {
@@ -359,8 +360,12 @@ fn parseBlocks(arena: std.mem.Allocator, text: []const u8) ![]const Block {
         if (std.mem.startsWith(u8, trimmed, "- ") or std.mem.startsWith(u8, trimmed, "* ") or std.mem.startsWith(u8, trimmed, "+ ")) {
             var items: std.ArrayListUnmanaged([]const Span) = .empty;
             var checked: std.ArrayListUnmanaged(?bool) = .empty;
+            var indents: std.ArrayListUnmanaged(u2) = .empty;
             while (i < lines.items.len) : (i += 1) {
-                const t = std.mem.trim(u8, lines.items[i], " \t");
+                const raw = lines.items[i];
+                var indent: usize = 0;
+                while (indent < raw.len and (raw[indent] == ' ' or raw[indent] == '\t')) : (indent += 1) {}
+                const t = std.mem.trim(u8, raw, " \t");
                 var content: []const u8 = undefined;
                 if (std.mem.startsWith(u8, t, "- ") or std.mem.startsWith(u8, t, "* ") or std.mem.startsWith(u8, t, "+ ")) content = t[2..] else break;
                 var task: ?bool = null;
@@ -368,8 +373,10 @@ fn parseBlocks(arena: std.mem.Allocator, text: []const u8) ![]const Block {
                 if (std.mem.startsWith(u8, content, "[x] ") or std.mem.startsWith(u8, content, "[X] ")) { task = true; content = content[4..]; }
                 try items.append(arena, try parseInline(arena, content));
                 try checked.append(arena, task);
+                const depth: u2 = @intCast(@min(@as(usize, 3), indent / 2));
+                try indents.append(arena, depth);
             }
-            try blocks.append(arena, .{ .list = .{ .ordered = false, .start = 1, .items = try items.toOwnedSlice(arena), .checked = try checked.toOwnedSlice(arena) } });
+            try blocks.append(arena, .{ .list = .{ .ordered = false, .start = 1, .items = try items.toOwnedSlice(arena), .checked = try checked.toOwnedSlice(arena), .indents = try indents.toOwnedSlice(arena) } });
             continue;
         }
         if (trimmed.len > 2 and std.ascii.isDigit(trimmed[0])) {
@@ -379,8 +386,12 @@ fn parseBlocks(arena: std.mem.Allocator, text: []const u8) ![]const Block {
                 const start = std.fmt.parseInt(usize, trimmed[0..dot], 10) catch 1;
                 var items: std.ArrayListUnmanaged([]const Span) = .empty;
                 var checked: std.ArrayListUnmanaged(?bool) = .empty;
+                var indents: std.ArrayListUnmanaged(u2) = .empty;
                 while (i < lines.items.len) : (i += 1) {
-                    const t = std.mem.trim(u8, lines.items[i], " \t");
+                    const raw = lines.items[i];
+                    var indent: usize = 0;
+                    while (indent < raw.len and (raw[indent] == ' ' or raw[indent] == '\t')) : (indent += 1) {}
+                    const t = std.mem.trim(u8, raw, " \t");
                     const d = std.mem.indexOfScalar(u8, t, '.') orelse break;
                     if (d == 0 or d + 2 > t.len) break;
                     var ok = true;
@@ -388,8 +399,10 @@ fn parseBlocks(arena: std.mem.Allocator, text: []const u8) ![]const Block {
                     if (!ok) break;
                     try items.append(arena, try parseInline(arena, t[d + 2 ..]));
                     try checked.append(arena, null);
+                    const depth: u2 = @intCast(@min(@as(usize, 3), indent / 2));
+                    try indents.append(arena, depth);
                 }
-                try blocks.append(arena, .{ .list = .{ .ordered = true, .start = start, .items = try items.toOwnedSlice(arena), .checked = try checked.toOwnedSlice(arena) } });
+                try blocks.append(arena, .{ .list = .{ .ordered = true, .start = start, .items = try items.toOwnedSlice(arena), .checked = try checked.toOwnedSlice(arena), .indents = try indents.toOwnedSlice(arena) } });
                 continue;
             }
         }
@@ -562,7 +575,12 @@ fn renderBlock(block: Block) ui.Node {
                     combined[combined_len] = span;
                     combined_len += 1;
                 }
-                rows[count] = spansNode(combined[0..combined_len], 15);
+                var row_node = spansNode(combined[0..combined_len], 15);
+                const depth = if (index < list.indents.len) list.indents[index] else 0;
+                if (depth > 0) {
+                    row_node = ui.styled(row_node, .{ .padding = .{ .left = @as(f32, @floatFromInt(depth)) * 16 } });
+                }
+                rows[count] = row_node;
                 count += 1;
             }
             break :blk ui.column(.{ .gap = 6, .children = rows[0..count] });
