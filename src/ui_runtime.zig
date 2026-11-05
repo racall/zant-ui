@@ -444,7 +444,9 @@ pub const Runtime = struct {
                 data.action = element.on_click;
                 data.index_action = element.index_action;
                 data.index = element.index;
-                data.font_size = button_mod.fontSize(element.button_size);
+                data.font_size = element.text_style.font_size;
+                data.text_align = element.text_style.text_align;
+                data.label_padding = 0;
                 data.invalidateLayout();
             },
             .input => |*data| {

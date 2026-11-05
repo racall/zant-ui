@@ -218,3 +218,35 @@ test "align-self centers one child" {
     tree.layout(.{ .width = 200, .height = 100 });
     try expectRect(tree.get(1), 0, 40, 20, 20);
 }
+
+test "absolute child is positioned without taking flow space" {
+    var tree = try Tree.init(std.testing.allocator, zant.tokens.antLight());
+    defer tree.deinit();
+    const root = tree.get(tree.root);
+    root.style.direction = .column;
+    _ = try box(&tree, tree.root, .{ .width = 50, .height = 20 });
+    const absolute = try tree.addContainer(tree.root, .{
+        .absolute = true,
+        .right = 20,
+        .top = 10,
+        .width = 100,
+        .height = 40,
+    });
+    tree.layout(.{ .width = 200, .height = 100 });
+    try expectRect(tree.get(1), 0, 0, 50, 20);
+    try expectRect(tree.get(absolute), 80, 10, 100, 40);
+}
+
+test "rich text lays out and wraps" {
+    var tree = try Tree.init(std.testing.allocator, zant.tokens.antLight());
+    defer tree.deinit();
+    const spans = [_]zant.node.RichSpan{
+        .{ .text = "Hello ", .font_size = 15, .color = 0xff292d2a },
+        .{ .text = "world this is a long richer text run", .font_size = 15, .weight = .semibold, .color = 0xff607d6b },
+    };
+    const id = try tree.addRichText(tree.root, &spans);
+    tree.get(id).style.width_percent = 100;
+    tree.layout(.{ .width = 120, .height = 200 });
+    try std.testing.expect(tree.get(id).bounds.height >= 20);
+    try std.testing.expect(tree.get(id).bounds.width <= 120.1);
+}

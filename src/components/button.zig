@@ -144,7 +144,11 @@ pub fn paint(node: *Node, canvas: Canvas, theme: Theme) void {
 
     const color = textColor(data, enabled, theme);
     if (data.ensureLayout(color)) |layout| {
-        const x = rect.x + (rect.width - layout.metrics.longest_line) * 0.5;
+        const x = switch (data.text_align) {
+            .left => rect.x + if (data.label_padding > 0) data.label_padding else horizontalPadding(data.size, data.button_type),
+            .right => rect.right() - layout.metrics.longest_line - if (data.label_padding > 0) data.label_padding else horizontalPadding(data.size, data.button_type),
+            .center => rect.x + (rect.width - layout.metrics.longest_line) * 0.5,
+        };
         const y = rect.y + (rect.height - layout.metrics.height) * 0.5;
         layout.paint(canvas, x, y);
     } else |_| {}

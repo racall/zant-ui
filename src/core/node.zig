@@ -56,6 +56,11 @@ pub const FlexStyle = struct {
     height: ?f32 = null,
     width_percent: ?f32 = null,
     height_percent: ?f32 = null,
+    absolute: bool = false,
+    top: ?f32 = null,
+    right: ?f32 = null,
+    bottom: ?f32 = null,
+    left: ?f32 = null,
     min_width: ?f32 = null,
     min_height: ?f32 = null,
     max_width: ?f32 = null,
@@ -174,6 +179,8 @@ pub const ButtonData = struct {
     layout_dirty: bool = true,
     layout_color: u32 = 0,
     font_size: f32 = 14,
+    text_align: text.Align = .center,
+    label_padding: f32 = 0,
 
     pub fn invalidateLayout(self: *ButtonData) void {
         self.layout_dirty = true;
@@ -189,7 +196,7 @@ pub const ButtonData = struct {
             .weight = .medium,
             .color = color,
             .wrap = false,
-            .text_align = .left,
+            .text_align = self.text_align,
         }, 4096);
         self.layout_dirty = false;
         self.layout_color = color;
@@ -390,6 +397,11 @@ pub const Node = struct {
                 allocator.free(value.path);
             },
             .select => |*value| value.deinit(allocator),
+            .rich_text => |*value| {
+                value.invalidateLayout();
+                for (value.spans) |span| allocator.free(span.text);
+                allocator.free(value.spans);
+            },
             else => {},
         }
         self.children.deinit(allocator);

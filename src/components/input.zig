@@ -308,11 +308,12 @@ pub fn paint(node: *Node, canvas: Canvas, theme: Theme) void {
     } else {
         if (!data.has_composition and hasSelection(data)) {
             const range = selectionRange(data);
-            var rects: [8]text.NativeRect = undefined;
+            var rects: [64]text.NativeRect = undefined;
             const count = layout.rangeRects(range.start, range.end, &rects);
             for (rects[0..count]) |r| {
+                if (r.width <= 0 or r.height <= 0) continue;
                 canvas.fillRect(
-                    geometry.Rect.init(origin_x + r.x, text_y + r.y - 1, r.width, layout.metrics.height),
+                    geometry.Rect.init(origin_x + r.x, text_y + r.y, r.width, r.height),
                     tokens.withAlpha(theme.color_primary, 0x2e),
                 );
             }
@@ -320,7 +321,7 @@ pub fn paint(node: *Node, canvas: Canvas, theme: Theme) void {
         layout.paint(canvas, origin_x, text_y);
 
         if (data.has_composition and data.composition.items.len > 0) {
-            var rects: [8]text.NativeRect = undefined;
+            var rects: [64]text.NativeRect = undefined;
             const start = data.cursor;
             const end = data.cursor + data.composition.items.len;
             const count = layout.rangeRects(start, end, &rects);

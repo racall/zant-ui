@@ -249,24 +249,47 @@ fn layoutContainer(nodes: []*Node, node: *Node, width: f32, definite_height: ?f3
     const ordered = orderIds(nodes, ids.items, allocator);
     defer if (ordered.ptr != ids.items.ptr) allocator.free(ordered);
 
+    var flow: std.ArrayListUnmanaged(NodeId) = .empty;
+    defer flow.deinit(allocator);
+    var absolute: std.ArrayListUnmanaged(NodeId) = .empty;
+    defer absolute.deinit(allocator);
+    for (ordered) |id| {
+        if (nodes[id].style.absolute) {
+            absolute.append(allocator, id) catch return;
+        } else {
+            flow.append(allocator, id) catch return;
+        }
+    }
+
     const padding = node.style.padding;
     const inner_x = node.bounds.x + padding.left;
     const inner_y = node.bounds.y + padding.top;
     const inner_width = @max(0, width - padding.horizontal());
     const inner_height = if (definite_height) |h| @max(0, h - padding.vertical()) else 0;
-    const n = ordered.len;
+    const n = flow.items.len;
     if (definite_height) |h| {
         node.bounds.height = clampDim(node, h, false);
     }
 
     if (node.style.direction == .row) {
         if (node.style.wrap != .nowrap) {
-            layoutRowWrap(nodes, node, ordered, inner_x, inner_y, inner_width, if (definite_height != null) inner_height else null, theme, allocator);
+            layoutRowWrap(nodes, node, flow.items, inner_x, inner_y, inner_width, if (definite_height != null) inner_height else null, theme, allocator);
         } else {
-            layoutRow(nodes, node, ordered, inner_x, inner_y, inner_width, if (definite_height != null) inner_height else null, theme, allocator);
+            layoutRow(nodes, node, flow.items, inner_x, inner_y, inner_width, if (definite_height != null) inner_height else null, theme, allocator);
         }
     } else {
-        layoutColumn(nodes, node, ordered, inner_x, inner_y, inner_width, if (definite_height != null) inner_height else null, theme, allocator);
+        layoutColumn(nodes, node, flow.items, inner_x, inner_y, inner_width, if (definite_height != null) inner_height else null, theme, allocator);
+    }
+
+    for (absolute.items) |id| {
+        const child = nodes[id];
+        const w = resolveWidth(child, inner_width) orelse intrinsicWidth(nodes, child, inner_width, theme);
+        const h = if (child.style.height) |explicit| explicit else intrinsicHeight(nodes, child, w, theme);
+        var x = inner_x;
+        var y = inner_y;
+        if (child.style.left) |left| x = inner_x + left else if (child.style.right) |right| x = inner_x + inner_width - w - right;
+        if (child.style.top) |top| y = inner_y + top else if (child.style.bottom) |bottom| y = inner_y + inner_height - h - bottom;
+        _ = layoutNode(nodes, child, x, y, w, h, w, inner_height, theme, false);
     }
 
     if (definite_height) |h| {
