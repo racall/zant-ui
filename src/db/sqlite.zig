@@ -21,6 +21,8 @@ pub const Error = error{
     BindFailed,
     ColumnOutOfRange,
     TypeMismatch,
+    ValueTooLarge,
+    InvalidJson,
     Busy,
 };
 

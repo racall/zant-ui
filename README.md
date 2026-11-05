@@ -204,8 +204,10 @@ const Note = struct {
     body: []const u8,
 };
 
-var notes = try zant.db.collection(Note, allocator, "app.data");
-defer notes.close();
+var store = try zant.db.open(allocator, "app.data");
+defer store.close();
+try store.setString("theme", "dark");
+var notes = try store.collection(Note);
 const id = try notes.add(.{ .body = "hello" });
 const note = (try notes.find(id)).?;
 defer notes.free(note);
