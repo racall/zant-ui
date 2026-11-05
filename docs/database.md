@@ -93,8 +93,7 @@ try users.add(...);
 try users.commit();
 ```
 
-当前 `Collection` 暂未暴露事务方法；先使用底层 `Database` 是高级用法。
-日常单条 CRUD 不需要关心事务。
+`Collection` 直接提供 `begin/commit/rollback`，日常单条 CRUD 不需要关心事务。
 
 ## 适合什么场景
 

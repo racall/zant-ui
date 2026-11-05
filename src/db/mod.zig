@@ -58,6 +58,18 @@ pub fn Collection(comptime T: type) type {
             self.table().freeAll(values);
         }
 
+        pub fn begin(self: *Self) !void {
+            return self.db.begin();
+        }
+
+        pub fn commit(self: *Self) !void {
+            return self.db.commit();
+        }
+
+        pub fn rollback(self: *Self) !void {
+            return self.db.rollback();
+        }
+
         /// Close the underlying persistence file.
         pub fn close(self: *Self) void {
             self.db.close();
