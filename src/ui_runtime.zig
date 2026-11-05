@@ -455,6 +455,8 @@ pub const Runtime = struct {
             .input => |*data| {
                 data.text_action = element.on_text;
                 data.submit_action = element.on_click;
+                data.undo_action = element.on_undo;
+                data.redo_action = element.on_redo;
                 data.read_only = element.read_only;
                 data.password = element.password;
                 data.multiline = element.multiline;
@@ -1023,6 +1025,26 @@ fn selectOptionsEqual(data: *const node_mod.SelectData, options: []const []const
                         if (events.characterEquals(k.key, 'v')) {
                             self.pasteInto(id);
                             return 1;
+                        }
+                        if (events.characterEquals(k.key, 'z')) {
+                            if (k.modifiers.shift) {
+                                if (data.redo_action) |action| {
+                                    action.func(action.ctx);
+                                    self.needs_build = true;
+                                    return 1;
+                                }
+                            } else if (data.undo_action) |action| {
+                                action.func(action.ctx);
+                                self.needs_build = true;
+                                return 1;
+                            }
+                        }
+                        if (events.characterEquals(k.key, 'y')) {
+                            if (data.redo_action) |action| {
+                                action.func(action.ctx);
+                                self.needs_build = true;
+                                return 1;
+                            }
                         }
                         return 0;
                     }

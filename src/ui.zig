@@ -37,6 +37,8 @@ pub const Element = struct {
     on_click: ?actions.Action = null,
     on_bool: ?actions.BoolAction = null,
     on_text: ?actions.TextAction = null,
+    on_undo: ?actions.Action = null,
+    on_redo: ?actions.Action = null,
     index_action: ?actions.IndexAction = null,
     index: usize = 0,
     tooltip: ?[]const u8 = null,
@@ -540,6 +542,8 @@ pub const InputOptions = struct {
     line_height: f32 = 0,
     on_change: ?actions.TextAction = null,
     on_submit: ?actions.Action = null,
+    on_undo: ?actions.Action = null,
+    on_redo: ?actions.Action = null,
 };
 
 pub fn input(options: InputOptions) Node {
@@ -560,6 +564,8 @@ pub fn input(options: InputOptions) Node {
         .text_style = .{ .font_size = options.font_size, .line_height = options.line_height },
         .on_text = options.on_change,
         .on_click = options.on_submit,
+        .on_undo = options.on_undo,
+        .on_redo = options.on_redo,
     });
 }
 
