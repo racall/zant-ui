@@ -75,6 +75,9 @@ pub const Visual = struct {
     border_color: ?u32 = null,
     border_width: f32 = 0,
     radius: f32 = 0,
+    shadow_color: ?u32 = null,
+    shadow_blur: f32 = 0,
+    shadow_offset_y: f32 = 0,
     clip: bool = false,
 };
 

@@ -260,6 +260,11 @@ pub const Tree = struct {
     fn paintNode(self: *Tree, node: *Node, canvas: Canvas) void {
         if (!node.visible) return;
         const rect = node.bounds;
+        if (node.visual.shadow_color) |shadow| {
+            var shadow_rect = rect;
+            shadow_rect.y += node.visual.shadow_offset_y;
+            canvas.shadowRoundRect(shadow_rect, node.visual.radius, shadow, node.visual.shadow_blur);
+        }
         if (node.visual.background) |color| {
             if (node.visual.radius > 0) {
                 canvas.fillRoundRect(rect, node.visual.radius, color);

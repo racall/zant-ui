@@ -11,6 +11,8 @@
 #include "include/core/SkData.h"
 #include "include/core/SkSamplingOptions.h"
 #include "include/core/SkPaint.h"
+#include "include/core/SkMaskFilter.h"
+#include "include/core/SkBlurTypes.h"
 #include "include/core/SkPixmap.h"
 #include "include/core/SkRRect.h"
 #include "include/core/SkStream.h"
@@ -498,6 +500,16 @@ void zant_canvas_fill_rect(ZantCanvas *canvas, float x, float y, float width, fl
                            uint32_t color) {
     if (!canvas || !canvas->canvas) return;
     canvas->canvas->drawRect(SkRect::MakeXYWH(x, y, width, height), fill_paint(color));
+}
+
+void zant_canvas_shadow_round_rect(ZantCanvas *canvas, float x, float y, float width, float height,
+                                   float radius, uint32_t color, float blur) {
+    if (!canvas || !canvas->canvas || blur <= 0.0f) return;
+    SkPaint paint;
+    paint.setAntiAlias(true);
+    paint.setColor(color);
+    paint.setMaskFilter(SkMaskFilter::MakeBlur(kNormal_SkBlurStyle, blur));
+    canvas->canvas->drawRRect(make_rrect(x, y, width, height, radius), paint);
 }
 
 void zant_canvas_fill_round_rect(ZantCanvas *canvas, float x, float y, float width, float height,

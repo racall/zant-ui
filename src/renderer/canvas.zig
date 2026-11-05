@@ -16,6 +16,7 @@ pub const Canvas = struct {
     extern fn zant_canvas_fill_rect(canvas: ?*anyopaque, x: f32, y: f32, width: f32, height: f32, color: u32) void;
     extern fn zant_canvas_fill_round_rect(canvas: ?*anyopaque, x: f32, y: f32, width: f32, height: f32, radius: f32, color: u32) void;
     extern fn zant_canvas_stroke_round_rect(canvas: ?*anyopaque, x: f32, y: f32, width: f32, height: f32, radius: f32, color: u32, stroke_width: f32) void;
+    extern fn zant_canvas_shadow_round_rect(canvas: ?*anyopaque, x: f32, y: f32, width: f32, height: f32, radius: f32, color: u32, blur: f32) void;
     extern fn zant_canvas_draw_line(canvas: ?*anyopaque, x0: f32, y0: f32, x1: f32, y1: f32, color: u32, stroke_width: f32) void;
     extern fn zant_canvas_draw_text_layout(canvas: ?*anyopaque, layout: ?*anyopaque, x: f32, y: f32) void;
 
@@ -49,6 +50,10 @@ pub const Canvas = struct {
 
     pub fn fillRoundRect(self: Canvas, rect: geometry.Rect, radius: f32, color: u32) void {
         zant_canvas_fill_round_rect(self.ptr, rect.x, rect.y, rect.width, rect.height, radius, color);
+    }
+
+    pub fn shadowRoundRect(self: Canvas, rect: geometry.Rect, radius: f32, color: u32, blur: f32) void {
+        zant_canvas_shadow_round_rect(self.ptr, rect.x, rect.y, rect.width, rect.height, radius, color, blur);
     }
 
     pub fn strokeRoundRect(self: Canvas, rect: geometry.Rect, radius: f32, color: u32, width: f32) void {

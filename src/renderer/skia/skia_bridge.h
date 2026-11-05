@@ -78,6 +78,8 @@ void zant_canvas_fill_rect(ZantCanvas *canvas, float x, float y, float width, fl
                            uint32_t color);
 void zant_canvas_fill_round_rect(ZantCanvas *canvas, float x, float y, float width, float height,
                                  float radius, uint32_t color);
+void zant_canvas_shadow_round_rect(ZantCanvas *canvas, float x, float y, float width, float height,
+                                   float radius, uint32_t color, float blur);
 void zant_canvas_stroke_round_rect(ZantCanvas *canvas, float x, float y, float width, float height,
                                    float radius, uint32_t color, float stroke_width);
 void zant_canvas_draw_line(ZantCanvas *canvas, float x0, float y0, float x1, float y1,
