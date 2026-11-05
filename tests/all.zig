@@ -26,3 +26,7 @@ test {
 test {
     _ = @import("text_test.zig");
 }
+
+comptime {
+    _ = @import("db_test.zig");
+}

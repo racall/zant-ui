@@ -41,6 +41,7 @@ fn configureMacosSkia(b: *std.Build, target: std.Build.ResolvedTarget, mod: *std
         mod.linkFramework(framework, .{});
     }
     mod.linkSystemLibrary("z", .{ .use_pkg_config = .no });
+    mod.linkSystemLibrary("sqlite3", .{ .use_pkg_config = .no });
 }
 
 pub fn build(b: *std.Build) void {

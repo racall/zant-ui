@@ -194,6 +194,20 @@ Avatar、Progress、PDF 预览。
 每个组件一份文档：[组件文档](docs/components/README.md)。
 统一样式覆盖使用 `ui.styled`，见 [样式覆盖](docs/components/style.md)。
 
+## SQLite 持久化
+
+内置 `zant.db`，无需安装额外依赖（使用系统 libsqlite3）：
+
+```zig
+var db = try zant.db.Database.open(allocator, "app.sqlite");
+defer db.close();
+try db.exec("CREATE TABLE notes (id INTEGER PRIMARY KEY, body TEXT)");
+try db.run("INSERT INTO notes (body) VALUES (?)", .{"hello"});
+const count = (try db.queryOne(i64, "SELECT COUNT(*) FROM notes", .{})).?;
+```
+
+见 [SQLite 持久化](docs/database.md)。
+
 ## 架构
 
 - 原生 `NSWindow` / `NSView`，不使用 WebView / Electron / HTML。

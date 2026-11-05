@@ -25,3 +25,5 @@
 
 自定义组件示例见生成项目的 `src/components/stat_card.zig`，以及
 [窗口配置](../window-config.md)。
+
+更多主题：[SQLite 持久化](../database.md)、[Flex 与 CSS](../flex.md)。

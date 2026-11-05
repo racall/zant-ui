@@ -24,3 +24,5 @@ pub const default_theme = @import("theme/default.zig");
 pub const launch = @import("launch.zig");
 
 pub const WindowOptions = platform.WindowOptions;
+
+pub const db = @import("db/sqlite.zig");
