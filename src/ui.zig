@@ -31,6 +31,8 @@ pub const Element = struct {
     password: bool = false,
     multiline: bool = false,
     focus_ring: bool = true,
+    text_color: ?u32 = null,
+    label_padding: f32 = 0,
     on_click: ?actions.Action = null,
     on_bool: ?actions.BoolAction = null,
     on_text: ?actions.TextAction = null,
@@ -383,6 +385,7 @@ pub const TextOptions = struct {
     wrap: bool = false,
     line_height: f32 = 0,
     max_lines: u16 = 0,
+    family: text_mod.Family = .sans,
 };
 
 fn textStyle(options: TextOptions, default_color: u32, wrap_default: bool) text_mod.Style {
@@ -394,6 +397,7 @@ fn textStyle(options: TextOptions, default_color: u32, wrap_default: bool) text_
         .wrap = if (options.wrap) true else wrap_default,
         .line_height = options.line_height,
         .max_lines = options.max_lines,
+        .family = options.family,
     };
 }
 
@@ -472,6 +476,7 @@ pub const ButtonOptions = struct {
     font_size: ?f32 = null,
     text_align: text_mod.Align = .center,
     label_padding: f32 = 0,
+    text_color: ?u32 = null,
     on_click: ?actions.Action = null,
     index_action: ?actions.IndexAction = null,
     index: usize = 0,
@@ -494,6 +499,8 @@ pub fn button(options: ButtonOptions) Node {
         .layout = .{ .height = height, .width = options.width, .shrink = 0 },
         .visual = .{ .radius = default_theme.border_radius },
         .text_style = .{ .font_size = options.font_size orelse 14, .text_align = options.text_align },
+        .text_color = options.text_color,
+        .label_padding = options.label_padding,
         .on_click = options.on_click,
         .index_action = options.index_action,
         .index = options.index,

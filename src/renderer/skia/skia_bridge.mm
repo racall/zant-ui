@@ -231,7 +231,15 @@ std::unique_ptr<Paragraph> build_paragraph(std::string_view text, const ZantText
     text_style.setColor(style.color);
     text_style.setFontSize(style.font_size > 0.0f ? style.font_size : 14.0f);
     const int weight = std::max(100, std::min(900, style.weight));
-    text_style.setFontStyle(SkFontStyle(weight, SkFontStyle::kNormal_Width, SkFontStyle::kUpright_Slant));
+    const SkFontStyle sk_style(weight, SkFontStyle::kNormal_Width, SkFontStyle::kUpright_Slant);
+    text_style.setFontStyle(sk_style);
+    if (style.family == 1) {
+        auto face = g_font_mgr->matchFamilyStyle("Georgia", sk_style);
+        if (face) text_style.setTypeface(std::move(face));
+    } else if (style.family == 2) {
+        auto face = g_font_mgr->matchFamilyStyle("Menlo", sk_style);
+        if (face) text_style.setTypeface(std::move(face));
+    }
     if (style.line_height > 0.0f) {
         text_style.setHeight(style.line_height);
         text_style.setHeightOverride(true);

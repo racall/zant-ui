@@ -29,6 +29,7 @@ typedef struct ZantTextStyle {
     float line_height; /* 0 = font default */
     uint32_t color;    /* 0xAARRGGBB */
     int max_lines;     /* 0 = unlimited */
+    int family;        /* 0 = sans, 1 = serif, 2 = mono */
 } ZantTextStyle;
 
 typedef struct ZantRichSpan {

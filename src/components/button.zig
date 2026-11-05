@@ -142,7 +142,7 @@ pub fn paint(node: *Node, canvas: Canvas, theme: Theme) void {
         );
     }
 
-    const color = textColor(data, enabled, theme);
+    const color = data.text_color orelse textColor(data, enabled, theme);
     if (data.ensureLayout(color)) |layout| {
         const x = switch (data.text_align) {
             .left => rect.x + if (data.label_padding > 0) data.label_padding else horizontalPadding(data.size, data.button_type),

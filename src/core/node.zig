@@ -181,6 +181,7 @@ pub const ButtonData = struct {
     font_size: f32 = 14,
     text_align: text.Align = .center,
     label_padding: f32 = 0,
+    text_color: ?u32 = null,
 
     pub fn invalidateLayout(self: *ButtonData) void {
         self.layout_dirty = true;

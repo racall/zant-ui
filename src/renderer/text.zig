@@ -14,6 +14,12 @@ pub const Weight = enum(c_int) {
     black = 900,
 };
 
+pub const Family = enum(c_int) {
+    sans = 0,
+    serif = 1,
+    mono = 2,
+};
+
 pub const Align = enum(c_int) {
     left = 0,
     center = 1,
@@ -28,6 +34,7 @@ pub const Style = struct {
     line_height: f32 = 0,
     color: u32 = 0xe0000000,
     max_lines: u16 = 0,
+    family: Family = .sans,
 };
 
 pub const NativeStyle = extern struct {
@@ -38,6 +45,7 @@ pub const NativeStyle = extern struct {
     line_height: f32,
     color: u32,
     max_lines: c_int,
+    family: c_int,
 };
 
 pub const NativeMetrics = extern struct {
@@ -85,6 +93,7 @@ pub const TextLayout = struct {
             .line_height = style.line_height,
             .color = style.color,
             .max_lines = @intCast(style.max_lines),
+            .family = @intFromEnum(style.family),
         };
         const handle = zant_text_layout_create(text.ptr, text.len, &native_style, max_width) orelse return error.TextLayoutFailed;
         const m = zant_text_layout_metrics(handle);
