@@ -30,7 +30,7 @@ zant.markdown.render(allocator, self.markdown)
 ## 说明
 
 - 数学公式目前会解析并保留公式内容，使用等宽/高亮样式显示，**尚未做 TeX 数学排版**。
-- 富文本行内样式使用同一行的文本片段布局；复杂跨行富文本仍需要多 run 文本布局。
+- 富文本预览使用多 run Paragraph 布局，粗体/斜体/代码/链接可以混合并自动换行。
 - 该实现参考 CommonMark/GFM 的块和行内结构，但不是逐条通过 CommonMark 官方
   spec 的完整实现。
 

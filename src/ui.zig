@@ -41,6 +41,7 @@ pub const Element = struct {
     options: []const []const u8 = &.{},
     selected: usize = 0,
     children: []const Node = &.{},
+    rich_spans: []const node_mod.RichSpan = &.{},
 };
 
 threadlocal var frame_arena = std.heap.ArenaAllocator.init(std.heap.c_allocator);
@@ -215,6 +216,16 @@ fn make(element: Element) Node {
         copy.children = children;
     } else {
         copy.children = &.{};
+    }
+    if (element.rich_spans.len > 0) {
+        const spans = allocSlice(node_mod.RichSpan, element.rich_spans.len);
+        for (element.rich_spans, 0..) |span, i| {
+            spans[i] = span;
+            spans[i].text = copyString(span.text);
+        }
+        copy.rich_spans = spans;
+    } else {
+        copy.rich_spans = &.{};
     }
     return .{ .element = copy };
 }
@@ -701,6 +712,27 @@ fn copyPdfText(ctx: *PdfCopyContext) void {
     if (pdf_mod.pageText(ctx.src, ctx.page, &buf)) |page_text| {
         if (page_text.len > 0) _ = platform_mod.setClipboard(page_text);
     }
+}
+
+pub const RichTextOptions = struct {
+    key: ?[]const u8 = null,
+    spans: []const node_mod.RichSpan = &.{},
+    width: ?f32 = null,
+    height: ?f32 = null,
+};
+
+pub fn richText(options: RichTextOptions) Node {
+    return make(.{
+        .kind = .rich_text,
+        .key = options.key,
+        .rich_spans = options.spans,
+        .layout = .{
+            .width = options.width,
+            .height = options.height,
+            .shrink = 0,
+            .width_percent = if (options.width == null) 100 else null,
+        },
+    });
 }
 
 pub const PdfOptions = struct {

@@ -568,6 +568,39 @@ void zant_canvas_draw_image_rect(ZantCanvas *canvas, ZantImage *image, float x, 
     c->restore();
 }
 
+ZantTextLayout *zant_rich_text_layout_create(const ZantRichSpan *spans, size_t count,
+                                             float max_width, float line_height) {
+    if (!spans || count == 0) return nullptr;
+    ParagraphStyle paragraph_style;
+    paragraph_style.setTextAlign(TextAlign::kLeft);
+    auto builder = ParagraphBuilder::make(paragraph_style, g_font_collection, g_unicode);
+    if (!builder) return nullptr;
+    for (size_t i = 0; i < count; ++i) {
+        const ZantRichSpan &span = spans[i];
+        TextStyle style;
+        style.setColor(span.color);
+        style.setFontSize(span.font_size > 0.0f ? span.font_size : 14.0f);
+        const int weight = std::max(100, std::min(900, span.weight));
+        style.setFontStyle(SkFontStyle(weight, SkFontStyle::kNormal_Width,
+                                       span.italic ? SkFontStyle::kItalic_Slant : SkFontStyle::kUpright_Slant));
+        if (line_height > 0.0f) {
+            style.setHeight(line_height);
+            style.setHeightOverride(true);
+        }
+        builder->pushStyle(style);
+        if (span.text && span.length > 0) builder->addText(span.text, span.length);
+        builder->pop();
+    }
+    auto paragraph = builder->Build();
+    if (!paragraph) return nullptr;
+    paragraph->layout(std::max(max_width, 1.0f));
+    auto *result = new (std::nothrow) ZantTextLayout();
+    if (!result) return nullptr;
+    result->paragraph = std::move(paragraph);
+    result->layout_width = max_width;
+    return result;
+}
+
 ZantTextLayout *zant_text_layout_create(const char *utf8, size_t length,
                                         const ZantTextStyle *style, float max_width) {
     ensure_skia();

@@ -341,6 +341,13 @@ pub const Runtime = struct {
                 data.submit_action = element.on_click;
                 node.focusable = true;
             },
+            .rich_text => |*data| {
+                if (!richSpansEqual(data.spans, element.rich_spans)) {
+                    try self.tree.richTextSet(id, element.rich_spans);
+                    layout_changed = true;
+                    paint_changed = true;
+                }
+            },
             .select => |*data| {
                 if (!selectOptionsEqual(data, element.options)) {
                     data.clearOptions(self.tree.allocator);
@@ -427,6 +434,7 @@ pub const Runtime = struct {
             .toggle => try self.tree.addToggle(null, element.content, element.toggle_kind, element.checked),
             .image => try self.tree.addImage(null, element.content, element.image_fit, element.visual.radius),
             .select => try self.tree.addSelect(null, element.options, element.selected),
+            .rich_text => try self.tree.addRichText(null, element.rich_spans),
             else => return error.InvalidElement,
         };
         _ = self.applyCommon(id, element);
@@ -473,7 +481,16 @@ pub const Runtime = struct {
         return id;
     }
 
-    fn selectOptionsEqual(data: *const node_mod.SelectData, options: []const []const u8) bool {
+    fn richSpansEqual(a: []const node_mod.RichSpan, b: []const node_mod.RichSpan) bool {
+    if (a.len != b.len) return false;
+    for (a, b) |x, y| {
+        if (x.font_size != y.font_size or x.weight != y.weight or x.color != y.color or
+            x.italic != y.italic or !std.mem.eql(u8, x.text, y.text)) return false;
+    }
+    return true;
+}
+
+fn selectOptionsEqual(data: *const node_mod.SelectData, options: []const []const u8) bool {
         if (data.options.items.len != options.len) return false;
         for (data.options.items, options) |old, new| {
             if (!std.mem.eql(u8, old.label, new)) return false;

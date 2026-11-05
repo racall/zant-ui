@@ -1,6 +1,7 @@
 const std = @import("std");
 const geometry = @import("geometry.zig");
 const text = @import("../renderer/text.zig");
+const rich_text = @import("../renderer/rich_text.zig");
 const flex = @import("../layout/flex.zig");
 const actions = @import("actions.zig");
 
@@ -15,6 +16,7 @@ pub const NodeKind = enum {
     toggle,
     image,
     select,
+    rich_text,
 };
 
 pub const ToggleKind = enum {
@@ -93,6 +95,49 @@ pub const TextData = struct {
         }
         if (self.layout) |*old| old.deinit();
         self.layout = try text.TextLayout.init(self.content, self.style, max_width);
+        self.layout_width = max_width;
+        self.layout_dirty = false;
+        return &self.layout.?;
+    }
+};
+
+pub const RichSpan = struct {
+    text: []const u8,
+    font_size: f32 = 15,
+    weight: text.Weight = .regular,
+    color: u32 = 0xff292d2a,
+    italic: bool = false,
+};
+
+pub const RichTextData = struct {
+    spans: []RichSpan,
+    layout: ?rich_text.Layout = null,
+    layout_width: f32 = -1,
+    layout_dirty: bool = true,
+
+    pub fn invalidateLayout(self: *RichTextData) void {
+        self.layout_dirty = true;
+        if (self.layout) |*layout| layout.deinit();
+        self.layout = null;
+        self.layout_width = -1;
+    }
+
+    pub fn ensureLayout(self: *RichTextData, max_width: f32) !*rich_text.Layout {
+        if (!self.layout_dirty and self.layout != null and @abs(self.layout_width - max_width) < 0.25) {
+            return &self.layout.?;
+        }
+        if (self.layout) |*old| old.deinit();
+        const native = std.heap.c_allocator.alloc(rich_text.Span, self.spans.len) catch return error.OutOfMemory;
+        defer std.heap.c_allocator.free(native);
+        for (self.spans, 0..) |span, i| native[i] = .{
+            .text = span.text.ptr,
+            .length = span.text.len,
+            .font_size = span.font_size,
+            .weight = @intFromEnum(span.weight),
+            .color = span.color,
+            .italic = if (span.italic) 1 else 0,
+        };
+        self.layout = try rich_text.Layout.create(native, max_width, 1.55);
         self.layout_width = max_width;
         self.layout_dirty = false;
         return &self.layout.?;
@@ -296,6 +341,7 @@ pub const Data = union(NodeKind) {
     toggle: ToggleData,
     image: ImageData,
     select: SelectData,
+    rich_text: RichTextData,
 };
 
 pub const Node = struct {

@@ -2,6 +2,7 @@
 //! The parser is intentionally self-contained: no HTML, JS or DOM.
 const std = @import("std");
 const ui = @import("../ui.zig");
+const zant_node_mod = @import("../core/node.zig");
 
 pub const Style = struct {
     bold: bool = false,
@@ -310,35 +311,45 @@ pub fn parse(allocator: std.mem.Allocator, text: []const u8) !Document {
     return .{ .arena = arena, .blocks = blocks };
 }
 
-fn spanNode(span: Span, size: f32) ui.Node {
-    var node = ui.text(span.text, .{
-        .size = if (span.style.math) size - 1 else size,
-        .weight = if (span.style.bold) .semibold else .regular,
-        .color = if (span.style.link) 0xff607d6b else if (span.style.code or span.style.math) 0xff3c4a3e else 0xff292d2a,
-    });
-    if (span.style.italic) {
-        // The current text API has no italic switch; keep readable instead of
-        // silently rendering italic text as bold.
-        node = ui.styled(node, .{ .color = 0xff5f665f });
+fn spanColor(span: Span) u32 {
+    if (span.style.link) return 0xff607d6b;
+    if (span.style.code or span.style.math) return 0xff3c4a3e;
+    return 0xff292d2a;
+}
+
+fn makeRich(spans: []const Span, size: f32, out: *[96]zant_node_mod.RichSpan) []const zant_node_mod.RichSpan {
+    var count: usize = 0;
+    for (spans) |span| {
+        if (count >= out.len) break;
+        out[count] = .{
+            .text = span.text,
+            .font_size = if (span.style.code or span.style.math) size - 1 else size,
+            .weight = if (span.style.bold) .semibold else .regular,
+            .color = spanColor(span),
+            .italic = span.style.italic,
+        };
+        count += 1;
     }
-    if (span.style.code or span.style.math) {
-        node = ui.styled(node, .{
-            .background = if (span.style.math) 0xfffff7e6 else 0xfff0f2ed,
-            .radius = 4,
-            .padding = .{ .left = 4, .right = 4, .top = 1, .bottom = 1 },
-        });
-    }
-    return node;
+    return out[0..count];
 }
 
 fn spansNode(spans: []const Span, size: f32) ui.Node {
     if (spans.len == 0) return ui.space(.{ .height = 1 });
-    if (spans.len == 1) return spanNode(spans[0], size);
+    var rich: [96]zant_node_mod.RichSpan = undefined;
+    return ui.richText(.{ .spans = makeRich(spans, size, &rich) });
+}
+
+fn spansRow(spans: []const Span, size: f32) ui.Node {
+    if (spans.len == 0) return ui.space(.{ .height = 1 });
     var children: [64]ui.Node = undefined;
     var count: usize = 0;
     for (spans) |span| {
         if (count >= children.len) break;
-        children[count] = spanNode(span, size);
+        children[count] = ui.text(span.text, .{
+            .size = size,
+            .weight = if (span.style.bold) .semibold else .regular,
+            .color = spanColor(span),
+        });
         count += 1;
     }
     return ui.row(.{ .gap = 0, .align_items = .start, .children = children[0..count] });
@@ -367,12 +378,18 @@ fn renderBlock(block: Block) ui.Node {
             var count: usize = 0;
             for (list.items, 0..) |item, index| {
                 if (count >= rows.len) break;
-                const marker = if (list.ordered) std.fmt.allocPrint(std.heap.c_allocator, "{d}.", .{list.start + index}) catch "•" else if (list.checked[index]) |checked| (if (checked) "☑" else "☐") else "•";
+                var combined: [97]Span = undefined;
+                var combined_len: usize = 0;
+                const marker = if (list.ordered) std.fmt.allocPrint(std.heap.c_allocator, "{d}. ", .{list.start + index}) catch "• " else if (list.checked[index]) |checked| (if (checked) "☑ " else "☐ ") else "• ";
                 defer if (list.ordered) std.heap.c_allocator.free(marker);
-                rows[count] = ui.row(.{ .gap = 8, .align_items = .start, .children = &.{
-                    ui.text(marker, .{ .size = 14, .color = 0xff607d6b }),
-                    spansNode(item, 15),
-                } });
+                combined[0] = .{ .text = marker, .style = .{ .link = false } };
+                combined_len = 1;
+                for (item) |span| {
+                    if (combined_len >= combined.len) break;
+                    combined[combined_len] = span;
+                    combined_len += 1;
+                }
+                rows[count] = spansNode(combined[0..combined_len], 15);
                 count += 1;
             }
             break :blk ui.column(.{ .gap = 6, .children = rows[0..count] });
@@ -385,7 +402,7 @@ fn renderBlock(block: Block) ui.Node {
                 var header_count: usize = 0;
                 for (table.headers) |header| {
                     if (header_count >= header_cells.len) break;
-                    header_cells[header_count] = spansNode(header, 13);
+                    header_cells[header_count] = spansRow(header, 13);
                     header_count += 1;
                 }
                 rows[count] = ui.row(.{ .gap = 18, .children = header_cells[0..header_count] });
@@ -397,7 +414,7 @@ fn renderBlock(block: Block) ui.Node {
                 var cell_count: usize = 0;
                 for (row) |cell| {
                     if (cell_count >= cells.len) break;
-                    cells[cell_count] = spansNode(cell, 13);
+                    cells[cell_count] = spansRow(cell, 13);
                     cell_count += 1;
                 }
                 rows[count] = ui.row(.{ .gap = 18, .children = cells[0..cell_count] });

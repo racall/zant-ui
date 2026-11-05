@@ -116,6 +116,7 @@ pub fn intrinsicWidth(nodes: []*Node, node: *Node, max_avail: f32, theme: Theme)
         .toggle => toggle.measureWidth(node, theme, avail),
         .image => image_mod.measureWidth(node),
         .select => select_mod.measureWidth(node),
+        .rich_text => |*data| if (data.ensureLayout(1.0e6)) |layout| layout.width else |_| 0,
     };
     return clampDim(node, value, true);
 }
@@ -164,6 +165,7 @@ pub fn intrinsicHeight(nodes: []*Node, node: *Node, width: f32, theme: Theme) f3
         .toggle => toggle.measureHeight(node),
         .image => image_mod.measureHeight(node, width),
         .select => select_mod.measureHeight(node),
+        .rich_text => |*data| if (data.ensureLayout(width)) |layout| layout.height else |_| @as(f32, @floatFromInt(data.spans.len)) * 20,
     };
     return clampDim(node, value, false);
 }
@@ -224,6 +226,11 @@ fn layoutNode(
         },
         .select => {
             const height = assigned_height orelse if (node.style.height_percent) |percent| @max(0, available_height) * percent / 100.0 else select_mod.measureHeight(node);
+            node.bounds.height = clampDim(node, height, false);
+        },
+        .rich_text => |*data| {
+            const layout_h = if (data.ensureLayout(width)) |layout| layout.height else |_| @as(f32, @floatFromInt(data.spans.len)) * 20;
+            const height = assigned_height orelse layout_h;
             node.bounds.height = clampDim(node, height, false);
         },
         .container, .root => {

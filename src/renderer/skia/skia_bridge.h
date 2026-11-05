@@ -31,6 +31,15 @@ typedef struct ZantTextStyle {
     int max_lines;     /* 0 = unlimited */
 } ZantTextStyle;
 
+typedef struct ZantRichSpan {
+    const char *text;
+    size_t length;
+    float font_size;
+    int weight;
+    uint32_t color;
+    int italic;
+} ZantRichSpan;
+
 typedef struct ZantTextMetrics {
     float width;
     float height;
@@ -83,6 +92,8 @@ void zant_canvas_draw_image_rect(ZantCanvas *canvas, ZantImage *image, float x, 
 
 /* Creates a shaped paragraph. max_width is used for wrapping when wrap is true.
  * The layout object owns the copied UTF-8 text and is immutable after creation. */
+ZantTextLayout *zant_rich_text_layout_create(const ZantRichSpan *spans, size_t count,
+                                             float max_width, float line_height);
 ZantTextLayout *zant_text_layout_create(const char *utf8, size_t length,
                                         const ZantTextStyle *style, float max_width);
 void zant_text_layout_destroy(ZantTextLayout *layout);

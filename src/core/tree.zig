@@ -70,6 +70,39 @@ pub const Tree = struct {
         return id;
     }
 
+    pub fn addRichText(self: *Tree, parent: ?NodeId, spans: []const node_mod.RichSpan) !NodeId {
+        const owned = try self.allocator.alloc(node_mod.RichSpan, spans.len);
+        var copied: usize = 0;
+        errdefer {
+            for (owned[0..copied]) |span| self.allocator.free(span.text);
+            self.allocator.free(owned);
+        }
+        for (spans, 0..) |span, i| {
+            owned[i] = span;
+            owned[i].text = try self.allocator.dupe(u8, span.text);
+            copied += 1;
+        }
+        const id = try self.createNode(.{ .rich_text = .{ .spans = owned } });
+        if (parent) |p| try self.addChild(p, id);
+        return id;
+    }
+
+    pub fn richTextSet(self: *Tree, id: NodeId, spans: []const node_mod.RichSpan) !void {
+        const node = self.get(id);
+        var data = &node.data.rich_text;
+        data.invalidateLayout();
+        for (data.spans) |span| self.allocator.free(span.text);
+        self.allocator.free(data.spans);
+        const owned = try self.allocator.alloc(node_mod.RichSpan, spans.len);
+        for (spans, 0..) |span, i| {
+            owned[i] = span;
+            owned[i].text = try self.allocator.dupe(u8, span.text);
+        }
+        data.spans = owned;
+        data.layout_dirty = true;
+        self.markDirty(id, true, true);
+    }
+
     pub fn addButton(
         self: *Tree,
         parent: ?NodeId,
@@ -247,6 +280,9 @@ pub const Tree = struct {
             .toggle => toggle.paint(node, canvas, self.theme),
             .image => image_mod.paint(node, canvas),
             .select => select_mod.paint(node, canvas, self.theme),
+            .rich_text => |*data| {
+                if (data.ensureLayout(rect.width)) |rich_layout| rich_layout.paint(canvas.ptr, rect.x, rect.y) else |_| {}
+            },
         }
 
         const should_clip = node.visual.clip or std.meta.activeTag(node.data) == .input;
