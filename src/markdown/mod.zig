@@ -67,9 +67,36 @@ pub const Document = struct {
     }
 };
 
+fn decodeEntities(arena: std.mem.Allocator, text: []const u8) []const u8 {
+    if (std.mem.indexOf(u8, text, "&") == null) return text;
+    var out: std.ArrayListUnmanaged(u8) = .empty;
+    var i: usize = 0;
+    while (i < text.len) {
+        if (text[i] == '&') {
+            const rest = text[i..];
+            const semi = std.mem.indexOfScalar(u8, rest, ';') orelse {
+                out.append(arena, text[i]) catch return text;
+                i += 1;
+                continue;
+            };
+            const name = rest[1..semi];
+            const mapped: ?[]const u8 = if (std.mem.eql(u8, name, "amp")) "&" else if (std.mem.eql(u8, name, "lt")) "<" else if (std.mem.eql(u8, name, "gt")) ">" else if (std.mem.eql(u8, name, "quot")) "\"" else if (std.mem.eql(u8, name, "apos")) "'" else if (std.mem.eql(u8, name, "nbsp")) " " else null;
+            if (mapped) |value| {
+                out.appendSlice(arena, value) catch return text;
+                i += semi + 1;
+                continue;
+            }
+        }
+        out.append(arena, text[i]) catch return text;
+        i += 1;
+    }
+    return out.toOwnedSlice(arena) catch text;
+}
+
 fn appendText(arena: std.mem.Allocator, out: *std.ArrayListUnmanaged(Span), text: []const u8, style: Style) !void {
     if (text.len == 0) return;
-    const copy = try arena.dupe(u8, text);
+    const decoded = if (!style.code and !style.math and !style.link) decodeEntities(arena, text) else text;
+    const copy = try arena.dupe(u8, decoded);
     try out.append(arena, .{ .text = copy, .style = style });
 }
 
@@ -485,7 +512,7 @@ fn spanColor(span: Span) u32 {
     return 0xff292d2a;
 }
 
-fn makeRich(spans: []const Span, size: f32, family: zant_text.Family, out: *[96]zant_node_mod.RichSpan) []const zant_node_mod.RichSpan {
+fn makeRich(spans: []const Span, size: f32, family: zant_text.Family, color_override: ?u32, out: *[96]zant_node_mod.RichSpan) []const zant_node_mod.RichSpan {
     var count: usize = 0;
     for (spans) |span| {
         if (count >= out.len) break;
@@ -493,7 +520,7 @@ fn makeRich(spans: []const Span, size: f32, family: zant_text.Family, out: *[96]
             .text = span.text,
             .font_size = if (span.style.code or span.style.math) size * 0.84 else size,
             .weight = if (span.style.bold) .semibold else .regular,
-            .color = spanColor(span),
+            .color = color_override orelse spanColor(span),
             .italic = span.style.italic,
             .family = if (span.style.code) .mono else family,
             .background = if (span.style.code) 0xfff0f2ed else if (span.style.math) 0xfffff7e6 else 0,
@@ -519,11 +546,17 @@ fn spansNodeFamily(spans: []const Span, size: f32, family: zant_text.Family) ui.
         rendered_len += 1;
     }
     var rich: [96]zant_node_mod.RichSpan = undefined;
-    return ui.richText(.{ .spans = makeRich(rendered[0..rendered_len], size, family, &rich) });
+    return ui.richText(.{ .spans = makeRich(rendered[0..rendered_len], size, family, null, &rich) });
 }
 
 fn spansNode(spans: []const Span, size: f32) ui.Node {
     return spansNodeFamily(spans, size, .sans);
+}
+
+fn spansNodeColor(spans: []const Span, size: f32, family: zant_text.Family, color: u32) ui.Node {
+    if (spans.len == 0) return ui.space(.{ .height = 1 });
+    var rich: [96]zant_node_mod.RichSpan = undefined;
+    return ui.richText(.{ .spans = makeRich(spans, size, family, color, &rich) });
 }
 
 fn spansRow(spans: []const Span, size: f32) ui.Node {
@@ -599,7 +632,10 @@ fn renderBlock(block: Block) ui.Node {
             var count: usize = 0;
             for (quote_blocks) |item| {
                 if (count >= children.len) break;
-                children[count] = renderBlock(item);
+                children[count] = switch (item) {
+                    .paragraph => |spans| spansNodeColor(spans, 16, .sans, 0xff8b918c),
+                    else => renderBlock(item),
+                };
                 count += 1;
             }
             break :blk ui.row(.{
@@ -617,7 +653,10 @@ fn renderBlock(block: Block) ui.Node {
         },
         .list => |list| blk: {
             var index: usize = 0;
-            break :blk ui.styled(buildListColumn(list, &index, 0), .{ .margin = .{ .top = 10, .bottom = 24 } });
+            break :blk ui.styled(buildListColumn(list, &index, 0), .{
+                .margin = .{ .top = 10, .bottom = 24 },
+                .padding = .{ .left = 24 },
+            });
         },
         .table => |table| blk: {
             var rows: [64]ui.Node = undefined;

@@ -157,3 +157,16 @@ test "nested list indentation" {
     try std.testing.expectEqual(@as(u2, 1), list.indents[1]);
     try std.testing.expectEqual(@as(u2, 2), list.indents[2]);
 }
+
+test "html entities decode in plain text" {
+    var doc = try zant.markdown.parse(std.testing.allocator, "a &amp; b &lt;tag&gt;");
+    defer doc.deinit();
+    const para = doc.blocks[0].paragraph;
+    var found_amp = false;
+    var found_lt = false;
+    for (para) |span| {
+        if (std.mem.indexOf(u8, span.text, "&") != null) found_amp = true;
+        if (std.mem.indexOf(u8, span.text, "<") != null) found_lt = true;
+    }
+    try std.testing.expect(found_amp and found_lt);
+}
