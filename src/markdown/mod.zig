@@ -4,6 +4,7 @@ const std = @import("std");
 const ui = @import("../ui.zig");
 const zant_node_mod = @import("../core/node.zig");
 const math = @import("../math/mod.zig");
+const flex = @import("../layout/flex.zig");
 
 const RefMap = std.StringHashMapUnmanaged([]const u8);
 var active_refs: ?*RefMap = null;
@@ -29,13 +30,14 @@ pub const List = struct {
 pub const Table = struct {
     headers: []const []const Span,
     rows: []const [][]const Span,
+    aligns: []const flex.Align = &.{},
 };
 
 pub const Block = union(enum) {
     heading: struct { level: u8, spans: []const Span },
     paragraph: []const Span,
     code: struct { lang: []const u8, text: []const u8 },
-    quote: []const Span,
+    quote: []const Block,
     list: List,
     table: Table,
     math: []const u8,
@@ -351,7 +353,7 @@ fn parseBlocks(arena: std.mem.Allocator, text: []const u8) ![]const Block {
                 if (body.items.len > 0) try body.append(arena, '\n');
                 try body.appendSlice(arena, rest);
             }
-            try blocks.append(arena, .{ .quote = try parseInline(arena, body.items) });
+            try blocks.append(arena, .{ .quote = try parseBlocks(arena, body.items) });
             continue;
         }
         if (std.mem.startsWith(u8, trimmed, "- ") or std.mem.startsWith(u8, trimmed, "* ") or std.mem.startsWith(u8, trimmed, "+ ")) {
@@ -396,6 +398,14 @@ fn parseBlocks(arena: std.mem.Allocator, text: []const u8) ![]const Block {
             var rows: std.ArrayListUnmanaged([][]const Span) = .empty;
             var header_it = std.mem.splitScalar(u8, std.mem.trim(u8, trimmed, "|"), '|');
             while (header_it.next()) |cell| try headers.append(arena, try parseInline(arena, std.mem.trim(u8, cell, " \t")));
+            var aligns: std.ArrayListUnmanaged(flex.Align) = .empty;
+            var sep_it = std.mem.splitScalar(u8, std.mem.trim(u8, lines.items[i + 1], "|"), '|');
+            while (sep_it.next()) |cell| {
+                const spec = std.mem.trim(u8, cell, " \t");
+                const left = spec.len > 0 and spec[0] == ':';
+                const right = spec.len > 1 and spec[spec.len - 1] == ':';
+                try aligns.append(arena, if (left and right) .center else if (right) .end else .start);
+            }
             i += 2;
             while (i < lines.items.len and std.mem.indexOfScalar(u8, lines.items[i], '|') != null) : (i += 1) {
                 var cells: std.ArrayListUnmanaged([]const Span) = .empty;
@@ -403,7 +413,11 @@ fn parseBlocks(arena: std.mem.Allocator, text: []const u8) ![]const Block {
                 while (row_it.next()) |cell| try cells.append(arena, try parseInline(arena, std.mem.trim(u8, cell, " \t")));
                 try rows.append(arena, try cells.toOwnedSlice(arena));
             }
-            try blocks.append(arena, .{ .table = .{ .headers = try headers.toOwnedSlice(arena), .rows = try rows.toOwnedSlice(arena) } });
+            try blocks.append(arena, .{ .table = .{
+                .headers = try headers.toOwnedSlice(arena),
+                .rows = try rows.toOwnedSlice(arena),
+                .aligns = try aligns.toOwnedSlice(arena),
+            } });
             continue;
         }
         if (i + 1 < lines.items.len and trimmed.len > 0) {
@@ -516,13 +530,22 @@ fn renderBlock(block: Block) ui.Node {
             .radius = 7,
             .padding = .{ .left = 14, .right = 14, .top = 10, .bottom = 10 },
         }),
-        .quote => |spans| ui.styled(spansNode(spans, 15), .{
-            .background = 0xfff4f6f1,
-            .border_color = 0xff607d6b,
-            .border_width = 0,
-            .padding = .{ .left = 16, .right = 12, .top = 8, .bottom = 8 },
-            .radius = 2,
-        }),
+        .quote => |quote_blocks| blk: {
+            var children: [32]ui.Node = undefined;
+            var count: usize = 0;
+            for (quote_blocks) |item| {
+                if (count >= children.len) break;
+                children[count] = renderBlock(item);
+                count += 1;
+            }
+            break :blk ui.styled(ui.column(.{ .gap = 8, .children = children[0..count] }), .{
+                .background = 0xfff4f6f1,
+                .border_color = 0xff607d6b,
+                .border_width = 0,
+                .padding = .{ .left = 16, .right = 12, .top = 8, .bottom = 8 },
+                .radius = 2,
+            });
+        },
         .list => |list| blk: {
             var rows: [64]ui.Node = undefined;
             var count: usize = 0;
@@ -550,27 +573,51 @@ fn renderBlock(block: Block) ui.Node {
             if (count < rows.len) {
                 var header_cells: [32]ui.Node = undefined;
                 var header_count: usize = 0;
-                for (table.headers) |header| {
+                for (table.headers, 0..) |header, index| {
                     if (header_count >= header_cells.len) break;
-                    header_cells[header_count] = spansRow(header, 13);
+                    const alignment = if (index < table.aligns.len) table.aligns[index] else .start;
+                    header_cells[header_count] = ui.column(.{
+                        .grow = 1,
+                        .align_items = alignment,
+                        .children = &.{spansRow(header, 13)},
+                    });
                     header_count += 1;
                 }
-                rows[count] = ui.row(.{ .gap = 18, .children = header_cells[0..header_count] });
+                rows[count] = ui.styled(ui.row(.{
+                    .width_percent = 100,
+                    .gap = 18,
+                    .align_items = .start,
+                    .children = header_cells[0..header_count],
+                }), .{
+                    .background = 0xfff4f6f1,
+                    .padding = .{ .top = 6, .bottom = 6, .left = 8, .right = 8 },
+                    .radius = 5,
+                });
                 count += 1;
             }
             for (table.rows) |row| {
                 if (count >= rows.len) break;
                 var cells: [32]ui.Node = undefined;
                 var cell_count: usize = 0;
-                for (row) |cell| {
+                for (row, 0..) |cell, index| {
                     if (cell_count >= cells.len) break;
-                    cells[cell_count] = spansRow(cell, 13);
+                    const alignment = if (index < table.aligns.len) table.aligns[index] else .start;
+                    cells[cell_count] = ui.column(.{
+                        .grow = 1,
+                        .align_items = alignment,
+                        .children = &.{spansRow(cell, 13)},
+                    });
                     cell_count += 1;
                 }
-                rows[count] = ui.row(.{ .gap = 18, .children = cells[0..cell_count] });
+                rows[count] = ui.row(.{
+                    .width_percent = 100,
+                    .gap = 18,
+                    .padding = .{ .left = 8, .right = 8 },
+                    .children = cells[0..cell_count],
+                });
                 count += 1;
             }
-            break :blk ui.column(.{ .gap = 8, .children = rows[0..count] });
+            break :blk ui.column(.{ .width_percent = 100, .gap = 4, .children = rows[0..count] });
         },
         .math => |source| math.render(std.heap.c_allocator, source),
         .rule => ui.divider(.{ .margin = .{ .top = 8, .bottom = 8 } }),

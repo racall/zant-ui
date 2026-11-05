@@ -128,3 +128,22 @@ test "link reference definitions resolve" {
     for (para) |span| if (span.style.link) { linked = true; };
     try std.testing.expect(linked);
 }
+
+test "nested blockquote" {
+    var doc = try zant.markdown.parse(std.testing.allocator, "> outer\n>> inner\n");
+    defer doc.deinit();
+    try std.testing.expectEqual(@as(usize, 1), doc.blocks.len);
+    const outer = doc.blocks[0].quote;
+    try std.testing.expectEqual(@as(usize, 2), outer.len);
+    try std.testing.expectEqual(@as(usize, 1), outer[1].quote.len);
+}
+
+test "gfm table alignment" {
+    const source = "| A | B |\n| :--- | ---: |\n| 1 | 2 |\n";
+    var doc = try zant.markdown.parse(std.testing.allocator, source);
+    defer doc.deinit();
+    const table = doc.blocks[0].table;
+    try std.testing.expectEqual(@as(usize, 2), table.aligns.len);
+    try std.testing.expectEqual(.start, table.aligns[0]);
+    try std.testing.expectEqual(.end, table.aligns[1]);
+}
