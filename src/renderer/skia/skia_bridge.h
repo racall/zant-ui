@@ -39,6 +39,7 @@ typedef struct ZantRichSpan {
     int weight;
     uint32_t color;
     int italic;
+    int family;
 } ZantRichSpan;
 
 typedef struct ZantTextMetrics {

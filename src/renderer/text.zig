@@ -18,6 +18,7 @@ pub const Family = enum(c_int) {
     sans = 0,
     serif = 1,
     mono = 2,
+    serif_cjk = 3,
 };
 
 pub const Align = enum(c_int) {

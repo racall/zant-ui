@@ -4,6 +4,7 @@ const std = @import("std");
 const ui = @import("../ui.zig");
 const zant_node_mod = @import("../core/node.zig");
 const math = @import("../math/mod.zig");
+const zant_text = @import("../renderer/text.zig");
 const flex = @import("../layout/flex.zig");
 
 const RefMap = std.StringHashMapUnmanaged([]const u8);
@@ -481,7 +482,7 @@ fn spanColor(span: Span) u32 {
     return 0xff292d2a;
 }
 
-fn makeRich(spans: []const Span, size: f32, out: *[96]zant_node_mod.RichSpan) []const zant_node_mod.RichSpan {
+fn makeRich(spans: []const Span, size: f32, family: zant_text.Family, out: *[96]zant_node_mod.RichSpan) []const zant_node_mod.RichSpan {
     var count: usize = 0;
     for (spans) |span| {
         if (count >= out.len) break;
@@ -491,13 +492,14 @@ fn makeRich(spans: []const Span, size: f32, out: *[96]zant_node_mod.RichSpan) []
             .weight = if (span.style.bold) .semibold else .regular,
             .color = spanColor(span),
             .italic = span.style.italic,
+            .family = family,
         };
         count += 1;
     }
     return out[0..count];
 }
 
-fn spansNode(spans: []const Span, size: f32) ui.Node {
+fn spansNodeFamily(spans: []const Span, size: f32, family: zant_text.Family) ui.Node {
     if (spans.len == 0) return ui.space(.{ .height = 1 });
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
@@ -513,7 +515,11 @@ fn spansNode(spans: []const Span, size: f32) ui.Node {
         rendered_len += 1;
     }
     var rich: [96]zant_node_mod.RichSpan = undefined;
-    return ui.richText(.{ .spans = makeRich(rendered[0..rendered_len], size, &rich) });
+    return ui.richText(.{ .spans = makeRich(rendered[0..rendered_len], size, family, &rich) });
+}
+
+fn spansNode(spans: []const Span, size: f32) ui.Node {
+    return spansNodeFamily(spans, size, .sans);
 }
 
 fn spansRow(spans: []const Span, size: f32) ui.Node {
@@ -545,7 +551,7 @@ fn listRow(list: List, index: usize) ui.Node {
         combined[combined_len] = span;
         combined_len += 1;
     }
-    return spansNode(combined[0..combined_len], 15);
+    return spansNode(combined[0..combined_len], 16);
 }
 
 fn buildListColumn(list: List, index: *usize, depth: u2) ui.Node {
@@ -576,9 +582,9 @@ fn buildListColumn(list: List, index: *usize, depth: u2) ui.Node {
 fn renderBlock(block: Block) ui.Node {
     return switch (block) {
         .heading => |h| ui.column(.{ .gap = 4, .children = &.{
-            spansNode(h.spans, switch (h.level) { 1 => 30, 2 => 23, 3 => 18, else => 16 }),
+            spansNodeFamily(h.spans, switch (h.level) { 1 => 37, 2 => 23, 3 => 18, else => 16 }, .serif_cjk),
         } }),
-        .paragraph => |spans| spansNode(spans, 15),
+        .paragraph => |spans| spansNode(spans, 16),
         .code => |code| ui.styled(ui.paragraph(code.text, .{ .size = 13, .color = 0xff3c4a3e }), .{
             .background = 0xfff0f2ed,
             .radius = 7,

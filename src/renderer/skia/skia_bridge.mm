@@ -241,6 +241,9 @@ std::unique_ptr<Paragraph> build_paragraph(std::string_view text, const ZantText
     } else if (style.family == 2) {
         auto face = g_font_mgr->matchFamilyStyle("Menlo", sk_style);
         if (face) text_style.setTypeface(std::move(face));
+    } else if (style.family == 3) {
+        auto face = g_font_mgr->matchFamilyStyle("Songti SC", sk_style);
+        if (face) text_style.setTypeface(std::move(face));
     }
     if (style.line_height > 0.0f) {
         text_style.setHeight(style.line_height);
@@ -601,8 +604,19 @@ ZantTextLayout *zant_rich_text_layout_create(const ZantRichSpan *spans, size_t c
         style.setColor(span.color);
         style.setFontSize(span.font_size > 0.0f ? span.font_size : 14.0f);
         const int weight = std::max(100, std::min(900, span.weight));
-        style.setFontStyle(SkFontStyle(weight, SkFontStyle::kNormal_Width,
-                                       span.italic ? SkFontStyle::kItalic_Slant : SkFontStyle::kUpright_Slant));
+        const SkFontStyle sk_style(weight, SkFontStyle::kNormal_Width,
+                                   span.italic ? SkFontStyle::kItalic_Slant : SkFontStyle::kUpright_Slant);
+        style.setFontStyle(sk_style);
+        if (span.family == 1) {
+            auto face = g_font_mgr->matchFamilyStyle("Georgia", sk_style);
+            if (face) style.setTypeface(std::move(face));
+        } else if (span.family == 2) {
+            auto face = g_font_mgr->matchFamilyStyle("Menlo", sk_style);
+            if (face) style.setTypeface(std::move(face));
+        } else if (span.family == 3) {
+            auto face = g_font_mgr->matchFamilyStyle("Songti SC", sk_style);
+            if (face) style.setTypeface(std::move(face));
+        }
         if (line_height > 0.0f) {
             style.setHeight(line_height);
             style.setHeightOverride(true);
