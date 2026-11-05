@@ -66,6 +66,7 @@ pub fn ensureLayout(data: *InputData) !*text.TextLayout {
         .color = data.text_color,
         .wrap = data.multiline,
         .text_align = .left,
+        .line_height = data.line_height,
     }, if (data.multiline) @max(1, data.available_width) else 1.0e6);
     data.layout_dirty = false;
     return &data.layout.?;
@@ -78,6 +79,7 @@ fn ensurePlaceholder(data: *InputData, theme: Theme) ?*text.TextLayout {
             .weight = .regular,
             .color = theme.color_text_disabled,
             .wrap = false,
+            .line_height = data.line_height,
         }, 1.0e6) catch return null;
     }
     return &data.placeholder_layout.?;
@@ -208,11 +210,22 @@ pub fn cancelComposition(allocator: std.mem.Allocator, data: *InputData) void {
     rebuildDisplay(allocator, data);
 }
 
-pub fn ensureCaretVisible(data: *InputData, available_width: f32) void {
+pub fn maxScrollY(data: *InputData, view_height: f32) f32 {
+    const layout = ensureLayout(data) catch return 0;
+    return @max(0, layout.metrics.height - @max(view_height, 1));
+}
+
+pub fn ensureCaretVisible(data: *InputData, available_width: f32, view_height: f32) void {
     const layout = ensureLayout(data) catch return;
     const caret_byte = if (data.has_composition) data.cursor + data.composition_cursor else data.cursor;
     const caret = layout.caretRect(caret_byte) orelse return;
     const width = @max(available_width, 1);
+    if (!data.focused) {
+        const max_x = @max(0, layout.metrics.longest_line - width + 2);
+        data.scroll_x = @max(0, @min(data.scroll_x, max_x));
+        if (data.multiline) data.scroll_y = @max(0, @min(data.scroll_y, maxScrollY(data, view_height)));
+        return;
+    }
     if (caret.x - data.scroll_x > width - 2) {
         data.scroll_x = caret.x - width + 2;
     } else if (caret.x - data.scroll_x < 0) {
@@ -220,6 +233,17 @@ pub fn ensureCaretVisible(data: *InputData, available_width: f32) void {
     }
     const max_scroll = @max(0, layout.metrics.longest_line - width + 2);
     data.scroll_x = @max(0, @min(data.scroll_x, max_scroll));
+    if (data.multiline) {
+        const height = @max(view_height, 1);
+        if (caret.y + caret.height - data.scroll_y > height) {
+            data.scroll_y = caret.y + caret.height - height;
+        } else if (caret.y - data.scroll_y < 0) {
+            data.scroll_y = caret.y;
+        }
+        data.scroll_y = @max(0, @min(data.scroll_y, maxScrollY(data, height)));
+    } else {
+        data.scroll_y = 0;
+    }
 }
 
 pub fn caretRect(data: *InputData, node: *const Node) ?geometry.Rect {
@@ -227,7 +251,7 @@ pub fn caretRect(data: *InputData, node: *const Node) ?geometry.Rect {
     const caret_byte = if (data.has_composition) data.cursor + data.composition_cursor else data.cursor;
     const local = layout.caretRect(caret_byte) orelse return null;
     const x = node.bounds.x + padding_x - data.scroll_x + local.x;
-    const y = (if (data.multiline) node.bounds.y + 8 else node.bounds.y + (node.bounds.height - layout.metrics.height) * 0.5) + local.y;
+    const y = (if (data.multiline) node.bounds.y + 8 - data.scroll_y else node.bounds.y + (node.bounds.height - layout.metrics.height) * 0.5) + local.y;
     return geometry.Rect.init(x, y, @max(local.width, 1.5), @max(local.height, data.font_size));
 }
 
@@ -297,8 +321,8 @@ pub fn paint(node: *Node, canvas: Canvas, theme: Theme) void {
         canvas.restore();
         return;
     };
-    ensureCaretVisible(data, inner.width);
-    const text_y = if (data.multiline) rect.y + 8 else rect.y + (rect.height - layout.metrics.height) * 0.5;
+    ensureCaretVisible(data, inner.width, inner.height);
+    const text_y = if (data.multiline) rect.y + 8 - data.scroll_y else rect.y + (rect.height - layout.metrics.height) * 0.5;
     const origin_x = rect.x + padding_x - data.scroll_x;
 
     if (data.text.items.len == 0 and !data.has_composition) {

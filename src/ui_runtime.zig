@@ -332,8 +332,9 @@ pub const Runtime = struct {
                     input_mod.rebuildDisplay(self.tree.allocator, data);
                     paint_changed = true;
                 }
-                if (data.font_size != element.text_style.font_size) {
+                if (data.font_size != element.text_style.font_size or data.line_height != element.text_style.line_height) {
                     data.font_size = element.text_style.font_size;
+                    data.line_height = element.text_style.line_height;
                     data.invalidateLayout();
                     paint_changed = true;
                 }
@@ -458,6 +459,7 @@ pub const Runtime = struct {
                 data.multiline = element.multiline;
                 data.focus_ring = element.focus_ring;
                 data.font_size = element.text_style.font_size;
+                data.line_height = element.text_style.line_height;
                 input_mod.rebuildDisplay(self.tree.allocator, data);
             },
             .toggle => |*data| {
@@ -659,7 +661,24 @@ fn selectOptionsEqual(data: *const node_mod.SelectData, options: []const []const
                 return 0;
             },
             .window_close => return 0,
-            .scroll => return 0,
+            .scroll => |scroll_event| {
+                const target = self.tree.hitTest(scroll_event.x, scroll_event.y);
+                if (target) |id| {
+                    const node = self.tree.get(id);
+                    switch (node.data) {
+                        .input => |*data| {
+                            if (data.multiline) {
+                                const view_h = @max(0, node.bounds.height - 16);
+                                data.scroll_y = @max(0, @min(data.scroll_y - scroll_event.dy, input_mod.maxScrollY(data, view_h)));
+                                self.tree.markDirty(id, false, true);
+                                return 1;
+                            }
+                        },
+                        else => {},
+                    }
+                }
+                return 0;
+            },
         }
     }
 
@@ -902,7 +921,7 @@ fn selectOptionsEqual(data: *const node_mod.SelectData, options: []const []const
         if (data.has_composition) return;
         const layout = input_mod.ensureLayout(data) catch return;
         const origin_x = node.bounds.x + input_mod.padding_x - data.scroll_x;
-        const origin_y = node.bounds.y + (node.bounds.height - layout.metrics.height) * 0.5;
+        const origin_y = if (data.multiline) node.bounds.y + 8 - data.scroll_y else node.bounds.y + (node.bounds.height - layout.metrics.height) * 0.5;
         var byte = layout.indexAt(x - origin_x, y - origin_y);
         byte = @min(byte, data.text.items.len);
         data.cursor = byte;

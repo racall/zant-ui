@@ -534,6 +534,7 @@ pub const InputOptions = struct {
     width: ?f32 = null,
     height: f32 = 32,
     font_size: f32 = 14,
+    line_height: f32 = 0,
     on_change: ?actions.TextAction = null,
     on_submit: ?actions.Action = null,
 };
@@ -553,7 +554,7 @@ pub fn input(options: InputOptions) Node {
         .focusable = true,
         .layout = .{ .height = options.height, .width = options.width, .shrink = 0 },
         .visual = .{ .radius = default_theme.border_radius },
-        .text_style = .{ .font_size = options.font_size },
+        .text_style = .{ .font_size = options.font_size, .line_height = options.line_height },
         .on_text = options.on_change,
         .on_click = options.on_submit,
     });
