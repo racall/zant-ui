@@ -1,0 +1,60 @@
+const std = @import("std");
+const zant = @import("zant");
+
+test "markdown blocks and inline styles" {
+    const source =
+        \\# Title
+        \\
+        \\Hello **bold** and `code` and $x^2$.
+        \\
+        \\- one
+        \\- two
+        \\
+        \\```zig
+        \\const x = 1;
+        \\```
+    ;
+    var doc = try zant.markdown.parse(std.testing.allocator, source);
+    defer doc.deinit();
+    try std.testing.expectEqual(@as(usize, 4), doc.blocks.len);
+    const heading = doc.blocks[0].heading;
+    try std.testing.expectEqual(@as(u8, 1), heading.level);
+    const para = doc.blocks[1].paragraph;
+    var has_bold = false;
+    var has_code = false;
+    var has_math = false;
+    for (para) |span| {
+        if (span.style.bold) has_bold = true;
+        if (span.style.code) has_code = true;
+        if (span.style.math) has_math = true;
+    }
+    try std.testing.expect(has_bold and has_code and has_math);
+    const list = doc.blocks[2].list;
+    try std.testing.expectEqual(@as(usize, 2), list.items.len);
+    try std.testing.expectEqualStrings("const x = 1;", doc.blocks[3].code.text);
+}
+
+test "markdown table and task list" {
+    const source =
+        \\| Name | Value |
+        \\| --- | --- |
+        \\| A | 1 |
+        \\
+        \\- [x] done
+        \\- [ ] todo
+    ;
+    var doc = try zant.markdown.parse(std.testing.allocator, source);
+    defer doc.deinit();
+    try std.testing.expectEqual(@as(usize, 2), doc.blocks.len);
+    try std.testing.expectEqual(@as(usize, 2), doc.blocks[1].list.items.len);
+    try std.testing.expect(doc.blocks[1].list.checked[0].?);
+}
+
+test "markdown document renders to Zant nodes" {
+    var doc = try zant.markdown.parse(std.testing.allocator, "# Title\n\nHello **world**.");
+    defer doc.deinit();
+    zant.ui.beginFrame();
+    defer zant.ui.endFrame();
+    const node = doc.render();
+    try std.testing.expect(node.element.children.len > 0);
+}

@@ -26,3 +26,5 @@ pub const launch = @import("launch.zig");
 pub const WindowOptions = platform.WindowOptions;
 
 pub const db = @import("db/mod.zig");
+
+pub const markdown = @import("markdown/mod.zig");

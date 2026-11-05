@@ -21,6 +21,7 @@
 | 头像 | [avatar.md](avatar.md) |
 | 进度条 | [progress.md](progress.md) |
 | PDF 预览 | [pdf.md](pdf.md) |
+| Markdown 编辑器/预览 | [markdown.md](markdown.md) |
 | 样式覆盖 | [style.md](style.md) |
 
 自定义组件示例见生成项目的 `src/components/stat_card.zig`，以及

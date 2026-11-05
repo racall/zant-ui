@@ -30,3 +30,5 @@ test {
 comptime {
     _ = @import("db_test.zig");
 }
+
+comptime { _ = @import("markdown_test.zig"); }

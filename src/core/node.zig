@@ -158,6 +158,7 @@ pub const InputData = struct {
     read_only: bool = false,
     password: bool = false,
     multiline: bool = false,
+    focus_ring: bool = true,
     available_width: f32 = 1.0e6,
     focused: bool = false,
     hovered: bool = false,

@@ -445,6 +445,7 @@ pub const Runtime = struct {
                 data.read_only = element.read_only;
                 data.password = element.password;
                 data.multiline = element.multiline;
+                data.focus_ring = element.focus_ring;
                 data.font_size = element.text_style.font_size;
                 input_mod.rebuildDisplay(self.tree.allocator, data);
             },

@@ -271,7 +271,7 @@ pub fn paint(node: *Node, canvas: Canvas, theme: Theme) void {
         theme.color_border;
     const border = node.visual.border_color orelse default_border;
 
-    if (data.focused and enabled) {
+    if (data.focused and enabled and data.focus_ring) {
         const shadow = geometry.Rect.init(rect.x - 3, rect.y - 3, rect.width + 6, rect.height + 6);
         canvas.fillRoundRect(shadow, node.visual.radius + 3, tokens.withAlpha(theme.color_primary, 0x18));
     }
