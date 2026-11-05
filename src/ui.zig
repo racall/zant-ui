@@ -117,7 +117,9 @@ pub fn indexAction(ctx: anytype, comptime func: *const fn (@TypeOf(ctx), usize) 
 
 pub const Style = struct {
     background: ?u32 = null,
+    color: ?u32 = null,
     border_color: ?u32 = null,
+    border_radius: ?f32 = null,
     border_width: ?f32 = null,
     radius: ?f32 = null,
     padding: ?geometry.Edges = null,
@@ -153,7 +155,7 @@ pub fn styled(node: Node, style: Style) Node {
     if (style.background) |value| copy.visual.background = value;
     if (style.border_color) |value| copy.visual.border_color = value;
     if (style.border_width) |value| copy.visual.border_width = value;
-    if (style.radius) |value| copy.visual.radius = value;
+    if (style.border_radius orelse style.radius) |value| copy.visual.radius = value;
     if (style.padding) |value| copy.layout.padding = value;
     if (style.margin) |value| copy.layout.margin = value;
     if (style.width) |value| copy.layout.width = value;
@@ -166,7 +168,7 @@ pub fn styled(node: Node, style: Style) Node {
     if (style.shrink) |value| copy.layout.shrink = value;
     if (style.basis) |value| copy.layout.basis = value;
     if (style.clip) |value| copy.visual.clip = value;
-    if (style.text_color) |value| copy.text_style.color = value;
+    if (style.color orelse style.text_color) |value| copy.text_style.color = value;
     if (style.font_size) |value| copy.text_style.font_size = value;
     if (style.font_weight) |value| copy.text_style.weight = value;
     if (style.text_align) |value| copy.text_style.text_align = value;
@@ -209,8 +211,8 @@ fn make(element: Element) Node {
 
 fn layoutFrom(box: BoxOptions, direction: flex.Direction) node_mod.FlexStyle {
     return .{
-        .direction = direction,
-        .justify = box.justify,
+        .direction = box.flex_direction orelse direction,
+        .justify = box.justify_content orelse box.justify,
         .align_items = box.align_items,
         .gap = box.gap,
         .padding = box.padding,
@@ -243,7 +245,9 @@ pub const BoxOptions = struct {
     padding: geometry.Edges = .{},
     margin: geometry.Edges = .{},
     justify: flex.Justify = .start,
+    justify_content: ?flex.Justify = null,
     align_items: flex.Align = .start,
+    flex_direction: ?flex.Direction = null,
     width: ?f32 = null,
     height: ?f32 = null,
     min_width: ?f32 = null,
