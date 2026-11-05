@@ -16,7 +16,8 @@ zant.markdown.render(allocator, self.markdown)
 
 ## 已实现
 
-- 标题 `#` 到 `######`
+- ATX 标题 `#` 到 `######`、Setext 标题 `===`/`---`
+- GFM 自动链接 `<https://example.com>`
 - 段落、软换行
 - 粗体、斜体、删除线
 - 行内代码、代码围栏

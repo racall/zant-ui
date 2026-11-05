@@ -94,3 +94,13 @@ test "math matrix renders rows and columns" {
     _ = zant.math.render(std.testing.allocator,
         "\\\\begin{matrix} a & b \\\\\\\\ c & d \\\\end{matrix}");
 }
+
+test "setext heading and gfm autolink" {
+    const source = "Title\n=====\n\n<https://example.com>\n";
+    var doc = try zant.markdown.parse(std.testing.allocator, source);
+    defer doc.deinit();
+    try std.testing.expectEqual(@as(usize, 2), doc.blocks.len);
+    try std.testing.expectEqual(@as(u8, 1), doc.blocks[0].heading.level);
+    const para = doc.blocks[1].paragraph;
+    try std.testing.expect(para.len > 0 and para[0].style.link);
+}

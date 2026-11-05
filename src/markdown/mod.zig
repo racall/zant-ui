@@ -144,6 +144,20 @@ fn parseInlineStyle(arena: std.mem.Allocator, text: []const u8, base: Style, out
                 continue;
             }
         }
+        if (ch == '<') {
+            if (findClose(text, i + 1, ">")) |end| {
+                const target = text[i + 1 .. end];
+                if (std.mem.startsWith(u8, target, "http://") or std.mem.startsWith(u8, target, "https://") or std.mem.startsWith(u8, target, "mailto:")) {
+                    if (i > plain_start) try appendText(arena, out, text[plain_start..i], base);
+                    var style = base;
+                    style.link = true;
+                    try appendText(arena, out, target, style);
+                    i = end + 1;
+                    plain_start = i;
+                    continue;
+                }
+            }
+        }
         if (ch == '!' and i + 1 < text.len and text[i + 1] == '[') {
             if (findClose(text, i + 2, "](")) |label_end| {
                 if (findClose(text, label_end + 2, ")")) |url_end| {
@@ -242,7 +256,9 @@ fn parseBlocks(arena: std.mem.Allocator, text: []const u8) ![]const Block {
             var level: u8 = 0;
             while (level < trimmed.len and trimmed[level] == '#') level += 1;
             if (level <= 6 and level < trimmed.len and trimmed[level] == ' ') {
-                try blocks.append(arena, .{ .heading = .{ .level = level, .spans = try parseInline(arena, trimmed[level + 1 ..]) } });
+                var heading_text = std.mem.trim(u8, trimmed[level + 1 ..], " \t");
+                while (heading_text.len > 0 and heading_text[heading_text.len - 1] == '#') heading_text = std.mem.trimEnd(u8, heading_text[0 .. heading_text.len - 1], " \t");
+                try blocks.append(arena, .{ .heading = .{ .level = level, .spans = try parseInline(arena, heading_text) } });
                 i += 1;
                 continue;
             }
@@ -314,6 +330,24 @@ fn parseBlocks(arena: std.mem.Allocator, text: []const u8) ![]const Block {
             }
             try blocks.append(arena, .{ .table = .{ .headers = try headers.toOwnedSlice(arena), .rows = try rows.toOwnedSlice(arena) } });
             continue;
+        }
+        if (i + 1 < lines.items.len and trimmed.len > 0) {
+            const underline = std.mem.trim(u8, lines.items[i + 1], " \t");
+            if (underline.len > 0) {
+                var all_eq = true;
+                var all_dash = true;
+                for (underline) |c| {
+                    if (c != '=') all_eq = false;
+                    if (c != '-') all_dash = false;
+                }
+                if (all_eq or all_dash) {
+                    var heading_text = trimmed;
+                    while (heading_text.len > 0 and heading_text[heading_text.len - 1] == '#') heading_text = std.mem.trimEnd(u8, heading_text[0 .. heading_text.len - 1], " \t");
+                    try blocks.append(arena, .{ .heading = .{ .level = if (all_eq) 1 else 2, .spans = try parseInline(arena, heading_text) } });
+                    i += 2;
+                    continue;
+                }
+            }
         }
         var body: std.ArrayListUnmanaged(u8) = .empty;
         while (i < lines.items.len) {
