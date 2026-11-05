@@ -99,7 +99,8 @@ ui.styled(node, .{
 ## 布局规范
 
 - 使用 `ui.column` / `ui.row` / `ui.card`，不要手写绝对坐标。
-- 当前只支持单行 Flex，不支持 wrap 和百分比。
+- 支持单行 Flex、横向 wrap、百分比宽高、order、align-self、align-content。
+- 纵向 wrap、wrap-reverse、auto/calc 仍未支持。
 - 固定高度控件（input/button/card）默认 `shrink = 0`，避免窗口缩小时被压扁。
 - 生成项目默认最小窗口 600×620；内容放不下时优先调整布局，不要靠重叠。
 - 文本宽度受容器约束；长文本使用 `ui.paragraph`。
@@ -151,7 +152,7 @@ ui.styled(node, .{
 - 避免在 render 内做文件 I/O、网络、睡眠或大分配。
 - 新增分配必须跟随节点/帧生命周期释放。
 - 修改热点路径后运行 `zig build test`，并检查内存/时间回归。
-- 当前测试 27/27；新增行为应补测试。
+- 当前测试 32/32；新增行为应补测试。
 
 ## 代码质量
 
@@ -165,7 +166,7 @@ ui.styled(node, .{
 
 - Windows 未实现。
 - 仅浅色主题。
-- Flex 不支持 wrap/百分比。
+- Flex 纵向 wrap、wrap-reverse、auto/calc 未支持。
 - Select/Tabs 为基础实现。
 - 真实 macOS 拼音输入法未自动化端到端验证。
 - 无障碍 API 未暴露。

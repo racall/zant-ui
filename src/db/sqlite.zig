@@ -123,6 +123,24 @@ pub const Statement = struct {
         }
     }
 
+    pub fn bindValue(self: *Statement, index: usize, value: anytype) !void {
+        const rc = switch (@typeInfo(@TypeOf(value))) {
+            .null => c.sqlite3_bind_null(self.stmt, @intCast(index)),
+            .int, .comptime_int => c.sqlite3_bind_int64(self.stmt, @intCast(index), @intCast(value)),
+            .float, .comptime_float => c.sqlite3_bind_double(self.stmt, @intCast(index), @floatCast(value)),
+            .bool => c.sqlite3_bind_int(self.stmt, @intCast(index), if (value) 1 else 0),
+            .pointer => |ptr| blk: {
+                if (ptr.size == .slice and ptr.child == u8) {
+                    break :blk c.sqlite3_bind_text(self.stmt, @intCast(index), value.ptr, @intCast(value.len), null);
+                }
+                const text: []const u8 = value;
+                break :blk c.sqlite3_bind_text(self.stmt, @intCast(index), text.ptr, @intCast(text.len), null);
+            },
+            else => @compileError("unsupported SQLite parameter type"),
+        };
+        if (rc != c.SQLITE_OK) return Error.BindFailed;
+    }
+
     /// Returns true when a row is available, false when done.
     pub fn step(self: *Statement) !bool {
         const rc = c.sqlite3_step(self.stmt);
@@ -256,6 +274,10 @@ pub const Database = struct {
         try @call(.auto, callback, args ++ .{self});
         try self.commit();
     }
+
+    pub fn table(self: *Database, comptime T: type) Table(T) {
+        return .{ .db = self };
+    }
 };
 
 test "sqlite CRUD and typed rows" {
@@ -287,4 +309,231 @@ test "sqlite transaction rolls back" {
     try std.testing.expectError(error.Boom, db.transaction(Fail.run, .{}));
     const count = (try db.queryOne(i64, "SELECT COUNT(*) FROM notes", .{})).?;
     try std.testing.expectEqual(@as(i64, 0), count);
+}
+
+/// High-level table/ORM facade. Developers normally use this instead of SQL.
+pub fn Table(comptime T: type) type {
+    return struct {
+        const Self = @This();
+        db: *Database,
+
+        pub fn name() []const u8 {
+            if (@hasDecl(T, "table_name")) return T.table_name;
+            return @typeName(T);
+        }
+
+        fn fieldCount() comptime_int {
+            return @typeInfo(T).@"struct".field_names.len;
+        }
+
+        fn fieldName(comptime index: usize) []const u8 {
+            return @typeInfo(T).@"struct".field_names[index];
+        }
+
+        fn fieldType(comptime index: usize) type {
+            return @typeInfo(T).@"struct".field_types[index];
+        }
+
+        fn isId(comptime index: usize) bool {
+            return std.mem.eql(u8, fieldName(index), "id");
+        }
+
+        fn sqlType(comptime FT: type) []const u8 {
+            return switch (@typeInfo(FT)) {
+                .int, .comptime_int, .bool => "INTEGER",
+                .float, .comptime_float => "REAL",
+                .pointer => "TEXT",
+                .optional => |opt| sqlType(opt.child),
+                .@"enum" => "TEXT",
+                else => @compileError("unsupported model field type: " ++ @typeName(FT)),
+            };
+        }
+
+        fn fieldNullable(comptime FT: type) bool {
+            return @typeInfo(FT) == .optional;
+        }
+
+        pub fn create(self: Self) !void {
+            var sql: std.ArrayListUnmanaged(u8) = .empty;
+            defer sql.deinit(self.db.allocator);
+            try sql.appendSlice(self.db.allocator, "CREATE TABLE IF NOT EXISTS ");
+            try sql.appendSlice(self.db.allocator, name());
+            try sql.appendSlice(self.db.allocator, " (");
+            inline for (0..fieldCount()) |i| {
+                if (i > 0) try sql.appendSlice(self.db.allocator, ", ");
+                try sql.appendSlice(self.db.allocator, fieldName(i));
+                try sql.append(self.db.allocator, ' ');
+                const FT = fieldType(i);
+                if (comptime isId(i) and @typeInfo(FT) != .optional) {
+                    try sql.appendSlice(self.db.allocator, "INTEGER PRIMARY KEY AUTOINCREMENT");
+                } else {
+                    try sql.appendSlice(self.db.allocator, sqlType(FT));
+                    if (comptime !fieldNullable(FT)) try sql.appendSlice(self.db.allocator, " NOT NULL");
+                }
+            }
+            try sql.append(self.db.allocator, ')');
+            const z = try sql.toOwnedSliceSentinel(self.db.allocator, 0);
+            defer self.db.allocator.free(z);
+            try self.db.exec(z);
+        }
+
+        pub fn insert(self: Self, value: T) !i64 {
+            var sql: std.ArrayListUnmanaged(u8) = .empty;
+            defer sql.deinit(self.db.allocator);
+            try sql.appendSlice(self.db.allocator, "INSERT INTO ");
+            try sql.appendSlice(self.db.allocator, name());
+            try sql.appendSlice(self.db.allocator, " (");
+            var first = true;
+            inline for (0..fieldCount()) |i| {
+                if (comptime isId(i)) continue;
+                if (!first) try sql.appendSlice(self.db.allocator, ", ");
+                first = false;
+                try sql.appendSlice(self.db.allocator, fieldName(i));
+            }
+            try sql.appendSlice(self.db.allocator, ") VALUES (");
+            first = true;
+            inline for (0..fieldCount()) |i| {
+                if (comptime isId(i)) continue;
+                if (!first) try sql.appendSlice(self.db.allocator, ", ");
+                first = false;
+                try sql.append(self.db.allocator, '?');
+            }
+            try sql.append(self.db.allocator, ')');
+            const z = try sql.toOwnedSliceSentinel(self.db.allocator, 0);
+            defer self.db.allocator.free(z);
+            var stmt = try self.db.prepare(z);
+            defer stmt.deinit();
+            var param: usize = 1;
+            inline for (0..fieldCount()) |i| {
+                if (comptime isId(i)) continue;
+                try stmt.bindValue(param, @field(value, fieldName(i)));
+                param += 1;
+            }
+            _ = try stmt.step();
+            return self.db.lastInsertId();
+        }
+
+        fn mapRow(self: Self, row: Row) !T {
+            var result: T = undefined;
+            inline for (0..fieldCount()) |i| {
+                const FT = fieldType(i);
+                if (comptime fieldNullable(FT)) {
+                    @field(result, fieldName(i)) = if (row.isNull(i)) null else switch (@typeInfo(FT).optional.child) {
+                        .int => @intCast(row.int(i)),
+                        .float => row.float(i),
+                        .bool => row.int(i) != 0,
+                        .pointer => try self.db.allocator.dupe(u8, row.text(i)),
+                        else => @compileError("unsupported optional model field"),
+                    };
+                } else {
+                    @field(result, fieldName(i)) = switch (@typeInfo(FT)) {
+                        .int, .comptime_int => @intCast(row.int(i)),
+                        .float, .comptime_float => row.float(i),
+                        .bool => row.int(i) != 0,
+                        .pointer => try self.db.allocator.dupe(u8, row.text(i)),
+                        else => @compileError("unsupported model field"),
+                    };
+                }
+            }
+            return result;
+        }
+
+        pub fn get(self: Self, id: i64) !?T {
+            var sql: std.ArrayListUnmanaged(u8) = .empty;
+            defer sql.deinit(self.db.allocator);
+            try sql.appendSlice(self.db.allocator, "SELECT * FROM ");
+            try sql.appendSlice(self.db.allocator, name());
+            try sql.appendSlice(self.db.allocator, " WHERE id = ? LIMIT 1");
+            const z = try sql.toOwnedSliceSentinel(self.db.allocator, 0);
+            defer self.db.allocator.free(z);
+            var stmt = try self.db.prepare(z);
+            defer stmt.deinit();
+            try stmt.bindValue(1, id);
+            if (try stmt.step()) return try self.mapRow(stmt.row());
+            return null;
+        }
+
+        pub fn all(self: Self) ![]T {
+            var sql: std.ArrayListUnmanaged(u8) = .empty;
+            defer sql.deinit(self.db.allocator);
+            try sql.appendSlice(self.db.allocator, "SELECT * FROM ");
+            try sql.appendSlice(self.db.allocator, name());
+            const z = try sql.toOwnedSliceSentinel(self.db.allocator, 0);
+            defer self.db.allocator.free(z);
+            var stmt = try self.db.prepare(z);
+            defer stmt.deinit();
+            var list: std.ArrayListUnmanaged(T) = .empty;
+            errdefer list.deinit(self.db.allocator);
+            while (try stmt.step()) try list.append(self.db.allocator, try self.mapRow(stmt.row()));
+            return list.toOwnedSlice(self.db.allocator);
+        }
+
+        pub fn count(self: Self) !i64 {
+            var sql: std.ArrayListUnmanaged(u8) = .empty;
+            defer sql.deinit(self.db.allocator);
+            try sql.appendSlice(self.db.allocator, "SELECT COUNT(*) FROM ");
+            try sql.appendSlice(self.db.allocator, name());
+            const z = try sql.toOwnedSliceSentinel(self.db.allocator, 0);
+            defer self.db.allocator.free(z);
+            var stmt = try self.db.prepare(z);
+            defer stmt.deinit();
+            if (try stmt.step()) return stmt.row().int(0);
+            return 0;
+        }
+
+        pub fn update(self: Self, value: T) !void {
+            var sql: std.ArrayListUnmanaged(u8) = .empty;
+            defer sql.deinit(self.db.allocator);
+            try sql.appendSlice(self.db.allocator, "UPDATE ");
+            try sql.appendSlice(self.db.allocator, name());
+            try sql.appendSlice(self.db.allocator, " SET ");
+            var first = true;
+            inline for (0..fieldCount()) |i| {
+                if (comptime isId(i)) continue;
+                if (!first) try sql.appendSlice(self.db.allocator, ", ");
+                first = false;
+                try sql.appendSlice(self.db.allocator, fieldName(i));
+                try sql.appendSlice(self.db.allocator, " = ?");
+            }
+            try sql.appendSlice(self.db.allocator, " WHERE id = ?");
+            const z = try sql.toOwnedSliceSentinel(self.db.allocator, 0);
+            defer self.db.allocator.free(z);
+            var stmt = try self.db.prepare(z);
+            defer stmt.deinit();
+            var param: usize = 1;
+            inline for (0..fieldCount()) |i| {
+                if (comptime isId(i)) continue;
+                try stmt.bindValue(param, @field(value, fieldName(i)));
+                param += 1;
+            }
+            try stmt.bindValue(param, @field(value, "id"));
+            _ = try stmt.step();
+        }
+
+        pub fn delete(self: Self, id: i64) !void {
+            var sql: std.ArrayListUnmanaged(u8) = .empty;
+            defer sql.deinit(self.db.allocator);
+            try sql.appendSlice(self.db.allocator, "DELETE FROM ");
+            try sql.appendSlice(self.db.allocator, name());
+            try sql.appendSlice(self.db.allocator, " WHERE id = ?");
+            const z = try sql.toOwnedSliceSentinel(self.db.allocator, 0);
+            defer self.db.allocator.free(z);
+            var stmt = try self.db.prepare(z);
+            defer stmt.deinit();
+            try stmt.bindValue(1, id);
+            _ = try stmt.step();
+        }
+
+        pub fn free(self: Self, value: T) void {
+            inline for (0..fieldCount()) |i| {
+                const FT = fieldType(i);
+                if (@typeInfo(FT) == .pointer) self.db.allocator.free(@field(value, fieldName(i)));
+            }
+        }
+
+        pub fn freeAll(self: Self, values: []T) void {
+            for (values) |value| self.free(value);
+            self.db.allocator.free(values);
+        }
+    };
 }

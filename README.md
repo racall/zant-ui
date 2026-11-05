@@ -199,14 +199,25 @@ Avatar、Progress、PDF 预览。
 内置 `zant.db`，无需安装额外依赖（使用系统 libsqlite3）：
 
 ```zig
+const Note = struct {
+    id: i64 = 0,
+    body: []const u8,
+};
+
 var db = try zant.db.Database.open(allocator, "app.sqlite");
 defer db.close();
-try db.exec("CREATE TABLE notes (id INTEGER PRIMARY KEY, body TEXT)");
-try db.run("INSERT INTO notes (body) VALUES (?)", .{"hello"});
-const count = (try db.queryOne(i64, "SELECT COUNT(*) FROM notes", .{})).?;
+var notes = db.table(Note);
+try notes.create();
+const id = try notes.insert(.{ .body = "hello" });
+const note = (try notes.get(id)).?;
+defer notes.free(note);
 ```
 
 见 [SQLite 持久化](docs/database.md)。
+
+## Flex
+
+支持横向 wrap、百分比、order、align-self、align-content 等；详见 [Flex 与 CSS](docs/flex.md)。
 
 ## 架构
 

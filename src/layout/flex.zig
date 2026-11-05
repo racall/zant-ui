@@ -21,6 +21,10 @@ pub const Align = enum {
     stretch,
 };
 
+pub const Wrap = enum { nowrap, wrap, wrap_reverse };
+pub const AlignContent = enum { start, center, end, space_between, space_around, stretch };
+pub const AlignSelf = enum { auto, start, center, end, stretch };
+
 pub const Item = struct {
     base: f32 = 0,
     grow: f32 = 0,

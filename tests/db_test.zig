@@ -30,3 +30,41 @@ test "database transaction rollback" {
     const count = (try db.queryOne(i64, "SELECT COUNT(*) FROM notes", .{})).?;
     try std.testing.expectEqual(@as(i64, 0), count);
 }
+
+const User = struct {
+    id: i64 = 0,
+    name: []const u8,
+    age: i32,
+    active: bool,
+
+    pub const table_name = "users";
+};
+
+test "high-level table API does not require SQL" {
+    var db = try zant.db.Database.openMemory(std.testing.allocator);
+    defer db.close();
+
+    var users = db.table(User);
+    try users.create();
+    const id = try users.insert(.{ .name = "Ada", .age = 36, .active = true });
+    try std.testing.expectEqual(@as(i64, 1), id);
+
+    const found = (try users.get(id)).?;
+    defer users.free(found);
+    try std.testing.expectEqualStrings("Ada", found.name);
+    try std.testing.expectEqual(@as(i32, 36), found.age);
+    try std.testing.expect(found.active);
+    try std.testing.expectEqual(@as(i64, 1), try users.count());
+
+    var updated = found;
+    updated.age = 37;
+    try users.update(updated);
+
+    const all_rows = try users.all();
+    defer users.freeAll(all_rows);
+    try std.testing.expectEqual(@as(usize, 1), all_rows.len);
+    try std.testing.expectEqual(@as(i32, 37), all_rows[0].age);
+
+    try users.delete(id);
+    try std.testing.expectEqual(@as(i64, 0), try users.count());
+}

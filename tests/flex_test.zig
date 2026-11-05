@@ -171,3 +171,50 @@ test "align center and end" {
     tree.layout(.{ .width = 200, .height = 100 });
     try std.testing.expectApproxEqAbs(@as(f32, 80), tree.get(1).bounds.y, 0.1);
 }
+
+test "row wrap creates multiple lines" {
+    var tree = try Tree.init(std.testing.allocator, zant.tokens.antLight());
+    defer tree.deinit();
+    const root = tree.get(tree.root);
+    root.style.direction = .row;
+    root.style.wrap = .wrap;
+    _ = try box(&tree, tree.root, .{ .width = 60, .height = 20 });
+    _ = try box(&tree, tree.root, .{ .width = 60, .height = 20 });
+    _ = try box(&tree, tree.root, .{ .width = 30, .height = 20 });
+    tree.layout(.{ .width = 100, .height = 200 });
+    try expectRect(tree.get(1), 0, 0, 60, 20);
+    try expectRect(tree.get(2), 0, 20, 60, 20);
+    try expectRect(tree.get(3), 60, 20, 30, 20);
+}
+
+test "percentage width resolves against parent" {
+    var tree = try Tree.init(std.testing.allocator, zant.tokens.antLight());
+    defer tree.deinit();
+    const root = tree.get(tree.root);
+    root.style.direction = .row;
+    _ = try box(&tree, tree.root, .{ .width_percent = 50, .height = 20 });
+    tree.layout(.{ .width = 200, .height = 100 });
+    try expectRect(tree.get(1), 0, 0, 100, 20);
+}
+
+test "order reorders flex items without changing tree ids" {
+    var tree = try Tree.init(std.testing.allocator, zant.tokens.antLight());
+    defer tree.deinit();
+    const root = tree.get(tree.root);
+    root.style.direction = .row;
+    _ = try box(&tree, tree.root, .{ .width = 50, .height = 20, .order = 2 });
+    _ = try box(&tree, tree.root, .{ .width = 50, .height = 20, .order = 1 });
+    tree.layout(.{ .width = 200, .height = 100 });
+    try expectRect(tree.get(2), 0, 0, 50, 20);
+    try expectRect(tree.get(1), 50, 0, 50, 20);
+}
+
+test "align-self centers one child" {
+    var tree = try Tree.init(std.testing.allocator, zant.tokens.antLight());
+    defer tree.deinit();
+    const root = tree.get(tree.root);
+    root.style.direction = .row;
+    _ = try box(&tree, tree.root, .{ .width = 20, .height = 20, .align_self = .center });
+    tree.layout(.{ .width = 200, .height = 100 });
+    try expectRect(tree.get(1), 0, 40, 20, 20);
+}
