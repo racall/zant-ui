@@ -825,3 +825,35 @@ size_t zant_clipboard_get_text(char *out, size_t capacity) {
         return required;
     }
 }
+
+char *zant_open_file_dialog(void) {
+    @autoreleasepool {
+        NSOpenPanel *panel = [NSOpenPanel openPanel];
+        panel.canChooseFiles = YES;
+        panel.canChooseDirectories = NO;
+        panel.allowsMultipleSelection = NO;
+        panel.allowedFileTypes = @[@"md", @"markdown", @"txt"];
+        if ([panel runModal] != NSModalResponseOK) return NULL;
+        NSURL *url = panel.URL;
+        if (!url) return NULL;
+        return strdup(url.path.fileSystemRepresentation);
+    }
+}
+
+char *zant_save_file_dialog(const char *default_name) {
+    @autoreleasepool {
+        NSSavePanel *panel = [NSSavePanel savePanel];
+        panel.allowedFileTypes = @[@"md", @"markdown", @"txt"];
+        if (default_name) {
+            panel.nameFieldStringValue = [NSString stringWithUTF8String:default_name];
+        }
+        if ([panel runModal] != NSModalResponseOK) return NULL;
+        NSURL *url = panel.URL;
+        if (!url) return NULL;
+        return strdup(url.path.fileSystemRepresentation);
+    }
+}
+
+void zant_dialog_free(char *value) {
+    free(value);
+}

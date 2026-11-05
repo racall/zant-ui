@@ -30,3 +30,5 @@ pub const db = @import("db/mod.zig");
 pub const markdown = @import("markdown/mod.zig");
 
 pub const math = @import("math/mod.zig");
+
+pub const dialogs = @import("platform/macos/dialog.zig");
