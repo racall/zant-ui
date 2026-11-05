@@ -62,7 +62,7 @@ pub const Document = struct {
             nodes[count] = renderBlock(block);
             count += 1;
         }
-        return ui.column(.{ .gap = 14, .children = nodes[0..count] });
+        return ui.column(.{ .gap = 19, .children = nodes[0..count] });
     }
 };
 
@@ -585,10 +585,10 @@ fn renderBlock(block: Block) ui.Node {
             spansNodeFamily(h.spans, switch (h.level) { 1 => 37, 2 => 23, 3 => 18, else => 16 }, .serif_cjk),
         } }),
         .paragraph => |spans| spansNode(spans, 16),
-        .code => |code| ui.styled(ui.paragraph(code.text, .{ .size = 13, .color = 0xff3c4a3e }), .{
+        .code => |code| ui.styled(ui.paragraph(code.text, .{ .size = 13.4, .color = 0xff292d2a, .line_height = 1.7 }), .{
             .background = 0xfff0f2ed,
-            .radius = 7,
-            .padding = .{ .left = 14, .right = 14, .top = 10, .bottom = 10 },
+            .radius = 9,
+            .padding = .{ .left = 20, .right = 20, .top = 17, .bottom = 17 },
         }),
         .quote => |quote_blocks| blk: {
             var children: [32]ui.Node = undefined;
@@ -598,12 +598,17 @@ fn renderBlock(block: Block) ui.Node {
                 children[count] = renderBlock(item);
                 count += 1;
             }
-            break :blk ui.styled(ui.column(.{ .gap = 8, .children = children[0..count] }), .{
-                .background = 0xfff4f6f1,
-                .border_color = 0xff607d6b,
-                .border_width = 0,
-                .padding = .{ .left = 16, .right = 12, .top = 8, .bottom = 8 },
-                .radius = 2,
+            break :blk ui.row(.{
+                .align_items = .stretch,
+                .children = &.{
+                    ui.styled(ui.space(.{ .width = 2 }), .{ .background = 0xff607d6b }),
+                    ui.column(.{
+                        .grow = 1,
+                        .gap = 8,
+                        .padding = .{ .left = 17 },
+                        .children = children[0..count],
+                    }),
+                },
             });
         },
         .list => |list| blk: {
@@ -622,19 +627,22 @@ fn renderBlock(block: Block) ui.Node {
                     header_cells[header_count] = ui.column(.{
                         .grow = 1,
                         .align_items = alignment,
-                        .children = &.{spansRow(header, 13)},
+                        .children = &.{spansRow(header, 14)},
                     });
                     header_count += 1;
                 }
-                rows[count] = ui.styled(ui.row(.{
+                rows[count] = ui.column(.{
                     .width_percent = 100,
-                    .gap = 18,
-                    .align_items = .start,
-                    .children = header_cells[0..header_count],
-                }), .{
-                    .background = 0xfff4f6f1,
-                    .padding = .{ .top = 6, .bottom = 6, .left = 8, .right = 8 },
-                    .radius = 5,
+                    .children = &.{
+                        ui.row(.{
+                            .width_percent = 100,
+                            .gap = 18,
+                            .align_items = .start,
+                            .padding = .{ .left = 8, .right = 8 },
+                            .children = header_cells[0..header_count],
+                        }),
+                        ui.divider(.{ .margin = .{ .top = 8, .bottom = 4 } }),
+                    },
                 });
                 count += 1;
             }
@@ -648,22 +656,28 @@ fn renderBlock(block: Block) ui.Node {
                     cells[cell_count] = ui.column(.{
                         .grow = 1,
                         .align_items = alignment,
-                        .children = &.{spansRow(cell, 13)},
+                        .children = &.{spansRow(cell, 14)},
                     });
                     cell_count += 1;
                 }
-                rows[count] = ui.row(.{
+                rows[count] = ui.column(.{
                     .width_percent = 100,
-                    .gap = 18,
-                    .padding = .{ .left = 8, .right = 8 },
-                    .children = cells[0..cell_count],
+                    .children = &.{
+                        ui.row(.{
+                            .width_percent = 100,
+                            .gap = 18,
+                            .padding = .{ .left = 8, .right = 8 },
+                            .children = cells[0..cell_count],
+                        }),
+                        ui.divider(.{ .margin = .{ .top = 4 } }),
+                    },
                 });
                 count += 1;
             }
             break :blk ui.column(.{ .width_percent = 100, .gap = 4, .children = rows[0..count] });
         },
         .math => |source| math.render(std.heap.c_allocator, source),
-        .rule => ui.divider(.{ .margin = .{ .top = 8, .bottom = 8 } }),
+        .rule => ui.divider(.{ .margin = .{ .top = 28, .bottom = 28 } }),
     };
 }
 
