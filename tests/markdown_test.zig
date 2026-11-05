@@ -210,3 +210,25 @@ test "html block is preserved" {
     try std.testing.expectEqual(@as(usize, 1), doc.blocks.len);
     try std.testing.expectEqualStrings("<div>hello</div>", doc.blocks[0].html);
 }
+
+test "backslash escapes emphasis" {
+    var doc = try zant.markdown.parse(std.testing.allocator, "\\*not italic\\*");
+    defer doc.deinit();
+    const para = doc.blocks[0].paragraph;
+    var italic = false;
+    for (para) |span| {
+        if (span.style.italic) italic = true;
+    }
+    try std.testing.expect(!italic);
+}
+
+test "code span keeps raw entities" {
+    var doc = try zant.markdown.parse(std.testing.allocator, "`a < b & c`");
+    defer doc.deinit();
+    const para = doc.blocks[0].paragraph;
+    var found_lt = false;
+    for (para) |span| {
+        if (span.style.code and std.mem.indexOf(u8, span.text, "<") != null) found_lt = true;
+    }
+    try std.testing.expect(found_lt);
+}
