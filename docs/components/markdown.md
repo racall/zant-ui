@@ -1,47 +1,40 @@
-# Markdown 编辑器/预览
+# Markdown 编辑器 / 预览
 
-UI 库内置原生 Markdown 解析与预览，不依赖 HTML/WebView。
+`zant.markdown` 是 Vercel Streamdown 的原生移植（remend → parse-blocks → 块级缓存 →
+原生渲染），不用 WebView。数学公式由 `zant.math`（KaTeX 排版算法 + STIX Two Math）排版。
+完整说明见 [Markdown 与数学](../markdown.md)；渲染效果见仓库 README 的 stillmd 截图和
+[`docs/showcase.md`](../showcase.md)。
 
 ```zig
-ui.input(.{
-    .value = self.markdown,
-    .multiline = true,
-    .height = 430,
-    .on_change = ui.textAction(self, State.onMarkdown),
+const md = zant.markdown;
+
+// 只读预览（流式/静态）：只重新解析变化的块
+md.streamdown(&state.md_cache, state.text(), .{ .render = .{ .theme = md.theme.light() } })
+
+// 编辑器：编辑 / 分栏 / 预览、格式工具栏、快捷键（⌘B ⌘I ⌘K ⌘E ⇧⌘X）、列表续写
+md.editor(.{
+    .key = "doc",
+    .value = state.text(),
+    .selection = state.selection,
+    .mode = state.mode,
+    .cache = &state.md_cache,
+    .on_change = ui.textAction(state, State.onChange),
+    .on_selection = ui.rangeAction(state, State.onSelection),
+    .content_max_width = 720,
 })
 
-// 只读预览
-zant.markdown.render(allocator, self.markdown)
+// 导出 HTML（独立页面，KaTeX 渲染公式）
+const html = try md.html.toHtml(gpa, &doc, .{ .title = "Note" });
 ```
 
-## 已实现
+## 支持
 
-- ATX 标题 `#` 到 `######`、Setext 标题 `===`/`---`
-- GFM 自动链接 `<https://example.com>`
-- 链接引用定义 `[id]: https://...` 与 `[text][id]`
-- 段落、软换行
-- 粗体、斜体、删除线
-- 行内代码、代码围栏
-- 链接、图片（提取显示文字）
-- 无序列表、有序列表、任务列表（按缩进递归嵌套布局）
-- 引用、分割线
-- GFM 表格（列对齐 `:---` / `:---:` / `---:`）
-- 嵌套引用
-- 行内/块级数学标记 `$...$`、`$$...$$`
-- 转义字符
-
-## 说明
-
-- `$$...$$` 显示公式使用原生数学布局：分式、根号、上下标、希腊字母和常见运算符。
-- 支持 `matrix`、`pmatrix`、`bmatrix`，行列用 `&` 和 `\\` 分隔。
-- 根号带覆盖横线。
-- 支持缩进代码块、Setext 标题和 GFM 自动链接。
-- 行内 `$...$` 目前保留公式源码并高亮；完整行内公式排版仍是后续工作。
-- 富文本预览使用多 run Paragraph 布局，粗体/斜体/代码/链接可以混合并自动换行。
-- 该实现参考 CommonMark/GFM 的块和行内结构，但不是逐条通过 CommonMark 官方
-  spec 的完整实现。
-
-## 建议
-
-需要正式数学排版时，应接入 SwiftMath/KaTeX 等数学引擎，并把公式渲染结果缓存；
-不要把公式源码伪装成已渲染结果。
+- CommonMark + GFM：标题、段落、强调、删除线、高亮 `==…==`、上下标、行内代码、链接、
+  自动链接、图片、列表（嵌套、任务列表）、引用（嵌套）、分割线、表格（对齐）、脚注、
+  提示块 `> [!NOTE]` 等、HTML 块（安全转义）。
+- 数学：`$…$`（pandoc 规则，金额不误判）、`$$…$$` 行内与块级；分式、根式、上下标、
+  大型运算符、矩阵 / cases / aligned、`\left…\right`、字体命令、颜色等。
+- 代码块语法高亮（行号、复制、下载），表格复制 Markdown / CSV、下载，Mermaid
+  flowchart / sequence / pie（宽图自动缩放到内容列）。
+- 外链安全确认（`md.linkSafetyModal`）、流式光标、未闭合语法修复（remend）。
+- 跳转：`md.headingKey` / `md.blockKeyAtOffset` + `ui.scrollIntoView`（大纲、查找）。

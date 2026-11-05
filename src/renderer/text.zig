@@ -19,6 +19,8 @@ pub const Family = enum(c_int) {
     serif = 1,
     mono = 2,
     serif_cjk = 3,
+    /// STIX Two Math (TeX-like math glyphs).
+    math = 4,
 };
 
 pub const Align = enum(c_int) {
@@ -94,7 +96,7 @@ pub const TextLayout = struct {
             .line_height = style.line_height,
             .color = style.color,
             .max_lines = @intCast(style.max_lines),
-            .family = @intFromEnum(style.family),
+            .family = @backingInt(style.family),
         };
         const handle = zant_text_layout_create(text.ptr, text.len, &native_style, max_width) orelse return error.TextLayoutFailed;
         const m = zant_text_layout_metrics(handle);

@@ -10,6 +10,7 @@ const input = @import("../components/input.zig");
 const toggle = @import("../components/toggle.zig");
 const image_mod = @import("../components/image.zig");
 const select_mod = @import("../components/select.zig");
+const motion = @import("../motion/motion.zig");
 
 pub const Node = node_mod.Node;
 pub const NodeId = node_mod.NodeId;
@@ -21,7 +22,18 @@ pub const Theme = tokens.Theme;
 
 pub const Tree = struct {
     allocator: std.mem.Allocator,
+    /// Node slots. A `*Node` is never destroyed before `deinit`, so pointers
+    /// stay valid; freed slots become tombstones (`alive == false`) and their
+    /// ids are reused through `free_ids`.
     nodes: std.ArrayListUnmanaged(*Node) = .empty,
+    free_ids: std.ArrayListUnmanaged(NodeId) = .empty,
+    /// Nodes with a running transition (see `poke`); the runtime advances
+    /// only these each frame instead of scanning the whole tree.
+    animating: std.ArrayListUnmanaged(NodeId) = .empty,
+    /// Frame timestamp (ms) sampled by the runtime.
+    now_ms: i64 = 0,
+    /// Layout transitions may start (off for the frame of a window resize).
+    flip_enabled: bool = true,
     root: NodeId = 0,
     focused: ?NodeId = null,
     theme: Theme,
@@ -36,10 +48,12 @@ pub const Tree = struct {
 
     pub fn deinit(self: *Tree) void {
         for (self.nodes.items) |node| {
-            node.deinit(self.allocator);
+            if (node.alive) node.deinit(self.allocator);
             self.allocator.destroy(node);
         }
         self.nodes.deinit(self.allocator);
+        self.free_ids.deinit(self.allocator);
+        self.animating.deinit(self.allocator);
     }
 
     pub fn get(self: *Tree, id: NodeId) *Node {
@@ -47,6 +61,10 @@ pub const Tree = struct {
     }
 
     fn createNode(self: *Tree, data: Data) !NodeId {
+        if (self.free_ids.pop()) |id| {
+            self.nodes.items[id].* = .{ .id = id, .data = data };
+            return id;
+        }
         const id: NodeId = @intCast(self.nodes.items.len);
         const node = try self.allocator.create(Node);
         errdefer self.allocator.destroy(node);
@@ -74,30 +92,95 @@ pub const Tree = struct {
         const owned = try self.allocator.alloc(node_mod.RichSpan, spans.len);
         var copied: usize = 0;
         errdefer {
-            for (owned[0..copied]) |span| self.allocator.free(span.text);
+            for (owned[0..copied]) |span| self.freeRichSpan(span);
             self.allocator.free(owned);
         }
         for (spans, 0..) |span, i| {
-            owned[i] = span;
-            owned[i].text = try self.allocator.dupe(u8, span.text);
+            owned[i] = try self.ownRichSpan(span);
             copied += 1;
         }
-        const id = try self.createNode(.{ .rich_text = .{ .spans = owned } });
+        const embed_arena = try self.cloneEmbeds(owned);
+        const id = try self.createNode(.{ .rich_text = .{ .spans = owned, .embed_arena = embed_arena } });
         if (parent) |p| try self.addChild(p, id);
         return id;
+    }
+
+    /// Deep-copies span embeds into a fresh arena (null when there are none).
+    fn cloneEmbeds(self: *Tree, spans: []node_mod.RichSpan) !?*std.heap.ArenaAllocator {
+        var any = false;
+        for (spans) |span| if (span.embed != null) {
+            any = true;
+        };
+        if (!any) return null;
+        const arena = try self.allocator.create(std.heap.ArenaAllocator);
+        arena.* = std.heap.ArenaAllocator.init(self.allocator);
+        errdefer {
+            arena.deinit();
+            self.allocator.destroy(arena);
+        }
+        for (spans) |*span| {
+            if (span.embed) |embed| span.embed = try embed.clone(arena.allocator());
+        }
+        return arena;
+    }
+
+    pub fn addVector(self: *Tree, parent: ?NodeId, drawing: *const node_mod.vector.Drawing) !NodeId {
+        const arena = try self.allocator.create(std.heap.ArenaAllocator);
+        arena.* = std.heap.ArenaAllocator.init(self.allocator);
+        errdefer {
+            arena.deinit();
+            self.allocator.destroy(arena);
+        }
+        const copy = try drawing.clone(arena.allocator());
+        const id = try self.createNode(.{ .vector = .{ .arena = arena, .drawing = copy, .hash = copy.hash } });
+        if (parent) |p| try self.addChild(p, id);
+        return id;
+    }
+
+    pub fn vectorSet(self: *Tree, id: NodeId, drawing: *const node_mod.vector.Drawing) !void {
+        const node = self.get(id);
+        const data = &node.data.vector;
+        const hash = drawing.contentHash();
+        if (hash == data.hash) return;
+        _ = data.arena.reset(.retain_capacity);
+        const copy = try drawing.clone(data.arena.allocator());
+        data.drawing = copy;
+        data.hash = hash;
+        self.markDirty(id, true, true);
+    }
+
+    fn ownRichSpan(self: *Tree, span: node_mod.RichSpan) !node_mod.RichSpan {
+        var owned = span;
+        owned.text = try self.allocator.dupe(u8, span.text);
+        errdefer self.allocator.free(owned.text);
+        owned.link = if (span.link.len > 0) try self.allocator.dupe(u8, span.link) else "";
+        return owned;
+    }
+
+    fn freeRichSpan(self: *Tree, span: node_mod.RichSpan) void {
+        self.allocator.free(span.text);
+        if (span.link.len > 0) self.allocator.free(span.link);
     }
 
     pub fn richTextSet(self: *Tree, id: NodeId, spans: []const node_mod.RichSpan) !void {
         const node = self.get(id);
         var data = &node.data.rich_text;
         data.invalidateLayout();
-        for (data.spans) |span| self.allocator.free(span.text);
+        for (data.spans) |span| self.freeRichSpan(span);
         self.allocator.free(data.spans);
+        data.spans = &.{};
         const owned = try self.allocator.alloc(node_mod.RichSpan, spans.len);
-        for (spans, 0..) |span, i| {
-            owned[i] = span;
-            owned[i].text = try self.allocator.dupe(u8, span.text);
+        var copied: usize = 0;
+        errdefer {
+            for (owned[0..copied]) |span| self.freeRichSpan(span);
+            self.allocator.free(owned);
         }
+        for (spans, 0..) |span, i| {
+            owned[i] = try self.ownRichSpan(span);
+            copied += 1;
+        }
+        data.deinitEmbeds();
+        data.embed_arena = try self.cloneEmbeds(owned);
         data.spans = owned;
         data.layout_dirty = true;
         self.markDirty(id, true, true);
@@ -157,7 +240,10 @@ pub const Tree = struct {
             .label = owned,
             .kind = kind,
             .checked = checked,
+            .check = .at(if (checked) 1 else 0),
+            .mark = .at(if (checked) 1 else 0),
             .check_t = if (checked) 1 else 0,
+            .mark_t = if (checked) 1 else 0,
         } });
         const node = self.get(id);
         node.focusable = true;
@@ -211,11 +297,36 @@ pub const Tree = struct {
         node.key = if (key) |value| self.allocator.dupe(u8, value) catch null else null;
     }
 
-    pub fn detach(self: *Tree, id: NodeId) void {
-        const node = self.get(id);
-        node.visible = false;
-        node.parent = null;
+    /// Releases `id` and its whole subtree: owned memory is freed and the
+    /// slots are recycled. The caller must already have removed `id` from its
+    /// parent's `children` and cleared any runtime references to the subtree.
+    pub fn freeSubtree(self: *Tree, id: NodeId) void {
+        const node = self.nodes.items[id];
+        if (!node.alive) return;
+        for (node.children.items) |child| self.freeSubtree(child);
         if (self.focused == id) self.focused = null;
+        if (node.anim_queued) {
+            if (std.mem.indexOfScalar(NodeId, self.animating.items, id)) |i| _ = self.animating.swapRemove(i);
+        }
+        node.deinit(self.allocator);
+        node.* = .{ .id = id, .data = .{ .container = .{} }, .visible = false, .alive = false };
+        self.free_ids.append(self.allocator, id) catch {};
+    }
+
+    /// Repaints `id` and schedules it for animation (its state changed, so a
+    /// transition may have to start). Cheap when nothing ends up animating.
+    pub fn poke(self: *Tree, id: NodeId) void {
+        const node = self.get(id);
+        if (!node.alive) return;
+        self.markDirty(id, false, true);
+        if (node.anim_queued) return;
+        self.animating.append(self.allocator, id) catch return;
+        node.anim_queued = true;
+    }
+
+    /// Number of live (non-recycled) nodes.
+    pub fn liveCount(self: *const Tree) usize {
+        return self.nodes.items.len - self.free_ids.items.len;
     }
 
     pub fn markDirty(self: *Tree, id: NodeId, needs_layout: bool, needs_paint: bool) void {
@@ -250,7 +361,64 @@ pub const Tree = struct {
     }
 
     pub fn layout(self: *Tree, viewport: geometry.Size) void {
+        // FLIP: remember where layout-transition nodes were painted, lay out,
+        // then animate from the old box to the new one
+        for (self.nodes.items) |node| {
+            if (!node.alive or node.motion.layout_transition == null) continue;
+            const anim = node.anim orelse continue;
+            const rel = self.relativeBounds(node);
+            for (0..4) |k| anim.flip_prev[k] = rel[k] + anim.flip_delta[k];
+        }
         layout_mod.layoutTree(self.nodes.items, self.root, viewport, self.theme);
+        for (self.nodes.items) |node| {
+            if (!node.alive) continue;
+            const tr = node.motion.layout_transition orelse continue;
+            const anim = self.ensureAnim(node.id) orelse continue;
+            const rel = self.relativeBounds(node);
+            if (anim.flip_ready and motion.enabled and self.flip_enabled) {
+                var moved = false;
+                var from: [4]f32 = undefined;
+                for (0..4) |k| {
+                    from[k] = anim.flip_prev[k] - rel[k];
+                    if (@abs(from[k]) > 0.5) moved = true;
+                }
+                if (moved) {
+                    anim.flip_from = from;
+                    anim.flip_delta = from;
+                    anim.flip = motion.Animated.start(1, 0, self.now_ms, tr);
+                    anim.flip_active = true;
+                    self.poke(node.id);
+                }
+            } else if (!self.flip_enabled) {
+                anim.flip = .at(0);
+                anim.flip_active = false;
+                anim.flip_delta = @splat(0);
+            }
+            anim.flip_ready = true;
+        }
+    }
+
+    /// Bounds relative to the parent (x, y, w, h): scrolling or moving an
+    /// ancestor does not count as a layout change.
+    fn relativeBounds(self: *Tree, node: *const Node) [4]f32 {
+        var x = node.bounds.x;
+        var y = node.bounds.y;
+        if (node.parent) |p| {
+            const parent = self.get(p);
+            x -= parent.bounds.x;
+            y -= parent.bounds.y;
+        }
+        return .{ x, y, node.bounds.width, node.bounds.height };
+    }
+
+    /// Animation state of `id`, allocated on first use.
+    pub fn ensureAnim(self: *Tree, id: NodeId) ?*node_mod.NodeAnim {
+        const node = self.get(id);
+        if (node.anim) |anim| return anim;
+        const anim = self.allocator.create(node_mod.NodeAnim) catch return null;
+        anim.* = .{};
+        node.anim = anim;
+        return anim;
     }
 
     pub fn paint(self: *Tree, canvas: Canvas) void {
@@ -259,13 +427,49 @@ pub const Tree = struct {
 
     fn paintNode(self: *Tree, node: *Node, canvas: Canvas) void {
         if (!node.visible) return;
-        const rect = node.bounds;
+        const anim = node.anim orelse return self.paintNodeContent(node, canvas, node.bounds);
+        // FLIP offset applies to the node's own box (leaf containers)
+        var rect = node.bounds;
+        if (anim.flip_active) {
+            rect.x += anim.flip_delta[0];
+            rect.y += anim.flip_delta[1];
+            rect.width = @max(0, rect.width + anim.flip_delta[2]);
+            rect.height = @max(0, rect.height + anim.flip_delta[3]);
+        }
+        const fx = anim.fx;
+        if (fx.isIdentity()) return self.paintNodeContent(node, canvas, rect);
+        if (fx.opacity <= 0.003) return;
+        const b = node.bounds;
+        const origin = motion.originPoint(motion.presenceOrigin(node.motion.presence, node.motion.origin), b.x, b.y, b.width, b.height);
+        canvas.save();
+        canvas.translate(origin[0] + fx.dx, origin[1] + fx.dy);
+        canvas.scale(fx.scale_x, fx.scale_y);
+        canvas.translate(-origin[0], -origin[1]);
+        // an offscreen layer only while fading (opacity 1 draws directly)
+        const layer = fx.opacity < 0.997;
+        if (layer) {
+            const pad = @max(8, 3 * node.visual.shadow_blur + @abs(node.visual.shadow_offset_y));
+            canvas.saveLayerAlpha(geometry.Rect.init(b.x - pad, b.y - pad, b.width + pad * 2, b.height + pad * 2), fx.opacity);
+        }
+        self.paintNodeContent(node, canvas, rect);
+        if (layer) canvas.restore();
+        canvas.restore();
+    }
+
+    fn paintNodeContent(self: *Tree, node: *Node, canvas: Canvas, rect: geometry.Rect) void {
         if (node.visual.shadow_color) |shadow| {
             var shadow_rect = rect;
             shadow_rect.y += node.visual.shadow_offset_y;
             canvas.shadowRoundRect(shadow_rect, node.visual.radius, shadow, node.visual.shadow_blur);
         }
-        if (node.visual.background) |color| {
+        // buttons, inputs and selects paint their own (state-dependent)
+        // background; filling it here too would double translucent fills
+        const self_filled = switch (node.data) {
+            .button, .input, .select => true,
+            else => false,
+        };
+        if (node.visual.background != null and !self_filled) {
+            const color = node.visual.background.?;
             if (node.visual.radius > 0) {
                 canvas.fillRoundRect(rect, node.visual.radius, color);
             } else {
@@ -275,19 +479,19 @@ pub const Tree = struct {
         switch (node.data) {
             .root, .container => {},
             .text => |*data| {
-                const width = if (data.style.wrap) rect.width else 1.0e6;
-                if (data.ensureLayout(width)) |value| {
+                if (data.ensureLayout(data.layoutWidth(rect.width))) |value| {
                     value.paint(canvas, rect.x, rect.y);
                 } else |_| {}
             },
             .button => button.paint(node, canvas, self.theme),
             .input => input.paint(node, canvas, self.theme),
             .toggle => toggle.paint(node, canvas, self.theme),
-            .image => image_mod.paint(node, canvas),
+            .image => image_mod.paint(node, canvas, self.theme),
             .select => select_mod.paint(node, canvas, self.theme),
             .rich_text => |*data| {
-                if (data.ensureLayout(rect.width)) |rich_layout| rich_layout.paint(canvas.ptr, rect.x, rect.y) else |_| {}
+                if (data.ensureLayout(rect.width)) |rich_layout| data.paintAt(canvas.ptr, rich_layout, rect.x, rect.y) else |_| {}
             },
+            .vector => |*data| node_mod.vector.paint(canvas.ptr, data.drawing, rect.x, rect.y + data.drawing.ascent),
         }
 
         const should_clip = node.visual.clip or std.meta.activeTag(node.data) == .input;
@@ -295,6 +499,20 @@ pub const Tree = struct {
             canvas.save();
             canvas.clipRect(rect);
         }
+        if (node.style.scroll) {
+            // scroll containers: skip children far outside the viewport
+            const top = node.bounds.y - 64;
+            const bottom = node.bounds.y + node.bounds.height + 64;
+            for (node.children.items) |id| {
+                const child = self.get(id);
+                if (child.bounds.y > bottom or child.bounds.y + child.bounds.height < top) continue;
+                self.paintNode(child, canvas);
+            }
+        } else for (node.children.items) |id| {
+            self.paintNode(self.get(id), canvas);
+        }
+        // borders frame the content: drawn after children so filled children
+        // (headers, cells) never cover them
         if (node.visual.border_color) |border| {
             if (node.visual.border_width > 0) {
                 canvas.strokeRoundRect(
@@ -305,10 +523,66 @@ pub const Tree = struct {
                 );
             }
         }
-        for (node.children.items) |id| {
-            self.paintNode(self.get(id), canvas);
-        }
+        if (node.style.scroll) paintScrollIndicator(node, canvas, tokens.withAlpha(self.theme.color_text, 0x40));
         if (should_clip) canvas.restore();
+    }
+
+    fn paintScrollIndicator(node: *Node, canvas: Canvas, color: u32) void {
+        const data = switch (node.data) {
+            .container => |value| value,
+            else => return,
+        };
+        const view = node.bounds.height;
+        if (view <= 0 or data.content_height <= view + 0.5) return;
+        const track = view - 8;
+        const thumb = @max(28, track * view / data.content_height);
+        const progress = data.scroll_offset / data.maxScroll(view);
+        const y = node.bounds.y + 4 + (track - thumb) * progress;
+        const x = node.bounds.right() - 7;
+        canvas.fillRoundRect(geometry.Rect.init(x, y, 3.5, thumb), 1.75, color);
+    }
+
+    /// Scrolls the innermost scroll container under `(x, y)` by `dy` points
+    /// (positive dy moves content down, like AppKit's scrollingDeltaY).
+    /// Returns true when an offset changed.
+    pub fn scrollAt(self: *Tree, x: f32, y: f32, dy: f32) bool {
+        const id = self.scrollContainerAt(self.get(self.root), x, y) orelse return false;
+        // the user's own scrolling wins over a running scrollIntoView
+        switch (self.get(id).data) {
+            .container => |*data| data.scroll_animating = false,
+            else => {},
+        }
+        return self.scrollBy(id, -dy);
+    }
+
+    /// Adds `delta` to a scroll container's offset (clamped). Returns true on change.
+    pub fn scrollBy(self: *Tree, id: NodeId, delta: f32) bool {
+        const node = self.get(id);
+        const data = switch (node.data) {
+            .container => |*value| value,
+            else => return false,
+        };
+        const max = data.maxScroll(node.bounds.height);
+        const next = @max(0, @min(max, data.scroll_offset + delta));
+        if (next == data.scroll_offset) return false;
+        const shift = data.scroll_offset - next;
+        data.scroll_offset = next;
+        for (node.children.items) |child| layout_mod.translateSubtreeY(self.nodes.items, self.get(child), shift);
+        self.markDirty(id, false, true);
+        return true;
+    }
+
+    fn scrollContainerAt(self: *Tree, node: *Node, x: f32, y: f32) ?NodeId {
+        if (!node.inFlow() or !node.bounds.contains(x, y)) return null;
+        var i = node.children.items.len;
+        while (i > 0) {
+            i -= 1;
+            if (self.scrollContainerAt(self.get(node.children.items[i]), x, y)) |hit| return hit;
+        }
+        if (node.style.scroll and std.meta.activeTag(node.data) == .container) {
+            if (node.data.container.content_height > node.bounds.height + 0.5) return node.id;
+        }
+        return null;
     }
 
     pub fn hitTest(self: *Tree, x: f32, y: f32) ?NodeId {
@@ -316,36 +590,39 @@ pub const Tree = struct {
     }
 
     fn hitTestNode(self: *Tree, node: *Node, x: f32, y: f32) ?NodeId {
-        if (!node.visible) return null;
+        if (!node.inFlow()) return null;
         if (!node.bounds.contains(x, y)) return null;
         var i = node.children.items.len;
         while (i > 0) {
             i -= 1;
             if (self.hitTestNode(self.get(node.children.items[i]), x, y)) |hit| return hit;
         }
-        if (node.isInteractive()) return node.id;
+        if (node.isInteractive() or node.visual.block_pointer) return node.id;
         return null;
     }
 
     pub fn focusedNode(self: *Tree) ?*Node {
         if (self.focused) |id| {
             const node = self.get(id);
-            if (node.enabled and node.visible and node.focusable) return node;
+            if (node.enabled and node.inFlow() and node.focusable) return node;
         }
         return null;
     }
 
     pub fn setFocus(self: *Tree, id: ?NodeId) void {
         for (self.nodes.items) |node| {
+            if (!node.alive) continue;
             switch (node.data) {
                 .button => |*data| data.focused = false,
                 .input => |*data| {
+                    if (data.focused) self.poke(node.id);
                     data.focused = false;
                     data.blink_on = true;
                     data.next_blink_ms = 0;
                 },
                 .toggle => |*data| data.focused = false,
                 .select => |*data| {
+                    if (data.focused or data.open) self.poke(node.id);
                     data.focused = false;
                     data.open = false;
                     data.hovered_option = null;
@@ -356,13 +633,10 @@ pub const Tree = struct {
         self.focused = null;
         if (id) |target_id| {
             const target = self.get(target_id);
-            if (!target.enabled or !target.visible or !target.focusable) return;
+            if (!target.enabled or !target.inFlow() or !target.focusable) return;
             self.focused = target_id;
             switch (target.data) {
-                .button => |*data| {
-                    data.focused = true;
-                    data.hover_t = @max(data.hover_t, 0.0);
-                },
+                .button => |*data| data.focused = true,
                 .input => |*data| {
                     data.focused = true;
                     data.blink_on = true;
@@ -372,12 +646,12 @@ pub const Tree = struct {
                 .select => |*data| data.focused = true,
                 else => {},
             }
-            self.markDirty(target_id, false, true);
+            self.poke(target_id);
         }
     }
 
     fn collectFocusables(self: *Tree, node: *Node, out: *std.ArrayListUnmanaged(NodeId)) !void {
-        if (!node.visible) return;
+        if (!node.inFlow()) return;
         if (node.focusable and node.enabled) {
             try out.append(self.allocator, node.id);
         }
@@ -488,13 +762,18 @@ pub const Tree = struct {
     pub fn inputMove(self: *Tree, id: NodeId, target: input.Move, extend: bool) void {
         const node = self.get(id);
         const data = &node.data.input;
+        if (target != .up and target != .down) data.preferred_x = null;
         switch (target) {
             .left => input.moveLeft(data, extend),
             .right => input.moveRight(data, extend),
-            .home => input.moveHome(data, extend),
-            .end => input.moveEnd(data, extend),
+            .home, .doc_start => input.moveHome(data, extend),
+            .end, .doc_end => input.moveEnd(data, extend),
             .word_left => input.moveWordLeft(data, extend),
             .word_right => input.moveWordRight(data, extend),
+            .up => input.moveVertical(data, false, extend),
+            .down => input.moveVertical(data, true, extend),
+            .line_start => input.moveLineEdge(data, false, extend),
+            .line_end => input.moveLineEdge(data, true, extend),
         }
         self.markDirty(id, false, true);
     }
@@ -561,7 +840,7 @@ pub const Tree = struct {
         const node = self.get(id);
         if (std.meta.activeTag(node.data) != .toggle) return;
         node.data.toggle.checked = checked;
-        self.markDirty(id, false, true);
+        self.poke(id);
         if (node.data.toggle.index_action) |action| {
             action.func(action.ctx, node.data.toggle.index);
         } else if (node.data.toggle.action) |action| {

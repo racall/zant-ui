@@ -112,6 +112,38 @@ pub fn build(b: *std.Build) void {
     const run_gallery_step = b.step("run-gallery", "Run the imperative component gallery");
     run_gallery_step.dependOn(&run_gallery_cmd.step);
 
+    const math_demo = b.addExecutable(.{
+        .name = "zant-math",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("examples/math.zig"),
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+            .link_libcpp = true,
+            .imports = &.{.{ .name = "zant", .module = zant_mod }},
+        }),
+    });
+    b.installArtifact(math_demo);
+    const run_math = b.addRunArtifact(math_demo);
+    run_math.step.dependOn(b.getInstallStep());
+    b.step("run-math", "Run the math formula gallery").dependOn(&run_math.step);
+
+    const md_demo = b.addExecutable(.{
+        .name = "zant-markdown",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("examples/markdown.zig"),
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+            .link_libcpp = true,
+            .imports = &.{.{ .name = "zant", .module = zant_mod }},
+        }),
+    });
+    b.installArtifact(md_demo);
+    const run_md = b.addRunArtifact(md_demo);
+    run_md.step.dependOn(b.getInstallStep());
+    b.step("run-markdown", "Run the Markdown (Streamdown) gallery").dependOn(&run_md.step);
+
     const test_mod = b.createModule(.{
         .root_source_file = b.path("tests/all.zig"),
         .target = target,
@@ -124,4 +156,8 @@ pub fn build(b: *std.Build) void {
     const run_tests = b.addRunArtifact(tests);
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_tests.step);
+
+    // unit tests inside the framework module (parser, remend, math, ...)
+    const lib_tests = b.addTest(.{ .root_module = zant_mod });
+    test_step.dependOn(&b.addRunArtifact(lib_tests).step);
 }

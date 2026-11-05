@@ -127,7 +127,10 @@ main 持有 AppState
 
 生成项目还包含：
 
-- `AGENTS.md`：项目介绍、目录、命令、状态与组件规范、沙盒/签名规则。
-- `CLAUDE.md`：Claude Code 入口，引用 `AGENTS.md`。
+- `DESIGN.md`：UI/UX 设计指导原则（与框架同一份），**优先级最高**：所有界面与交互的设计、
+  实现和评审都必须遵循它，与其他约定冲突时以它为准。
+- `AGENTS.md`：开头声明 DESIGN.md 的最高优先级；之后是项目介绍、目录、命令、状态与组件
+  规范（通用组件用框架 `ui.*`，应用只写业务组件）、沙盒/签名规则。
+- `CLAUDE.md`：Claude Code 入口，同样先声明 DESIGN.md，再引用 `AGENTS.md`。
 
 这些文件让 Codex / Claude Code 在修改项目前先理解约定，减少误改。

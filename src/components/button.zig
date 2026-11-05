@@ -3,6 +3,8 @@ const node_mod = @import("../core/node.zig");
 const tokens = @import("../theme/tokens.zig");
 const Canvas = @import("../renderer/canvas.zig").Canvas;
 const geometry = @import("../core/geometry.zig");
+const icons = @import("../core/icons.zig");
+const motion = @import("../motion/motion.zig");
 
 pub const Node = node_mod.Node;
 pub const Theme = tokens.Theme;
@@ -20,7 +22,7 @@ pub fn controlHeight(size: node_mod.ButtonSize) f32 {
 }
 
 pub fn horizontalPadding(size: node_mod.ButtonSize, button_type: node_mod.ButtonType) f32 {
-    if (button_type == .text or button_type == .link) return 0;
+    if (button_type == .text or button_type == .link or button_type == .plain) return 0;
     return switch (size) {
         .small => horizontal_padding_small,
         .middle => horizontal_padding_middle,
@@ -43,6 +45,7 @@ fn textColor(data: *const node_mod.ButtonData, enabled: bool, theme: Theme) u32 
         .default => theme.color_text,
         .text => theme.color_text,
         .link => theme.color_primary,
+        .plain => theme.color_text,
     };
 }
 
@@ -50,7 +53,8 @@ pub fn measureWidth(node: *Node, theme: Theme, max_width: f32) f32 {
     _ = max_width;
     const data = &node.data.button;
     if (node.style.width) |w| return w;
-    const color = textColor(data, node.enabled, theme);
+    // same colour as paint, so measuring does not re-shape the label
+    const color = if (node.enabled) data.text_color orelse textColor(data, true, theme) else textColor(data, false, theme);
     const layout = data.ensureLayout(color) catch return controlHeight(data.size) * 2;
     return @min(
         layout.metrics.longest_line + horizontalPadding(data.size, data.button_type) * 2,
@@ -72,6 +76,11 @@ fn baseColors(data: *const node_mod.ButtonData, enabled: bool, theme: Theme) str
     active_border: u32,
 } {
     if (!enabled) {
+        // antd: disabled text / link buttons have no fill or border
+        if (data.button_type == .text or data.button_type == .link or data.button_type == .plain) {
+            const clear = tokens.withAlpha(theme.color_fill_secondary, 0);
+            return .{ .bg = clear, .hover_bg = clear, .active_bg = clear, .border = 0, .hover_border = 0, .active_border = 0 };
+        }
         return .{
             .bg = theme.color_fill_secondary,
             .hover_bg = theme.color_fill_secondary,
@@ -98,15 +107,16 @@ fn baseColors(data: *const node_mod.ButtonData, enabled: bool, theme: Theme) str
             .hover_border = theme.color_primary_hover,
             .active_border = theme.color_primary_active,
         },
+        // antd: colorBgTextHover = fillSecondary, colorBgTextActive = fill
         .text => .{
-            .bg = 0x00000000,
+            .bg = tokens.withAlpha(theme.color_fill_secondary, 0),
             .hover_bg = theme.color_fill_secondary,
-            .active_bg = theme.color_primary_bg,
+            .active_bg = theme.color_fill,
             .border = 0x00000000,
             .hover_border = 0x00000000,
             .active_border = 0x00000000,
         },
-        .link => .{
+        .link, .plain => .{
             .bg = 0x00000000,
             .hover_bg = 0x00000000,
             .active_bg = 0x00000000,
@@ -120,6 +130,14 @@ fn baseColors(data: *const node_mod.ButtonData, enabled: bool, theme: Theme) str
 pub fn paint(node: *Node, canvas: Canvas, theme: Theme) void {
     const data = &node.data.button;
     if (!node.visible) return;
+    // an empty plain button (hit area, dismiss layer) paints only an
+    // explicit background
+    if (data.button_type == .plain and data.icon == .none and data.label.len == 0) {
+        if (node.visual.background) |bg| {
+            if (tokens.alpha(bg) > 0) canvas.fillRoundRect(node.bounds, node.visual.radius, bg);
+        }
+        return;
+    }
     const enabled = node.enabled;
     const colors = baseColors(data, enabled, theme);
     const hover_t = if (enabled) data.hover_t else 0;
@@ -142,7 +160,8 @@ pub fn paint(node: *Node, canvas: Canvas, theme: Theme) void {
         );
     }
 
-    const color = data.text_color orelse textColor(data, enabled, theme);
+    // disabled buttons always use the disabled text colour (antd)
+    const color = if (enabled) data.text_color orelse textColor(data, true, theme) else textColor(data, false, theme);
     if (data.icon != .none) {
         paintIcon(node, canvas, color);
     } else if (data.ensureLayout(color)) |layout| {
@@ -159,23 +178,38 @@ pub fn paint(node: *Node, canvas: Canvas, theme: Theme) void {
         const ring = geometry.Rect.init(rect.x - 2, rect.y - 2, rect.width + 4, rect.height + 4);
         canvas.strokeRoundRect(ring, node.visual.radius + 2, tokens.withAlpha(theme.color_primary, 0x66), 2);
     }
+    if (data.wave_t < 1) paintWave(node, canvas, theme);
 }
 
-fn approach(current: f32, target: f32, delta: f32) f32 {
-    if (current < target) return @min(current + delta, target);
-    return @max(current - delta, target);
+/// antd click wave: a primary-coloured ring spreading 6px and fading out.
+fn paintWave(node: *const Node, canvas: Canvas, theme: Theme) void {
+    const ms = node.data.button.wave_t * 600;
+    const spread = 6 * motion.easing.apply(.ease_out_circ, @min(1, ms / 400));
+    const fade = 0.2 * (1 - motion.easing.apply(.ease_out_circ, ms / 600));
+    if (spread < 0.1 or fade < 0.004) return;
+    const r = node.bounds;
+    const half = spread * 0.5;
+    const color = tokens.withAlpha(theme.color_primary, @intFromFloat(255.0 * fade));
+    canvas.strokeRoundRect(geometry.Rect.init(r.x - half, r.y - half, r.width + spread, r.height + spread), node.visual.radius + half, color, spread);
 }
 
-/// Advances hover/pressed transitions. Returns true while another frame is needed.
-pub fn animate(data: *node_mod.ButtonData, dt_ms: f32, theme: Theme) bool {
-    if (data.hover_t == 0 and data.press_t == 0 and !data.hovered and !data.pressed) return false;
-    const target_hover: f32 = if (data.hovered) 1 else 0;
-    const target_press: f32 = if (data.pressed) 1 else 0;
-    const hover_step = dt_ms / @as(f32, @floatFromInt(theme.motion_duration_mid));
-    const press_step = dt_ms / @as(f32, @floatFromInt(theme.motion_duration_fast));
-    data.hover_t = approach(data.hover_t, target_hover, hover_step);
-    data.press_t = approach(data.press_t, target_press, press_step);
-    return data.hover_t != target_hover or data.press_t != target_press;
+/// Advances hover / press / wave transitions (antd: hover 200ms, active
+/// 100ms, ease-in-out). Returns true while another frame is needed.
+pub fn animate(data: *node_mod.ButtonData, now: i64, theme: Theme) bool {
+    const mid: motion.Transition = .{ .duration_ms = @intCast(theme.motion_duration_mid), .easing = .ease_in_out };
+    const fast: motion.Transition = .{ .duration_ms = @intCast(theme.motion_duration_fast), .easing = .ease_in_out };
+    data.hover.retarget(if (data.hovered) 1 else 0, now, mid);
+    data.press.retarget(if (data.pressed) 1 else 0, now, fast);
+    data.hover_t = data.hover.value(now);
+    data.press_t = data.press.value(now);
+    data.wave_t = data.wave.value(now);
+    return !(data.hover.done(now) and data.press.done(now) and data.wave.done(now));
+}
+
+/// Starts the click wave (primary / default buttons only).
+pub fn startWave(data: *node_mod.ButtonData, now: i64) void {
+    if (data.button_type != .primary and data.button_type != .default) return;
+    data.wave = motion.Animated.start(0, 1, now, .{ .duration_ms = 600, .easing = .linear });
 }
 
 pub fn setEnabled(node: *Node, enabled: bool, theme: Theme) void {
@@ -186,50 +220,20 @@ pub fn setEnabled(node: *Node, enabled: bool, theme: Theme) void {
         data.hovered = false;
         data.pressed = false;
         data.focused = false;
+        data.hover = .at(0);
+        data.press = .at(0);
+        data.wave = .at(1);
         data.hover_t = 0;
         data.press_t = 0;
+        data.wave_t = 1;
     }
     const color = textColor(data, enabled, theme);
     data.ensureLayout(color) catch {};
 }
 
-
 fn paintIcon(node: *Node, canvas: Canvas, color: u32) void {
     const rect = node.bounds;
-    const cx = rect.x + rect.width * 0.5;
-    const cy = rect.y + rect.height * 0.5;
-    switch (node.data.button.icon) {
-        .none => {},
-        .more => {
-            for ([_]f32{ -6, 0, 6 }) |dx| {
-                canvas.fillRoundRect(geometry.Rect.init(cx + dx - 1.5, cy - 1.5, 3, 3), 1.5, color);
-            }
-        },
-        .search => {
-            const r: f32 = 4.5;
-            var prev_x = cx - r + 1.5;
-            var prev_y = cy;
-            var i: usize = 1;
-            while (i <= 12) : (i += 1) {
-                const a = @as(f32, @floatFromInt(i)) / 12.0 * std.math.pi * 2.0;
-                const px = cx + @cos(a) * r;
-                const py = cy - 2 + @sin(a) * r;
-                canvas.drawLine(prev_x, prev_y, px, py, color, 1.5);
-                prev_x = px;
-                prev_y = py;
-            }
-            canvas.drawLine(cx + 3.2, cy + 1.2, cx + 7.5, cy + 5.5, color, 1.5);
-        },
-        .eye => {
-            const points = [_][2]f32{
-                .{ -8, 0 }, .{ -5, -3.5 }, .{ -2, -5 }, .{ 2, -5 }, .{ 5, -3.5 },
-                .{ 8, 0 }, .{ 5, 3.5 }, .{ 2, 5 }, .{ -2, 5 }, .{ -5, 3.5 }, .{ -8, 0 },
-            };
-            var i: usize = 1;
-            while (i < points.len) : (i += 1) {
-                canvas.drawLine(cx + points[i - 1][0], cy + points[i - 1][1], cx + points[i][0], cy + points[i][1], color, 1.4);
-            }
-            canvas.fillRoundRect(geometry.Rect.init(cx - 2, cy - 2, 4, 4), 2, color);
-        },
-    }
+    const data = &node.data.button;
+    const size = @min(data.icon_size, @min(rect.width, rect.height));
+    icons.paint(canvas.ptr, data.icon, rect.x + rect.width * 0.5, rect.y + rect.height * 0.5, size, color, null);
 }

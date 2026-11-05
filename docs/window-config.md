@@ -66,8 +66,18 @@ try zant.launch.run(init.gpa, State.init(), State.render, .{
 ## 窗口风格
 
 - `native`：原生标题栏、红黄绿按钮。
-- `hidden-titlebar`：隐藏标题文字，内容延伸到标题栏区域，交通灯保留。
+- `hidden-titlebar`：隐藏标题文字，内容延伸到标题栏区域，交通灯保留。应用自绘标题栏时，
+  在代码里设 `window.titlebar_height = 52`（与自绘标题栏同高），交通灯会垂直居中其中，
+  窗口缩放和退出全屏后自动保持。
 - `borderless`：无标题栏和交通灯，可拖拽背景移动，Cmd+Q 退出。
+
+## 文档类应用
+
+- 关窗 / ⌘W / ⌘Q 前确认未保存修改：状态类型声明 `pub fn onCloseRequest(self: *State) bool`
+  （返回 false 保持打开）。应用菜单自动包含“Quit <标题>”和“Close Window ⌘W”。
+- 未保存标记：在 `render` 里调用 `ui.documentEdited(state.dirty)`，关闭按钮显示圆点；
+  标题按 macOS 习惯可显示“文件名 — 已编辑”。
+- 窗口底色跟随根节点背景（深色模式下缩放窗口不闪白）。
 
 ## 沙盒
 

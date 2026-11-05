@@ -14,6 +14,7 @@ pub const Renderer = struct {
     extern fn zant_renderer_write_png(renderer: ?*anyopaque, path: [*:0]const u8) bool;
     extern fn zant_renderer_backend_name(renderer: ?*anyopaque) [*:0]const u8;
     extern fn zant_renderer_is_gpu(renderer: ?*anyopaque) bool;
+    extern fn zant_renderer_pixels(renderer: ?*anyopaque, width: *c_int, height: *c_int, stride: *c_int) ?[*]u8;
 
     pub fn createRaster(width: u32, height: u32) !Renderer {
         const handle = zant_renderer_create_raster(@intCast(width), @intCast(height)) orelse
@@ -55,5 +56,17 @@ pub const Renderer = struct {
 
     pub fn isGpu(self: *const Renderer) bool {
         return zant_renderer_is_gpu(self.handle);
+    }
+
+    /// Pixel at (x, y) of a raster renderer as 0xAARRGGBB (premultiplied);
+    /// null outside the surface or without CPU pixels (tests).
+    pub fn pixelAt(self: *const Renderer, x: usize, y: usize) ?u32 {
+        var w: c_int = 0;
+        var h: c_int = 0;
+        var stride: c_int = 0;
+        const base = zant_renderer_pixels(self.handle, &w, &h, &stride) orelse return null;
+        if (x >= @as(usize, @intCast(w)) or y >= @as(usize, @intCast(h))) return null;
+        const p = base + y * @as(usize, @intCast(stride)) + x * 4;
+        return (@as(u32, p[3]) << 24) | (@as(u32, p[0]) << 16) | (@as(u32, p[1]) << 8) | p[2];
     }
 };

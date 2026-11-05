@@ -26,6 +26,8 @@ enum {
     ZANT_EVENT_WINDOW_BLUR = 12,
     ZANT_EVENT_WINDOW_CLOSE = 13,
     ZANT_EVENT_SCROLL = 14,
+    /* Close button / ⌘W / Quit: the handler returns non-zero to veto. */
+    ZANT_EVENT_WINDOW_CLOSE_REQUEST = 15,
 };
 
 enum {
@@ -79,6 +81,9 @@ typedef struct ZantWindowOptions {
     int always_on_top;
     int movable_by_background;
     int center;
+    /* hidden_titlebar only: height of the app's own title bar (0 = system
+       default); the traffic lights are centred in it. */
+    float titlebar_height;
 } ZantWindowOptions;
 
 typedef struct ZantEvent {
@@ -114,6 +119,12 @@ void zant_macos_run(ZantMacWindow *window);
 void zant_macos_destroy(ZantMacWindow *window);
 void zant_macos_request_redraw(ZantMacWindow *window, int delay_ms);
 void zant_macos_set_cursor(ZantMacWindow *window, int cursor);
+/* Sets the NSWindow background colour (0xAARRGGBB). */
+void zant_macos_set_background(ZantMacWindow *window, uint32_t argb);
+/* 1 when "Reduce motion" is on in System Settings › Accessibility. */
+int zant_macos_reduce_motion(void);
+/* Unsaved-changes state (dot in the close button, as in document apps). */
+void zant_macos_set_document_edited(ZantMacWindow *window, int edited);
 const char *zant_macos_renderer_name(ZantMacWindow *window);
 void zant_macos_schedule_snapshot(ZantMacWindow *window, const char *path, int delay_ms);
 

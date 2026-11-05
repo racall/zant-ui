@@ -20,4 +20,5 @@ ui.column(.{
 `clip`、`children`。
 
 `column` 主轴为纵向，`row` 主轴为横向。`space` 是固定间距占位，`divider`
-是分隔线。当前只支持单行 Flex，不支持 wrap 和百分比。
+是分隔线。支持 wrap、百分比尺寸、order、align-self、绝对定位与 `anchor`，
+`scroll = true` 为纵向滚动容器；详见 [Flex 与 CSS](../flex.md)。

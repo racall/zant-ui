@@ -3,6 +3,7 @@ const node_mod = @import("../core/node.zig");
 const tokens = @import("../theme/tokens.zig");
 const Canvas = @import("../renderer/canvas.zig").Canvas;
 const geometry = @import("../core/geometry.zig");
+const motion = @import("../motion/motion.zig");
 
 pub const Node = node_mod.Node;
 pub const ToggleData = node_mod.ToggleData;
@@ -45,6 +46,7 @@ pub fn paint(node: *Node, canvas: Canvas, theme: Theme) void {
     const hover = if (enabled) data.hover_t else 0;
     const press = if (enabled) data.press_t else 0;
     const check = data.check_t;
+    const mark = data.mark_t;
 
     if (data.kind == .radio) {
         const box = geometry.Rect.init(rect.x, rect.y + (rect.height - checkbox_size) * 0.5, checkbox_size, checkbox_size);
@@ -54,8 +56,9 @@ pub fn paint(node: *Node, canvas: Canvas, theme: Theme) void {
             theme.color_border;
         canvas.fillRoundRect(box, checkbox_size * 0.5, if (enabled) theme.color_bg_container else theme.color_fill_secondary);
         canvas.strokeRoundRect(box, checkbox_size * 0.5, border, 1.2);
-        if (check > 0.02) {
-            const dot = checkbox_size * 0.5 * check;
+        if (mark > 0.02) {
+            // antd: the inner dot scales in (dotSize = 8px of 16)
+            const dot = checkbox_size * 0.25 * mark;
             const cx = box.x + box.width * 0.5;
             const cy = box.y + box.height * 0.5;
             canvas.fillRoundRect(geometry.Rect.init(cx - dot, cy - dot, dot * 2, dot * 2), dot, theme.color_primary);
@@ -73,8 +76,11 @@ pub fn paint(node: *Node, canvas: Canvas, theme: Theme) void {
         } else |_| {}
     } else if (data.kind == .checkbox) {
         const box = geometry.Rect.init(rect.x, rect.y + (rect.height - checkbox_size) * 0.5, checkbox_size, checkbox_size);
+        // disabled + checked keeps a dimmed primary fill so the mark stays visible
         const fill = if (enabled)
             tokens.lerp(theme.color_bg_container, theme.color_primary, check)
+        else if (check > 0.5)
+            tokens.withAlpha(theme.color_primary, 0x66)
         else
             theme.color_fill_secondary;
         const border = if (enabled)
@@ -83,12 +89,14 @@ pub fn paint(node: *Node, canvas: Canvas, theme: Theme) void {
             theme.color_border;
         canvas.fillRoundRect(box, theme.border_radius_sm * 0.5 + 2, fill);
         canvas.strokeRoundRect(box, theme.border_radius_sm * 0.5 + 2, border, 1);
-        if (check > 0.02) {
-            const check_color = tokens.withAlpha(theme.color_text_light, @intFromFloat(255.0 * check));
+        if (mark > 0.02) {
+            // the tick pops in from the centre (antd ease-out-back)
+            const check_color = tokens.withAlpha(theme.color_text_light, @intFromFloat(255.0 * std.math.clamp(mark, 0, 1)));
             const cx = box.x + box.width * 0.5;
             const cy = box.y + box.height * 0.5;
-            canvas.drawLine(cx - 3.5, cy, cx - 1, cy + 2.5, check_color, 1.8);
-            canvas.drawLine(cx - 1, cy + 2.5, cx + 4, cy - 3, check_color, 1.8);
+            const k = mark;
+            canvas.drawLine(cx - 3.5 * k, cy, cx - 1 * k, cy + 2.5 * k, check_color, 1.8);
+            canvas.drawLine(cx - 1 * k, cy + 2.5 * k, cx + 4 * k, cy - 3 * k, check_color, 1.8);
         }
         if (data.focused and enabled) {
             canvas.strokeRoundRect(
@@ -105,12 +113,22 @@ pub fn paint(node: *Node, canvas: Canvas, theme: Theme) void {
         } else |_| {}
     } else {
         const track = geometry.Rect.init(rect.x, rect.y + (rect.height - switch_height) * 0.5, switch_width, switch_height);
-        const base = if (enabled) tokens.lerp(tokens.withAlpha(0xffbfbfbf, 0xff), theme.color_primary_hover, hover) else theme.color_fill_secondary;
-        const track_color = if (enabled) tokens.lerp(base, theme.color_primary, check) else base;
+        // antd: unchecked track = colorTextQuaternary (darker on hover),
+        // checked = primary (primary_hover on hover); disabled at 65% opacity
+        const off = tokens.lerp(theme.color_text_disabled, theme.color_text_secondary, hover * 0.5);
+        const on = tokens.lerp(theme.color_primary, theme.color_primary_hover, hover);
+        var track_color = tokens.lerp(off, on, check);
+        if (!enabled) track_color = tokens.withAlpha(track_color, @intFromFloat(@as(f32, @floatFromInt(tokens.alpha(track_color))) * 0.65));
         canvas.fillRoundRect(track, switch_height * 0.5, track_color);
-        const knob_x = track.x + 2 + (switch_width - switch_height) * check;
-        const knob = geometry.Rect.init(knob_x, track.y + 2, switch_height - 4, switch_height - 4);
-        canvas.fillRoundRect(knob, knob.width * 0.5, if (enabled) theme.color_bg_container else theme.color_bg_container);
+        // pressing stretches the handle towards the centre (antd 18 → 24px)
+        const base: f32 = switch_height - 4;
+        const knob_w = base + 5.4 * press;
+        const travel = switch_width - 4 - base;
+        const left = track.x + 2 + travel * check;
+        const knob_x = left - (knob_w - base) * check;
+        const knob = geometry.Rect.init(knob_x, track.y + 2, knob_w, base);
+        // the handle is always white (antd handleBg)
+        canvas.fillRoundRect(knob, base * 0.5, 0xffffffff);
         if (data.focused and enabled) {
             canvas.strokeRoundRect(
                 geometry.Rect.init(track.x - 2, track.y - 2, track.width + 4, track.height + 4),
@@ -125,23 +143,39 @@ pub fn paint(node: *Node, canvas: Canvas, theme: Theme) void {
             layout.paint(canvas, x, y);
         } else |_| {}
     }
-    _ = press;
 }
 
-fn approach(current: f32, target: f32, delta: f32) f32 {
-    if (current < target) return @min(current + delta, target);
-    return @max(current - delta, target);
-}
-
-pub fn animate(data: *ToggleData, dt_ms: f32, theme: Theme) bool {
-    const target_hover: f32 = if (data.hovered) 1 else 0;
-    const target_press: f32 = if (data.pressed) 1 else 0;
-    const target_check: f32 = if (data.checked) 1 else 0;
-    const hover_step = dt_ms / @as(f32, @floatFromInt(theme.motion_duration_mid));
-    const press_step = dt_ms / @as(f32, @floatFromInt(theme.motion_duration_fast));
-    const check_step = dt_ms / @as(f32, @floatFromInt(theme.motion_duration_mid));
-    data.hover_t = approach(data.hover_t, target_hover, hover_step);
-    data.press_t = approach(data.press_t, target_press, press_step);
-    data.check_t = approach(data.check_t, target_check, check_step);
-    return data.hover_t != target_hover or data.press_t != target_press or data.check_t != target_check;
+/// Advances the toggle's transitions (antd): checkbox fill 300ms ease and
+/// tick 200ms ease-out-back (in) / 100ms ease-in-back (out); radio dot
+/// 300ms ease-in-out-circ; switch 200ms ease-in-out. Returns true while
+/// another frame is needed.
+pub fn animate(data: *ToggleData, now: i64, theme: Theme) bool {
+    const mid: motion.Transition = .{ .duration_ms = @intCast(theme.motion_duration_mid), .easing = .ease_in_out };
+    const fast: motion.Transition = .{ .duration_ms = @intCast(theme.motion_duration_fast), .easing = .ease_in_out };
+    const target: f32 = if (data.checked) 1 else 0;
+    data.hover.retarget(if (data.hovered) 1 else 0, now, mid);
+    data.press.retarget(if (data.pressed) 1 else 0, now, fast);
+    switch (data.kind) {
+        .checkbox => {
+            data.check.retarget(target, now, .{ .duration_ms = @intCast(theme.motion_duration_slow), .easing = .ease });
+            const mark_tr: motion.Transition = if (data.checked)
+                .{ .duration_ms = 200, .easing = .ease_out_back, .delay_ms = 100 }
+            else
+                .{ .duration_ms = 100, .easing = .ease_in_back };
+            data.mark.retarget(target, now, mark_tr);
+        },
+        .radio => {
+            data.check.retarget(target, now, mid);
+            data.mark.retarget(target, now, .{ .duration_ms = @intCast(theme.motion_duration_slow), .easing = .ease_in_out_circ });
+        },
+        .switch_control => {
+            data.check.retarget(target, now, mid);
+            data.mark.retarget(target, now, mid);
+        },
+    }
+    data.hover_t = data.hover.value(now);
+    data.press_t = data.press.value(now);
+    data.check_t = data.check.value(now);
+    data.mark_t = data.mark.value(now);
+    return !(data.hover.done(now) and data.press.done(now) and data.check.done(now) and data.mark.done(now));
 }

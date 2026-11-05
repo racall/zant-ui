@@ -1,0 +1,2612 @@
+[
+{
+"file": "basic-input.test.ts",
+"input": "",
+"expected": ""
+},
+{
+"file": "basic-input.test.ts",
+"input": "This is plain text without any markdown",
+"expected": "This is plain text without any markdown"
+},
+{
+"file": "bold-italic.test.ts",
+"input": "Text with ***bold-italic",
+"expected": "Text with ***bold-italic***"
+},
+{
+"file": "bold-italic.test.ts",
+"input": "***incomplete",
+"expected": "***incomplete***"
+},
+{
+"file": "bold-italic.test.ts",
+"input": "Text with ***bold and italic text***",
+"expected": "Text with ***bold and italic text***"
+},
+{
+"file": "bold-italic.test.ts",
+"input": "***first*** and ***second***",
+"expected": "***first*** and ***second***"
+},
+{
+"file": "bold-italic.test.ts",
+"input": "***first*** and ***second",
+"expected": "***first*** and ***second***"
+},
+{
+"file": "bold-italic.test.ts",
+"input": "*italic* **bold** ***both",
+"expected": "*italic* **bold** ***both***"
+},
+{
+"file": "bold-italic.test.ts",
+"input": "***Starting bold-italic",
+"expected": "***Starting bold-italic***"
+},
+{
+"file": "bold-italic.test.ts",
+"input": "***bold-italic with `code",
+"expected": "***bold-italic with `code***`"
+},
+{
+"file": "bold-italic.test.ts",
+"input": "text ***",
+"expected": "text ***"
+},
+{
+"file": "bold-italic.test.ts",
+"input": "text ****",
+"expected": "text ****"
+},
+{
+"file": "bold-italic.test.ts",
+"input": "text *****",
+"expected": "text *****"
+},
+{
+"file": "bold-italic.test.ts",
+"input": "text ******",
+"expected": "text ******"
+},
+{
+"file": "bold-italic.test.ts",
+"input": "text***",
+"expected": "text***"
+},
+{
+"file": "bold-italic.test.ts",
+"input": "word****",
+"expected": "word****"
+},
+{
+"file": "bold-italic.test.ts",
+"input": "end******",
+"expected": "end******"
+},
+{
+"file": "bold-italic.test.ts",
+"input": "***start***end***",
+"expected": "***start***end***"
+},
+{
+"file": "bold-italic.test.ts",
+"input": "***text***",
+"expected": "***text***"
+},
+{
+"file": "bold-italic.test.ts",
+"input": "***incomplete",
+"expected": "***incomplete***"
+},
+{
+"file": "bold-italic.test.ts",
+"input": "***word text***",
+"expected": "***word text***"
+},
+{
+"file": "bold-italic.test.ts",
+"input": "Combined **bold and *italic*** text",
+"expected": "Combined **bold and *italic*** text"
+},
+{
+"file": "bold-italic.test.ts",
+"input": "**bold and *italic*** more text",
+"expected": "**bold and *italic*** more text"
+},
+{
+"file": "bold-italic.test.ts",
+"input": "test **bold and *italic*** end",
+"expected": "test **bold and *italic*** end"
+},
+{
+"file": "bold-italic.test.ts",
+"input": "- Combined **bold and *italic*** text",
+"expected": "- Combined **bold and *italic*** text"
+},
+{
+"file": "bold.test.ts",
+"input": "Text with **bold",
+"expected": "Text with **bold**"
+},
+{
+"file": "bold.test.ts",
+"input": "**incomplete",
+"expected": "**incomplete**"
+},
+{
+"file": "bold.test.ts",
+"input": "Text with **bold text**",
+"expected": "Text with **bold text**"
+},
+{
+"file": "bold.test.ts",
+"input": "**bold1** and **bold2**",
+"expected": "**bold1** and **bold2**"
+},
+{
+"file": "bold.test.ts",
+"input": "**first** and **second",
+"expected": "**first** and **second**"
+},
+{
+"file": "bold.test.ts",
+"input": "Here is some **bold tex",
+"expected": "Here is some **bold tex**"
+},
+{
+"file": "bold.test.ts",
+"input": "**xxx*",
+"expected": "**xxx**"
+},
+{
+"file": "bold.test.ts",
+"input": "**bold text*",
+"expected": "**bold text**"
+},
+{
+"file": "bold.test.ts",
+"input": "Text with **bold*",
+"expected": "Text with **bold**"
+},
+{
+"file": "bold.test.ts",
+"input": "This is **bold text*",
+"expected": "This is **bold text**"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "**bold*",
+"expected": "**bold**"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "~~strike~",
+"expected": "~~strike~~"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "$$formula$",
+"expected": "$$formula$$"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "> > **deeply nested bold",
+"expected": "> > **deeply nested bold**"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "> * list with **bold",
+"expected": "> * list with **bold**"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "> > > triple nested *italic",
+"expected": "> > > triple nested *italic*"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "> ~~struck text",
+"expected": "> ~~struck text~~"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "- [ ] **bold task",
+"expected": "- [ ] **bold task**"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "- [x] completed ~~struck~~",
+"expected": "- [x] completed ~~struck~~"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "- [ ] *italic task",
+"expected": "- [ ] *italic task*"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "- [ ] `code task",
+"expected": "- [ ] `code task`"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "| **bold | next |",
+"expected": "| **bold | next |**"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "| `code | next |",
+"expected": "| `code | next |`"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "| **bold** | next |",
+"expected": "| **bold** | next |"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "text <!-- incomplete comment",
+"expected": "text <!-- incomplete comment"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "text <script>alert('",
+"expected": "text <script>alert('"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "text <div class=\"test",
+"expected": "text"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "text <br>",
+"expected": "text <br>"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "text <!-- comment -->",
+"expected": "text <!-- comment -->"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "$$\\frac{x}{y",
+"expected": "$$\\frac{x}{y$$"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "$$\\begin{matrix} a",
+"expected": "$$\\begin{matrix} a$$"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "The price is $50 and $100",
+"expected": "The price is $50 and $100"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "$$\n\\sum_{i=0}^{n} x_i",
+"expected": "$$\n\\sum_{i=0}^{n} x_i\n$$"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "**bold** then **more",
+"expected": "**bold** then **more**"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "`code` then `more",
+"expected": "`code` then `more`"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "~~done~~ and ~~undone",
+"expected": "~~done~~ and ~~undone~~"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "*first* and *second",
+"expected": "*first* and *second*"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "***first*** and ***second",
+"expected": "***first*** and ***second***"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "paragraph1\n\n**bold",
+"expected": "paragraph1\n\n**bold**"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "line1\n\n*italic text",
+"expected": "line1\n\n*italic text*"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "text\n\n\n**bold",
+"expected": "text\n\n\n**bold**"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "text\n\n`code",
+"expected": "text\n\n`code`"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "**中文粗体",
+"expected": "**中文粗体**"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "*日本語",
+"expected": "*日本語*"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "`한국어 코드",
+"expected": "`한국어 코드`"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "~~🎉 celebration",
+"expected": "~~🎉 celebration~~"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "**Hello 世界",
+"expected": "**Hello 世界**"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "---\n**bold after rule",
+"expected": "---\n**bold after rule**"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "# Heading\n**bold",
+"expected": "# Heading\n**bold**"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "> quote\n**bold",
+"expected": "> quote\n**bold**"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "```\ncode\n```\n*italic",
+"expected": "```\ncode\n```\n*italic*"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "[text][ref]",
+"expected": "[text][ref]"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "[^1]",
+"expected": "[^1]"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "[^1]: footnote text",
+"expected": "[^1]: footnote text"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "    *asterisks in indented",
+"expected": "    *asterisks in indented*"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "    **bold in indented",
+"expected": "    **bold in indented**"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "```\ncode\n```\n**bold",
+"expected": "```\ncode\n```\n**bold**"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "```\ncode\n```\n```\nmore",
+"expected": "```\ncode\n```\n```\nmore"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "```\nblock\n```\n`inline",
+"expected": "```\nblock\n```\n`inline`"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "**bold\twith\ttabs",
+"expected": "**bold\twith\ttabs**"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "**bold\r\nwith CRLF",
+"expected": "**bold\r\nwith CRLF**"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "\n\n\n**bold",
+"expected": "\n\n\n**bold**"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "text ",
+"expected": "text"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "text  ",
+"expected": "text  "
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "**bold ",
+"expected": "**bold**"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "Here's how to use it:\n\n```typescript\nconst x = 1",
+"expected": "Here's how to use it:\n\n```typescript\nconst x = 1"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "1. First\n2. **Second item with bold",
+"expected": "1. First\n2. **Second item with bold**"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "The function `getData` returns a **Promise",
+"expected": "The function `getData` returns a **Promise**"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "Check the [documentation",
+"expected": "Check the [documentation](streamdown:incomplete-link)"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "```js\nconst x = 1;\n```\n\nThis creates a **variable",
+"expected": "```js\nconst x = 1;\n```\n\nThis creates a **variable**"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "- Use `map` to transform\n- Use `filter",
+"expected": "- Use `map` to transform\n- Use `filter`"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "## Important *note",
+"expected": "## Important *note*"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "Here's the diagram:\n\n![architecture",
+"expected": "Here's the diagram:\n\n![architecture](streamdown:incomplete-image)"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "See ![diagram](http://example.com/img",
+"expected": "See ![diagram](streamdown:incomplete-image)"
+},
+{
+"file": "broken-markdown-variants.test.ts",
+"input": "[click here](https://example.com) for **more",
+"expected": "[click here](https://example.com) for **more**"
+},
+{
+"file": "code-blocks.test.ts",
+"input": "```javascript\nconst x = 5;",
+"expected": "```javascript\nconst x = 5;"
+},
+{
+"file": "code-blocks.test.ts",
+"input": "```\ncode here",
+"expected": "```\ncode here"
+},
+{
+"file": "code-blocks.test.ts",
+"input": "```javascript\nconst x = 5;\n```",
+"expected": "```javascript\nconst x = 5;\n```"
+},
+{
+"file": "code-blocks.test.ts",
+"input": "```python\ndef hello():",
+"expected": "```python\ndef hello():"
+},
+{
+"file": "code-blocks.test.ts",
+"input": "```\nconst str = `template`;\n```",
+"expected": "```\nconst str = `template`;\n```"
+},
+{
+"file": "code-blocks.test.ts",
+"input": "Some text\n```js\nconsole.log",
+"expected": "Some text\n```js\nconsole.log"
+},
+{
+"file": "code-blocks.test.ts",
+"input": "```\ncode\n```\nMore text",
+"expected": "```\ncode\n```\nMore text"
+},
+{
+"file": "code-blocks.test.ts",
+"input": "```python\ndef greet(name):\n    return f\"Hello, {name}!\"\n```",
+"expected": "```python\ndef greet(name):\n    return f\"Hello, {name}!\"\n```"
+},
+{
+"file": "code-blocks.test.ts",
+"input": "```python\ndef greet(name):\n    return f\"Hello, {name}!\"\n```\n",
+"expected": "```python\ndef greet(name):\n    return f\"Hello, {name}!\"\n```\n"
+},
+{
+"file": "code-blocks.test.ts",
+"input": "```\nSimple code block\nwith multiple lines\nand some special characters: !@#$%^&*()\n```",
+"expected": "```\nSimple code block\nwith multiple lines\nand some special characters: !@#$%^&*()\n```"
+},
+{
+"file": "code-blocks.test.ts",
+"input": "```python\ndef hello_world():\n    \"\"\"A simple function\"\"\"\n    name = \"World\"\n    print(f\"Hello, {name}!\")\n    \n    # List comprehension\n    numbers = [x**2 for x in range(10) if x % 2 == 0]\n    return numbers\n\nclass TestClass:\n    def __init__(self, value):\n        self.value = value\n```",
+"expected": "```python\ndef hello_world():\n    \"\"\"A simple function\"\"\"\n    name = \"World\"\n    print(f\"Hello, {name}!\")\n    \n    # List comprehension\n    numbers = [x**2 for x in range(10) if x % 2 == 0]\n    return numbers\n\nclass TestClass:\n    def __init__(self, value):\n        self.value = value\n```"
+},
+{
+"file": "code-blocks.test.ts",
+"input": "```python def greet(name): return f\"Hello, {name}!\"\n```",
+"expected": "```python def greet(name): return f\"Hello, {name}!\"\n```"
+},
+{
+"file": "code-blocks.test.ts",
+"input": "```js\ncode1\n```\n\n```python\ncode2\n```",
+"expected": "```js\ncode1\n```\n\n```python\ncode2\n```"
+},
+{
+"file": "code-blocks.test.ts",
+"input": "```python def greet(name): return f\"Hello, {name}!\"\n```",
+"expected": "```python def greet(name): return f\"Hello, {name}!\"\n```"
+},
+{
+"file": "code-blocks.test.ts",
+"input": "```python code```",
+"expected": "```python code```"
+},
+{
+"file": "code-blocks.test.ts",
+"input": "```python code\n```",
+"expected": "```python code\n```"
+},
+{
+"file": "code-blocks.test.ts",
+"input": "```css\ncode here\n```\n\n**incomplete bold",
+"expected": "```css\ncode here\n```\n\n**incomplete bold**"
+},
+{
+"file": "comparison-operators.test.ts",
+"input": "- > 25: rich",
+"expected": "- \\> 25: rich"
+},
+{
+"file": "comparison-operators.test.ts",
+"input": "* > 25: rich",
+"expected": "* \\> 25: rich"
+},
+{
+"file": "comparison-operators.test.ts",
+"input": "+ > 25: rich",
+"expected": "+ \\> 25: rich"
+},
+{
+"file": "comparison-operators.test.ts",
+"input": "1. > 25: rich",
+"expected": "1. \\> 25: rich"
+},
+{
+"file": "comparison-operators.test.ts",
+"input": "2) > 10: high",
+"expected": "2) \\> 10: high"
+},
+{
+"file": "comparison-operators.test.ts",
+"input": "  - > 25: rich",
+"expected": "  - \\> 25: rich"
+},
+{
+"file": "comparison-operators.test.ts",
+"input": "    - > 5: expensive",
+"expected": "    - \\> 5: expensive"
+},
+{
+"file": "comparison-operators.test.ts",
+"input": "- >= 10: high",
+"expected": "- \\>= 10: high"
+},
+{
+"file": "comparison-operators.test.ts",
+"input": "- > $100: expensive",
+"expected": "- \\> $100: expensive"
+},
+{
+"file": "comparison-operators.test.ts",
+"input": "> Some blockquote",
+"expected": "> Some blockquote"
+},
+{
+"file": "comparison-operators.test.ts",
+"input": "> 25 is a number",
+"expected": "> 25 is a number"
+},
+{
+"file": "comparison-operators.test.ts",
+"input": "- > Some quoted text",
+"expected": "- > Some quoted text"
+},
+{
+"file": "comparison-operators.test.ts",
+"input": "- > Read more about this",
+"expected": "- > Read more about this"
+},
+{
+"file": "comparison-operators.test.ts",
+"input": ">25",
+"expected": ">25"
+},
+{
+"file": "comparison-operators.test.ts",
+"input": "```\n- > 25: in code\n```",
+"expected": "```\n- > 25: in code\n```"
+},
+{
+"file": "comparison-operators.test.ts",
+"input": "- >25: rich",
+"expected": "- \\>25: rich"
+},
+{
+"file": "coverage-gaps.test.ts",
+"input": " ",
+"expected": ""
+},
+{
+"file": "coverage-gaps.test.ts",
+"input": "__content_",
+"expected": "__content__"
+},
+{
+"file": "coverage-gaps.test.ts",
+"input": "_text**",
+"expected": "_text**_"
+},
+{
+"file": "coverage-gaps.test.ts",
+"input": "```\n***bold",
+"expected": "```\n***bold"
+},
+{
+"file": "coverage-gaps.test.ts",
+"input": "```\n***\n```\n***text",
+"expected": "```\n***\n```\n***text***"
+},
+{
+"file": "coverage-gaps.test.ts",
+"input": "```\n_code\n```\n_text",
+"expected": "```\n_code\n```\n_text_"
+},
+{
+"file": "coverage-gaps.test.ts",
+"input": "\n=",
+"expected": "\n="
+},
+{
+"file": "coverage-gaps.test.ts",
+"input": "\n==",
+"expected": "\n=="
+},
+{
+"file": "coverage-gaps.test.ts",
+"input": "a~~b~~text",
+"expected": "a~~b~~text"
+},
+{
+"file": "coverage-gaps.test.ts",
+"input": "a~~b~~c~",
+"expected": "a~~b~~c~"
+},
+{
+"file": "coverage-gaps.test.ts",
+"input": "```\n__code\n```\n__text",
+"expected": "```\n__code\n```\n__text__"
+},
+{
+"file": "coverage-gaps.test.ts",
+"input": "](partial",
+"expected": "](partial"
+},
+{
+"file": "coverage-gaps.test.ts",
+"input": "[link](url) _word",
+"expected": "[link](url) _word_"
+},
+{
+"file": "coverage-gaps.test.ts",
+"input": "func(_arg",
+"expected": "func(_arg_"
+},
+{
+"file": "coverage-gaps.test.ts",
+"input": "div> _text",
+"expected": "div> _text_"
+},
+{
+"file": "coverage-gaps.test.ts",
+"input": "3<5 _text",
+"expected": "3<5 _text_"
+},
+{
+"file": "coverage-gaps.test.ts",
+"input": "<div>\n_text",
+"expected": "<div>\n_text_"
+},
+{
+"file": "coverage-gaps.test.ts",
+"input": "[link](a_b) _word",
+"expected": "[link](a_b) _word_"
+},
+{
+"file": "coverage-gaps.test.ts",
+"input": "```\n__content_",
+"expected": "```\n__content_"
+},
+{
+"file": "coverage-gaps.test.ts",
+"input": "__a__ __b__content_",
+"expected": "__a__ __b__content__"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "Text ending with *",
+"expected": "Text ending with *"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "Text ending with **",
+"expected": "Text ending with **"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "****",
+"expected": "****"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "``",
+"expected": "``"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "**",
+"expected": "**"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "__",
+"expected": "__"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "***",
+"expected": "***"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "*",
+"expected": "*"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "_",
+"expected": "_"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "~~",
+"expected": "~~"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "`",
+"expected": "`"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "** __",
+"expected": "** __"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "\n** __\n",
+"expected": "\n** __\n"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "* _ ~~ `",
+"expected": "* _ ~~ `"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "** ",
+"expected": "**"
+},
+{
+"file": "edge-cases.test.ts",
+"input": " **",
+"expected": " **"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "  **  ",
+"expected": "  **  "
+},
+{
+"file": "edge-cases.test.ts",
+"input": "**text",
+"expected": "**text**"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "__text",
+"expected": "__text__"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "*text",
+"expected": "*text*"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "_text",
+"expected": "_text_"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "~~text",
+"expected": "~~text~~"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "`text",
+"expected": "`text`"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "*",
+"expected": "*"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "**",
+"expected": "**"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "`",
+"expected": "`"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "Text with \\* escaped asterisk",
+"expected": "Text with \\* escaped asterisk"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "text**",
+"expected": "text**"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "text*",
+"expected": "text*"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "text`",
+"expected": "text`"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "text$",
+"expected": "text$"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "text~~",
+"expected": "text~~"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "text **bold",
+"expected": "text **bold**"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "text\n**bold",
+"expected": "text\n**bold**"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "text\t`code",
+"expected": "text\t`code`"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "**émoji 🎉",
+"expected": "**émoji 🎉**"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "`código",
+"expected": "`código`"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "**&lt;tag&gt;",
+"expected": "**&lt;tag&gt;**"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "`&amp;",
+"expected": "`&amp;`"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "3 + 2 - 5 * 0 = ?",
+"expected": "3 + 2 - 5 * 0 = ?"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "5 * 0",
+"expected": "5 * 0"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "x * y",
+"expected": "x * y"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "a * b = c",
+"expected": "a * b = c"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "2 * 3 * 4",
+"expected": "2 * 3 * 4"
+},
+{
+"file": "edge-cases.test.ts",
+"input": "5 * 0 and *italic",
+"expected": "5 * 0 and *italic*"
+},
+{
+"file": "fence-semantics.test.ts",
+"input": "~~~\ncode with __stuff\n~~~\ndone",
+"expected": "~~~\ncode with __stuff\n~~~\ndone"
+},
+{
+"file": "fence-semantics.test.ts",
+"input": "~~~js\nx = a__b",
+"expected": "~~~js\nx = a__b"
+},
+{
+"file": "fence-semantics.test.ts",
+"input": "~~~\ncode\n~~~\nafter ~~open",
+"expected": "~~~\ncode\n~~~\nafter ~~open~~"
+},
+{
+"file": "fence-semantics.test.ts",
+"input": "prose ~~struck~~ more prose __bold",
+"expected": "prose ~~struck~~ more prose __bold__"
+},
+{
+"file": "fence-semantics.test.ts",
+"input": "   ```\n__code\n   ```\n__open",
+"expected": "   ```\n__code\n   ```\n__open__"
+},
+{
+"file": "fence-semantics.test.ts",
+"input": "see ```inline code``",
+"expected": "see ```inline code```"
+},
+{
+"file": "fence-semantics.test.ts",
+"input": "````\ncode\n```\nstill __code",
+"expected": "````\ncode\n```\nstill __code"
+},
+{
+"file": "fence-semantics.test.ts",
+"input": "```\ncode\n````\nafter __bold",
+"expected": "```\ncode\n````\nafter __bold__"
+},
+{
+"file": "fence-semantics.test.ts",
+"input": "```python__hint\ncode",
+"expected": "```python__hint\ncode"
+},
+{
+"file": "fence-semantics.test.ts",
+"input": "``code`",
+"expected": "``code``"
+},
+{
+"file": "fence-semantics.test.ts",
+"input": "``code",
+"expected": "``code``"
+},
+{
+"file": "fence-semantics.test.ts",
+"input": "`a``",
+"expected": "`a``"
+},
+{
+"file": "fence-semantics.test.ts",
+"input": "1.  Install:\n    ```bash\n    npm install foo",
+"expected": "1.  Install:\n    ```bash\n    npm install foo"
+},
+{
+"file": "fence-semantics.test.ts",
+"input": "- step\n  - nested\n    ```js\n    const x = a__b",
+"expected": "- step\n  - nested\n    ```js\n    const x = a__b"
+},
+{
+"file": "fence-semantics.test.ts",
+"input": "```js\r\nconst a = 1",
+"expected": "```js\r\nconst a = 1"
+},
+{
+"file": "fence-semantics.test.ts",
+"input": "```\r\ncode\r\n```\r\n__open",
+"expected": "```\r\ncode\r\n```\r\n__open__"
+},
+{
+"file": "fence-semantics.test.ts",
+"input": "use ``` to open a block\n\nmore **bold streaming",
+"expected": "use ``` to open a block\n\nmore **bold streaming**"
+},
+{
+"file": "fence-semantics.test.ts",
+"input": "intro\n\nrun `npm i",
+"expected": "intro\n\nrun `npm i`"
+},
+{
+"file": "fence-semantics.test.ts",
+"input": "> quote\n>\n> ```js\n> const x = a__b",
+"expected": "> quote\n>\n> ```js\n> const x = a__b"
+},
+{
+"file": "fence-semantics.test.ts",
+"input": "> > ```\n> > a~~b",
+"expected": "> > ```\n> > a~~b"
+},
+{
+"file": "fence-semantics.test.ts",
+"input": ">```\n>a__b",
+"expected": ">```\n>a__b"
+},
+{
+"file": "fence-semantics.test.ts",
+"input": "> - item\n>\n>   ```\n>   a__b",
+"expected": "> - item\n>\n>   ```\n>   a__b"
+},
+{
+"file": "fence-semantics.test.ts",
+"input": "> ```\n> a__b\n> ```\n> __open",
+"expected": "> ```\n> a__b\n> ```\n> __open__"
+},
+{
+"file": "fence-semantics.test.ts",
+"input": "> ```\n> a__b\n\n__open",
+"expected": "> ```\n> a__b\n\n__open__"
+},
+{
+"file": "fence-semantics.test.ts",
+"input": "> ```\n> a__b\nafter __open",
+"expected": "> ```\n> a__b\nafter __open__"
+},
+{
+"file": "fence-semantics.test.ts",
+"input": ">- ```js\n>  a\n>  ```\n>\n>  **open",
+"expected": ">- ```js\n>  a\n>  ```\n>\n>  **open"
+},
+{
+"file": "fence-semantics.test.ts",
+"input": "- ```\n  a\n\n  b__c",
+"expected": "- ```\n  a\n\n  b__c"
+},
+{
+"file": "horizontal-rules.test.ts",
+"input": "---",
+"expected": "---"
+},
+{
+"file": "horizontal-rules.test.ts",
+"input": "----",
+"expected": "----"
+},
+{
+"file": "horizontal-rules.test.ts",
+"input": "-----",
+"expected": "-----"
+},
+{
+"file": "horizontal-rules.test.ts",
+"input": "***",
+"expected": "***"
+},
+{
+"file": "horizontal-rules.test.ts",
+"input": "****",
+"expected": "****"
+},
+{
+"file": "horizontal-rules.test.ts",
+"input": "*****",
+"expected": "*****"
+},
+{
+"file": "horizontal-rules.test.ts",
+"input": "___",
+"expected": "___"
+},
+{
+"file": "horizontal-rules.test.ts",
+"input": "____",
+"expected": "____"
+},
+{
+"file": "horizontal-rules.test.ts",
+"input": "_____",
+"expected": "_____"
+},
+{
+"file": "horizontal-rules.test.ts",
+"input": "- - -",
+"expected": "- - -"
+},
+{
+"file": "horizontal-rules.test.ts",
+"input": "* * *",
+"expected": "* * *"
+},
+{
+"file": "horizontal-rules.test.ts",
+"input": "_ _ _",
+"expected": "_ _ _"
+},
+{
+"file": "horizontal-rules.test.ts",
+"input": "-  -  -",
+"expected": "-  -  -"
+},
+{
+"file": "horizontal-rules.test.ts",
+"input": "*   *   *",
+"expected": "*   *   *"
+},
+{
+"file": "horizontal-rules.test.ts",
+"input": "_    _    _",
+"expected": "_    _    _"
+},
+{
+"file": "horizontal-rules.test.ts",
+"input": "Text before\n***\nText after",
+"expected": "Text before\n***\nText after"
+},
+{
+"file": "horizontal-rules.test.ts",
+"input": "Text before\n___\nText after",
+"expected": "Text before\n___\nText after"
+},
+{
+"file": "horizontal-rules.test.ts",
+"input": "Some text\n\n---",
+"expected": "Some text\n\n---"
+},
+{
+"file": "horizontal-rules.test.ts",
+"input": "Some text\n\n***",
+"expected": "Some text\n\n***"
+},
+{
+"file": "horizontal-rules.test.ts",
+"input": "Some text\n\n___",
+"expected": "Some text\n\n___"
+},
+{
+"file": "horizontal-rules.test.ts",
+"input": "---\n\nSome text",
+"expected": "---\n\nSome text"
+},
+{
+"file": "horizontal-rules.test.ts",
+"input": "***\n\nSome text",
+"expected": "***\n\nSome text"
+},
+{
+"file": "horizontal-rules.test.ts",
+"input": "___\n\nSome text",
+"expected": "___\n\nSome text"
+},
+{
+"file": "horizontal-rules.test.ts",
+"input": "Section 1\n\n---\n\nSection 2\n\n---\n\nSection 3",
+"expected": "Section 1\n\n---\n\nSection 2\n\n---\n\nSection 3"
+},
+{
+"file": "horizontal-rules.test.ts",
+"input": "Text with **bold",
+"expected": "Text with **bold**"
+},
+{
+"file": "horizontal-rules.test.ts",
+"input": "Text with --",
+"expected": "Text with --"
+},
+{
+"file": "horizontal-rules.test.ts",
+"input": "- Item 1\n- Item 2\n\n---\n\nNew section",
+"expected": "- Item 1\n- Item 2\n\n---\n\nNew section"
+},
+{
+"file": "horizontal-rules.test.ts",
+"input": "---\n\n# Heading",
+"expected": "---\n\n# Heading"
+},
+{
+"file": "horizontal-rules.test.ts",
+"input": "--",
+"expected": "--"
+},
+{
+"file": "horizontal-rules.test.ts",
+"input": "**",
+"expected": "**"
+},
+{
+"file": "horizontal-rules.test.ts",
+"input": "__",
+"expected": "__"
+},
+{
+"file": "horizontal-rules.test.ts",
+"input": "Text\n\n--",
+"expected": "Text\n\n--"
+},
+{
+"file": "horizontal-rules.test.ts",
+"input": "****",
+"expected": "****"
+},
+{
+"file": "horizontal-rules.test.ts",
+"input": "*****",
+"expected": "*****"
+},
+{
+"file": "horizontal-rules.test.ts",
+"input": "   ---",
+"expected": "   ---"
+},
+{
+"file": "horizontal-rules.test.ts",
+"input": "  ***",
+"expected": "  ***"
+},
+{
+"file": "horizontal-rules.test.ts",
+"input": " ___",
+"expected": " ___"
+},
+{
+"file": "horizontal-rules.test.ts",
+"input": "This is not a --- horizontal rule",
+"expected": "This is not a --- horizontal rule"
+},
+{
+"file": "horizontal-rules.test.ts",
+"input": "Text\n***",
+"expected": "Text\n***"
+},
+{
+"file": "horizontal-rules.test.ts",
+"input": "# Title\n\nSome content with **bold** text.\n\n---\n\n## Section 2\n\nMore content.",
+"expected": "# Title\n\nSome content with **bold** text.\n\n---\n\n## Section 2\n\nMore content."
+},
+{
+"file": "html-tags.test.ts",
+"input": "Hello <div",
+"expected": "Hello"
+},
+{
+"file": "html-tags.test.ts",
+"input": "Hello <custom",
+"expected": "Hello"
+},
+{
+"file": "html-tags.test.ts",
+"input": "Hello <casecard",
+"expected": "Hello"
+},
+{
+"file": "html-tags.test.ts",
+"input": "Text <MyComponent",
+"expected": "Text"
+},
+{
+"file": "html-tags.test.ts",
+"input": "Hello </div",
+"expected": "Hello"
+},
+{
+"file": "html-tags.test.ts",
+"input": "Hello </custom",
+"expected": "Hello"
+},
+{
+"file": "html-tags.test.ts",
+"input": "<div>content</di",
+"expected": "<div>content"
+},
+{
+"file": "html-tags.test.ts",
+"input": "Hello <div class=\"foo",
+"expected": "Hello"
+},
+{
+"file": "html-tags.test.ts",
+"input": "Hello <div class=",
+"expected": "Hello"
+},
+{
+"file": "html-tags.test.ts",
+"input": "Hello <a href=\"https://example.com",
+"expected": "Hello"
+},
+{
+"file": "html-tags.test.ts",
+"input": "<custom data-id",
+"expected": ""
+},
+{
+"file": "html-tags.test.ts",
+"input": "Hello <div>",
+"expected": "Hello <div>"
+},
+{
+"file": "html-tags.test.ts",
+"input": "<div>content</div>",
+"expected": "<div>content</div>"
+},
+{
+"file": "html-tags.test.ts",
+"input": "<br/>",
+"expected": "<br/>"
+},
+{
+"file": "html-tags.test.ts",
+"input": "<img src='test'>",
+"expected": "<img src='test'>"
+},
+{
+"file": "html-tags.test.ts",
+"input": "3 < 5",
+"expected": "3 < 5"
+},
+{
+"file": "html-tags.test.ts",
+"input": "x < y",
+"expected": "x < y"
+},
+{
+"file": "html-tags.test.ts",
+"input": "if a <",
+"expected": "if a <"
+},
+{
+"file": "html-tags.test.ts",
+"input": "value <1",
+"expected": "value <1"
+},
+{
+"file": "html-tags.test.ts",
+"input": "```\n<div\n```",
+"expected": "```\n<div\n```"
+},
+{
+"file": "html-tags.test.ts",
+"input": "```html\n<custom",
+"expected": "```html\n<custom"
+},
+{
+"file": "html-tags.test.ts",
+"input": "`<div`",
+"expected": "`<div`"
+},
+{
+"file": "html-tags.test.ts",
+"input": "<div",
+"expected": ""
+},
+{
+"file": "html-tags.test.ts",
+"input": "<custom",
+"expected": ""
+},
+{
+"file": "html-tags.test.ts",
+"input": "</div",
+"expected": ""
+},
+{
+"file": "html-tags.test.ts",
+"input": "Some text here\n\n<casecard",
+"expected": "Some text here"
+},
+{
+"file": "html-tags.test.ts",
+"input": "# Heading\n\nParagraph <custom",
+"expected": "# Heading\n\nParagraph"
+},
+{
+"file": "html-tags.test.ts",
+"input": "<div>Hello</div> <span",
+"expected": "<div>Hello</div>"
+},
+{
+"file": "html-tags.test.ts",
+"input": "<a target=\"_blank\" href=\"https://link.com\">word</a>",
+"expected": "<a target=\"_blank\" href=\"https://link.com\">word</a>"
+},
+{
+"file": "html-tags.test.ts",
+"input": "<a target=\"_blank\">link</a>",
+"expected": "<a target=\"_blank\">link</a>"
+},
+{
+"file": "html-tags.test.ts",
+"input": "<iframe src=\"x\" sandbox=\"allow_scripts\">",
+"expected": "<iframe src=\"x\" sandbox=\"allow_scripts\">"
+},
+{
+"file": "html-tags.test.ts",
+"input": "Intro\n\n$$\nI = \\sum_{j<k} p_j\n$$\n\nTAIL",
+"expected": "Intro\n\n$$\nI = \\sum_{j<k} p_j\n$$\n\nTAIL"
+},
+{
+"file": "html-tags.test.ts",
+"input": "inline $A_{j<k}$ more",
+"expected": "inline $A_{j<k}$ more"
+},
+{
+"file": "html-tags.test.ts",
+"input": "value \\(a<b\\) end",
+"expected": "value \\(a<b\\) end"
+},
+{
+"file": "html-tags.test.ts",
+"input": "value \\[a<b\\] end",
+"expected": "value \\[a<b\\] end"
+},
+{
+"file": "html-tags.test.ts",
+"input": "$x<y$ then <div",
+"expected": "$x<y$ then"
+},
+{
+"file": "html-tags.test.ts",
+"input": "$$a<b$$ done <span",
+"expected": "$$a<b$$ done"
+},
+{
+"file": "images.test.ts",
+"input": "Text with ![alt text](image.png)",
+"expected": "Text with ![alt text](image.png)"
+},
+{
+"file": "images.test.ts",
+"input": "textContent ![image](https://img.alicdn.com/imgextra/i4/6000000003603/O1CN01ApW8bQ1cUE8LduPra_!!6000000003603-2-skyky.png)",
+"expected": "textContent ![image](https://img.alicdn.com/imgextra/i4/6000000003603/O1CN01ApW8bQ1cUE8LduPra_!!6000000003603-2-skyky.png)"
+},
+{
+"file": "images.test.ts",
+"input": "textContent [link](https://example.com/path_name!!test)",
+"expected": "textContent [link](https://example.com/path_name!!test)"
+},
+{
+"file": "images.test.ts",
+"input": "textContent ![image1](https://example.com/path_1!!test.png) ![image2](https://example.com/path_2!!test.png)",
+"expected": "textContent ![image1](https://example.com/path_1!!test.png) ![image2](https://example.com/path_2!!test.png)"
+},
+{
+"file": "inline-code.test.ts",
+"input": "Text with `code",
+"expected": "Text with `code`"
+},
+{
+"file": "inline-code.test.ts",
+"input": "`incomplete",
+"expected": "`incomplete`"
+},
+{
+"file": "inline-code.test.ts",
+"input": "Text with `inline code`",
+"expected": "Text with `inline code`"
+},
+{
+"file": "inline-code.test.ts",
+"input": "`code1` and `code2`",
+"expected": "`code1` and `code2`"
+},
+{
+"file": "inline-code.test.ts",
+"input": "```\ncode block with `backtick\n```",
+"expected": "```\ncode block with `backtick\n```"
+},
+{
+"file": "inline-code.test.ts",
+"input": "```javascript\nconst x = `template",
+"expected": "```javascript\nconst x = `template"
+},
+{
+"file": "inline-code.test.ts",
+"input": "```python print(\"Hello, Sunnyvale!\")```",
+"expected": "```python print(\"Hello, Sunnyvale!\")```"
+},
+{
+"file": "inline-code.test.ts",
+"input": "```python print(\"Hello, Sunnyvale!\")``",
+"expected": "```python print(\"Hello, Sunnyvale!\")```"
+},
+{
+"file": "inline-code.test.ts",
+"input": "```code```",
+"expected": "```code```"
+},
+{
+"file": "inline-code.test.ts",
+"input": "```code```\n",
+"expected": "```code```\n"
+},
+{
+"file": "inline-code.test.ts",
+"input": "```\ncode\n```",
+"expected": "```\ncode\n```"
+},
+{
+"file": "inline-code.test.ts",
+"input": "``````",
+"expected": "``````"
+},
+{
+"file": "inline-code.test.ts",
+"input": "text``````",
+"expected": "text``````"
+},
+{
+"file": "inline-code.test.ts",
+"input": "```\nblock\n```\n`inline",
+"expected": "```\nblock\n```\n`inline`"
+},
+{
+"file": "inline-code.test.ts",
+"input": "\\`not code\\` **bold",
+"expected": "\\`not code\\` **bold**"
+},
+{
+"file": "inline-code.test.ts",
+"input": "\\` *italic",
+"expected": "\\` *italic*"
+},
+{
+"file": "inline-code.test.ts",
+"input": "`**bold`",
+"expected": "`**bold`"
+},
+{
+"file": "inline-code.test.ts",
+"input": "`*italic`",
+"expected": "`*italic`"
+},
+{
+"file": "inline-code.test.ts",
+"input": "`~~strikethrough`",
+"expected": "`~~strikethrough`"
+},
+{
+"file": "inline-code.test.ts",
+"input": "**bold",
+"expected": "**bold**"
+},
+{
+"file": "inline-code.test.ts",
+"input": "*italic",
+"expected": "*italic*"
+},
+{
+"file": "inline-code.test.ts",
+"input": "~~strike",
+"expected": "~~strike~~"
+},
+{
+"file": "inline-code.test.ts",
+"input": "`code` **bold",
+"expected": "`code` **bold**"
+},
+{
+"file": "intraword-asterisk.test.ts",
+"input": "foo*bar",
+"expected": "foo*bar"
+},
+{
+"file": "intraword-asterisk.test.ts",
+"input": "hello*world",
+"expected": "hello*world"
+},
+{
+"file": "intraword-asterisk.test.ts",
+"input": "test*123*test",
+"expected": "test*123*test"
+},
+{
+"file": "intraword-asterisk.test.ts",
+"input": "*foo*bar*baz",
+"expected": "*foo*bar*baz*"
+},
+{
+"file": "intraword-asterisk.test.ts",
+"input": "*file*name*ext",
+"expected": "*file*name*ext*"
+},
+{
+"file": "intraword-asterisk.test.ts",
+"input": "before *a*b after *c",
+"expected": "before *a*b after *c*"
+},
+{
+"file": "intraword-asterisk.test.ts",
+"input": "*기울임*으로 *another",
+"expected": "*기울임*으로 *another*"
+},
+{
+"file": "intraword-asterisk.test.ts",
+"input": "*foo* bar*baz",
+"expected": "*foo* bar*baz"
+},
+{
+"file": "italic.test.ts",
+"input": "Text with __italic",
+"expected": "Text with __italic__"
+},
+{
+"file": "italic.test.ts",
+"input": "__incomplete",
+"expected": "__incomplete__"
+},
+{
+"file": "italic.test.ts",
+"input": "Text with __italic text__",
+"expected": "Text with __italic text__"
+},
+{
+"file": "italic.test.ts",
+"input": "__first__ and __second",
+"expected": "__first__ and __second__"
+},
+{
+"file": "italic.test.ts",
+"input": "__xxx_",
+"expected": "__xxx__"
+},
+{
+"file": "italic.test.ts",
+"input": "__bold text_",
+"expected": "__bold text__"
+},
+{
+"file": "italic.test.ts",
+"input": "Text with __bold_",
+"expected": "Text with __bold__"
+},
+{
+"file": "italic.test.ts",
+"input": "This is __bold text_",
+"expected": "This is __bold text__"
+},
+{
+"file": "italic.test.ts",
+"input": "Text with *italic",
+"expected": "Text with *italic*"
+},
+{
+"file": "italic.test.ts",
+"input": "*incomplete",
+"expected": "*incomplete*"
+},
+{
+"file": "italic.test.ts",
+"input": "Text with *italic text*",
+"expected": "Text with *italic text*"
+},
+{
+"file": "italic.test.ts",
+"input": "**bold** and *italic",
+"expected": "**bold** and *italic*"
+},
+{
+"file": "italic.test.ts",
+"input": "234234*123",
+"expected": "234234*123"
+},
+{
+"file": "italic.test.ts",
+"input": "hello*world",
+"expected": "hello*world"
+},
+{
+"file": "italic.test.ts",
+"input": "test*123*test",
+"expected": "test*123*test"
+},
+{
+"file": "italic.test.ts",
+"input": "*italic with some*var*name inside",
+"expected": "*italic with some*var*name inside*"
+},
+{
+"file": "italic.test.ts",
+"input": "test*var and *incomplete italic",
+"expected": "test*var and *incomplete italic*"
+},
+{
+"file": "italic.test.ts",
+"input": "\\*escaped asterisk and *italic",
+"expected": "\\*escaped asterisk and *italic*"
+},
+{
+"file": "italic.test.ts",
+"input": "*start \\* middle \\* end",
+"expected": "*start \\* middle \\* end*"
+},
+{
+"file": "italic.test.ts",
+"input": "abc*123",
+"expected": "abc*123"
+},
+{
+"file": "italic.test.ts",
+"input": "123*abc",
+"expected": "123*abc"
+},
+{
+"file": "italic.test.ts",
+"input": "This is *italic",
+"expected": "This is *italic*"
+},
+{
+"file": "italic.test.ts",
+"input": "*word* and more text",
+"expected": "*word* and more text"
+},
+{
+"file": "italic.test.ts",
+"input": "Text with _italic",
+"expected": "Text with _italic_"
+},
+{
+"file": "italic.test.ts",
+"input": "_incomplete",
+"expected": "_incomplete_"
+},
+{
+"file": "italic.test.ts",
+"input": "Text with _italic text_",
+"expected": "Text with _italic text_"
+},
+{
+"file": "italic.test.ts",
+"input": "__bold__ and _italic",
+"expected": "__bold__ and _italic_"
+},
+{
+"file": "italic.test.ts",
+"input": "Text with \\_escaped underscore",
+"expected": "Text with \\_escaped underscore"
+},
+{
+"file": "italic.test.ts",
+"input": "some\\_text_with_underscores",
+"expected": "some\\_text_with_underscores"
+},
+{
+"file": "italic.test.ts",
+"input": "\\_escaped\\_ and _unescaped",
+"expected": "\\_escaped\\_ and _unescaped_"
+},
+{
+"file": "italic.test.ts",
+"input": "Start \\_escaped\\_ middle _incomplete",
+"expected": "Start \\_escaped\\_ middle _incomplete_"
+},
+{
+"file": "italic.test.ts",
+"input": "\\_fully\\_escaped\\_",
+"expected": "\\_fully\\_escaped\\_"
+},
+{
+"file": "italic.test.ts",
+"input": "\\_escaped\\_ _complete_ pair",
+"expected": "\\_escaped\\_ _complete_ pair"
+},
+{
+"file": "italic.test.ts",
+"input": "café_price",
+"expected": "café_price"
+},
+{
+"file": "italic.test.ts",
+"input": "naïve_approach",
+"expected": "naïve_approach"
+},
+{
+"file": "italic.test.ts",
+"input": "some_variable_name",
+"expected": "some_variable_name"
+},
+{
+"file": "italic.test.ts",
+"input": "test_123_value",
+"expected": "test_123_value"
+},
+{
+"file": "italic.test.ts",
+"input": "_start with underscore",
+"expected": "_start with underscore_"
+},
+{
+"file": "italic.test.ts",
+"input": "_italic with some_var_name inside",
+"expected": "_italic with some_var_name inside_"
+},
+{
+"file": "italic.test.ts",
+"input": "test_var and _incomplete italic",
+"expected": "test_var and _incomplete italic_"
+},
+{
+"file": "italic.test.ts",
+"input": "Text with _italic\n",
+"expected": "Text with _italic_\n"
+},
+{
+"file": "italic.test.ts",
+"input": "_incomplete\n\n",
+"expected": "_incomplete_\n\n"
+},
+{
+"file": "italic.test.ts",
+"input": "Start _text\n",
+"expected": "Start _text_\n"
+},
+{
+"file": "katex.test.ts",
+"input": "Text with $$formula",
+"expected": "Text with $$formula$$"
+},
+{
+"file": "katex.test.ts",
+"input": "$$incomplete",
+"expected": "$$incomplete$$"
+},
+{
+"file": "katex.test.ts",
+"input": "Text with $$E = mc^2$$",
+"expected": "Text with $$E = mc^2$$"
+},
+{
+"file": "katex.test.ts",
+"input": "$$formula1$$ and $$formula2$$",
+"expected": "$$formula1$$ and $$formula2$$"
+},
+{
+"file": "katex.test.ts",
+"input": "$$first$$ and $$second",
+"expected": "$$first$$ and $$second$$"
+},
+{
+"file": "katex.test.ts",
+"input": "$$x + y = z",
+"expected": "$$x + y = z$$"
+},
+{
+"file": "katex.test.ts",
+"input": "$$formula$",
+"expected": "$$formula$$"
+},
+{
+"file": "katex.test.ts",
+"input": "$$x = y$",
+"expected": "$$x = y$$"
+},
+{
+"file": "katex.test.ts",
+"input": "$$\nx = 1\ny = 2",
+"expected": "$$\nx = 1\ny = 2\n$$"
+},
+{
+"file": "katex.test.ts",
+"input": "Text with $formula",
+"expected": "Text with $formula"
+},
+{
+"file": "katex.test.ts",
+"input": "$incomplete",
+"expected": "$incomplete"
+},
+{
+"file": "katex.test.ts",
+"input": "Text with $x^2 + y^2 = z^2$",
+"expected": "Text with $x^2 + y^2 = z^2$"
+},
+{
+"file": "katex.test.ts",
+"input": "$a = 1$ and $b = 2$",
+"expected": "$a = 1$ and $b = 2$"
+},
+{
+"file": "katex.test.ts",
+"input": "$first$ and $second",
+"expected": "$first$ and $second"
+},
+{
+"file": "katex.test.ts",
+"input": "$$block$$ and $inline",
+"expected": "$$block$$ and $inline"
+},
+{
+"file": "katex.test.ts",
+"input": "$x + y = z",
+"expected": "$x + y = z"
+},
+{
+"file": "katex.test.ts",
+"input": "Price is \\$100",
+"expected": "Price is \\$100"
+},
+{
+"file": "katex.test.ts",
+"input": "$$$",
+"expected": "$$$$$"
+},
+{
+"file": "katex.test.ts",
+"input": "$$$$",
+"expected": "$$$$"
+},
+{
+"file": "katex.test.ts",
+"input": "The variable $x_1$ represents the first element",
+"expected": "The variable $x_1$ represents the first element"
+},
+{
+"file": "katex.test.ts",
+"input": "Formula: $a_b + c_d = e_f$",
+"expected": "Formula: $a_b + c_d = e_f$"
+},
+{
+"file": "katex.test.ts",
+"input": "$$x_1 + y_2 = z_3$$",
+"expected": "$$x_1 + y_2 = z_3$$"
+},
+{
+"file": "katex.test.ts",
+"input": "$$\na_1 + b_2\nc_3 + d_4\n$$",
+"expected": "$$\na_1 + b_2\nc_3 + d_4\n$$"
+},
+{
+"file": "katex.test.ts",
+"input": "Math expression $x_",
+"expected": "Math expression $x_"
+},
+{
+"file": "katex.test.ts",
+"input": "$$formula_",
+"expected": "$$formula_$$"
+},
+{
+"file": "katex.test.ts",
+"input": "Text with _italic_ and math $x_1$",
+"expected": "Text with _italic_ and math $x_1$"
+},
+{
+"file": "katex.test.ts",
+"input": "_italic text_ followed by $a_b$",
+"expected": "_italic text_ followed by $a_b$"
+},
+{
+"file": "katex.test.ts",
+"input": "Start _italic with $x_1$",
+"expected": "Start _italic with $x_1$_"
+},
+{
+"file": "katex.test.ts",
+"input": "$x_1 + x_2 + x_3 = y_1$",
+"expected": "$x_1 + x_2 + x_3 = y_1$"
+},
+{
+"file": "katex.test.ts",
+"input": "$$\\sum_{i=1}^{n} x_i = \\prod_{j=1}^{m} y_j$$",
+"expected": "$$\\sum_{i=1}^{n} x_i = \\prod_{j=1}^{m} y_j$$"
+},
+{
+"file": "katex.test.ts",
+"input": "Price is \\$50 and _this is italic_",
+"expected": "Price is \\$50 and _this is italic_"
+},
+{
+"file": "katex.test.ts",
+"input": "Cost \\$100 with _incomplete",
+"expected": "Cost \\$100 with _incomplete_"
+},
+{
+"file": "katex.test.ts",
+"input": "Inline $x_1$ and block $$y_2$$ math",
+"expected": "Inline $x_1$ and block $$y_2$$ math"
+},
+{
+"file": "katex.test.ts",
+"input": "_italic start $x_1$ italic end_",
+"expected": "_italic start $x_1$ italic end_"
+},
+{
+"file": "katex.test.ts",
+"input": "Streamdown uses double dollar signs (`$$`) to delimit mathematical expressions.",
+"expected": "Streamdown uses double dollar signs (`$$`) to delimit mathematical expressions."
+},
+{
+"file": "katex.test.ts",
+"input": "Use `$$` for math blocks and `$$formula$$` for inline.",
+"expected": "Use `$$` for math blocks and `$$formula$$` for inline."
+},
+{
+"file": "katex.test.ts",
+"input": "Math: $$x+y and code: `$$`",
+"expected": "Math: $$x+y and code: `$$`$$"
+},
+{
+"file": "katex.test.ts",
+"input": "$$formula$$ and code `$$` and $$incomplete",
+"expected": "$$formula$$ and code `$$` and $$incomplete$$"
+},
+{
+"file": "katex.test.ts",
+"input": "$$\\mathbf{w}^{*}$$",
+"expected": "$$\\mathbf{w}^{*}$$"
+},
+{
+"file": "katex.test.ts",
+"input": "$$\n\\mathbf{w}^{*} = \\underset{\\|\\mathbf{w}\\|=1}{\\arg\\max} \\;\\; \\mathbf{w}^T S \\mathbf{w}\n$$",
+"expected": "$$\n\\mathbf{w}^{*} = \\underset{\\|\\mathbf{w}\\|=1}{\\arg\\max} \\;\\; \\mathbf{w}^T S \\mathbf{w}\n$$"
+},
+{
+"file": "katex.test.ts",
+"input": "Text with *italic* and math $$x^{*}$$",
+"expected": "Text with *italic* and math $$x^{*}$$"
+},
+{
+"file": "katex.test.ts",
+"input": "Start *italic with $$x^{*}$$",
+"expected": "Start *italic with $$x^{*}$$*"
+},
+{
+"file": "katex.test.ts",
+"input": "`$` _hello",
+"expected": "`$` _hello_"
+},
+{
+"file": "katex.test.ts",
+"input": "```\nprice = $5\n```\n_hello",
+"expected": "```\nprice = $5\n```\n_hello_"
+},
+{
+"file": "links.test.ts",
+"input": "Text with [incomplete link",
+"expected": "Text with [incomplete link](streamdown:incomplete-link)"
+},
+{
+"file": "links.test.ts",
+"input": "Text [partial",
+"expected": "Text [partial](streamdown:incomplete-link)"
+},
+{
+"file": "links.test.ts",
+"input": "Text with [complete link](url)",
+"expected": "Text with [complete link](url)"
+},
+{
+"file": "links.test.ts",
+"input": "[link1](url1) and [link2](url2)",
+"expected": "[link1](url1) and [link2](url2)"
+},
+{
+"file": "links.test.ts",
+"input": "[outer [nested] text](incomplete",
+"expected": "[outer [nested] text](streamdown:incomplete-link)"
+},
+{
+"file": "links.test.ts",
+"input": "[link with [inner] content](http://incomplete",
+"expected": "[link with [inner] content](streamdown:incomplete-link)"
+},
+{
+"file": "links.test.ts",
+"input": "Text [foo [bar] baz](",
+"expected": "Text [foo [bar] baz](streamdown:incomplete-link)"
+},
+{
+"file": "links.test.ts",
+"input": "[link with [brackets] inside](https://example.com)",
+"expected": "[link with [brackets] inside](https://example.com)"
+},
+{
+"file": "links.test.ts",
+"input": "Check out [this lin",
+"expected": "Check out [this lin](streamdown:incomplete-link)"
+},
+{
+"file": "links.test.ts",
+"input": "Visit [our site](https://exa",
+"expected": "Visit [our site](streamdown:incomplete-link)"
+},
+{
+"file": "links.test.ts",
+"input": "Text [outer [inner",
+"expected": "Text [outer [inner](streamdown:incomplete-link)"
+},
+{
+"file": "links.test.ts",
+"input": "[foo [bar [baz",
+"expected": "[foo [bar [baz](streamdown:incomplete-link)"
+},
+{
+"file": "links.test.ts",
+"input": "Text [outer [inner]",
+"expected": "Text [outer [inner]](streamdown:incomplete-link)"
+},
+{
+"file": "links.test.ts",
+"input": "[link [nested] text",
+"expected": "[link [nested] text](streamdown:incomplete-link)"
+},
+{
+"file": "lists.test.ts",
+"input": "* Item 1\n* Item 2\n* Item 3",
+"expected": "* Item 1\n* Item 2\n* Item 3"
+},
+{
+"file": "lists.test.ts",
+"input": "* Single item",
+"expected": "* Single item"
+},
+{
+"file": "lists.test.ts",
+"input": "* Parent item\n  * Nested item 1\n  * Nested item 2",
+"expected": "* Parent item\n  * Nested item 1\n  * Nested item 2"
+},
+{
+"file": "lists.test.ts",
+"input": "* Item with *italic* text\n* Another item",
+"expected": "* Item with *italic* text\n* Another item"
+},
+{
+"file": "lists.test.ts",
+"input": "* Item with *incomplete italic\n* Another item",
+"expected": "* Item with *incomplete italic\n* Another item*"
+},
+{
+"file": "lists.test.ts",
+"input": "* First item\n* Second *italic* item\n* Third item",
+"expected": "* First item\n* Second *italic* item\n* Third item"
+},
+{
+"file": "lists.test.ts",
+"input": "*\tItem with tab\n*\tAnother item",
+"expected": "*\tItem with tab\n*\tAnother item"
+},
+{
+"file": "lists.test.ts",
+"input": "- Item 1\n- Item 2 with *italic*\n- Item 3",
+"expected": "- Item 1\n- Item 2 with *italic*\n- Item 3"
+},
+{
+"file": "lists.test.ts",
+"input": "* user123\n* user456\n* user789",
+"expected": "* user123\n* user456\n* user789"
+},
+{
+"file": "lists.test.ts",
+"input": "- Item 1\n- Item 2 with **bol",
+"expected": "- Item 1\n- Item 2 with **bol**"
+},
+{
+"file": "lists.test.ts",
+"input": "- __",
+"expected": "- __"
+},
+{
+"file": "lists.test.ts",
+"input": "- **",
+"expected": "- **"
+},
+{
+"file": "lists.test.ts",
+"input": "- __\n- **",
+"expected": "- __\n- **"
+},
+{
+"file": "lists.test.ts",
+"input": "\n- __\n- **",
+"expected": "\n- __\n- **"
+},
+{
+"file": "lists.test.ts",
+"input": "* __\n* **",
+"expected": "* __\n* **"
+},
+{
+"file": "lists.test.ts",
+"input": "+ __\n+ **",
+"expected": "+ __\n+ **"
+},
+{
+"file": "lists.test.ts",
+"input": "- __ text after",
+"expected": "- __ text after__"
+},
+{
+"file": "lists.test.ts",
+"input": "- ** text after",
+"expected": "- ** text after**"
+},
+{
+"file": "lists.test.ts",
+"input": "- __\n- Normal item\n- **",
+"expected": "- __\n- Normal item\n- **"
+},
+{
+"file": "lists.test.ts",
+"input": "- ***",
+"expected": "- ***"
+},
+{
+"file": "lists.test.ts",
+"input": "- *",
+"expected": "- *"
+},
+{
+"file": "lists.test.ts",
+"input": "- _",
+"expected": "- _"
+},
+{
+"file": "lists.test.ts",
+"input": "- ~~",
+"expected": "- ~~"
+},
+{
+"file": "lists.test.ts",
+"input": "- `",
+"expected": "- `"
+},
+{
+"file": "lists.test.ts",
+"input": "- **text\nmore text",
+"expected": "- **text\nmore text"
+},
+{
+"file": "lists.test.ts",
+"input": "* **content\n* Another item",
+"expected": "* **content\n* Another item"
+},
+{
+"file": "mixed-formatting.test.ts",
+"input": "**bold** and *italic* and `code` and ~~strike~~",
+"expected": "**bold** and *italic* and `code` and ~~strike~~"
+},
+{
+"file": "mixed-formatting.test.ts",
+"input": "**bold and *italic",
+"expected": "**bold and *italic*"
+},
+{
+"file": "mixed-formatting.test.ts",
+"input": "**bold with *italic* inside**",
+"expected": "**bold with *italic* inside**"
+},
+{
+"file": "mixed-formatting.test.ts",
+"input": "Text with [link and **bold",
+"expected": "Text with [link and **bold](streamdown:incomplete-link)"
+},
+{
+"file": "mixed-formatting.test.ts",
+"input": "# Heading\n\n**Bold text** with *italic* and `code`.\n\n- List item\n- Another item with ~~strike~~",
+"expected": "# Heading\n\n**Bold text** with *italic* and `code`.\n\n- List item\n- Another item with ~~strike~~"
+},
+{
+"file": "mixed-formatting.test.ts",
+"input": "*italic with **bold",
+"expected": "*italic with **bold***"
+},
+{
+"file": "mixed-formatting.test.ts",
+"input": "**bold with `code",
+"expected": "**bold with `code**`"
+},
+{
+"file": "mixed-formatting.test.ts",
+"input": "~~strike with **bold",
+"expected": "~~strike with **bold**~~"
+},
+{
+"file": "mixed-formatting.test.ts",
+"input": "**bold with $x^2",
+"expected": "**bold with $x^2**"
+},
+{
+"file": "mixed-formatting.test.ts",
+"input": "**bold *italic `code ~~strike",
+"expected": "**bold *italic `code ~~strike*`"
+},
+{
+"file": "mixed-formatting.test.ts",
+"input": "**bold *italic* text** and `code`",
+"expected": "**bold *italic* text** and `code`"
+},
+{
+"file": "mixed-formatting.test.ts",
+"input": "**bold and *bold-italic***",
+"expected": "**bold and *bold-italic***"
+},
+{
+"file": "mixed-formatting.test.ts",
+"input": "combined **_bold and italic",
+"expected": "combined **_bold and italic_**"
+},
+{
+"file": "mixed-formatting.test.ts",
+"input": "**_text",
+"expected": "**_text_**"
+},
+{
+"file": "mixed-formatting.test.ts",
+"input": "_italic and **bold",
+"expected": "_italic and **bold**_"
+},
+{
+"file": "setext-heading.test.ts",
+"input": "**bold text**\n-",
+"expected": "**bold text**\n-​"
+},
+{
+"file": "setext-heading.test.ts",
+"input": "*italic text*\n-",
+"expected": "*italic text*\n-​"
+},
+{
+"file": "setext-heading.test.ts",
+"input": "`code`\n-",
+"expected": "`code`\n-​"
+},
+{
+"file": "single-tilde.test.ts",
+"input": "20~25°C",
+"expected": "20\\~25°C"
+},
+{
+"file": "single-tilde.test.ts",
+"input": "20~25°C。20~25°C",
+"expected": "20\\~25°C。20\\~25°C"
+},
+{
+"file": "single-tilde.test.ts",
+"input": "foo~bar",
+"expected": "foo\\~bar"
+},
+{
+"file": "single-tilde.test.ts",
+"input": "~~strikethrough~~",
+"expected": "~~strikethrough~~"
+},
+{
+"file": "single-tilde.test.ts",
+"input": "~hello",
+"expected": "~hello"
+},
+{
+"file": "single-tilde.test.ts",
+"input": "hello~",
+"expected": "hello~"
+},
+{
+"file": "single-tilde.test.ts",
+"input": "hello ~ world",
+"expected": "hello ~ world"
+},
+{
+"file": "single-tilde.test.ts",
+"input": "```\n20~25\n```",
+"expected": "```\n20~25\n```"
+},
+{
+"file": "single-tilde.test.ts",
+"input": "`20~25`",
+"expected": "`20~25`"
+},
+{
+"file": "single-tilde.test.ts",
+"input": "20~25 and ~~strike",
+"expected": "20\\~25 and ~~strike~~"
+},
+{
+"file": "single-tilde.test.ts",
+"input": "日本~語",
+"expected": "日本\\~語"
+},
+{
+"file": "single-tilde.test.ts",
+"input": "α~β",
+"expected": "α\\~β"
+},
+{
+"file": "single-tilde.test.ts",
+"input": "é~x",
+"expected": "é\\~x"
+},
+{
+"file": "single-tilde.test.ts",
+"input": "𐐀~a",
+"expected": "𐐀\\~a"
+},
+{
+"file": "single-tilde.test.ts",
+"input": "foo~bar~baz",
+"expected": "foo\\~bar\\~baz"
+},
+{
+"file": "streaming.test.ts",
+"input": "This is **bold with *ital",
+"expected": "This is **bold with *ital*"
+},
+{
+"file": "streaming.test.ts",
+"input": "**bold _und",
+"expected": "**bold _und_**"
+},
+{
+"file": "streaming.test.ts",
+"input": "# Main Title\n## Subtitle with **emph",
+"expected": "# Main Title\n## Subtitle with **emph**"
+},
+{
+"file": "streaming.test.ts",
+"input": "> Quote with **bold",
+"expected": "> Quote with **bold**"
+},
+{
+"file": "streaming.test.ts",
+"input": "| Col1 | Col2 |\n|------|------|\n| **dat",
+"expected": "| Col1 | Col2 |\n|------|------|\n| **dat**"
+},
+{
+"file": "streaming.test.ts",
+"input": "1. First item\n   - Nested with `code\n2. Second",
+"expected": "1. First item\n   - Nested with `code\n2. Second`"
+},
+{
+"file": "streaming.test.ts",
+"input": "Text **bold `code",
+"expected": "Text **bold `code**`"
+},
+{
+"file": "strikethrough.test.ts",
+"input": "Text with ~~strike",
+"expected": "Text with ~~strike~~"
+},
+{
+"file": "strikethrough.test.ts",
+"input": "~~incomplete",
+"expected": "~~incomplete~~"
+},
+{
+"file": "strikethrough.test.ts",
+"input": "Text with ~~strikethrough text~~",
+"expected": "Text with ~~strikethrough text~~"
+},
+{
+"file": "strikethrough.test.ts",
+"input": "~~strike1~~ and ~~strike2~~",
+"expected": "~~strike1~~ and ~~strike2~~"
+},
+{
+"file": "strikethrough.test.ts",
+"input": "~~first~~ and ~~second",
+"expected": "~~first~~ and ~~second~~"
+},
+{
+"file": "strikethrough.test.ts",
+"input": "~~xxx~",
+"expected": "~~xxx~~"
+},
+{
+"file": "strikethrough.test.ts",
+"input": "~~strike text~",
+"expected": "~~strike text~~"
+},
+{
+"file": "strikethrough.test.ts",
+"input": "Text with ~~strike~",
+"expected": "Text with ~~strike~~"
+},
+{
+"file": "strikethrough.test.ts",
+"input": "This is ~~strikethrough~",
+"expected": "This is ~~strikethrough~~"
+},
+{
+"file": "underscore-runs.test.ts",
+"input": "fields user__id and org__id are join keys",
+"expected": "fields user__id and org__id are join keys"
+},
+{
+"file": "underscore-runs.test.ts",
+"input": "Use snake__case and __bold",
+"expected": "Use snake__case and __bold__"
+},
+{
+"file": "underscore-runs.test.ts",
+"input": "the value of some__field is set",
+"expected": "the value of some__field is set"
+},
+{
+"file": "underscore-runs.test.ts",
+"input": "`obj__attr` and __bold",
+"expected": "`obj__attr` and __bold__"
+},
+{
+"file": "underscore-runs.test.ts",
+"input": "**bold snake__case text** and more",
+"expected": "**bold snake__case text** and more"
+},
+{
+"file": "underscore-runs.test.ts",
+"input": "a ____ b",
+"expected": "a ____ b"
+},
+{
+"file": "underscore-runs.test.ts",
+"input": "text\n\n___\n",
+"expected": "text\n\n___\n"
+},
+{
+"file": "underscore-runs.test.ts",
+"input": "___both___ done",
+"expected": "___both___ done"
+},
+{
+"file": "underscore-runs.test.ts",
+"input": "\\___bold",
+"expected": "\\___bold__"
+}
+]

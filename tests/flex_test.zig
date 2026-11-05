@@ -265,3 +265,90 @@ test "absolute button participates in hit testing" {
     try expectRect(node, 110, 10, 80, 30);
     try std.testing.expectEqual(@as(?zant.node.NodeId, id), tree.hitTest(140, 20));
 }
+
+test "absolute child resolves percentage height (full-size overlays)" {
+    var tree = try Tree.init(std.testing.allocator, zant.tokens.antLight());
+    defer tree.deinit();
+    const overlay = try box(&tree, tree.root, .{ .absolute = true, .left = 0, .top = 0, .width_percent = 100, .height_percent = 100 });
+    rootRow(&tree, .{ .width = 400, .height = 300 });
+    try expectRect(tree.get(overlay), 0, 0, 400, 300);
+}
+
+test "stretch fills an auto-height row and absolute children do not size parents" {
+    var tree = try Tree.init(std.testing.allocator, zant.tokens.antLight());
+    defer tree.deinit();
+    const row = try box(&tree, tree.root, .{ .direction = .row, .align_items = .stretch });
+    const bar = try box(&tree, row, .{ .width = 3 });
+    _ = try box(&tree, row, .{ .width = 50, .height = 40 });
+    const pill = try box(&tree, tree.root, .{ .direction = .row });
+    _ = try box(&tree, pill, .{ .absolute = true, .width_percent = 100, .height = 10 });
+    _ = try box(&tree, pill, .{ .width = 30, .height = 10 });
+    const root = tree.get(tree.root);
+    root.style.direction = .column;
+    root.style.align_items = .start;
+    tree.layout(.{ .width = 500, .height = 300 });
+    try std.testing.expectApproxEqAbs(@as(f32, 40), tree.get(bar).bounds.height, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 30), tree.get(pill).bounds.width, 0.01);
+}
+
+test "absolute percentage height wins over a builder's fixed height" {
+    var tree = try Tree.init(std.testing.allocator, zant.tokens.antLight());
+    defer tree.deinit();
+    const item = try box(&tree, tree.root, .{ .direction = .row, .height = 24, .width = 80 });
+    // like ui.styled(ui.button(..) /* height 32 */, .{ .height_percent = 100 })
+    const hit = try box(&tree, item, .{ .absolute = true, .left = 0, .top = 0, .width_percent = 100, .height = 32, .height_percent = 100 });
+    rootRow(&tree, .{ .width = 400, .height = 300 });
+    try expectRect(tree.get(hit), 0, 0, 80, 24);
+}
+
+test "absolute children use the padding box (CSS containing block)" {
+    var tree = try Tree.init(std.testing.allocator, zant.tokens.antLight());
+    defer tree.deinit();
+    const item = try box(&tree, tree.root, .{ .direction = .row, .height = 24, .padding = .{ .left = 11, .right = 11 } });
+    const hit = try box(&tree, item, .{ .absolute = true, .left = 0, .top = 0, .width_percent = 100, .height_percent = 100 });
+    _ = try box(&tree, item, .{ .width = 40, .height = 24 });
+    rootRow(&tree, .{ .width = 400, .height = 300 });
+    try expectRect(tree.get(item), 0, 0, 62, 24);
+    try expectRect(tree.get(hit), 0, 0, 62, 24);
+}
+
+test "anchored absolute child takes the target sibling's box" {
+    var tree = try Tree.init(std.testing.allocator, zant.tokens.antLight());
+    defer tree.deinit();
+    const track = try box(&tree, tree.root, .{ .direction = .row, .padding = Edges.all(2), .gap = 2, .align_items = .center });
+    const thumb = try box(&tree, track, .{ .absolute = true, .anchor = 1 });
+    const ink = try box(&tree, track, .{ .absolute = true, .anchor = 2, .bottom = 0, .height = 2 });
+    _ = try box(&tree, track, .{ .width = 40, .height = 24 });
+    const second = try box(&tree, track, .{ .width = 60, .height = 24 });
+    const third = try box(&tree, track, .{ .width = 30, .height = 24 });
+    rootRow(&tree, .{ .width = 500, .height = 200 });
+    const target = tree.get(second).bounds;
+    try expectRect(tree.get(thumb), target.x, target.y, target.width, target.height);
+    // own vertical placement keeps bottom / height
+    const t3 = tree.get(third).bounds;
+    const tb = tree.get(track).bounds;
+    try expectRect(tree.get(ink), t3.x, tb.y + tb.height - 2, t3.width, 2);
+}
+
+test "single-line text with max_lines shrinks and ends in an ellipsis" {
+    var tree = try Tree.init(std.testing.allocator, zant.tokens.antLight());
+    defer tree.deinit();
+    const row = try box(&tree, tree.root, .{ .direction = .row, .width = 120 });
+    const label = try tree.addText(row, "A very long document name that cannot fit.md", .{ .font_size = 13, .wrap = false, .max_lines = 1 });
+    tree.get(label).style.min_width = 0;
+    rootRow(&tree, .{ .width = 500, .height = 200 });
+    const node = tree.get(label);
+    try std.testing.expect(node.bounds.width <= 120.5);
+    const layout = try node.data.text.ensureLayout(node.data.text.layoutWidth(node.bounds.width));
+    try std.testing.expect(layout.metrics.longest_line <= 121);
+    try std.testing.expectApproxEqAbs(@as(f32, 13 * 1.2), node.bounds.height, 6);
+}
+
+test "absolute child with left and right stretches between the insets" {
+    var tree = try Tree.init(std.testing.allocator, zant.tokens.antLight());
+    defer tree.deinit();
+    const bar = try box(&tree, tree.root, .{ .width = 400, .height = 50 });
+    const title = try box(&tree, bar, .{ .absolute = true, .left = 120, .right = 120, .top = 0, .height = 50 });
+    rootRow(&tree, .{ .width = 500, .height = 200 });
+    try expectRect(tree.get(title), 120, 0, 160, 50);
+}

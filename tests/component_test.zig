@@ -108,3 +108,77 @@ test "paint-only text update does not mark layout dirty" {
     try std.testing.expect(!tree.needsLayout());
     try std.testing.expect(tree.needsPaint());
 }
+
+test "caret keeps the text height with a tall line height" {
+    var tree = try zant.tree.Tree.init(std.testing.allocator, zant.tokens.antLight());
+    defer tree.deinit();
+    const id = try tree.addInput(tree.root, "**写作应该是轻盈的。**\nsecond line", "", null);
+    const node = tree.get(id);
+    node.style.width = 400;
+    node.style.height = 200;
+    node.data.input.multiline = true;
+    node.data.input.font_size = 16;
+    node.data.input.line_height = 2.0;
+    node.data.input.available_width = 380;
+    node.data.input.invalidateLayout();
+    node.data.input.cursor = 0;
+    node.data.input.anchor = 0;
+    tree.layout(.{ .width = 500, .height = 300 });
+    const caret = zant.input.caretRect(&node.data.input, node).?;
+    try std.testing.expect(caret.height <= 16 * 1.3 + 0.01);
+    try std.testing.expect(caret.height >= 16);
+    // still inside the first line box (8px top inset, 32px line)
+    try std.testing.expect(caret.y >= node.bounds.y + 8 - 0.5);
+    try std.testing.expect(caret.y + caret.height <= node.bounds.y + 8 + 32 + 0.5);
+}
+
+fn multilineInput(tree: *zant.tree.Tree, value: []const u8, height: f32) !*zant.node.Node {
+    const id = try tree.addInput(tree.root, value, "", null);
+    const node = tree.get(id);
+    node.style.width = 300;
+    node.style.height = height;
+    node.data.input.multiline = true;
+    node.data.input.font_size = 16;
+    node.data.input.available_width = 278;
+    node.data.input.invalidateLayout();
+    tree.layout(.{ .width = 400, .height = 400 });
+    return node;
+}
+
+test "multiline caret moves between lines and to line edges" {
+    var tree = try zant.tree.Tree.init(std.testing.allocator, zant.tokens.antLight());
+    defer tree.deinit();
+    const node = try multilineInput(&tree, "first line\nsecond line\nthird line", 200);
+    const data = &node.data.input;
+    // caret in the middle of "second line"
+    data.cursor = 11 + 3;
+    data.anchor = data.cursor;
+    tree.inputMove(node.id, .up, false);
+    try std.testing.expect(data.cursor < 11);
+    tree.inputMove(node.id, .down, false);
+    try std.testing.expect(data.cursor >= 11 and data.cursor <= 22);
+    try std.testing.expect(@abs(@as(i64, @intCast(data.cursor)) - 14) <= 1);
+    tree.inputMove(node.id, .line_end, false);
+    try std.testing.expectEqual(@as(usize, 22), data.cursor);
+    tree.inputMove(node.id, .line_start, false);
+    try std.testing.expectEqual(@as(usize, 11), data.cursor);
+    tree.inputMove(node.id, .doc_end, true);
+    try std.testing.expectEqual(data.text.items.len, data.cursor);
+    try std.testing.expectEqual(@as(usize, 11), data.anchor);
+}
+
+test "caret moves reveal the caret, plain scrolling does not snap back" {
+    var tree = try zant.tree.Tree.init(std.testing.allocator, zant.tokens.antLight());
+    defer tree.deinit();
+    var long: [400]u8 = undefined;
+    for (&long, 0..) |*c, i| c.* = if (i % 10 == 9) '\n' else 'a';
+    const node = try multilineInput(&tree, &long, 80);
+    const data = &node.data.input;
+    tree.inputMove(node.id, .doc_end, false);
+    zant.input.ensureCaretVisible(data, data.available_width, 64);
+    try std.testing.expect(data.scroll_y > 0);
+    // the user scrolls back to the top: no caret move, so it must stay there
+    data.scroll_y = 0;
+    zant.input.ensureCaretVisible(data, data.available_width, 64);
+    try std.testing.expectEqual(@as(f32, 0), data.scroll_y);
+}

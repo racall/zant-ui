@@ -1,5 +1,11 @@
 # AGENTS.md
 
+## ★ 最高优先级：设计规范 [DESIGN.md](DESIGN.md)
+
+所有界面与交互的设计、实现和评审都**必须**遵循同目录的 [DESIGN.md](DESIGN.md)（UI/UX 设计指导原则）。
+它的优先级高于本文件中的其他所有条目；与其他约定（包括 antd 风格规范）冲突时以 DESIGN.md 为准。
+改动界面前先读它；完成后按其第 6 条检查不同窗口尺寸、浅/深色主题和各交互状态。
+
 ## 项目介绍
 
 **Zant UI** 是一个用 Zig 编写的原生 macOS 桌面 UI 框架。
@@ -52,6 +58,9 @@ src/
   renderer/skia/        Skia C ABI 与 Metal/CPU 渲染
   platform/macos/       AppKit 窗口、PDFKit 桥
   platform/windows/     二期说明，未实现
+  motion/               动效：缓动曲线（antd）、Animated、presence 预设
+  markdown/             Streamdown 移植：remend/ parser/ render/ blocks cache editor html
+  math/                 LaTeX 公式（KaTeX 排版算法，STIX Two Math）
 tools/zant/main.zig     编译后的脚手架 CLI
 scaffold/template/      生成项目模板（含组件、状态、AGENTS/CLAUDE）
 tests/                  布局/组件/UI/文本/Store 测试
@@ -71,6 +80,54 @@ third_party/            Skia 预编译依赖（不提交到 Git）
 - 不要在组件内部藏全局可变状态；不要跨线程修改 UI。
 
 ## 组件与样式规范
+
+- **所有组件的外观与交互以 Ant Design (antd 5) 为准**：新增或修改组件前先查对应的
+  antd 组件与 design token（尺寸、圆角、间距、颜色、阴影、悬停/按下/禁用/聚焦状态），
+  按 antd 规范实现，不要自创风格。没有对应 antd 组件时，用 antd token 组合出一致的视觉。
+  - 颜色只用 `theme/tokens.zig` 中的 antd token（`color_text`、`color_fill_secondary`、
+    `color_bg_elevated`、`color_primary_bg` …），并保证 `antLight` / `antDark` 都正确。
+  - 常用规格：控件高 24/32/40，圆角 4/6/8，弹出层圆角 8、内边距 4、菜单项高 32、
+    左右内边距 12。
+  - 填充色与 antd 一致为**半透明**（`color_fill` .15 / `fill_secondary` .06 /
+    `fill_tertiary` .04 / `fill_quaternary` .02，深色为白色 .18/.12/.08/.04），
+    不要改成不透明色，否则叠在不同底色上会出现两种色调。
+  - 文字/图标按钮：悬停 `fill_secondary`、按下 `fill`（不要用蓝色 `primary_bg`）；
+    `primary_bg` 只用于菜单/列表的“选中项”。
+  - 绝对定位元素的 `height_percent` / `width_percent` 优先于组件自带的固定尺寸
+    （例如 `ui.styled(ui.button(..), .{ .height_percent = 100 })` 会填满父容器）。
+  - 绝对定位与 CSS 一致：相对父元素的**含内边距盒子**定位和计算百分比，所以
+    全尺寸点击层/悬停底色会覆盖父元素的 padding。
+  - 已按 antd 实现：Button、Input、Checkbox/Switch/Radio、Select、Tabs、Card、Tag、
+    Alert、Avatar、Progress、Divider、Tooltip、Dropdown 菜单（`ui.dropdownMenu`）、
+    Segmented（`ui.segmented`）、Modal（`ui.modal`）、快捷键列表（`ui.shortcutList`）、全局提示（`ui.message`）。
+  - **通用组件属于 Zant UI**：任何应用都可能用到的组件（模态框、快捷键列表、菜单、提示…）
+    必须加到框架 `src/components/` 并经 `ui.*` 导出，应用里只写业务数据和组合；
+    应用里发现缺的通用组件，先补进框架再使用。
+  - 图标统一用 Zant 图标集（`ui.icon` / `ui.iconButton` / 按钮 `icon`，24×24 线性
+    图标、统一线宽），不要用文字字符（☰、⋯）冒充图标。
+  - 弹出层（菜单、面板）前放 `ui.dismissLayer`：点击外部任意位置关闭，且不绘制遮罩
+    （需要遮罩时传 `background`）。弹层/模态容器设 `block_pointer = true`，空白处不穿透。
+
+## 动效规范（详见 docs/motion.md）
+
+- 动效规格照 antd motion（时长 100/200/300ms 与其缓动曲线），机制是 `src/motion/`：
+  基于时间戳的 `motion.Animated`、presence（进场/退场）、layout/FLIP（`layout_transition` + `anchor`）。
+- 新组件必须有符合 antd 的状态过渡（悬停/按下/聚焦/选中）：布尔状态是唯一来源，
+  在组件的 `animate(data, now, theme)` 里用 `Animated.retarget` 缓动出呈现值供 paint 使用。
+- 弹层、提示、模态用 presence（`ui.styled(.., .{ .motion = .slide_up / .zoom_big / .fade / .move_up })`），
+  并给稳定 `key`，重新出现时复用同一节点。
+- **动画帧只重绘、不重建**：不要用应用状态驱动动画，也不要在 `render` 里依赖动画进度。
+- 状态变化处用 `tree.poke(id)` 登记动画节点；运行时只推进 `tree.animating`，不扫全树。
+- 节点会被释放、`NodeId` 会被复用：框架外不要长期持有 `NodeId`；运行时新增跨帧
+  保存 `NodeId` 的字段必须同时在 `Runtime.forgetNode` 里清理。
+- 时间相关测试用假时钟（`runtime.clock = fakeClock`），不要 sleep；
+  `ZANT_NO_MOTION=1`、截图模式、系统“减少动态效果”都会关闭动效。
+- 命令式接口：`ui.focus(key)`、`ui.scrollIntoView(key)`（布局后执行）、`ui.wakeAfter(ms)`、
+  `ui.nowMs()`；关窗/退出拦截：State 声明 `pub fn onCloseRequest(self) bool`。
+- 文档类应用：`ui.documentEdited(bool)`（在 render 里声明未保存状态 → 关闭按钮圆点）；
+  `WindowOptions.titlebar_height`（`.hidden_titlebar` 时让红绿灯垂直居中到自定义顶栏高度）。
+- 绝对定位同时设 `left` 与 `right`（且无宽度）时按 CSS 拉伸到两侧之间；单行文本设
+  `max_lines = 1` 时在空间不足处以“…”截断。
 
 - 组件是普通函数：`fn component(props) ui.Node`。
 - 业务组件只组合 `ui.*`，不直接调用 AppKit/Skia。
@@ -125,6 +182,17 @@ ui.styled(node, .{
   示例和文档使用通用占位符。
 - 发布到外部分发前需要 notarization + stapling，当前未自动完成。
 
+## Markdown / 数学
+
+- 以 Vercel Streamdown 为蓝本逐模块移植（见 `docs/markdown.md`），改动前先对照
+  上游实现，避免引入额外行为差异；remend 改动必须通过 `tests/remend_test.zig`。
+- 性能优先：流式场景用 `markdown.Cache` + `markdown.streamdown`（块级解析缓存 +
+  `ui.memo`），不要每帧整篇解析。
+- `ui.memo` 子树内的回调上下文必须比帧活得久（用缓存条目的 arena），不要用
+  `ui.frameAllocator()`。
+- 数学排版改动参照 KaTeX 源码与字体参数，并用 `zig build run-math` 截图检查。
+- Streamdown 为 Apache-2.0、KaTeX 为 MIT，署名见 `THIRD_PARTY_NOTICES.md`。
+
 ## PDF 组件
 
 - `ui.pdfPreview` 使用原生 PDFKit 渲染到 PNG，再走 Skia 图片管线。
@@ -152,7 +220,7 @@ ui.styled(node, .{
 - 避免在 render 内做文件 I/O、网络、睡眠或大分配。
 - 新增分配必须跟随节点/帧生命周期释放。
 - 修改热点路径后运行 `zig build test`，并检查内存/时间回归。
-- 当前测试 56/56；新增行为应补测试。
+- 当前测试 123/123（`tests/` + 框架模块内单元测试）；新增行为应补测试。
 
 ## 代码质量
 
@@ -165,7 +233,7 @@ ui.styled(node, .{
 ## 已知限制
 
 - Windows 未实现。
-- 仅浅色主题。
+- 内置 `antLight` / `antDark`；应用可通过 `pub fn theme` 运行时切换。
 - Flex 纵向 wrap、wrap-reverse、auto/calc 未支持。
 - Select/Tabs 为基础实现。
 - 真实 macOS 拼音输入法未自动化端到端验证。

@@ -11,6 +11,7 @@ pub const Canvas = struct {
     extern fn zant_canvas_restore(canvas: ?*anyopaque) void;
     extern fn zant_canvas_translate(canvas: ?*anyopaque, x: f32, y: f32) void;
     extern fn zant_canvas_scale(canvas: ?*anyopaque, sx: f32, sy: f32) void;
+    extern fn zant_canvas_save_layer_alpha(canvas: ?*anyopaque, x: f32, y: f32, width: f32, height: f32, alpha: f32) void;
     extern fn zant_canvas_clip_rect(canvas: ?*anyopaque, x: f32, y: f32, width: f32, height: f32) void;
     extern fn zant_canvas_clear(canvas: ?*anyopaque, color: u32) void;
     extern fn zant_canvas_fill_rect(canvas: ?*anyopaque, x: f32, y: f32, width: f32, height: f32, color: u32) void;
@@ -34,6 +35,11 @@ pub const Canvas = struct {
 
     pub fn scale(self: Canvas, sx: f32, sy: f32) void {
         zant_canvas_scale(self.ptr, sx, sy);
+    }
+
+    /// Draws into an offscreen layer composited with `alpha` on `restore()`.
+    pub fn saveLayerAlpha(self: Canvas, bounds: geometry.Rect, alpha: f32) void {
+        zant_canvas_save_layer_alpha(self.ptr, bounds.x, bounds.y, bounds.width, bounds.height, alpha);
     }
 
     pub fn clipRect(self: Canvas, rect: geometry.Rect) void {

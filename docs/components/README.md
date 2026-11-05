@@ -21,10 +21,19 @@
 | 头像 | [avatar.md](avatar.md) |
 | 进度条 | [progress.md](progress.md) |
 | PDF 预览 | [pdf.md](pdf.md) |
+| 图标、图标按钮 | [icon.md](icon.md) |
+| 下拉菜单 | [dropdown-menu.md](dropdown-menu.md) |
+| 分段控制器 | [segmented.md](segmented.md) |
+| 对话框 | [modal.md](modal.md) |
+| 全局提示 | [message.md](message.md) |
+| 快捷键列表 | [shortcut-list.md](shortcut-list.md) |
+| 点击外部关闭 | [dismiss-layer.md](dismiss-layer.md) |
 | Markdown 编辑器/预览 | [markdown.md](markdown.md) |
 | 样式覆盖 | [style.md](style.md) |
 
 自定义组件示例见生成项目的 `src/components/stat_card.zig`，以及
 [窗口配置](../window-config.md)。
 
-更多主题：[SQLite 持久化](../database.md)、[Flex 与 CSS](../flex.md)。
+更多主题：[SQLite 持久化](../database.md)、[Flex 与 CSS](../flex.md)、[动效](../motion.md)、
+[Markdown 与数学](../markdown.md)。所有组件外观以 Ant Design 5 为准，界面设计遵循
+[DESIGN.md](../../DESIGN.md)。

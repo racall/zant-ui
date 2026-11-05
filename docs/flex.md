@@ -41,6 +41,13 @@ ui.row(.{
 })
 ```
 
+## 绝对定位
+
+- `absolute = true` 时相对父元素的**含内边距盒子**定位；`left` / `right` / `top` / `bottom`
+  与百分比尺寸同 CSS。同时设 `left` 与 `right`（且无宽度）时拉伸到两侧之间。
+- `anchor = n`：绝对定位子节点取第 n 个流式兄弟节点的 x / 宽度（未设置纵向位置时也取
+  y / 高度），配合 `layout_transition` 实现分段控制器滑块、标签页下划线的平滑移动。
+
 ## 尚未支持
 
 - **纵向 wrap**（`direction = .column` 时的 flex-wrap）

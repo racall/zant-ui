@@ -12,8 +12,13 @@ pub const Theme = struct {
     color_bg_base: u32 = 0xfff5f5f5,
     color_bg_container: u32 = 0xffffffff,
     color_bg_elevated: u32 = 0xffffffff,
-    color_fill_secondary: u32 = 0xfff5f5f5,
-    color_fill_tertiary: u32 = 0xfffafafa,
+    /// antd colorBgLayout: page background, segmented track.
+    color_bg_layout: u32 = 0xfff5f5f5,
+    // antd 5 fills are translucent so they read the same on any surface
+    color_fill: u32 = 0x26000000, // rgba(0,0,0,.15) — pressed
+    color_fill_secondary: u32 = 0x0f000000, // rgba(0,0,0,.06) — hover
+    color_fill_tertiary: u32 = 0x0a000000, // rgba(0,0,0,.04)
+    color_fill_quaternary: u32 = 0x05000000, // rgba(0,0,0,.02)
 
     color_border: u32 = 0xffd9d9d9,
     color_border_secondary: u32 = 0xfff0f0f0,
@@ -39,8 +44,10 @@ pub const Theme = struct {
     padding_sm: f32 = 8,
     padding_lg: f32 = 24,
 
+    // antd motionDurationFast / Mid / Slow
     motion_duration_fast: u32 = 100,
-    motion_duration_mid: u32 = 160,
+    motion_duration_mid: u32 = 200,
+    motion_duration_slow: u32 = 300,
 
     control_padding_horizontal: f32 = 15,
     control_padding_horizontal_sm: f32 = 7,
@@ -54,6 +61,38 @@ pub const ThemeMode = enum {
 
 pub fn antLight() Theme {
     return .{};
+}
+
+/// Dark counterpart of `antLight` (Ant Design dark algorithm values).
+pub fn antDark() Theme {
+    return .{
+        .color_primary = 0xff1668dc,
+        .color_primary_hover = 0xff3c89e8,
+        .color_primary_active = 0xff1554ad,
+        .color_primary_bg = 0xff111a2c,
+        .color_text = 0xd9ffffff,
+        .color_text_secondary = 0xa6ffffff,
+        .color_text_disabled = 0x40ffffff,
+        .color_text_light = 0xffffffff,
+        .color_bg_base = 0xff000000,
+        .color_bg_container = 0xff141414,
+        .color_bg_elevated = 0xff1f1f1f,
+        .color_bg_layout = 0xff000000,
+        .color_fill = 0x2effffff,
+        .color_fill_secondary = 0x1fffffff,
+        .color_fill_tertiary = 0x14ffffff,
+        .color_fill_quaternary = 0x0affffff,
+        .color_border = 0xff424242,
+        .color_border_secondary = 0xff303030,
+        .color_split = 0x0fffffff,
+    };
+}
+
+pub fn forMode(mode: ThemeMode) Theme {
+    return switch (mode) {
+        .light => antLight(),
+        .dark => antDark(),
+    };
 }
 
 pub fn rgba(r: u8, g: u8, b: u8, a: u8) u32 {

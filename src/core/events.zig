@@ -63,6 +63,8 @@ pub const Event = union(enum) {
     window_focus,
     window_blur,
     window_close,
+    /// The user asked to close the window or quit; the app may veto it.
+    window_close_request,
     scroll: struct { x: f32, y: f32, dx: f32, dy: f32, modifiers: Modifiers },
 };
 
@@ -134,6 +136,7 @@ pub fn translate(raw: *const platform.Event) Event {
         platform.EventType.window_focus => .window_focus,
         platform.EventType.window_blur => .window_blur,
         platform.EventType.window_close => .window_close,
+        platform.EventType.window_close_request => .window_close_request,
         platform.EventType.scroll => .{ .scroll = .{
             .x = raw.x,
             .y = raw.y,

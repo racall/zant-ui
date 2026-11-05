@@ -2,11 +2,14 @@ const std = @import("std");
 const geometry = @import("core/geometry.zig");
 const node_mod = @import("core/node.zig");
 const actions = @import("core/actions.zig");
+const events = @import("core/events.zig");
+const icons_mod = @import("core/icons.zig");
 const flex = @import("layout/flex.zig");
 const tokens = @import("theme/tokens.zig");
 const text_mod = @import("renderer/text.zig");
 const pdf_mod = @import("platform/pdf.zig");
 const platform_mod = @import("platform/platform.zig");
+const motion = @import("motion/motion.zig");
 
 pub const Node = struct {
     element: *const Element,
@@ -34,6 +37,7 @@ pub const Element = struct {
     text_color: ?u32 = null,
     label_padding: f32 = 0,
     icon: node_mod.ButtonIcon = .none,
+    icon_size: f32 = 18,
     on_click: ?actions.Action = null,
     on_bool: ?actions.BoolAction = null,
     on_text: ?actions.TextAction = null,
@@ -47,15 +51,141 @@ pub const Element = struct {
     selected: usize = 0,
     children: []const Node = &.{},
     rich_spans: []const node_mod.RichSpan = &.{},
+    /// Rich text line height multiplier (0 = font default).
+    rich_line_height: f32 = 2.0,
+    /// Rich text link activation; receives the clicked span's `link`.
+    on_link: ?actions.TextAction = null,
+    /// Controlled input selection `(anchor, cursor)`; applied when it changes.
+    selection: ?[2]usize = null,
+    /// Input selection change notifications `(anchor, cursor)`.
+    on_selection: ?actions.RangeAction = null,
+    /// Input key hook (runs before the input's own editing keys).
+    on_key: ?actions.InputKeyAction = null,
+    /// Centred text column width for wide multiline inputs (0 = full width).
+    content_max_width: f32 = 0,
+    /// Vector drawing (`ui.vector`).
+    drawing: ?*const node_mod.vector.Drawing = null,
+    /// Memoized subtree: when the hash equals the mounted node's, the
+    /// reconciler keeps that subtree without calling `memo_build`.
+    memo_hash: ?u64 = null,
+    memo_build: ?MemoBuild = null,
+    /// Enter / exit and layout transitions (`ui.styled(.., .{ .motion = .. })`).
+    motion: node_mod.MotionStyle = .{},
+};
+
+pub const MemoBuild = struct {
+    ctx: *const anyopaque,
+    func: *const fn (ctx: *const anyopaque) Node,
 };
 
 threadlocal var frame_arena = std.heap.ArenaAllocator.init(std.heap.c_allocator);
 threadlocal var frame_active = false;
 
-const default_theme = tokens.Theme{};
+/// Theme used by `ui.*` builders for their default colours. The runtime sets
+/// it before every build from the active theme (light/dark).
+threadlocal var build_theme: tokens.Theme = .{};
+
+pub fn setBuildTheme(theme: tokens.Theme) void {
+    build_theme = theme;
+}
+
+/// Active theme while building a frame.
+pub fn currentTheme() tokens.Theme {
+    return build_theme;
+}
+
+threadlocal var frame_now_ms: i64 = 0;
+threadlocal var pending_wake_ms: ?u32 = null;
+threadlocal var pending_edited: ?bool = null;
+
+/// Declares whether the document has unsaved changes (call it from
+/// `render`). On macOS this shows the dot in the window's close button,
+/// like every document app; the runtime applies it after the build.
+pub fn documentEdited(edited: bool) void {
+    pending_edited = edited;
+}
+
+/// The value declared by the last build, if any (runtime).
+pub fn takeDocumentEdited() ?bool {
+    const v = pending_edited;
+    pending_edited = null;
+    return v;
+}
+
+pub const CommandKind = enum { focus, scroll_into_view };
+
+/// Imperative request queued by `focus` / `scrollIntoView`; the runtime
+/// runs it after the next layout.
+pub const Command = struct {
+    kind: CommandKind,
+    key_buf: [96]u8 = undefined,
+    key_len: u8 = 0,
+
+    pub fn key(self: *const Command) []const u8 {
+        return self.key_buf[0..self.key_len];
+    }
+};
+
+pub const max_commands = 8;
+threadlocal var command_queue: [max_commands]Command = undefined;
+threadlocal var command_count: usize = 0;
+
+fn queueCommand(kind: CommandKind, node_key: []const u8) void {
+    if (command_count >= max_commands or node_key.len > 96) return;
+    var cmd: Command = .{ .kind = kind, .key_len = @intCast(node_key.len) };
+    @memcpy(cmd.key_buf[0..node_key.len], node_key);
+    command_queue[command_count] = cmd;
+    command_count += 1;
+}
+
+/// Focuses the focusable node with `key` after the next layout (call it
+/// from an action, e.g. to focus a search field when it opens).
+pub fn focus(node_key: []const u8) void {
+    queueCommand(.focus, node_key);
+}
+
+/// Scrolls the nearest scroll container so the node with `key` is at its
+/// top (animated unless motion is off).
+pub fn scrollIntoView(node_key: []const u8) void {
+    queueCommand(.scroll_into_view, node_key);
+}
+
+/// Moves the queued commands into `out` (runtime).
+pub fn takeCommands(out: *[max_commands]Command) []Command {
+    const n = command_count;
+    @memcpy(out[0..n], command_queue[0..n]);
+    command_count = 0;
+    return out[0..n];
+}
+
+/// Requests a rebuild after `ms` milliseconds (call it from `render`; e.g.
+/// to hide a toast). Valid for the build that requested it.
+pub fn wakeAfter(ms: u32) void {
+    pending_wake_ms = if (pending_wake_ms) |cur| @min(cur, ms) else ms;
+}
+
+/// The wake-up requested by the last build (runtime).
+pub fn takeWake() ?u32 {
+    const v = pending_wake_ms;
+    pending_wake_ms = null;
+    return v;
+}
+
+/// Sets the timestamp `nowMs` reports (the runtime samples it per frame).
+pub fn setNow(ms: i64) void {
+    frame_now_ms = ms;
+}
+
+/// Timestamp (ms, monotonic) of the current frame or event. Use it for
+/// time-based UI state (toasts, timers) together with `wakeAfter`.
+pub fn nowMs() i64 {
+    return frame_now_ms;
+}
 
 pub fn beginFrame() void {
     _ = frame_arena.reset(.retain_capacity);
+    pending_wake_ms = null;
+    pending_edited = null;
     frame_active = true;
 }
 
@@ -74,6 +204,20 @@ fn alloc(comptime T: type) *T {
 fn allocSlice(comptime T: type, length: usize) []T {
     return frame_arena.allocator().alloc(T, length) catch
         @panic("Zant UI: out of memory while building a frame");
+}
+
+/// Allocator whose memory lives until the next `beginFrame`.
+///
+/// Use it for small per-frame callback contexts (e.g. a copy button that needs
+/// the text it copies). Callbacks fire before the next frame is built, so the
+/// memory stays valid for every event dispatched against this frame.
+pub fn frameAllocator() std.mem.Allocator {
+    return frame_arena.allocator();
+}
+
+/// Copies `value` into the frame arena.
+pub fn frameString(value: []const u8) []const u8 {
+    return copyString(value);
 }
 
 fn copyString(value: []const u8) []const u8 {
@@ -109,6 +253,24 @@ pub fn textAction(ctx: anytype, comptime func: *const fn (@TypeOf(ctx), []const 
     const Adapter = struct {
         fn call(raw: *anyopaque, value: []const u8) void {
             func(@ptrCast(@alignCast(raw)), value);
+        }
+    };
+    return .{ .ctx = @ptrCast(ctx), .func = Adapter.call };
+}
+
+pub fn rangeAction(ctx: anytype, comptime func: *const fn (@TypeOf(ctx), usize, usize) void) actions.RangeAction {
+    const Adapter = struct {
+        fn call(raw: *anyopaque, start: usize, end: usize) void {
+            func(@ptrCast(@alignCast(raw)), start, end);
+        }
+    };
+    return .{ .ctx = @ptrCast(ctx), .func = Adapter.call };
+}
+
+pub fn inputKeyAction(ctx: anytype, comptime func: *const fn (@TypeOf(ctx), events.KeyEvent, []const u8, usize, usize) bool) actions.InputKeyAction {
+    const Adapter = struct {
+        fn call(raw: *anyopaque, key: events.KeyEvent, value: []const u8, anchor: usize, cursor: usize) bool {
+            return func(@ptrCast(@alignCast(raw)), key, value, anchor, cursor);
         }
     };
     return .{ .ctx = @ptrCast(ctx), .func = Adapter.call };
@@ -154,12 +316,22 @@ pub const Style = struct {
     shadow_blur: ?f32 = null,
     shadow_offset_y: ?f32 = null,
     clip: ?bool = null,
+    block_pointer: ?bool = null,
     text_color: ?u32 = null,
     font_size: ?f32 = null,
     font_weight: ?text_mod.Weight = null,
     text_align: ?text_mod.Align = null,
     line_height: ?f32 = null,
     wrap: ?bool = null,
+    /// Enter / exit transition (antd presets, see `docs/motion.md`). Give
+    /// the node a `key` so a re-added node revives instead of duplicating.
+    motion: ?motion.Presence = null,
+    /// Transform origin for zoom / slide presets.
+    motion_origin: ?motion.Origin = null,
+    /// Animate position / size changes (leaf containers).
+    layout_transition: ?motion.Transition = null,
+    /// Absolute children: follow the n-th in-flow sibling's box.
+    anchor: ?u16 = null,
 };
 
 /// Override common visual/layout/text properties of any component.
@@ -205,7 +377,15 @@ pub fn styled(node: Node, style: Style) Node {
     if (style.shadow_blur) |value| copy.visual.shadow_blur = value;
     if (style.shadow_offset_y) |value| copy.visual.shadow_offset_y = value;
     if (style.clip) |value| copy.visual.clip = value;
-    if (style.color orelse style.text_color) |value| copy.text_style.color = value;
+    if (style.block_pointer) |value| copy.visual.block_pointer = value;
+    if (style.motion) |value| copy.motion.presence = value;
+    if (style.motion_origin) |value| copy.motion.origin = value;
+    if (style.layout_transition) |value| copy.motion.layout_transition = value;
+    if (style.anchor) |value| copy.layout.anchor = value;
+    if (style.color orelse style.text_color) |value| {
+        copy.text_style.color = value;
+        copy.text_color = value;
+    }
     if (style.font_size) |value| copy.text_style.font_size = value;
     if (style.font_weight) |value| copy.text_style.weight = value;
     if (style.text_align) |value| copy.text_style.text_align = value;
@@ -248,6 +428,7 @@ fn make(element: Element) Node {
         for (element.rich_spans, 0..) |span, i| {
             spans[i] = span;
             spans[i].text = copyString(span.text);
+            spans[i].link = copyString(span.link);
         }
         copy.rich_spans = spans;
     } else {
@@ -286,6 +467,7 @@ fn layoutFrom(box: BoxOptions, direction: flex.Direction) node_mod.FlexStyle {
         .grow = box.grow,
         .shrink = box.shrink,
         .basis = box.basis,
+        .scroll = box.scroll,
     };
 }
 
@@ -295,7 +477,8 @@ fn visualFrom(box: BoxOptions) node_mod.Visual {
         .border_color = box.border_color,
         .border_width = box.border_width,
         .radius = box.radius,
-        .clip = box.clip,
+        .clip = box.clip or box.scroll,
+        .block_pointer = box.block_pointer,
     };
 }
 
@@ -335,6 +518,12 @@ pub const BoxOptions = struct {
     border_width: f32 = 0,
     radius: f32 = 0,
     clip: bool = false,
+    /// Vertical scroll container: children keep their natural height, overflow
+    /// is clipped and the wheel/trackpad scrolls the content. Needs a definite
+    /// height (`height`, `height_percent`, `grow` inside a sized parent, ...).
+    scroll: bool = false,
+    /// Swallow clicks on empty areas (modal backdrops, popover panels).
+    block_pointer: bool = false,
     children: []const Node = &.{},
 };
 
@@ -416,7 +605,7 @@ pub fn text(value: []const u8, options: TextOptions) Node {
         .key = options.key,
         .content = value,
         .layout = .{ .shrink = 0 },
-        .text_style = textStyle(options, default_theme.color_text, false),
+        .text_style = textStyle(options, build_theme.color_text, false),
     });
 }
 
@@ -468,7 +657,7 @@ pub fn paragraph(value: []const u8, options: ParagraphOptions) Node {
     return text(value, .{
         .key = options.key,
         .size = options.size,
-        .color = options.color orelse default_theme.color_text_secondary,
+        .color = options.color orelse build_theme.color_text_secondary,
         .text_align = options.text_align,
         .wrap = true,
         .line_height = options.line_height,
@@ -487,9 +676,13 @@ pub const ButtonOptions = struct {
     label_padding: f32 = 0,
     text_color: ?u32 = null,
     icon: node_mod.ButtonIcon = .none,
+    icon_size: f32 = 18,
     on_click: ?actions.Action = null,
     index_action: ?actions.IndexAction = null,
     index: usize = 0,
+    /// false: clicking does not take keyboard focus (toolbar buttons that
+    /// act on the focused input).
+    focusable: bool = true,
 };
 
 pub fn button(options: ButtonOptions) Node {
@@ -505,13 +698,18 @@ pub fn button(options: ButtonOptions) Node {
         .button_type = options.variant,
         .button_size = options.size,
         .enabled = !options.disabled,
-        .focusable = true,
+        .focusable = options.focusable,
         .layout = .{ .height = height, .width = options.width, .shrink = 0 },
-        .visual = .{ .radius = default_theme.border_radius },
-        .text_style = .{ .font_size = options.font_size orelse 14, .text_align = options.text_align },
+        .visual = .{ .radius = build_theme.border_radius },
+        .text_style = .{ .font_size = options.font_size orelse switch (options.size) {
+            .small => 12,
+            .middle => 14,
+            .large => 16,
+        }, .text_align = options.text_align },
         .text_color = options.text_color,
         .label_padding = options.label_padding,
         .icon = options.icon,
+        .icon_size = options.icon_size,
         .on_click = options.on_click,
         .index_action = options.index_action,
         .index = options.index,
@@ -550,6 +748,15 @@ pub const InputOptions = struct {
     on_submit: ?actions.Action = null,
     on_undo: ?actions.Action = null,
     on_redo: ?actions.Action = null,
+    /// Controlled selection `(anchor, cursor)` in UTF-8 bytes. Applied whenever
+    /// the value differs from the previously applied one.
+    selection: ?[2]usize = null,
+    on_selection: ?actions.RangeAction = null,
+    /// Key hook (list continuation, shortcuts); return true to consume.
+    on_key: ?actions.InputKeyAction = null,
+    /// Multiline: keep the text in a centred column of at most this width
+    /// while the input (and its scroll bar) spans the full width.
+    content_max_width: ?f32 = null,
 };
 
 pub fn input(options: InputOptions) Node {
@@ -566,12 +773,16 @@ pub fn input(options: InputOptions) Node {
         .enabled = !options.disabled,
         .focusable = true,
         .layout = .{ .height = options.height, .width = options.width, .shrink = 0 },
-        .visual = .{ .radius = default_theme.border_radius },
+        .visual = .{ .radius = build_theme.border_radius },
         .text_style = .{ .font_size = options.font_size, .line_height = options.line_height },
         .on_text = options.on_change,
         .on_click = options.on_submit,
         .on_undo = options.on_undo,
         .on_redo = options.on_redo,
+        .selection = options.selection,
+        .on_selection = options.on_selection,
+        .on_key = options.on_key,
+        .content_max_width = options.content_max_width orelse 0,
     });
 }
 
@@ -686,8 +897,22 @@ pub fn tabs(options: TabsOptions) Node {
             .index = i,
         });
     }
+    // ink bar: follows the active tab (antd: 300ms ease)
+    const row_children = allocSlice(Node, options.items.len + 1);
+    @memcpy(row_children[0..options.items.len], tab_children);
+    row_children[options.items.len] = styled(column(.{
+        .key = std.fmt.allocPrint(frame_arena.allocator(), "{s}-ink", .{base}) catch base,
+        .children = &.{},
+    }), .{
+        .absolute = true,
+        .anchor = @intCast(active),
+        .bottom = 0,
+        .height = 2,
+        .background = build_theme.color_primary,
+        .layout_transition = .{ .duration_ms = 300, .easing = .ease },
+    });
     const children = allocSlice(Node, 3);
-    children[0] = row(.{ .gap = 4, .children = tab_children });
+    children[0] = row(.{ .gap = 4, .children = row_children });
     children[1] = divider(.{ .margin = .{ .top = 4, .bottom = 4 } });
     children[2] = options.items[active].content;
     return column(.{ .key = options.key, .gap = 0, .children = children });
@@ -697,6 +922,14 @@ pub const TooltipOptions = struct {
     text: []const u8,
     child: Node,
 };
+
+/// Returns `node` with `key` set (used to key memoized subtrees).
+pub fn withKey(node: Node, key: []const u8) Node {
+    const copy = alloc(Element);
+    copy.* = node.element.*;
+    copy.key = copyString(key);
+    return .{ .element = copy };
+}
 
 pub fn tooltip(options: TooltipOptions) Node {
     const copy = alloc(Element);
@@ -747,7 +980,7 @@ pub fn select(options: SelectOptions) Node {
         .enabled = !options.disabled,
         .focusable = true,
         .layout = .{ .width = options.width, .height = options.height, .shrink = 0 },
-        .visual = .{ .radius = default_theme.border_radius },
+        .visual = .{ .radius = build_theme.border_radius },
         .tooltip = options.tooltip,
         .index_action = options.on_change,
         .index = options.selected,
@@ -766,11 +999,156 @@ fn copyPdfText(ctx: *PdfCopyContext) void {
     }
 }
 
+pub const Icon = icons_mod.Icon;
+
+pub const IconOptions = struct {
+    key: ?[]const u8 = null,
+    name: Icon,
+    size: f32 = 18,
+    color: ?u32 = null,
+    /// Stroke width in px (default scales with size: 1.5px at 18px).
+    stroke: ?f32 = null,
+};
+
+/// A line icon from the Zant icon set (24×24 grid, uniform stroke).
+pub fn icon(options: IconOptions) Node {
+    const arena = frame_arena.allocator();
+    const d = arena.create(node_mod.vector.Drawing) catch @panic("Zant UI: out of memory while building a frame");
+    d.* = icons_mod.drawing(arena, options.name, options.size, options.color orelse build_theme.color_text, options.stroke) catch
+        @panic("Zant UI: out of memory while building a frame");
+    return vector(.{ .key = options.key, .drawing = d });
+}
+
+pub const IconButtonOptions = struct {
+    key: ?[]const u8 = null,
+    icon: Icon,
+    /// Icon size; the button is `box` × `box`.
+    size: f32 = 18,
+    box: f32 = 32,
+    color: ?u32 = null,
+    /// Draws `active_background` behind the icon (toggled state).
+    active: bool = false,
+    active_background: ?u32 = null,
+    disabled: bool = false,
+    /// Toolbar buttons should not steal focus from the input they act on.
+    focusable: bool = false,
+    tooltip: ?[]const u8 = null,
+    on_click: ?actions.Action = null,
+    index_action: ?actions.IndexAction = null,
+    index: usize = 0,
+};
+
+/// Square icon-only button with hover feedback.
+pub fn iconButton(options: IconButtonOptions) Node {
+    var node = styled(button(.{
+        .key = options.key,
+        .text = "",
+        .variant = .text,
+        .size = .small,
+        .icon = options.icon,
+        .icon_size = options.size,
+        .text_color = options.color,
+        .disabled = options.disabled,
+        .focusable = options.focusable,
+        .on_click = options.on_click,
+        .index_action = options.index_action,
+        .index = options.index,
+    }), .{
+        .width = options.box,
+        .height = options.box,
+        .padding = .{},
+        .radius = options.box * 0.28,
+        .background = if (options.active) options.active_background orelse build_theme.color_fill_secondary else null,
+    });
+    if (options.tooltip) |t| node = tooltip(.{ .text = t, .child = node });
+    return node;
+}
+
+pub const DismissLayerOptions = struct {
+    key: ?[]const u8 = "dismiss-layer",
+    on_dismiss: ?actions.Action = null,
+    /// Optional dimming colour (transparent by default).
+    background: ?u32 = null,
+};
+
+/// Full-size invisible click catcher placed right before a popover/menu in
+/// the same container: a click anywhere outside the popover calls
+/// `on_dismiss`. Paints nothing unless `background` is set.
+pub fn dismissLayer(options: DismissLayerOptions) Node {
+    return styled(button(.{
+        .key = options.key,
+        .text = "",
+        .variant = .plain,
+        .focusable = false,
+        .on_click = options.on_dismiss,
+    }), .{
+        .absolute = true,
+        .left = 0,
+        .top = 0,
+        .width_percent = 100,
+        .height_percent = 100,
+        .radius = 0,
+        .background = options.background,
+    });
+}
+
+pub const VectorOptions = struct {
+    key: ?[]const u8 = null,
+    drawing: *const node_mod.vector.Drawing,
+    /// Fixed box width (default: the drawing's width). The drawing is
+    /// left-aligned; wrap in a row to center it.
+    width: ?f32 = null,
+};
+
+/// A retained vector drawing (math formulas, diagrams). Its size is the
+/// drawing's extent; the drawing is copied into the node on mount/change.
+pub fn vector(options: VectorOptions) Node {
+    const copy = alloc(node_mod.vector.Drawing);
+    copy.* = options.drawing.*;
+    return make(.{
+        .kind = .vector,
+        .key = options.key,
+        .drawing = copy,
+        .layout = .{ .width = options.width orelse options.drawing.width, .height = options.drawing.height(), .shrink = 0 },
+    });
+}
+
+pub const MemoOptions = struct {
+    key: ?[]const u8 = null,
+    /// Must change whenever anything the builder reads changes.
+    hash: u64,
+};
+
+/// React.memo for Zant: `build(ctx)` runs only when no mounted node with this
+/// position/key has the same `hash`; otherwise the existing subtree (layout,
+/// text shaping, callbacks) is kept untouched. `build` must return a
+/// container (`ui.column`/`ui.row`), and `ctx` plus every callback context
+/// inside the subtree must outlive the frame (no `frameAllocator` data).
+pub fn memo(options: MemoOptions, ctx: anytype, comptime build: fn (@TypeOf(ctx)) Node) Node {
+    const Ctx = @TypeOf(ctx);
+    const Adapter = struct {
+        fn call(raw: *const anyopaque) Node {
+            const typed: Ctx = @ptrCast(@alignCast(@constCast(raw)));
+            return build(typed);
+        }
+    };
+    return make(.{
+        .kind = .container,
+        .key = options.key,
+        .memo_hash = options.hash,
+        .memo_build = .{ .ctx = @ptrCast(ctx), .func = Adapter.call },
+    });
+}
+
 pub const RichTextOptions = struct {
     key: ?[]const u8 = null,
     spans: []const node_mod.RichSpan = &.{},
     width: ?f32 = null,
     height: ?f32 = null,
+    /// Line height multiplier; 0 uses the font's natural line height.
+    line_height: f32 = 2.0,
+    /// Called with `RichSpan.link` when a linked span is clicked.
+    on_link: ?actions.TextAction = null,
 };
 
 pub fn richText(options: RichTextOptions) Node {
@@ -778,6 +1156,8 @@ pub fn richText(options: RichTextOptions) Node {
         .kind = .rich_text,
         .key = options.key,
         .rich_spans = options.spans,
+        .rich_line_height = options.line_height,
+        .on_link = options.on_link,
         .layout = .{
             .width = options.width,
             .height = options.height,
@@ -871,7 +1251,7 @@ pub fn divider(options: DividerOptions) Node {
         .kind = .container,
         .key = options.key,
         .layout = .{ .height = 1, .margin = options.margin, .shrink = 0 },
-        .visual = .{ .background = options.color orelse default_theme.color_border_secondary },
+        .visual = .{ .background = options.color orelse build_theme.color_border_secondary },
     });
 }
 
@@ -886,7 +1266,7 @@ pub fn tag(options: TagOptions) Node {
     const children = allocSlice(Node, 1);
     children[0] = text(options.text, .{
         .size = 12,
-        .color = options.color orelse default_theme.color_text,
+        .color = options.color orelse build_theme.color_text,
         .wrap = false,
     });
     return make(.{
@@ -899,7 +1279,7 @@ pub fn tag(options: TagOptions) Node {
             .shrink = 0,
         },
         .visual = .{
-            .background = options.background orelse default_theme.color_fill_secondary,
+            .background = options.background orelse build_theme.color_fill_secondary,
             .radius = 4,
         },
         .children = children,
@@ -928,13 +1308,13 @@ pub fn card(options: CardOptions) Node {
         header_children[0] = text(options.title orelse "", .{
             .size = 16,
             .weight = .semibold,
-            .color = default_theme.color_text,
+            .color = build_theme.color_text,
             .wrap = false,
         });
         header_children[1] = column(.{ .grow = 1, .basis = 0 });
         header_children[2] = text(options.extra orelse "", .{
             .size = 12,
-            .color = default_theme.color_text_secondary,
+            .color = build_theme.color_text_secondary,
             .wrap = false,
         });
         children[index] = row(.{ .align_items = .center, .gap = 8, .children = header_children });
@@ -956,8 +1336,8 @@ pub fn card(options: CardOptions) Node {
             .shrink = 0,
         },
         .visual = .{
-            .background = default_theme.color_bg_container,
-            .border_color = if (options.bordered) default_theme.color_border_secondary else null,
+            .background = build_theme.color_bg_container,
+            .border_color = if (options.bordered) build_theme.color_border_secondary else null,
             .border_width = if (options.bordered) 1 else 0,
             .radius = 10,
         },
@@ -981,23 +1361,23 @@ pub const AlertOptions = struct {
 
 pub fn alert(options: AlertOptions) Node {
     const color: u32 = switch (options.type) {
-        .info => default_theme.color_primary,
-        .success => default_theme.color_success,
-        .warning => default_theme.color_warning,
-        .error_state => default_theme.color_error,
+        .info => build_theme.color_primary,
+        .success => build_theme.color_success,
+        .warning => build_theme.color_warning,
+        .error_state => build_theme.color_error,
     };
     const count: usize = if (options.description.len > 0) 2 else 1;
     const children = allocSlice(Node, count);
     children[0] = text(options.title, .{
         .size = 14,
         .weight = .medium,
-        .color = default_theme.color_text,
+        .color = build_theme.color_text,
         .wrap = true,
     });
     if (count == 2) {
         children[1] = text(options.description, .{
             .size = 13,
-            .color = default_theme.color_text_secondary,
+            .color = build_theme.color_text_secondary,
             .wrap = true,
         });
     }
@@ -1032,7 +1412,7 @@ pub fn avatar(options: AvatarOptions) Node {
     children[0] = text(options.text, .{
         .size = @max(12, options.size * 0.4),
         .weight = .medium,
-        .color = options.color orelse default_theme.color_primary,
+        .color = options.color orelse build_theme.color_primary,
         .text_align = .center,
         .wrap = false,
     });
@@ -1047,7 +1427,7 @@ pub fn avatar(options: AvatarOptions) Node {
             .height = options.size,
         },
         .visual = .{
-            .background = options.background orelse default_theme.color_primary_bg,
+            .background = options.background orelse build_theme.color_primary_bg,
             .radius = options.size * 0.5,
             .clip = true,
         },
@@ -1073,7 +1453,7 @@ pub fn progress(options: ProgressOptions) Node {
             .height = options.height,
         },
         .visual = .{
-            .background = options.color orelse default_theme.color_primary,
+            .background = options.color orelse build_theme.color_primary,
             .radius = options.height * 0.5,
         },
     });
@@ -1087,10 +1467,38 @@ pub fn progress(options: ProgressOptions) Node {
             .height = options.height,
         },
         .visual = .{
-            .background = default_theme.color_fill_secondary,
+            .background = build_theme.color_fill_secondary,
             .radius = options.height * 0.5,
             .clip = true,
         },
         .children = children,
     });
 }
+
+// ── composite components (Ant Design style) ─────────────────────────────
+
+const menu_mod = @import("components/menu.zig");
+const segmented_mod = @import("components/segmented.zig");
+pub const MenuItem = menu_mod.MenuItem;
+pub const MenuOptions = menu_mod.MenuOptions;
+/// antd Dropdown menu panel (see components/menu.zig).
+pub const dropdownMenu = menu_mod.dropdownMenu;
+pub const SegmentedOption = segmented_mod.SegmentedOption;
+pub const SegmentedOptions = segmented_mod.SegmentedOptions;
+/// antd Segmented control.
+pub const segmented = segmented_mod.segmented;
+const modal_mod = @import("components/modal.zig");
+const shortcut_list_mod = @import("components/shortcut_list.zig");
+pub const ModalOptions = modal_mod.ModalOptions;
+/// antd Modal: mask + centred card with title, close button and footer.
+pub const modal = modal_mod.modal;
+pub const Shortcut = shortcut_list_mod.Shortcut;
+pub const ShortcutGroup = shortcut_list_mod.ShortcutGroup;
+pub const ShortcutListOptions = shortcut_list_mod.ShortcutListOptions;
+/// Grouped keyboard shortcut reference in balanced columns.
+pub const shortcutList = shortcut_list_mod.shortcutList;
+const message_mod = @import("components/message.zig");
+pub const MessageKind = message_mod.MessageKind;
+pub const MessageOptions = message_mod.MessageOptions;
+/// antd message: a transient pill near the top of the window.
+pub const message = message_mod.message;

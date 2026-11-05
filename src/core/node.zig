@@ -4,6 +4,9 @@ const text = @import("../renderer/text.zig");
 const rich_text = @import("../renderer/rich_text.zig");
 const flex = @import("../layout/flex.zig");
 const actions = @import("actions.zig");
+pub const vector = @import("vector.zig");
+pub const motion = @import("../motion/motion.zig");
+const Animated = motion.Animated;
 
 pub const NodeId = u32;
 
@@ -17,6 +20,7 @@ pub const NodeKind = enum {
     image,
     select,
     rich_text,
+    vector,
 };
 
 pub const ToggleKind = enum {
@@ -68,6 +72,36 @@ pub const FlexStyle = struct {
     grow: f32 = 0,
     shrink: f32 = 1,
     basis: ?f32 = null,
+    /// Vertical overflow scrolling (see `ui.BoxOptions.scroll`).
+    scroll: bool = false,
+    /// Absolute children only: take x / width (and y / height unless set)
+    /// from the parent's n-th in-flow child (segmented thumb, tab ink bar).
+    anchor: ?u16 = null,
+};
+
+/// Declarative motion of a node (see `docs/motion.md`).
+pub const MotionStyle = struct {
+    /// Enter / exit transition.
+    presence: motion.Presence = .none,
+    /// Transform origin for scale presets.
+    origin: motion.Origin = .center,
+    /// Animate position / size changes (FLIP); leaf containers only.
+    layout_transition: ?motion.Transition = null,
+};
+
+/// Per-node animation state (allocated lazily, see `Tree.ensureAnim`).
+pub const NodeAnim = struct {
+    presence: Animated = .at(1),
+    fx: motion.Fx = .{},
+    flip: Animated = .at(0),
+    flip_active: bool = false,
+    /// Bounds were laid out at least once (no FLIP on first layout).
+    flip_ready: bool = false,
+    /// Parent-relative bounds before the layout pass (x, y, w, h).
+    flip_prev: [4]f32 = @splat(0),
+    flip_from: [4]f32 = @splat(0),
+    /// Current offset of the painted box from the laid-out bounds.
+    flip_delta: [4]f32 = @splat(0),
 };
 
 pub const Visual = struct {
@@ -79,9 +113,24 @@ pub const Visual = struct {
     shadow_blur: f32 = 0,
     shadow_offset_y: f32 = 0,
     clip: bool = false,
+    /// Swallows clicks on the node's empty areas so they do not reach what
+    /// is painted behind it (modals, popover panels).
+    block_pointer: bool = false,
 };
 
-pub const ContainerData = struct {};
+pub const ContainerData = struct {
+    /// Current vertical scroll offset for `scroll` containers.
+    scroll_offset: f32 = 0,
+    /// Natural height of the children, measured during layout.
+    content_height: f32 = 0,
+    /// Animated `scrollIntoView` (cancelled by the user scrolling).
+    scroll_anim: Animated = .{},
+    scroll_animating: bool = false,
+
+    pub fn maxScroll(self: ContainerData, viewport_height: f32) f32 {
+        return @max(0, self.content_height - viewport_height);
+    }
+};
 
 pub const TextData = struct {
     content: []u8,
@@ -89,6 +138,16 @@ pub const TextData = struct {
     layout: ?text.TextLayout = null,
     layout_width: f32 = -1,
     layout_dirty: bool = true,
+
+    /// Width to lay the text out at inside a box `box_width` wide: wrapping
+    /// text uses the box; single-line text with `max_lines` too, so it ends
+    /// in "…" when squeezed (1px slack avoids rounding into an ellipsis);
+    /// other single-line text keeps its natural width.
+    pub fn layoutWidth(self: *const TextData, box_width: f32) f32 {
+        if (self.style.wrap) return box_width;
+        if (self.style.max_lines > 0) return box_width + 1;
+        return 1.0e6;
+    }
 
     pub fn invalidate(self: *TextData) void {
         self.layout_dirty = true;
@@ -117,10 +176,21 @@ pub const RichSpan = struct {
     italic: bool = false,
     family: text.Family = .sans,
     background: u32 = 0,
+    underline: bool = false,
+    strike: bool = false,
+    /// Inline drawing (e.g. inline math) laid out as a placeholder box whose
+    /// baseline sits on the text baseline. `text` is ignored.
+    embed: ?*const vector.Drawing = null,
+    /// Optional link target. Clicking the span calls the rich text `on_link`.
+    link: []const u8 = "",
 };
 
 pub const RichTextData = struct {
     spans: []RichSpan,
+    /// Owns deep copies of span embeds.
+    embed_arena: ?*std.heap.ArenaAllocator = null,
+    line_height: f32 = 2.0,
+    link_action: ?actions.TextAction = null,
     layout: ?rich_text.Layout = null,
     layout_width: f32 = -1,
     layout_dirty: bool = true,
@@ -143,16 +213,67 @@ pub const RichTextData = struct {
             .text = span.text.ptr,
             .length = span.text.len,
             .font_size = span.font_size,
-            .weight = @intFromEnum(span.weight),
+            .weight = @backingInt(span.weight),
             .color = span.color,
             .italic = if (span.italic) 1 else 0,
-            .family = @intFromEnum(span.family),
+            .family = @backingInt(span.family),
             .background = span.background,
+            .decoration = (if (span.underline) @as(c_int, 1) else 0) | (if (span.strike) @as(c_int, 2) else 0),
+            .placeholder_width = if (span.embed) |e| @max(e.width, 0.01) else 0,
+            .placeholder_ascent = if (span.embed) |e| e.ascent else 0,
+            .placeholder_descent = if (span.embed) |e| e.descent else 0,
         };
-        self.layout = try rich_text.Layout.create(native, max_width, 2.0);
+        self.layout = try rich_text.Layout.create(native, max_width, self.line_height);
         self.layout_width = max_width;
         self.layout_dirty = false;
         return &self.layout.?;
+    }
+
+    pub fn hasEmbeds(self: *const RichTextData) bool {
+        for (self.spans) |span| if (span.embed != null) return true;
+        return false;
+    }
+
+    /// Paints the paragraph and its inline embeds at (x, y).
+    pub fn paintAt(self: *RichTextData, canvas: ?*anyopaque, layout: *rich_text.Layout, x: f32, y: f32) void {
+        layout.paint(canvas, x, y);
+        if (!self.hasEmbeds()) return;
+        var rects_buf: [128]rich_text.Rect = undefined;
+        const rects = layout.placeholderRects(&rects_buf);
+        var index: usize = 0;
+        for (self.spans) |span| {
+            const embed = span.embed orelse continue;
+            if (index >= rects.len) break;
+            const r = rects[index];
+            index += 1;
+            // the placeholder box's top is `ascent` above its baseline
+            vector.paint(canvas, embed, x + r.x, y + r.y + embed.ascent);
+        }
+    }
+
+    pub fn deinitEmbeds(self: *RichTextData) void {
+        if (self.embed_arena) |arena| {
+            const backing = arena.child_allocator;
+            arena.deinit();
+            backing.destroy(arena);
+            self.embed_arena = null;
+        }
+    }
+
+    pub fn hasLinks(self: *const RichTextData) bool {
+        for (self.spans) |span| if (span.link.len > 0) return true;
+        return false;
+    }
+
+    /// Returns the link of the span under a byte offset of the joined text.
+    pub fn linkAtByte(self: *const RichTextData, byte: usize) ?[]const u8 {
+        var start: usize = 0;
+        for (self.spans) |span| {
+            const end = start + span.text.len;
+            if (byte >= start and byte < end) return if (span.link.len > 0) span.link else null;
+            start = end;
+        }
+        return null;
     }
 };
 
@@ -161,9 +282,12 @@ pub const ButtonType = enum {
     default,
     text,
     link,
+    /// Paints nothing: an invisible click target (`ui.dismissLayer`).
+    plain,
 };
 
-pub const ButtonIcon = enum { none, search, eye, more };
+/// Button icons come from the Zant icon set (`core/icons.zig`).
+pub const ButtonIcon = @import("icons.zig").Icon;
 
 pub const ButtonSize = enum {
     small,
@@ -178,8 +302,15 @@ pub const ButtonData = struct {
     hovered: bool = false,
     pressed: bool = false,
     focused: bool = false,
+    // transitions (targets follow the booleans above) and their sampled
+    // values for paint
+    hover: Animated = .{},
+    press: Animated = .{},
+    /// Click wave (antd `Wave`), 0..1 over 600ms; 1 = idle.
+    wave: Animated = .at(1),
     hover_t: f32 = 0,
     press_t: f32 = 0,
+    wave_t: f32 = 1,
     on_click: ?Callback = null,
     action: ?actions.Action = null,
     index_action: ?actions.IndexAction = null,
@@ -192,6 +323,7 @@ pub const ButtonData = struct {
     label_padding: f32 = 0,
     text_color: ?u32 = null,
     icon: ButtonIcon = .none,
+    icon_size: f32 = 18,
 
     pub fn invalidateLayout(self: *ButtonData) void {
         self.layout_dirty = true;
@@ -225,6 +357,10 @@ pub const InputData = struct {
     available_width: f32 = 1.0e6,
     focused: bool = false,
     hovered: bool = false,
+    hover: Animated = .{},
+    focus_anim: Animated = .{},
+    hover_t: f32 = 0,
+    focus_t: f32 = 0,
     cursor: usize = 0,
     anchor: usize = 0,
     scroll_x: f32 = 0,
@@ -241,6 +377,10 @@ pub const InputData = struct {
     submit_action: ?actions.Action = null,
     undo_action: ?actions.Action = null,
     redo_action: ?actions.Action = null,
+    selection_action: ?actions.RangeAction = null,
+    key_action: ?actions.InputKeyAction = null,
+    applied_selection: ?[2]usize = null,
+    reported_selection: [2]usize = .{ 0, 0 },
     layout: ?text.TextLayout = null,
     layout_width: f32 = -1,
     layout_dirty: bool = true,
@@ -249,6 +389,13 @@ pub const InputData = struct {
     font_size: f32 = 14,
     text_color: u32 = 0xe0000000,
     layout_color: u32 = 0,
+    /// Centred text column width for wide multiline inputs (0 = full width).
+    content_max_width: f32 = 0,
+    /// Column kept while moving the caret up/down through lines.
+    preferred_x: ?f32 = null,
+    /// Scroll the caret into view on the next paint (set by edits, caret
+    /// moves and controlled selection; scrolling itself never clears it).
+    reveal_caret: bool = false,
 
     pub fn invalidateLayout(self: *InputData) void {
         self.layout_dirty = true;
@@ -275,15 +422,23 @@ pub const ToggleData = struct {
     hovered: bool = false,
     pressed: bool = false,
     focused: bool = false,
+    hover: Animated = .{},
+    press: Animated = .{},
+    /// Fill / border / track / knob position.
+    check: Animated = .{},
+    /// Checkmark scale (checkbox) / dot scale (radio).
+    mark: Animated = .{},
     hover_t: f32 = 0,
     press_t: f32 = 0,
     check_t: f32 = 0,
+    mark_t: f32 = 0,
     font_size: f32 = 14,
     action: ?actions.BoolAction = null,
     index_action: ?actions.IndexAction = null,
     index: usize = 0,
     layout: ?text.TextLayout = null,
     layout_dirty: bool = true,
+    layout_color: u32 = 0,
 
     pub fn invalidateLayout(self: *ToggleData) void {
         self.layout_dirty = true;
@@ -292,7 +447,8 @@ pub const ToggleData = struct {
     }
 
     pub fn ensureLayout(self: *ToggleData, color: u32) !*text.TextLayout {
-        if (!self.layout_dirty and self.layout != null) return &self.layout.?;
+        if (!self.layout_dirty and self.layout != null and self.layout_color == color) return &self.layout.?;
+        self.layout_color = color;
         if (self.layout) |*old| old.deinit();
         self.layout = try text.TextLayout.init(self.label, .{
             .font_size = self.font_size,
@@ -330,12 +486,20 @@ pub const SelectData = struct {
     open: bool = false,
     hovered: bool = false,
     focused: bool = false,
+    hover: Animated = .{},
+    focus_anim: Animated = .{},
+    open_anim: Animated = .{},
+    hover_t: f32 = 0,
+    focus_t: f32 = 0,
+    open_t: f32 = 0,
     hovered_option: ?usize = null,
     font_size: f32 = 14,
     action: ?actions.IndexAction = null,
     layout: ?text.TextLayout = null,
     option_layouts: std.ArrayListUnmanaged(text.TextLayout) = .empty,
     layout_dirty: bool = true,
+    layout_color: u32 = 0,
+    option_color: u32 = 0,
 
     pub fn clearOptions(self: *SelectData, allocator: std.mem.Allocator) void {
         for (self.options.items) |option| allocator.free(option.label);
@@ -354,6 +518,18 @@ pub const SelectData = struct {
     }
 };
 
+pub const VectorData = struct {
+    arena: *std.heap.ArenaAllocator,
+    drawing: *const vector.Drawing,
+    hash: u64,
+
+    pub fn deinit(self: *VectorData) void {
+        const backing = self.arena.child_allocator;
+        self.arena.deinit();
+        backing.destroy(self.arena);
+    }
+};
+
 pub const Data = union(NodeKind) {
     root: void,
     container: ContainerData,
@@ -364,6 +540,7 @@ pub const Data = union(NodeKind) {
     image: ImageData,
     select: SelectData,
     rich_text: RichTextData,
+    vector: VectorData,
 };
 
 pub const Node = struct {
@@ -374,8 +551,19 @@ pub const Node = struct {
     visual: Visual = .{},
     key: ?[]u8 = null,
     tooltip: ?[]u8 = null,
+    /// Hash of the last memoized spec (see `ui.memo`); null when not memoized.
+    memo_hash: ?u64 = null,
     bounds: geometry.Rect = .{},
     dirty: DirtyFlags = .{},
+    /// False for a freed slot (tombstone) waiting in `Tree.free_ids`.
+    alive: bool = true,
+    /// Listed in `Tree.animating`.
+    anim_queued: bool = false,
+    motion: MotionStyle = .{},
+    anim: ?*NodeAnim = null,
+    /// Playing its exit transition: painted, but out of layout, hit
+    /// testing and focus; freed when the transition ends.
+    exiting: bool = false,
     visible: bool = true,
     enabled: bool = true,
     focusable: bool = false,
@@ -385,7 +573,14 @@ pub const Node = struct {
         return std.meta.activeTag(self.data);
     }
 
+    /// Takes part in layout and input (visible and not exiting).
+    pub fn inFlow(self: *const Node) bool {
+        return self.visible and !self.exiting;
+    }
+
     pub fn deinit(self: *Node, allocator: std.mem.Allocator) void {
+        if (self.anim) |anim| allocator.destroy(anim);
+        self.anim = null;
         if (self.key) |key| allocator.free(key);
         self.key = null;
         if (self.tooltip) |tooltip| allocator.free(tooltip);
@@ -412,9 +607,14 @@ pub const Node = struct {
                 allocator.free(value.path);
             },
             .select => |*value| value.deinit(allocator),
+            .vector => |*value| value.deinit(),
             .rich_text => |*value| {
                 value.invalidateLayout();
-                for (value.spans) |span| allocator.free(span.text);
+                for (value.spans) |span| {
+                    allocator.free(span.text);
+                    if (span.link.len > 0) allocator.free(span.link);
+                }
+                value.deinitEmbeds();
                 allocator.free(value.spans);
             },
             else => {},
@@ -429,6 +629,7 @@ pub const Node = struct {
             .input => true,
             .toggle => true,
             .select => true,
+            .rich_text => |*data| data.link_action != null and data.hasLinks(),
             else => false,
         };
     }

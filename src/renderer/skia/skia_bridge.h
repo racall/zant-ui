@@ -41,7 +41,25 @@ typedef struct ZantRichSpan {
     int italic;
     int family;
     uint32_t background;
+    int decoration; /* bit 0 = underline, bit 1 = line-through */
+    /* Inline placeholder (embedded drawing such as inline math). When
+     * placeholder_width > 0 the span's text is ignored and a box of
+     * width x (ascent + descent) is reserved, its baseline on the text
+     * baseline. */
+    float placeholder_width;
+    float placeholder_ascent;
+    float placeholder_descent;
 } ZantRichSpan;
+
+typedef struct ZantInkMetrics {
+    float advance;
+    float ascent;       /* ink extent above the baseline (positive) */
+    float descent;      /* ink extent below the baseline (positive) */
+    float font_ascent;  /* font ascent (positive) */
+    float font_descent; /* font descent (positive) */
+    float ink_top;      /* signed ink top relative to the baseline (y down) */
+    float ink_bottom;   /* signed ink bottom relative to the baseline (y down) */
+} ZantInkMetrics;
 
 typedef struct ZantTextMetrics {
     float width;
@@ -74,6 +92,8 @@ void zant_canvas_save(ZantCanvas *canvas);
 void zant_canvas_restore(ZantCanvas *canvas);
 void zant_canvas_translate(ZantCanvas *canvas, float x, float y);
 void zant_canvas_scale(ZantCanvas *canvas, float sx, float sy);
+/* Offscreen layer composited with `alpha` (0..1) on restore; `bounds` limits it. */
+void zant_canvas_save_layer_alpha(ZantCanvas *canvas, float x, float y, float width, float height, float alpha);
 void zant_canvas_clip_rect(ZantCanvas *canvas, float x, float y, float width, float height);
 void zant_canvas_clear(ZantCanvas *canvas, uint32_t color);
 void zant_canvas_fill_rect(ZantCanvas *canvas, float x, float y, float width, float height,
@@ -107,6 +127,22 @@ ZantTextMetrics zant_text_layout_metrics(ZantTextLayout *layout);
 bool zant_text_layout_caret_rect(ZantTextLayout *layout, size_t byte_offset, ZantRect *out_rect);
 /* Returns the UTF-8 byte offset closest to a point relative to the text origin. */
 size_t zant_text_layout_index_at(ZantTextLayout *layout, float x, float y);
+/* Placeholder boxes (in span order) of a rich text layout. */
+int zant_text_layout_placeholder_rects(ZantTextLayout *layout, ZantRect *out_rects, int max_rects);
+
+/* Single-line glyph run measurement / drawing with per-character font
+ * fallback. family: 0 sans, 1 serif, 2 mono, 3 serif CJK, 4 math (STIX Two
+ * Math). y is the baseline; scale_y stretches glyphs vertically around it. */
+ZantInkMetrics zant_text_measure_ink(const char *utf8, size_t length, float size, int family,
+                                     int weight, int italic);
+void zant_canvas_draw_simple_text(ZantCanvas *canvas, const char *utf8, size_t length, float x,
+                                  float y, float size, int family, int weight, int italic,
+                                  uint32_t color, float scale_y);
+/* xy holds count points (x0, y0, x1, y1, ...). */
+void zant_canvas_fill_path(ZantCanvas *canvas, const float *xy, int count, uint32_t color);
+void zant_canvas_stroke_path(ZantCanvas *canvas, const float *xy, int count, uint32_t color,
+                             float stroke_width, int closed);
+
 /* Returns up to max_rects selection rectangles for the UTF-8 byte range. */
 int zant_text_layout_range_rects(ZantTextLayout *layout, size_t start_byte, size_t end_byte,
                                  ZantRect *out_rects, int max_rects);

@@ -16,6 +16,7 @@ pub const EventType = struct {
     pub const window_blur: c_int = 12;
     pub const window_close: c_int = 13;
     pub const scroll: c_int = 14;
+    pub const window_close_request: c_int = 15;
 };
 
 pub const Key = struct {
@@ -51,6 +52,9 @@ pub const WindowOptions = struct {
     always_on_top: bool = false,
     movable_by_background: bool = false,
     center: bool = true,
+    /// `.hidden_titlebar` only: height of the app's own title bar; the
+    /// traffic lights are vertically centred in it (0 = system default).
+    titlebar_height: f32 = 0,
 };
 
 pub const WindowStyle = enum(c_int) {
@@ -130,6 +134,7 @@ const NativeWindowOptions = extern struct {
     always_on_top: c_int,
     movable_by_background: c_int,
     center: c_int,
+    titlebar_height: f32,
 };
 
 extern fn zant_macos_window_create(title: [*:0]const u8, options: *const NativeWindowOptions, host: *const Host) ?*MacWindow;
@@ -137,6 +142,9 @@ extern fn zant_macos_run(window: *MacWindow) void;
 extern fn zant_macos_destroy(window: *MacWindow) void;
 extern fn zant_macos_request_redraw(window: *MacWindow, delay_ms: c_int) void;
 extern fn zant_macos_set_cursor(window: *MacWindow, cursor: c_int) void;
+extern fn zant_macos_set_background(window: *MacWindow, argb: u32) void;
+extern fn zant_macos_reduce_motion() c_int;
+extern fn zant_macos_set_document_edited(window: *MacWindow, edited: c_int) void;
 extern fn zant_macos_renderer_name(window: *MacWindow) [*:0]const u8;
 extern fn zant_macos_schedule_snapshot(window: *MacWindow, path: [*:0]const u8, delay_ms: c_int) void;
 
@@ -156,6 +164,7 @@ pub fn createWindow(title: [:0]const u8, options: WindowOptions, host: *const Ho
         .always_on_top = if (options.always_on_top) 1 else 0,
         .movable_by_background = if (options.movable_by_background) 1 else 0,
         .center = if (options.center) 1 else 0,
+        .titlebar_height = options.titlebar_height,
     };
     return zant_macos_window_create(title.ptr, &native, host) orelse error.WindowCreationFailed;
 }
@@ -174,6 +183,20 @@ pub fn requestRedraw(window: ?*MacWindow, delay_ms: c_int) void {
 
 pub fn setCursor(window: ?*MacWindow, cursor: Cursor) void {
     if (window) |w| zant_macos_set_cursor(w, @backingInt(cursor));
+}
+
+/// Marks the window as having unsaved changes (dot in the close button).
+pub fn setDocumentEdited(window: *MacWindow, edited: bool) void {
+    zant_macos_set_document_edited(window, @intFromBool(edited));
+}
+
+/// System "Reduce motion" accessibility setting.
+pub fn reduceMotion() bool {
+    return zant_macos_reduce_motion() != 0;
+}
+
+pub fn setBackground(window: *MacWindow, argb: u32) void {
+    zant_macos_set_background(window, argb);
 }
 
 pub fn rendererName(window: *MacWindow) []const u8 {

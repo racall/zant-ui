@@ -31,4 +31,21 @@ comptime {
     _ = @import("db_test.zig");
 }
 
-comptime { _ = @import("markdown_test.zig"); }
+comptime {
+    _ = @import("markdown_test.zig");
+}
+comptime {
+    _ = @import("remend_test.zig");
+}
+comptime {
+    _ = @import("math_test.zig");
+}
+comptime {
+    _ = @import("antd_components_test.zig");
+}
+comptime {
+    _ = @import("lifecycle_test.zig");
+}
+comptime {
+    _ = @import("motion_test.zig");
+}

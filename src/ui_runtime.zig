@@ -8,6 +8,7 @@ const actions = @import("core/actions.zig");
 const events = @import("core/events.zig");
 const input_mod = @import("components/input.zig");
 const button_mod = @import("components/button.zig");
+const motion = @import("motion/motion.zig");
 const toggle_mod = @import("components/toggle.zig");
 const tokens = @import("theme/tokens.zig");
 const geometry = @import("core/geometry.zig");
@@ -24,6 +25,15 @@ pub const Config = struct {
     title: [:0]const u8 = "Zant UI",
     window: platform.WindowOptions = .{},
     theme: Theme = .{},
+    /// Optional per-frame theme provider (dark mode etc.). Called before every
+    /// rebuild; a changed theme invalidates cached text layouts and repaints.
+    theme_fn: ?*const fn (userdata: *anyopaque) Theme = null,
+    /// Optional application key handler, called before focused widgets see
+    /// the key (except during IME composition). Return true to consume it.
+    key_fn: ?*const fn (userdata: *anyopaque, key: events.KeyEvent) bool = null,
+    /// Asked before the window closes or the app quits (close button, ⌘W,
+    /// ⌘Q). Return false to keep it open (e.g. unsaved changes).
+    close_fn: ?*const fn (userdata: *anyopaque) bool = null,
 };
 
 pub const Runtime = struct {
@@ -38,7 +48,9 @@ pub const Runtime = struct {
     viewport: geometry.Size = .{},
     last_width: f32 = 0,
     last_height: f32 = 0,
-    last_tick_ms: i64 = 0,
+    /// Time source (ms). Tests inject a fake clock.
+    clock: *const fn () i64 = monotonicMs,
+    /// Timestamp of the current frame / event, sampled from `clock`.
     now_ms: i64 = 0,
     next_delay_ms: c_int = -1,
     any_animation: bool = false,
@@ -51,7 +63,22 @@ pub const Runtime = struct {
     tooltip_show_at: i64 = 0,
     tooltip_visible: bool = false,
     tooltip_layout: ?text_mod.TextLayout = null,
+    /// Show / hide transition (antd zoom-big-fast) and the box computed when
+    /// the tooltip appeared (kept while it zooms out).
+    tooltip_anim: motion.Animated = .{},
+    tooltip_rect: geometry.Rect = .{},
+    tooltip_above: bool = false,
+    tooltip_hiding: bool = false,
+    /// Select whose popup is painted (stays set while the popup closes).
+    popup_select: ?NodeId = null,
+    /// Rebuild requested by `ui.wakeAfter` (absolute ms).
+    wake_at_ms: ?i64 = null,
+    /// Last `ui.documentEdited` value sent to the window.
+    document_edited: bool = false,
     open_select: ?NodeId = null,
+    pressed_link: ?NodeId = null,
+    /// Window clear colour; follows the root background (dark mode).
+    clear_color: u32 = 0,
 
     pub fn init(
         allocator: std.mem.Allocator,
@@ -76,7 +103,7 @@ pub const Runtime = struct {
             .tree = tree,
             .userdata = userdata,
             .render_fn = render_fn,
-            .last_tick_ms = monotonicMs(),
+            .clear_color = config.window.background,
         };
         return self;
     }
@@ -99,6 +126,10 @@ pub const Runtime = struct {
     }
 
     pub fn run(self: *Runtime) !void {
+        // motion off for Reduce Motion, ZANT_NO_MOTION=1 and snapshots
+        // (decided here, not in init, so tests keep control of it)
+        const no_motion = if (std.c.getenv("ZANT_NO_MOTION")) |v| v[0] == '1' else false;
+        motion.enabled = !(no_motion or std.c.getenv("ZANT_SNAPSHOT") != null or platform.reduceMotion());
         const host = makeHost(self);
         const window = try platform.createWindow(self.config.title, self.config.window, &host);
         self.window = window;
@@ -117,10 +148,24 @@ pub const Runtime = struct {
         platform.run(window);
     }
 
+    /// Runs one rebuild + reconcile without painting (tests).
+    pub fn rebuildForTest(self: *Runtime) void {
+        self.rebuild();
+    }
+
     fn rebuild(self: *Runtime) void {
+        if (self.config.theme_fn) |theme_fn| self.setTheme(theme_fn(self.userdata));
+        ui.setBuildTheme(self.theme);
         ui.beginFrame();
         defer ui.endFrame();
         const root = self.render_fn(self.userdata);
+        self.wake_at_ms = if (ui.takeWake()) |ms| self.now_ms + ms else null;
+        if (ui.takeDocumentEdited()) |edited| {
+            if (edited != self.document_edited) {
+                self.document_edited = edited;
+                if (self.window) |w| platform.setDocumentEdited(w, edited);
+            }
+        }
         if (root.element.kind != .container) {
             std.debug.print("Zant UI: render() must return a container (ui.column/ui.row/ui.card)\n", .{});
             self.needs_build = false;
@@ -136,14 +181,25 @@ pub const Runtime = struct {
 
     fn reconcileRoot(self: *Runtime, root_spec: ui.Node) anyerror!bool {
         const root = self.tree.get(self.tree.root);
-        var changed_layout = !std.meta.eql(root.style, root_spec.element.layout) or
-            !std.meta.eql(root.visual, root_spec.element.visual);
-        root.style = root_spec.element.layout;
-        root.style.width = null;
-        root.style.height = null;
-        root.style.grow = 0;
-        root.visual = root_spec.element.visual;
-        if (root.visual.background == null) root.visual.background = self.theme.color_bg_base;
+        // normalise the spec first, then compare: the root always fills the
+        // window and needs a background
+        var want = root_spec.element.layout;
+        want.width = null;
+        want.height = null;
+        want.grow = 0;
+        var want_visual = root_spec.element.visual;
+        if (want_visual.background == null) want_visual.background = self.theme.color_bg_base;
+        var changed_layout = !std.meta.eql(root.style, want) or !std.meta.eql(root.visual, want_visual);
+        root.style = want;
+        root.visual = want_visual;
+        // keep the window's own background (visible while resizing) and the
+        // frame clear colour in sync with the app's root background
+        if (want_visual.background) |bg| {
+            if (bg != self.clear_color and (bg >> 24) == 0xff) {
+                self.clear_color = bg;
+                if (self.window) |w| platform.setBackground(w, bg);
+            }
+        }
         root.enabled = true;
         root.focusable = false;
         if (try self.reconcileChildren(root.id, root_spec.element.children)) changed_layout = true;
@@ -165,10 +221,13 @@ pub const Runtime = struct {
         defer new_children.deinit(self.allocator);
         var changed_layout = false;
         var changed_children = false;
+        // walks `old` for unkeyed specs
+        var cursor: usize = 0;
 
-        for (specs, 0..) |child_spec, i| {
+        for (specs) |child_spec| {
             const found: ?usize = blk: {
                 if (child_spec.element.key) |key| {
+                    // keyed specs only ever match a node with the same key
                     for (old, 0..) |id, j| {
                         if (used[j]) continue;
                         const node = self.tree.get(id);
@@ -178,9 +237,17 @@ pub const Runtime = struct {
                             }
                         }
                     }
+                    break :blk null;
                 }
-                if (i < old_len and !used[i] and kindCompatible(self.tree.get(old[i]), child_spec.element.kind)) {
-                    break :blk i;
+                // unkeyed specs match the next unused unkeyed node in order
+                // (nodes playing an exit transition are never reused)
+                while (cursor < old_len) : (cursor += 1) {
+                    const candidate = self.tree.get(old[cursor]);
+                    if (used[cursor] or candidate.key != null or candidate.exiting) continue;
+                    const j = cursor;
+                    cursor += 1;
+                    if (kindCompatible(self.tree.get(old[j]), child_spec.element.kind)) break :blk j;
+                    break :blk null;
                 }
                 break :blk null;
             };
@@ -188,22 +255,73 @@ pub const Runtime = struct {
             if (found) |index| {
                 used[index] = true;
                 const id = old[index];
-                if (try self.patchNode(id, child_spec)) changed_layout = true;
+                const node = self.tree.get(id);
+                if (node.exiting) {
+                    // re-added while leaving: play the enter transition again
+                    self.reviveNode(id);
+                    changed_layout = true;
+                    changed_children = true;
+                }
+                if (child_spec.element.memo_hash) |hash| {
+                    if (node.memo_hash != null and node.memo_hash.? == hash) {
+                        try new_children.append(self.allocator, id);
+                        continue;
+                    }
+                }
+                const real = resolveMemo(child_spec);
+                if (try self.patchNode(id, real)) changed_layout = true;
+                self.tree.get(id).memo_hash = child_spec.element.memo_hash;
                 try new_children.append(self.allocator, id);
             } else {
-                const id = try self.createNode(child_spec);
+                const id = try self.createNode(resolveMemo(child_spec));
+                self.tree.get(id).memo_hash = child_spec.element.memo_hash;
                 self.tree.get(id).parent = parent_id;
+                self.beginEnter(id);
                 try new_children.append(self.allocator, id);
                 changed_layout = true;
                 changed_children = true;
             }
         }
 
+        // unmatched nodes leave: with a presence transition they stay (out of
+        // flow) until it ends, anchored after their previous live sibling
+        var leaving: std.ArrayListUnmanaged([2]NodeId) = .empty; // (id, anchor or none)
+        defer leaving.deinit(self.allocator);
+        const none_anchor = std.math.maxInt(NodeId);
+        var last_live: NodeId = none_anchor;
         for (old, 0..) |id, j| {
-            if (used[j]) continue;
-            self.tree.detach(id);
-            changed_layout = true;
-            changed_children = true;
+            if (used[j]) {
+                last_live = id;
+                continue;
+            }
+            const node = self.tree.get(id);
+            if (!node.exiting) {
+                if (!motion.enabled or node.motion.presence == .none) {
+                    self.removeSubtree(id);
+                    changed_layout = true;
+                    changed_children = true;
+                    continue;
+                }
+                self.beginExit(id);
+                changed_layout = true;
+                changed_children = true;
+            }
+            try leaving.append(self.allocator, .{ id, last_live });
+        }
+        if (leaving.items.len > 0) {
+            var merged: std.ArrayListUnmanaged(NodeId) = .empty;
+            defer merged.deinit(self.allocator);
+            for (leaving.items) |pair| if (pair[1] == none_anchor) try merged.append(self.allocator, pair[0]);
+            for (new_children.items) |id| {
+                try merged.append(self.allocator, id);
+                for (leaving.items) |pair| if (pair[1] == id) try merged.append(self.allocator, pair[0]);
+            }
+            // anchors that were removed themselves: keep those nodes at the end
+            for (leaving.items) |pair| {
+                if (std.mem.indexOfScalar(NodeId, merged.items, pair[0]) == null) try merged.append(self.allocator, pair[0]);
+            }
+            new_children.clearRetainingCapacity();
+            try new_children.appendSlice(self.allocator, merged.items);
         }
 
         if (old_len != new_children.items.len) {
@@ -223,6 +341,105 @@ pub const Runtime = struct {
         return changed_layout;
     }
 
+    /// Starts a freshly mounted node's enter transition.
+    fn beginEnter(self: *Runtime, id: NodeId) void {
+        const node = self.tree.get(id);
+        const kind = node.motion.presence;
+        if (kind == .none or !motion.enabled) return;
+        const anim = self.tree.ensureAnim(id) orelse return;
+        anim.presence = motion.Animated.start(0, 1, self.now_ms, motion.presenceEnter(kind));
+        anim.fx = motion.presenceFx(kind, 0);
+        self.tree.poke(id);
+    }
+
+    /// Starts the exit transition: the node stops taking input right away
+    /// and is freed by `tick` when the transition ends.
+    fn beginExit(self: *Runtime, id: NodeId) void {
+        const node = self.tree.get(id);
+        node.exiting = true;
+        self.forgetSubtree(id);
+        const anim = self.tree.ensureAnim(id) orelse return self.removeSubtree(id);
+        anim.presence.retarget(0, self.now_ms, motion.presenceExit(node.motion.presence));
+        self.tree.poke(id);
+    }
+
+    fn reviveNode(self: *Runtime, id: NodeId) void {
+        const node = self.tree.get(id);
+        node.exiting = false;
+        if (node.anim) |anim| anim.presence.retarget(1, self.now_ms, motion.presenceEnter(node.motion.presence));
+        self.tree.poke(id);
+    }
+
+    /// Clears every runtime reference to `id` (hover, press, drag, focus,
+    /// tooltip, open select, link press). Any new field that keeps a NodeId
+    /// across frames must be cleared here too, because ids are recycled.
+    fn forgetNode(self: *Runtime, id: NodeId) void {
+        if (self.hovered == id) self.hovered = null;
+        if (self.pressed_button == id) self.pressed_button = null;
+        if (self.pressed_toggle == id) self.pressed_toggle = null;
+        if (self.drag_input == id) self.drag_input = null;
+        if (self.pressed_link == id) self.pressed_link = null;
+        if (self.open_select == id) self.open_select = null;
+        if (self.tooltip_target == id) self.clearTooltip();
+        if (self.popup_select == id) self.popup_select = null;
+        if (self.tree.focused == id) {
+            self.cancelCompositionFor(id);
+            self.tree.setFocus(null);
+        }
+    }
+
+    fn forgetSubtree(self: *Runtime, id: NodeId) void {
+        const node = self.tree.get(id);
+        if (!node.alive) return;
+        for (node.children.items) |child| self.forgetSubtree(child);
+        self.forgetNode(id);
+    }
+
+    /// Removes a node that left the UI: clears references, frees the subtree.
+    fn removeSubtree(self: *Runtime, id: NodeId) void {
+        self.forgetSubtree(id);
+        self.tree.freeSubtree(id);
+    }
+
+    /// Expands a `ui.memo` placeholder into its built subtree.
+    fn resolveMemo(memo_spec: ui.Node) ui.Node {
+        const build = memo_spec.element.memo_build orelse return memo_spec;
+        const built = build.func(build.ctx);
+        if (memo_spec.element.key == null or built.element.key != null) return built;
+        // keep the memo key on the built root
+        return ui.withKey(built, memo_spec.element.key.?);
+    }
+
+    /// Switches the active theme, invalidating every cached text layout.
+    pub fn setTheme(self: *Runtime, theme: Theme) void {
+        if (std.meta.eql(self.theme, theme)) return;
+        self.theme = theme;
+        self.tree.theme = theme;
+        for (self.tree.nodes.items) |node| {
+            switch (node.data) {
+                .text => |*data| data.invalidate(),
+                .button => |*data| data.invalidateLayout(),
+                .input => |*data| {
+                    data.invalidateLayout();
+                    if (data.placeholder_layout) |*layout| layout.deinit();
+                    data.placeholder_layout = null;
+                },
+                .toggle => |*data| data.invalidateLayout(),
+                .select => |*data| {
+                    if (data.layout) |*layout| layout.deinit();
+                    data.layout = null;
+                    data.layout_dirty = true;
+                    for (data.option_layouts.items) |*layout| layout.deinit();
+                    data.option_layouts.clearRetainingCapacity();
+                },
+                .rich_text => |*data| data.invalidateLayout(),
+                else => {},
+            }
+        }
+        self.tree.markLayoutDirty();
+        self.tree.markPaintDirty();
+    }
+
     fn kindCompatible(node: *Node, kind: node_mod.NodeKind) bool {
         if (node.kind() != kind) return false;
         return true;
@@ -234,6 +451,7 @@ pub const Runtime = struct {
             !std.meta.eql(node.visual, element.visual);
         node.style = element.layout;
         node.visual = element.visual;
+        node.motion = element.motion;
         if (node.enabled != element.enabled) {
             layout_changed = true;
             node.enabled = element.enabled;
@@ -242,17 +460,36 @@ pub const Runtime = struct {
                     .button => |*data| {
                         data.hovered = false;
                         data.pressed = false;
+                        data.hover = .at(0);
+                        data.press = .at(0);
+                        data.wave = .at(1);
                         data.hover_t = 0;
                         data.press_t = 0;
+                        data.wave_t = 1;
                     },
                     .input => |*data| {
                         data.hovered = false;
                         data.focused = false;
                         data.blink_on = true;
+                        data.hover = .at(0);
+                        data.focus_anim = .at(0);
+                        data.hover_t = 0;
+                        data.focus_t = 0;
                     },
                     .toggle => |*data| {
                         data.hovered = false;
                         data.pressed = false;
+                        data.hover = .at(0);
+                        data.press = .at(0);
+                        data.hover_t = 0;
+                        data.press_t = 0;
+                    },
+                    .select => |*data| {
+                        data.hovered = false;
+                        data.hover = .at(0);
+                        data.focus_anim = .at(0);
+                        data.hover_t = 0;
+                        data.focus_t = 0;
                     },
                     else => {},
                 }
@@ -301,10 +538,10 @@ pub const Runtime = struct {
                     layout_changed = true;
                     paint_changed = true;
                 }
-                if (data.button_type != element.button_type or data.size != element.button_size or data.font_size != button_mod.fontSize(element.button_size)) {
+                if (data.button_type != element.button_type or data.size != element.button_size or data.font_size != element.text_style.font_size) {
                     data.button_type = element.button_type;
                     data.size = element.button_size;
-                    data.font_size = button_mod.fontSize(element.button_size);
+                    data.font_size = element.text_style.font_size;
                     data.invalidateLayout();
                     layout_changed = true;
                     paint_changed = true;
@@ -312,7 +549,19 @@ pub const Runtime = struct {
                 data.action = element.on_click;
                 data.index_action = element.index_action;
                 data.index = element.index;
-                node.focusable = true;
+                node.focusable = element.focusable;
+                if (data.icon != element.icon or data.icon_size != element.icon_size or
+                    !std.meta.eql(data.text_color, element.text_color) or data.text_align != element.text_style.text_align or
+                    data.label_padding != element.label_padding)
+                {
+                    data.icon = element.icon;
+                    data.icon_size = element.icon_size;
+                    data.text_color = element.text_color;
+                    data.text_align = element.text_style.text_align;
+                    data.label_padding = element.label_padding;
+                    data.invalidateLayout();
+                    paint_changed = true;
+                }
             },
             .input => |*data| {
                 if (element.controlled and !std.mem.eql(u8, data.text.items, element.content)) {
@@ -338,9 +587,35 @@ pub const Runtime = struct {
                     data.invalidateLayout();
                     paint_changed = true;
                 }
+                data.selection_action = element.on_selection;
+                data.key_action = element.on_key;
+                if (applySelection(data, element.selection)) paint_changed = true;
+                if (data.content_max_width != element.content_max_width) {
+                    data.content_max_width = element.content_max_width;
+                    data.invalidateLayout();
+                    paint_changed = true;
+                }
                 data.text_action = element.on_text;
                 data.submit_action = element.on_click;
+                data.undo_action = element.on_undo;
+                data.redo_action = element.on_redo;
+                data.focus_ring = element.focus_ring;
+                if (data.multiline != element.multiline) {
+                    data.multiline = element.multiline;
+                    data.invalidateLayout();
+                    paint_changed = true;
+                }
                 node.focusable = true;
+            },
+            .vector => {
+                if (element.drawing) |drawing| {
+                    const before = node.data.vector.hash;
+                    try self.tree.vectorSet(id, drawing);
+                    if (before != node.data.vector.hash) {
+                        layout_changed = true;
+                        paint_changed = true;
+                    }
+                }
             },
             .rich_text => |*data| {
                 if (!richSpansEqual(data.spans, element.rich_spans)) {
@@ -348,6 +623,13 @@ pub const Runtime = struct {
                     layout_changed = true;
                     paint_changed = true;
                 }
+                if (data.line_height != element.rich_line_height) {
+                    data.line_height = element.rich_line_height;
+                    data.invalidateLayout();
+                    layout_changed = true;
+                    paint_changed = true;
+                }
+                data.link_action = element.on_link;
             },
             .select => |*data| {
                 if (!selectOptionsEqual(data, element.options)) {
@@ -404,6 +686,7 @@ pub const Runtime = struct {
                 }
                 if (data.checked != element.checked) {
                     data.checked = element.checked;
+                    self.tree.poke(id);
                     paint_changed = true;
                 }
                 data.action = element.on_bool;
@@ -436,6 +719,7 @@ pub const Runtime = struct {
             .image => try self.tree.addImage(null, element.content, element.image_fit, element.visual.radius),
             .select => try self.tree.addSelect(null, element.options, element.selected),
             .rich_text => try self.tree.addRichText(null, element.rich_spans),
+            .vector => try self.tree.addVector(null, element.drawing orelse return error.InvalidElement),
             else => return error.InvalidElement,
         };
         _ = self.applyCommon(id, element);
@@ -450,6 +734,7 @@ pub const Runtime = struct {
                 data.label_padding = element.label_padding;
                 data.text_color = element.text_color;
                 data.icon = element.icon;
+                data.icon_size = element.icon_size;
                 data.invalidateLayout();
             },
             .input => |*data| {
@@ -463,7 +748,15 @@ pub const Runtime = struct {
                 data.focus_ring = element.focus_ring;
                 data.font_size = element.text_style.font_size;
                 data.line_height = element.text_style.line_height;
+                data.selection_action = element.on_selection;
+                data.key_action = element.on_key;
+                _ = applySelection(data, element.selection);
+                data.content_max_width = element.content_max_width;
                 input_mod.rebuildDisplay(self.tree.allocator, data);
+            },
+            .rich_text => |*data| {
+                data.line_height = element.rich_line_height;
+                data.link_action = element.on_link;
             },
             .toggle => |*data| {
                 data.action = element.on_bool;
@@ -471,7 +764,11 @@ pub const Runtime = struct {
                 data.index = element.index;
                 data.font_size = element.text_style.font_size;
                 data.checked = element.checked;
-                data.check_t = if (element.checked) 1 else 0;
+                const v: f32 = if (element.checked) 1 else 0;
+                data.check = .at(v);
+                data.mark = .at(v);
+                data.check_t = v;
+                data.mark_t = v;
             },
             .image => |*data| {
                 data.fit = element.image_fit;
@@ -489,16 +786,58 @@ pub const Runtime = struct {
         return id;
     }
 
-    fn richSpansEqual(a: []const node_mod.RichSpan, b: []const node_mod.RichSpan) bool {
-    if (a.len != b.len) return false;
-    for (a, b) |x, y| {
-        if (x.font_size != y.font_size or x.weight != y.weight or x.color != y.color or
-            x.italic != y.italic or !std.mem.eql(u8, x.text, y.text)) return false;
+    fn applySelection(data: *node_mod.InputData, selection: ?[2]usize) bool {
+        const sel = selection orelse return false;
+        if (data.applied_selection) |prev| {
+            if (prev[0] == sel[0] and prev[1] == sel[1]) return false;
+        }
+        data.applied_selection = sel;
+        const len = data.text.items.len;
+        data.anchor = clampBoundary(data.text.items, @min(sel[0], len));
+        data.cursor = clampBoundary(data.text.items, @min(sel[1], len));
+        data.reported_selection = .{ data.anchor, data.cursor };
+        data.blink_on = true;
+        data.preferred_x = null;
+        data.reveal_caret = true;
+        return true;
     }
-    return true;
-}
 
-fn selectOptionsEqual(data: *const node_mod.SelectData, options: []const []const u8) bool {
+    fn clampBoundary(bytes: []const u8, index: usize) usize {
+        var i = index;
+        while (i > 0 and i < bytes.len and (bytes[i] & 0xC0) == 0x80) i -= 1;
+        return i;
+    }
+
+    /// Notifies the focused input's `on_selection` when anchor/cursor moved.
+    fn reportSelection(self: *Runtime) void {
+        const id = self.tree.focused orelse return;
+        const node = self.tree.get(id);
+        switch (node.data) {
+            .input => |*data| {
+                const action = data.selection_action orelse return;
+                if (data.reported_selection[0] == data.anchor and data.reported_selection[1] == data.cursor) return;
+                data.reported_selection = .{ data.anchor, data.cursor };
+                action.func(action.ctx, data.anchor, data.cursor);
+                self.needs_build = true;
+            },
+            else => {},
+        }
+    }
+
+    fn richSpansEqual(a: []const node_mod.RichSpan, b: []const node_mod.RichSpan) bool {
+        if (a.len != b.len) return false;
+        for (a, b) |x, y| {
+            if (x.font_size != y.font_size or x.weight != y.weight or x.color != y.color or
+                x.italic != y.italic or x.family != y.family or x.background != y.background or
+                x.underline != y.underline or x.strike != y.strike or
+                !std.mem.eql(u8, x.text, y.text) or !std.mem.eql(u8, x.link, y.link)) return false;
+            if ((x.embed == null) != (y.embed == null)) return false;
+            if (x.embed) |e| if (e.contentHash() != y.embed.?.contentHash()) return false;
+        }
+        return true;
+    }
+
+    fn selectOptionsEqual(data: *const node_mod.SelectData, options: []const []const u8) bool {
         if (data.options.items.len != options.len) return false;
         for (data.options.items, options) |old, new| {
             if (!std.mem.eql(u8, old.label, new)) return false;
@@ -507,10 +846,18 @@ fn selectOptionsEqual(data: *const node_mod.SelectData, options: []const []const
     }
 
     fn paintSelectPopup(self: *Runtime, canvas: Canvas) void {
-        const id = self.open_select orelse return;
-        if (id >= self.tree.nodes.items.len) return;
+        if (self.open_select) |id| self.popup_select = id;
+        const id = self.popup_select orelse return;
         const node = self.tree.get(id);
-        if (std.meta.activeTag(node.data) != .select or !node.data.select.open) return;
+        if (!node.alive or std.meta.activeTag(node.data) != .select) {
+            self.popup_select = null;
+            return;
+        }
+        // painted until the closing transition has finished
+        if (!node.data.select.open and node.data.select.open_t <= 0.003) {
+            self.popup_select = null;
+            return;
+        }
         select_mod.paintPopup(node, canvas, self.theme, self.viewport);
     }
 
@@ -520,52 +867,161 @@ fn selectOptionsEqual(data: *const node_mod.SelectData, options: []const []const
             if (std.meta.activeTag(node.data) == .select) {
                 node.data.select.open = false;
                 node.data.select.hovered_option = null;
-                self.tree.markDirty(id, false, true);
+                self.tree.poke(id);
             }
             self.open_select = null;
         }
     }
 
+    /// Samples the clock for this frame / event.
+    fn sampleClock(self: *Runtime) void {
+        self.now_ms = self.clock();
+        self.tree.now_ms = self.now_ms;
+        ui.setNow(self.now_ms);
+    }
+
+    /// Advances one node's transitions; true while it keeps animating.
+    fn animateNode(self: *Runtime, node: *Node) bool {
+        const now = self.now_ms;
+        var active = switch (node.data) {
+            .container => |*data| blk: {
+                if (!data.scroll_animating) break :blk false;
+                const target = data.scroll_anim.value(now);
+                _ = self.tree.scrollBy(node.id, target - data.scroll_offset);
+                if (data.scroll_anim.done(now)) data.scroll_animating = false;
+                break :blk data.scroll_animating;
+            },
+            .button => |*data| button_mod.animate(data, now, self.theme),
+            .toggle => |*data| toggle_mod.animate(data, now, self.theme),
+            .input => |*data| input_mod.animate(data, now, self.theme),
+            .select => |*data| select_mod.animate(data, now, self.theme),
+            else => false,
+        };
+        if (node.anim) |anim| {
+            const kind = node.motion.presence;
+            if (anim.presence.done(now)) {
+                anim.fx = if (node.exiting) motion.presenceFx(kind, 0) else .{};
+            } else {
+                anim.fx = motion.presenceFx(kind, anim.presence.value(now));
+                active = true;
+            }
+            if (anim.flip_active) {
+                const k = anim.flip.value(now);
+                for (0..4) |c| anim.flip_delta[c] = anim.flip_from[c] * k;
+                if (anim.flip.done(now)) {
+                    anim.flip_active = false;
+                    anim.flip_delta = @splat(0);
+                } else active = true;
+            }
+        }
+        return active;
+    }
+
     fn tick(self: *Runtime) void {
-        self.now_ms = monotonicMs();
-        var dt: f32 = @floatFromInt(@max(0, self.now_ms - self.last_tick_ms));
-        dt = @min(dt, 50);
-        self.last_tick_ms = self.now_ms;
-        self.any_animation = false;
-        for (self.tree.nodes.items) |node| {
-            if (!node.enabled) continue;
-            switch (node.data) {
-                .button => |*data| {
-                    if (button_mod.animate(data, dt, self.theme)) {
-                        self.any_animation = true;
-                        self.tree.markDirty(node.id, false, true);
-                    }
-                },
-                .toggle => |*data| {
-                    if (toggle_mod.animate(data, dt, self.theme)) {
-                        self.any_animation = true;
-                        self.tree.markDirty(node.id, false, true);
-                    }
-                },
-                .input => |*data| {
-                    if (self.tree.focused == node.id) {
-                        if (input_mod.updateBlink(data, node, self.now_ms)) {
-                            self.tree.markDirty(node.id, false, true);
-                        }
-                    }
-                },
-                else => {},
+        // only nodes whose state changed (`Tree.poke`) are visited
+        var finished: std.ArrayListUnmanaged(NodeId) = .empty;
+        defer finished.deinit(self.allocator);
+        var i: usize = 0;
+        while (i < self.tree.animating.items.len) {
+            const id = self.tree.animating.items[i];
+            const node = self.tree.get(id);
+            const active = node.alive and self.animateNode(node);
+            if (node.alive) self.tree.markDirty(id, false, true);
+            if (active) {
+                i += 1;
+            } else {
+                node.anim_queued = false;
+                _ = self.tree.animating.swapRemove(i);
+                if (node.alive and node.exiting) finished.append(self.allocator, id) catch {};
+            }
+        }
+        // exit transitions that ended: detach and free
+        for (finished.items) |id| {
+            const node = self.tree.get(id);
+            if (!node.alive or !node.exiting) continue;
+            if (node.parent) |pid| {
+                const parent = self.tree.get(pid);
+                if (std.mem.indexOfScalar(NodeId, parent.children.items, id)) |at| _ = parent.children.orderedRemove(at);
+                self.tree.markDirty(pid, false, true);
+            }
+            self.removeSubtree(id);
+        }
+        if (self.tree.focused) |id| {
+            const node = self.tree.get(id);
+            if (node.enabled and std.meta.activeTag(node.data) == .input) {
+                if (input_mod.updateBlink(&node.data.input, node, self.now_ms)) self.tree.markDirty(id, false, true);
             }
         }
         if (self.tooltip_target != null and !self.tooltip_visible and self.now_ms >= self.tooltip_show_at) {
-            self.tooltip_visible = true;
+            self.showTooltip();
+        }
+        var tooltip_moving = false;
+        if (self.tooltip_visible or self.tooltip_hiding) {
+            if (self.tooltip_anim.done(self.now_ms)) {
+                if (self.tooltip_hiding) self.dropTooltipLayout();
+            } else tooltip_moving = true;
             self.tree.markPaintDirty();
+        }
+        self.any_animation = self.tree.animating.items.len > 0 or tooltip_moving;
+    }
+
+    /// Runs `ui.focus` / `ui.scrollIntoView` requests (after layout, so
+    /// nodes created by the same update exist and have bounds).
+    fn runCommands(self: *Runtime) void {
+        var buf: [ui.max_commands]ui.Command = undefined;
+        for (ui.takeCommands(&buf)) |*cmd| {
+            const id = self.findKey(cmd.key()) orelse continue;
+            switch (cmd.kind) {
+                .focus => {
+                    const node = self.tree.get(id);
+                    if (node.focusable and node.enabled and node.inFlow()) self.focusNode(id);
+                },
+                .scroll_into_view => self.scrollIntoView(id),
+            }
+        }
+    }
+
+    fn findKey(self: *Runtime, key: []const u8) ?NodeId {
+        for (self.tree.nodes.items) |node| {
+            if (!node.alive or node.exiting) continue;
+            if (node.key) |k| if (std.mem.eql(u8, k, key)) return node.id;
+        }
+        return null;
+    }
+
+    fn scrollIntoView(self: *Runtime, id: NodeId) void {
+        const target = self.tree.get(id);
+        var current = target.parent;
+        while (current) |pid| : (current = self.tree.get(pid).parent) {
+            const container = self.tree.get(pid);
+            if (!container.style.scroll) continue;
+            const data = switch (container.data) {
+                .container => |*d| d,
+                else => continue,
+            };
+            const max = data.maxScroll(container.bounds.height);
+            const goal = std.math.clamp(data.scroll_offset + (target.bounds.y - container.bounds.y) - 12, 0, max);
+            if (@abs(goal - data.scroll_offset) < 0.5) return;
+            if (motion.enabled) {
+                data.scroll_anim = motion.Animated.start(data.scroll_offset, goal, self.now_ms, .{ .duration_ms = 250, .easing = .ease_in_out });
+                data.scroll_animating = true;
+                self.tree.poke(pid);
+            } else {
+                _ = self.tree.scrollBy(pid, goal - data.scroll_offset);
+            }
+            return;
         }
     }
 
     fn computeNextDelay(self: *Runtime) void {
         var delay: c_int = -1;
-        if (self.any_animation) delay = 16;
+        // transitions may also start after `tick` (FLIP in layout, scroll
+        // commands), so the animating list counts too
+        if (self.any_animation or self.tree.animating.items.len > 0) delay = 16;
+        if (self.wake_at_ms) |at| {
+            const wake: c_int = @intCast(std.math.clamp(at - self.now_ms, 1, 60_000));
+            if (delay < 0 or wake < delay) delay = wake;
+        }
         if (self.tree.focused) |id| {
             const node = self.tree.get(id);
             if (node.enabled and std.meta.activeTag(node.data) == .input) {
@@ -585,16 +1041,31 @@ fn selectOptionsEqual(data: *const node_mod.SelectData, options: []const []const
 
     pub fn renderFrame(self: *Runtime, canvas: Canvas, width: f32, height: f32, dpr: f32) void {
         _ = dpr;
+        self.sampleClock();
+        if (self.wake_at_ms) |at| {
+            if (self.now_ms >= at) {
+                self.wake_at_ms = null;
+                self.needs_build = true;
+            }
+        }
         if (self.needs_build) self.rebuild();
         self.tick();
         self.viewport = .{ .width = width, .height = height };
+        var resized = false;
         if (width != self.last_width or height != self.last_height) {
             self.last_width = width;
             self.last_height = height;
             self.tree.markLayoutDirty();
+            resized = true;
         }
-        if (self.tree.needsLayout()) self.tree.layout(self.viewport);
-        canvas.clear(self.config.window.background);
+        if (self.tree.needsLayout()) {
+            // a window resize moves things without a state change: no FLIP
+            self.tree.flip_enabled = !resized;
+            self.tree.layout(self.viewport);
+            self.tree.flip_enabled = true;
+        }
+        self.runCommands();
+        canvas.clear(self.clear_color);
         self.tree.paint(canvas);
         self.paintSelectPopup(canvas);
         self.paintTooltip(canvas);
@@ -603,6 +1074,18 @@ fn selectOptionsEqual(data: *const node_mod.SelectData, options: []const []const
     }
 
     pub fn dispatch(self: *Runtime, event: events.Event) c_int {
+        self.sampleClock();
+        const result = self.dispatchEvent(event);
+        self.reportSelection();
+        return switch (event) {
+            // pointer / wheel events: non-zero only when something must be
+            // redrawn, so plain mouse movement over static UI paints nothing
+            .pointer_move, .pointer_down, .pointer_up, .pointer_enter, .pointer_leave, .scroll => @intFromBool(self.needs_build or self.tree.needsPaint() or self.tree.needsLayout()),
+            else => result,
+        };
+    }
+
+    fn dispatchEvent(self: *Runtime, event: events.Event) c_int {
         switch (event) {
             .pointer_move => |p| {
                 self.handlePointerMove(p);
@@ -630,6 +1113,12 @@ fn selectOptionsEqual(data: *const node_mod.SelectData, options: []const []const
                 return 1;
             },
             .key_down => |k| {
+                if (self.config.key_fn) |key_fn| {
+                    if (!self.focusedHasComposition() and key_fn(self.userdata, k)) {
+                        self.needs_build = true;
+                        return 1;
+                    }
+                }
                 const result = self.handleKeyDown(k);
                 self.needs_build = true;
                 return result;
@@ -664,6 +1153,10 @@ fn selectOptionsEqual(data: *const node_mod.SelectData, options: []const []const
                 return 0;
             },
             .window_close => return 0,
+            .window_close_request => {
+                const close_fn = self.config.close_fn orelse return 0;
+                return @intFromBool(!close_fn(self.userdata));
+            },
             .scroll => |scroll_event| {
                 const target = self.tree.hitTest(scroll_event.x, scroll_event.y);
                 if (target) |id| {
@@ -680,19 +1173,48 @@ fn selectOptionsEqual(data: *const node_mod.SelectData, options: []const []const
                         else => {},
                     }
                 }
+                if (self.tree.scrollAt(scroll_event.x, scroll_event.y, scroll_event.dy)) {
+                    self.updateCursor(self.tree.hitTest(scroll_event.x, scroll_event.y));
+                    return 1;
+                }
                 return 0;
             },
+        }
+    }
+
+    fn focusedHasComposition(self: *Runtime) bool {
+        const id = self.tree.focused orelse return false;
+        const node = self.tree.get(id);
+        return switch (node.data) {
+            .input => |data| data.has_composition,
+            else => false,
+        };
+    }
+
+    fn linkAt(self: *Runtime, id: NodeId, x: f32, y: f32) ?[]const u8 {
+        const node = self.tree.get(id);
+        switch (node.data) {
+            .rich_text => |*data| {
+                if (data.link_action == null) return null;
+                const layout = data.ensureLayout(node.bounds.width) catch return null;
+                const byte = layout.indexAt(x - node.bounds.x, y - node.bounds.y);
+                // indexAt returns the nearest caret; probe the glyph on both sides.
+                if (data.linkAtByte(byte)) |link| return link;
+                if (byte > 0) return data.linkAtByte(byte - 1);
+                return null;
+            },
+            else => return null,
         }
     }
 
     fn clearPressed(self: *Runtime) void {
         if (self.pressed_button) |id| {
             self.tree.get(id).data.button.pressed = false;
-            self.tree.markDirty(id, false, true);
+            self.tree.poke(id);
         }
         if (self.pressed_toggle) |id| {
             self.tree.get(id).data.toggle.pressed = false;
-            self.tree.markDirty(id, false, true);
+            self.tree.poke(id);
         }
         self.pressed_button = null;
         self.pressed_toggle = null;
@@ -718,7 +1240,7 @@ fn selectOptionsEqual(data: *const node_mod.SelectData, options: []const []const
             const inside = node.bounds.contains(p.x, p.y);
             if (node.data.button.pressed != inside) {
                 node.data.button.pressed = inside;
-                self.tree.markDirty(id, false, true);
+                self.tree.poke(id);
             }
         }
         if (self.pressed_toggle) |id| {
@@ -726,11 +1248,11 @@ fn selectOptionsEqual(data: *const node_mod.SelectData, options: []const []const
             const inside = node.bounds.contains(p.x, p.y);
             if (node.data.toggle.pressed != inside) {
                 node.data.toggle.pressed = inside;
-                self.tree.markDirty(id, false, true);
+                self.tree.poke(id);
             }
         }
         if (self.drag_input) |id| self.setInputCursor(id, p.x, p.y, true);
-        self.updateCursor(target);
+        self.updateCursorAt(target, .{ p.x, p.y });
     }
 
     fn setHover(self: *Runtime, target: ?NodeId) void {
@@ -742,9 +1264,10 @@ fn selectOptionsEqual(data: *const node_mod.SelectData, options: []const []const
                 .button => |*data| data.hovered = false,
                 .input => |*data| data.hovered = false,
                 .toggle => |*data| data.hovered = false,
+                .select => |*data| data.hovered = false,
                 else => {},
             }
-            self.tree.markDirty(previous, false, true);
+            self.tree.poke(previous);
         }
         self.hovered = target;
         if (target) |id| {
@@ -757,48 +1280,96 @@ fn selectOptionsEqual(data: *const node_mod.SelectData, options: []const []const
                 .button => |*data| data.hovered = node.enabled,
                 .input => |*data| data.hovered = node.enabled,
                 .toggle => |*data| data.hovered = node.enabled,
+                .select => |*data| data.hovered = node.enabled,
                 else => {},
             }
-            self.tree.markDirty(id, false, true);
+            self.tree.poke(id);
         }
     }
 
+    /// Hides the tooltip: a visible one zooms out (its text layout lives
+    /// until the transition ends), a pending one is cancelled.
     fn clearTooltip(self: *Runtime) void {
-        if (self.tooltip_layout) |*layout| layout.deinit();
-        self.tooltip_layout = null;
+        if (self.tooltip_visible) {
+            self.tree.markPaintDirty();
+            self.tooltip_anim.retarget(0, self.now_ms, motion.presenceExit(.zoom_big_fast));
+            self.tooltip_hiding = true;
+        } else if (!self.tooltip_hiding) {
+            self.dropTooltipLayout();
+        }
         self.tooltip_target = null;
         self.tooltip_visible = false;
         self.tooltip_show_at = 0;
     }
 
-    fn paintTooltip(self: *Runtime, canvas: Canvas) void {
-        if (!self.tooltip_visible) return;
+    fn dropTooltipLayout(self: *Runtime) void {
+        if (self.tooltip_layout) |*layout| layout.deinit();
+        self.tooltip_layout = null;
+        self.tooltip_hiding = false;
+        self.tooltip_anim = .{};
+    }
+
+    /// Lays out the pending tooltip once and starts its enter transition
+    /// (centred below the target, flipped above near the window bottom).
+    fn showTooltip(self: *Runtime) void {
         const id = self.tooltip_target orelse return;
         const node = self.tree.get(id);
-        if (!node.visible) return;
         const content = node.tooltip orelse return;
-        if (self.tooltip_layout == null) {
-            self.tooltip_layout = text_mod.TextLayout.init(content, .{
-                .font_size = 12,
-                .color = 0xffffffff,
-                .wrap = false,
-            }, 1.0e6) catch return;
-        }
+        if (!node.inFlow()) return;
+        // a new tooltip replaces one that is still zooming out
+        self.dropTooltipLayout();
+        self.tooltip_layout = text_mod.TextLayout.init(content, .{
+            .font_size = 12,
+            .color = 0xffffffff,
+            .wrap = false,
+        }, 1.0e6) catch return;
         const layout = &self.tooltip_layout.?;
         const w = layout.metrics.longest_line + 16;
         const h = layout.metrics.height + 8;
-        var x = node.bounds.x;
+        var x = node.bounds.x + (node.bounds.width - w) * 0.5;
         var y = node.bounds.bottom() + 6;
-        if (x + w > self.viewport.width - 8) x = @max(8, self.viewport.width - w - 8);
-        if (y + h > self.viewport.height - 8) y = @max(8, node.bounds.y - h - 6);
-        canvas.fillRoundRect(geometry.Rect.init(x, y, w, h), 4, 0xf0000000);
-        layout.paint(canvas, x + 8, y + 4);
+        x = std.math.clamp(x, 8, @max(8, self.viewport.width - w - 8));
+        self.tooltip_above = false;
+        if (y + h > self.viewport.height - 8) {
+            y = @max(8, node.bounds.y - h - 6);
+            self.tooltip_above = true;
+        }
+        self.tooltip_rect = geometry.Rect.init(x, y, w, h);
+        self.tooltip_anim = motion.Animated.start(0, 1, self.now_ms, motion.presenceEnter(.zoom_big_fast));
+        self.tooltip_visible = true;
+        self.tree.markPaintDirty();
+    }
+
+    fn paintTooltip(self: *Runtime, canvas: Canvas) void {
+        if (!self.tooltip_visible and !self.tooltip_hiding) return;
+        const layout = if (self.tooltip_layout) |*l| l else return;
+        const rect = self.tooltip_rect;
+        const fx = motion.presenceFx(.zoom_big_fast, self.tooltip_anim.value(self.now_ms));
+        if (fx.opacity <= 0.003) return;
+        const origin = motion.originPoint(if (self.tooltip_above) .bottom else .top, rect.x, rect.y, rect.width, rect.height);
+        canvas.save();
+        canvas.translate(origin[0], origin[1]);
+        canvas.scale(fx.scale_x, fx.scale_y);
+        canvas.translate(-origin[0], -origin[1]);
+        const layer = fx.opacity < 0.997;
+        if (layer) canvas.saveLayerAlpha(geometry.Rect.init(rect.x - 4, rect.y - 4, rect.width + 8, rect.height + 8), fx.opacity);
+        // antd colorBgSpotlight
+        canvas.fillRoundRect(rect, 6, 0xd9000000);
+        layout.paint(canvas, rect.x + 8, rect.y + 4);
+        if (layer) canvas.restore();
+        canvas.restore();
     }
 
     fn updateCursor(self: *Runtime, target: ?NodeId) void {
+        self.updateCursorAt(target, null);
+    }
+
+    fn updateCursorAt(self: *Runtime, target: ?NodeId, point: ?[2]f32) void {
         const cursor: platform.Cursor = if (target) |id| switch (self.tree.get(id).data) {
             .input => .ibeam,
-            .button, .toggle => .pointing_hand,
+            .button => |data| if (data.button_type == .plain) .arrow else .pointing_hand,
+            .toggle => .pointing_hand,
+            .rich_text => if (point) |p| (if (self.linkAt(id, p[0], p[1]) != null) .pointing_hand else .arrow) else .arrow,
             else => .arrow,
         } else .arrow;
         platform.setCursor(self.window, cursor);
@@ -830,12 +1401,12 @@ fn selectOptionsEqual(data: *const node_mod.SelectData, options: []const []const
             const node = self.tree.get(id);
             switch (node.data) {
                 .button => {
-                    self.focusNode(id);
+                    if (node.focusable) self.focusNode(id);
                     if (!node.enabled) return;
                     node.data.button.pressed = true;
                     node.data.button.hovered = true;
                     self.pressed_button = id;
-                    self.tree.markDirty(id, false, true);
+                    self.tree.poke(id);
                 },
                 .toggle => {
                     self.focusNode(id);
@@ -843,7 +1414,7 @@ fn selectOptionsEqual(data: *const node_mod.SelectData, options: []const []const
                     node.data.toggle.pressed = true;
                     node.data.toggle.hovered = true;
                     self.pressed_toggle = id;
-                    self.tree.markDirty(id, false, true);
+                    self.tree.poke(id);
                 },
                 .input => {
                     if (!node.enabled) return;
@@ -851,13 +1422,16 @@ fn selectOptionsEqual(data: *const node_mod.SelectData, options: []const []const
                     self.drag_input = id;
                     self.setInputCursor(id, p.x, p.y, p.modifiers.shift);
                 },
+                .rich_text => {
+                    if (self.linkAt(id, p.x, p.y) != null) self.pressed_link = id;
+                },
                 .select => {
                     if (!node.enabled) return;
                     self.focusNode(id);
                     node.data.select.open = true;
                     node.data.select.hovered_option = null;
                     self.open_select = id;
-                    self.tree.markDirty(id, false, true);
+                    self.tree.poke(id);
                 },
                 else => {},
             }
@@ -874,6 +1448,7 @@ fn selectOptionsEqual(data: *const node_mod.SelectData, options: []const []const
             const inside = node.bounds.contains(p.x, p.y);
             node.data.button.pressed = false;
             if (inside and node.enabled) {
+                button_mod.startWave(&node.data.button, self.now_ms);
                 if (node.data.button.index_action) |action| {
                     action.func(action.ctx, node.data.button.index);
                 } else if (node.data.button.action) |action| {
@@ -882,7 +1457,7 @@ fn selectOptionsEqual(data: *const node_mod.SelectData, options: []const []const
                 if (node.data.button.on_click) |callback| callback.func(callback.ctx, id);
             }
             self.pressed_button = null;
-            self.tree.markDirty(id, false, true);
+            self.tree.poke(id);
         }
         if (self.pressed_toggle) |id| {
             const node = self.tree.get(id);
@@ -896,9 +1471,24 @@ fn selectOptionsEqual(data: *const node_mod.SelectData, options: []const []const
                 }
             }
             self.pressed_toggle = null;
-            self.tree.markDirty(id, false, true);
+            self.tree.poke(id);
         }
-        self.updateCursor(self.tree.hitTest(p.x, p.y));
+        if (self.pressed_link) |id| {
+            self.pressed_link = null;
+            const node = self.tree.get(id);
+            if (node.bounds.contains(p.x, p.y)) {
+                if (self.linkAt(id, p.x, p.y)) |link| {
+                    if (node.data.rich_text.link_action) |link_action| {
+                        // The span memory may be replaced by the callback's rebuild;
+                        // hand the callback a stable copy.
+                        const copy = self.allocator.dupe(u8, link) catch return;
+                        defer self.allocator.free(copy);
+                        link_action.func(link_action.ctx, copy);
+                    }
+                }
+            }
+        }
+        self.updateCursorAt(self.tree.hitTest(p.x, p.y), .{ p.x, p.y });
     }
 
     fn focusNode(self: *Runtime, id: ?NodeId) void {
@@ -906,6 +1496,14 @@ fn selectOptionsEqual(data: *const node_mod.SelectData, options: []const []const
             if (old != id) self.cancelCompositionFor(old);
         }
         self.tree.setFocus(id);
+        self.closeSelectUnlessFocused();
+    }
+
+    /// Focus moved away from an open select: close its popup so it cannot
+    /// swallow the next click.
+    fn closeSelectUnlessFocused(self: *Runtime) void {
+        const sid = self.open_select orelse return;
+        if (self.tree.focused != sid) self.closeSelect();
     }
 
     fn cancelCompositionFor(self: *Runtime, id: NodeId) void {
@@ -923,7 +1521,7 @@ fn selectOptionsEqual(data: *const node_mod.SelectData, options: []const []const
         const data = &node.data.input;
         if (data.has_composition) return;
         const layout = input_mod.ensureLayout(data) catch return;
-        const origin_x = node.bounds.x + input_mod.padding_x - data.scroll_x;
+        const origin_x = input_mod.textLeft(data, node) - data.scroll_x;
         const origin_y = if (data.multiline) node.bounds.y + 8 - data.scroll_y else node.bounds.y + (node.bounds.height - layout.metrics.height) * 0.5;
         var byte = layout.indexAt(x - origin_x, y - origin_y);
         byte = @min(byte, data.text.items.len);
@@ -934,13 +1532,33 @@ fn selectOptionsEqual(data: *const node_mod.SelectData, options: []const []const
 
     fn handleKeyDown(self: *Runtime, k: events.KeyEvent) c_int {
         const shift = k.modifiers.shift;
+        // input key hooks see every key first (Tab, Enter, shortcuts)
+        if (self.tree.focused) |fid| {
+            const fnode = self.tree.get(fid);
+            switch (fnode.data) {
+                .input => |*data| if (!data.has_composition) {
+                    if (data.key_action) |hook| {
+                        if (hook.func(hook.ctx, k, data.text.items, data.anchor, data.cursor)) {
+                            self.needs_build = true;
+                            return 1;
+                        }
+                    }
+                },
+                else => {},
+            }
+        }
         switch (k.key) {
             .tab => {
                 self.cancelFocusedComposition();
                 self.tree.tabFocus(shift);
+                self.closeSelectUnlessFocused();
                 return 1;
             },
             .escape => {
+                if (self.open_select != null) {
+                    self.closeSelect();
+                    return 1;
+                }
                 if (self.tree.focused) |id| {
                     const node = self.tree.get(id);
                     if (std.meta.activeTag(node.data) == .input and node.data.input.has_composition) {
@@ -959,6 +1577,8 @@ fn selectOptionsEqual(data: *const node_mod.SelectData, options: []const []const
             switch (node.data) {
                 .button => |*data| {
                     if (k.key == .enter or events.characterEquals(k.key, ' ')) {
+                        button_mod.startWave(data, self.now_ms);
+                        self.tree.poke(id);
                         if (data.index_action) |action| {
                             action.func(action.ctx, data.index);
                         } else if (data.action) |action| {
@@ -989,7 +1609,7 @@ fn selectOptionsEqual(data: *const node_mod.SelectData, options: []const []const
                         } else {
                             data.open = true;
                             self.open_select = id;
-                            self.tree.markDirty(id, false, true);
+                            self.tree.poke(id);
                         }
                         return 1;
                     }
@@ -1046,6 +1666,26 @@ fn selectOptionsEqual(data: *const node_mod.SelectData, options: []const []const
                                 return 1;
                             }
                         }
+                        // macOS text navigation: ⌘← / ⌘→ line edges, ⌘↑ / ⌘↓ document edges
+                        if (k.modifiers.meta) switch (k.key) {
+                            .left => {
+                                self.tree.inputMove(id, .line_start, shift);
+                                return 1;
+                            },
+                            .right => {
+                                self.tree.inputMove(id, .line_end, shift);
+                                return 1;
+                            },
+                            .up => if (data.multiline) {
+                                self.tree.inputMove(id, .doc_start, shift);
+                                return 1;
+                            },
+                            .down => if (data.multiline) {
+                                self.tree.inputMove(id, .doc_end, shift);
+                                return 1;
+                            },
+                            else => {},
+                        };
                         return 0;
                     }
                     switch (k.key) {
@@ -1058,11 +1698,21 @@ fn selectOptionsEqual(data: *const node_mod.SelectData, options: []const []const
                             return 1;
                         },
                         .home => {
-                            self.tree.inputMove(id, .home, shift);
+                            self.tree.inputMove(id, if (data.multiline) .line_start else .home, shift);
                             return 1;
                         },
                         .end => {
-                            self.tree.inputMove(id, .end, shift);
+                            self.tree.inputMove(id, if (data.multiline) .line_end else .end, shift);
+                            return 1;
+                        },
+                        .up => {
+                            if (!data.multiline) return 0;
+                            self.tree.inputMove(id, .up, shift);
+                            return 1;
+                        },
+                        .down => {
+                            if (!data.multiline) return 0;
+                            self.tree.inputMove(id, .down, shift);
                             return 1;
                         },
                         .backspace => {

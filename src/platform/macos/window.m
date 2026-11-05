@@ -38,6 +38,43 @@ static id g_app_delegate = nil;
 static NSTimer *g_redraw_timer = nil;
 static unsigned long g_redraw_generation = 0;
 static bool g_gpu_render_pending = false;
+/* CADisplayLink (macOS 14+) paces animation frames to the display; created
+   lazily, paused whenever nothing animates. Falls back to NSTimer. */
+static id g_display_link = nil;
+/* Custom title bar height (hidden_titlebar); 0 keeps the system layout. */
+static CGFloat g_titlebar_height = 0;
+
+/* Centres the traffic lights in the app's taller title bar (the approach
+   Electron uses for trafficLightPosition). AppKit re-lays the title bar out
+   on resize and full screen, so this runs again after those. */
+static void zant_layout_traffic_lights(void) {
+    if (!g_window || g_titlebar_height <= 0) return;
+    if (g_window.styleMask & NSWindowStyleMaskFullScreen) return;
+    NSButton *close = [g_window standardWindowButton:NSWindowCloseButton];
+    NSButton *mini = [g_window standardWindowButton:NSWindowMiniaturizeButton];
+    NSButton *zoom = [g_window standardWindowButton:NSWindowZoomButton];
+    if (!close || !close.superview || !close.superview.superview) return;
+    NSView *titlebar = close.superview;
+    NSView *container = titlebar.superview;
+    NSRect c = container.frame;
+    c.size.height = g_titlebar_height;
+    c.origin.y = NSHeight(g_window.frame) - g_titlebar_height;
+    container.frame = c;
+    NSRect t = titlebar.frame;
+    t.origin.y = 0;
+    t.size.height = g_titlebar_height;
+    titlebar.frame = t;
+    NSButton *buttons[3] = {close, mini, zoom};
+    CGFloat x = 20;
+    for (int i = 0; i < 3; i++) {
+        NSButton *b = buttons[i];
+        if (!b) continue;
+        NSRect f = b.frame;
+        [b setFrameOrigin:NSMakePoint(x, round((g_titlebar_height - NSHeight(f)) * 0.5))];
+        x += NSWidth(f) + 6;
+    }
+}
+static bool g_link_active = false;
 
 static int zant_event_modifiers(NSEventModifierFlags flags) {
     int mods = 0;
@@ -88,8 +125,45 @@ static void zant_send_window_event(ZantMacWindow *window, int type) {
 
 static void zant_render_window(ZantMacWindow *window);
 
+static void zant_link_set_active(ZantMacWindow *window, bool active) {
+    if (active && !g_display_link && window->view &&
+        [window->view respondsToSelector:@selector(displayLinkWithTarget:selector:)]) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunguarded-availability-new"
+        CADisplayLink *link = [window->view displayLinkWithTarget:window->view
+                                                         selector:@selector(zantDisplayLinkFired:)];
+        [link addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
+        link.paused = YES;
+        g_display_link = link;
+#pragma clang diagnostic pop
+    }
+    if (!g_display_link) {
+        g_link_active = false;
+        return;
+    }
+    if (g_link_active == active) return;
+    g_link_active = active;
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunguarded-availability-new"
+    [(CADisplayLink *)g_display_link setPaused:!active];
+#pragma clang diagnostic pop
+}
+
+static void zant_link_invalidate(void) {
+    if (g_display_link) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunguarded-availability-new"
+        [(CADisplayLink *)g_display_link invalidate];
+#pragma clang diagnostic pop
+    }
+    g_display_link = nil;
+    g_link_active = false;
+}
+
 static void zant_schedule_redraw(ZantMacWindow *window, int delay_ms) {
     if (!window || window->closing || !window->view) return;
+    /* the running display link renders on the next vsync anyway */
+    if (delay_ms <= 0 && g_link_active) return;
     [g_redraw_timer invalidate];
     g_redraw_timer = nil;
     g_redraw_generation++;
@@ -202,7 +276,14 @@ static void zant_render_window(ZantMacWindow *window) {
     window->in_draw = false;
     if (window->host.next_frame_delay) {
         const int delay = window->host.next_frame_delay(window->host.userdata);
-        if (delay >= 0) {
+        /* animations run on the display link; slower work (caret blink,
+           tooltip delay) on a one-shot timer */
+        zant_link_set_active(window, delay > 0 && delay <= 16 && !window->closing);
+        if (g_link_active) {
+            [g_redraw_timer invalidate];
+            g_redraw_timer = nil;
+            g_redraw_generation++;
+        } else if (delay >= 0) {
             zant_schedule_redraw(window, delay);
         }
     }
@@ -221,6 +302,17 @@ static void zant_request_view_redraw(ZantView *view) {
 
 - (BOOL)acceptsFirstResponder {
     return YES;
+}
+
+- (void)zantDisplayLinkFired:(id)link {
+    (void)link;
+    ZantMacWindow *window = self.macWindow;
+    if (!window || window->closing) return;
+    if (window->renderer && zant_renderer_is_gpu(window->renderer)) {
+        zant_render_window(window);
+    } else {
+        [self setNeedsDisplay:YES];
+    }
 }
 
 - (BOOL)acceptsFirstMouse:(NSEvent *)event {
@@ -302,8 +394,7 @@ static void zant_request_view_redraw(ZantView *view) {
 - (void)sendPointer:(NSEvent *)event type:(int)type button:(int)button {
     if (!self.macWindow || !self.macWindow->host.event) return;
     ZantEvent z = [self zant_pointer_event:event type:type button:button];
-    self.macWindow->host.event(self.macWindow->host.userdata, &z);
-    zant_request_view_redraw(self);
+    if (self.macWindow->host.event(self.macWindow->host.userdata, &z)) zant_request_view_redraw(self);
 }
 
 - (void)mouseEntered:(NSEvent *)event {
@@ -355,8 +446,7 @@ static void zant_request_view_redraw(ZantView *view) {
     z.width = (int)lround(NSWidth(self.bounds));
     z.height = (int)lround(NSHeight(self.bounds));
     z.dpr = (float)self.window.backingScaleFactor;
-    self.macWindow->host.event(self.macWindow->host.userdata, &z);
-    zant_request_view_redraw(self);
+    if (self.macWindow->host.event(self.macWindow->host.userdata, &z)) zant_request_view_redraw(self);
 }
 
 - (void)keyDown:(NSEvent *)event {
@@ -556,6 +646,37 @@ static void zant_request_view_redraw(ZantView *view) {
     return YES;
 }
 
+/* Asks the app (ZANT_EVENT_WINDOW_CLOSE_REQUEST) once per close: closing
+   the window terminates the app, which must not ask a second time. */
+static bool g_close_approved = false;
+
+static bool zant_close_vetoed(void) {
+    if (g_close_approved) return false;
+    ZantMacWindow *window = g_view ? g_view.macWindow : NULL;
+    if (!window || !window->host.event || window->closing) return false;
+    ZantEvent event;
+    memset(&event, 0, sizeof(event));
+    event.type = ZANT_EVENT_WINDOW_CLOSE_REQUEST;
+    event.width = (int)lround(NSWidth(window->view.bounds));
+    event.height = (int)lround(NSHeight(window->view.bounds));
+    event.dpr = (float)window->view.window.backingScaleFactor;
+    const int veto = window->host.event(window->host.userdata, &event);
+    zant_request_view_redraw(window->view);
+    if (veto) return true;
+    g_close_approved = true;
+    return false;
+}
+
+- (BOOL)windowShouldClose:(NSWindow *)sender {
+    (void)sender;
+    return zant_close_vetoed() ? NO : YES;
+}
+
+- (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)sender {
+    (void)sender;
+    return zant_close_vetoed() ? NSTerminateCancel : NSTerminateNow;
+}
+
 - (void)windowWillClose:(NSNotification *)notification {
     (void)notification;
     ZantMacWindow *window = g_view ? g_view.macWindow : NULL;
@@ -563,6 +684,7 @@ static void zant_request_view_redraw(ZantView *view) {
         window->closing = true;
         zant_send_window_event(window, ZANT_EVENT_WINDOW_CLOSE);
     }
+    zant_link_invalidate();
     [NSApp terminate:nil];
 }
 
@@ -583,8 +705,14 @@ static void zant_request_view_redraw(ZantView *view) {
     }
 }
 
+- (void)windowDidExitFullScreen:(NSNotification *)notification {
+    (void)notification;
+    zant_layout_traffic_lights();
+}
+
 - (void)windowDidResize:(NSNotification *)notification {
     (void)notification;
+    zant_layout_traffic_lights();
     ZantMacWindow *window = g_view ? g_view.macWindow : NULL;
     if (window) {
         zant_send_window_event(window, ZANT_EVENT_WINDOW_RESIZE);
@@ -594,16 +722,26 @@ static void zant_request_view_redraw(ZantView *view) {
 
 @end
 
-static void zant_install_menu(void) {
+static void zant_install_menu(const char *title) {
+    NSString *name = [NSString stringWithUTF8String:title && title[0] ? title : "Zant UI"];
     NSMenu *main_menu = [[NSMenu alloc] init];
     NSMenuItem *app_item = [[NSMenuItem alloc] init];
     [main_menu addItem:app_item];
     NSMenu *app_menu = [[NSMenu alloc] init];
-    NSMenuItem *quit_item = [[NSMenuItem alloc] initWithTitle:@"Quit Zant UI"
+    NSMenuItem *quit_item = [[NSMenuItem alloc] initWithTitle:[@"Quit " stringByAppendingString:name]
                                                         action:@selector(terminate:)
                                                  keyEquivalent:@"q"];
     [app_menu addItem:quit_item];
     app_item.submenu = app_menu;
+
+    NSMenuItem *file_item = [[NSMenuItem alloc] init];
+    [main_menu addItem:file_item];
+    NSMenu *file_menu = [[NSMenu alloc] initWithTitle:@"File"];
+    NSMenuItem *close_item = [[NSMenuItem alloc] initWithTitle:@"Close Window"
+                                                         action:@selector(performClose:)
+                                                  keyEquivalent:@"w"];
+    [file_menu addItem:close_item];
+    file_item.submenu = file_menu;
     [NSApp setMainMenu:main_menu];
 }
 
@@ -612,7 +750,7 @@ ZantMacWindow *zant_macos_window_create(const char *title, const ZantWindowOptio
     @autoreleasepool {
         [NSApplication sharedApplication];
         [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
-        zant_install_menu();
+        zant_install_menu(title);
 
         ZantMacWindow *window = calloc(1, sizeof(ZantMacWindow));
         if (!window) return NULL;
@@ -654,6 +792,7 @@ ZantMacWindow *zant_macos_window_create(const char *title, const ZantWindowOptio
         if (style == ZANT_WINDOW_HIDDEN_TITLEBAR) {
             g_window.titlebarAppearsTransparent = YES;
             g_window.titleVisibility = NSWindowTitleHidden;
+            g_titlebar_height = options->titlebar_height > 0 ? options->titlebar_height : 0;
         } else if (style == ZANT_WINDOW_BORDERLESS) {
             g_window.titleVisibility = NSWindowTitleHidden;
             if (options->movable_by_background) g_window.movableByWindowBackground = YES;
@@ -713,6 +852,7 @@ ZantMacWindow *zant_macos_window_create(const char *title, const ZantWindowOptio
                  zant_renderer_backend_name(window->renderer));
 
         [g_window makeKeyAndOrderFront:nil];
+        zant_layout_traffic_lights();
         [NSApp activateIgnoringOtherApps:YES];
         [g_window makeFirstResponder:g_view];
         zant_request_view_redraw(g_view);
@@ -731,6 +871,7 @@ void zant_macos_destroy(ZantMacWindow *window) {
     if (!window) return;
     [g_redraw_timer invalidate];
     g_redraw_timer = nil;
+    zant_link_invalidate();
     if (window->renderer) {
         zant_renderer_destroy(window->renderer);
         window->renderer = NULL;
@@ -748,6 +889,25 @@ void zant_macos_destroy(ZantMacWindow *window) {
 
 void zant_macos_request_redraw(ZantMacWindow *window, int delay_ms) {
     zant_schedule_redraw(window, delay_ms);
+}
+
+void zant_macos_set_document_edited(ZantMacWindow *window, int edited) {
+    if (!window || !window->window) return;
+    window->window.documentEdited = edited ? YES : NO;
+    /* AppKit may re-lay the title bar when the close button changes */
+    zant_layout_traffic_lights();
+}
+
+int zant_macos_reduce_motion(void) {
+    return NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceMotion ? 1 : 0;
+}
+
+void zant_macos_set_background(ZantMacWindow *window, uint32_t bg) {
+    if (!window || !window->window) return;
+    window->window.backgroundColor = [NSColor colorWithSRGBRed:((bg >> 16) & 0xff) / 255.0
+                                                         green:((bg >> 8) & 0xff) / 255.0
+                                                          blue:(bg & 0xff) / 255.0
+                                                         alpha:((bg >> 24) & 0xff) / 255.0];
 }
 
 void zant_macos_set_cursor(ZantMacWindow *window, int cursor) {
@@ -782,6 +942,7 @@ void zant_macos_schedule_snapshot(ZantMacWindow *window, const char *path, int d
         if (zant_renderer_is_gpu(window->renderer)) {
             zant_renderer_capture_next_png(window->renderer, target.UTF8String);
             zant_render_window(window);
+            fprintf(stderr, "[zant] snapshot: %s\n", target.UTF8String);
         } else {
             [window->view display];
             zant_render_window(window);
@@ -790,6 +951,14 @@ void zant_macos_schedule_snapshot(ZantMacWindow *window, const char *path, int d
             } else {
                 fprintf(stderr, "[zant] snapshot failed: %s\n", target.UTF8String);
             }
+        }
+        // ZANT_SNAPSHOT_EXIT=1: quit once the frame is on disk (automation)
+        const char *exit_flag = getenv("ZANT_SNAPSHOT_EXIT");
+        if (exit_flag && exit_flag[0] == '1') {
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(400 * NSEC_PER_MSEC)),
+                           dispatch_get_main_queue(), ^{
+                [NSApp terminate:nil];
+            });
         }
     }];
 }
@@ -856,4 +1025,62 @@ char *zant_save_file_dialog(const char *default_name) {
 
 void zant_dialog_free(char *value) {
     free(value);
+}
+
+static NSArray<NSString *> *zant_split_extensions(const char *extensions) {
+    if (!extensions || extensions[0] == '\0') return nil;
+    NSString *joined = [NSString stringWithUTF8String:extensions];
+    NSMutableArray<NSString *> *result = [NSMutableArray array];
+    for (NSString *part in [joined componentsSeparatedByString:@","]) {
+        NSString *trimmed = [part stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+        if (trimmed.length > 0) [result addObject:trimmed];
+    }
+    return result.count > 0 ? result : nil;
+}
+
+/* extensions: comma separated list ("csv,md"); NULL or "" allows any type. */
+char *zant_save_file_dialog_ext(const char *default_name, const char *extensions) {
+    @autoreleasepool {
+        NSSavePanel *panel = [NSSavePanel savePanel];
+        NSArray<NSString *> *types = zant_split_extensions(extensions);
+        if (types) panel.allowedFileTypes = types;
+        panel.allowsOtherFileTypes = YES;
+        if (default_name) {
+            panel.nameFieldStringValue = [NSString stringWithUTF8String:default_name];
+        }
+        if ([panel runModal] != NSModalResponseOK) return NULL;
+        NSURL *url = panel.URL;
+        if (!url) return NULL;
+        return strdup(url.path.fileSystemRepresentation);
+    }
+}
+
+/* Returns 0 for the first button, 1 for the second, 2 for the third. */
+int zant_confirm_dialog(const char *title, const char *message, const char *first,
+                        const char *second, const char *third) {
+    @autoreleasepool {
+        NSAlert *alert = [[NSAlert alloc] init];
+        if (title) alert.messageText = [NSString stringWithUTF8String:title];
+        if (message) alert.informativeText = [NSString stringWithUTF8String:message];
+        if (first) [alert addButtonWithTitle:[NSString stringWithUTF8String:first]];
+        if (second) [alert addButtonWithTitle:[NSString stringWithUTF8String:second]];
+        if (third) [alert addButtonWithTitle:[NSString stringWithUTF8String:third]];
+        const NSModalResponse response = [alert runModal];
+        if (response == NSAlertFirstButtonReturn) return 0;
+        if (response == NSAlertSecondButtonReturn) return 1;
+        return 2;
+    }
+}
+
+int zant_open_url(const char *url) {
+    @autoreleasepool {
+        if (!url) return 0;
+        NSString *string = [NSString stringWithUTF8String:url];
+        NSURL *target = [NSURL URLWithString:string];
+        if (!target || !target.scheme) {
+            target = [NSURL URLWithString:[@"https://" stringByAppendingString:string]];
+        }
+        if (!target) return 0;
+        return [[NSWorkspace sharedWorkspace] openURL:target] ? 1 : 0;
+    }
 }

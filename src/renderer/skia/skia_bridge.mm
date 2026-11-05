@@ -4,7 +4,10 @@
 #include "include/core/SkCanvas.h"
 #include "include/core/SkColorSpace.h"
 #include "include/core/SkData.h"
+#include "include/core/SkFont.h"
+#include "include/core/SkFontMetrics.h"
 #include "include/core/SkFontMgr.h"
+#include "include/core/SkPathBuilder.h"
 #include "include/core/SkFontStyle.h"
 #include "include/core/SkImageInfo.h"
 #include "include/core/SkImage.h"
@@ -227,6 +230,8 @@ std::unique_ptr<Paragraph> build_paragraph(std::string_view text, const ZantText
     paragraph_style.setTextAlign(text_align_from_int(style.align));
     if (style.max_lines > 0) {
         paragraph_style.setMaxLines(static_cast<size_t>(style.max_lines));
+        // text cut off by max_lines ends in "…"
+        paragraph_style.setEllipsis(SkString("\u2026"));
     }
 
     TextStyle text_style;
@@ -244,6 +249,9 @@ std::unique_ptr<Paragraph> build_paragraph(std::string_view text, const ZantText
     } else if (style.family == 3) {
         auto face = g_font_mgr->matchFamilyStyle("Songti SC", sk_style);
         if (face) text_style.setTypeface(std::move(face));
+    } else if (style.family == 4) {
+        auto face = g_font_mgr->matchFamilyStyle("STIX Two Math", sk_style);
+        if (face) text_style.setTypeface(std::move(face));
     }
     if (style.line_height > 0.0f) {
         text_style.setHeight(style.line_height);
@@ -260,7 +268,8 @@ std::unique_ptr<Paragraph> build_paragraph(std::string_view text, const ZantText
     }
     auto paragraph = builder->Build();
     if (paragraph) {
-        const float width = style.wrap ? std::max(max_width, 1.0f) : 1.0e9f;
+        // max_lines text is laid out at the box width so it ends in "…"
+        const float width = (style.wrap || style.max_lines > 0) ? std::max(max_width, 1.0f) : 1.0e9f;
         paragraph->layout(width);
     }
     return paragraph;
@@ -489,6 +498,12 @@ void zant_canvas_scale(ZantCanvas *canvas, float sx, float sy) {
     if (canvas && canvas->canvas) canvas->canvas->scale(sx, sy);
 }
 
+void zant_canvas_save_layer_alpha(ZantCanvas *canvas, float x, float y, float width, float height, float alpha) {
+    if (!canvas || !canvas->canvas) return;
+    SkRect bounds = SkRect::MakeXYWH(x, y, width, height);
+    canvas->canvas->saveLayerAlphaf(&bounds, alpha);
+}
+
 void zant_canvas_clip_rect(ZantCanvas *canvas, float x, float y, float width, float height) {
     if (canvas && canvas->canvas) {
         canvas->canvas->clipRect(SkRect::MakeXYWH(x, y, width, height), SkClipOp::kIntersect, true);
@@ -594,6 +609,14 @@ void zant_canvas_draw_image_rect(ZantCanvas *canvas, ZantImage *image, float x, 
 ZantTextLayout *zant_rich_text_layout_create(const ZantRichSpan *spans, size_t count,
                                              float max_width, float line_height) {
     if (!spans || count == 0) return nullptr;
+    std::string joined;
+    for (size_t i = 0; i < count; ++i) {
+        if (spans[i].placeholder_width > 0.0f) {
+            joined.append("\xEF\xBF\xBC");  // U+FFFC, one UTF-16 unit like the placeholder
+        } else if (spans[i].text && spans[i].length > 0) {
+            joined.append(spans[i].text, spans[i].length);
+        }
+    }
     ParagraphStyle paragraph_style;
     paragraph_style.setTextAlign(TextAlign::kLeft);
     auto builder = ParagraphBuilder::make(paragraph_style, g_font_collection, g_unicode);
@@ -616,6 +639,9 @@ ZantTextLayout *zant_rich_text_layout_create(const ZantRichSpan *spans, size_t c
         } else if (span.family == 3) {
             auto face = g_font_mgr->matchFamilyStyle("Songti SC", sk_style);
             if (face) style.setTypeface(std::move(face));
+        } else if (span.family == 4) {
+            auto face = g_font_mgr->matchFamilyStyle("STIX Two Math", sk_style);
+            if (face) style.setTypeface(std::move(face));
         }
         if (line_height > 0.0f) {
             style.setHeight(line_height);
@@ -626,8 +652,24 @@ ZantTextLayout *zant_rich_text_layout_create(const ZantRichSpan *spans, size_t c
             background.setColor(span.background);
             style.setBackgroundPaint(std::move(background));
         }
+        if (span.decoration != 0) {
+            int decoration = 0;
+            if (span.decoration & 1) decoration |= TextDecoration::kUnderline;
+            if (span.decoration & 2) decoration |= TextDecoration::kLineThrough;
+            style.setDecoration(static_cast<TextDecoration>(decoration));
+            style.setDecorationColor(span.color);
+            style.setDecorationThicknessMultiplier(1.0f);
+        }
         builder->pushStyle(style);
-        if (span.text && span.length > 0) builder->addText(span.text, span.length);
+        if (span.placeholder_width > 0.0f) {
+            const float height = std::max(1.0f, span.placeholder_ascent + span.placeholder_descent);
+            builder->addPlaceholder(PlaceholderStyle(span.placeholder_width, height,
+                                                     PlaceholderAlignment::kBaseline,
+                                                     TextBaseline::kAlphabetic,
+                                                     span.placeholder_ascent));
+        } else if (span.text && span.length > 0) {
+            builder->addText(span.text, span.length);
+        }
         builder->pop();
     }
     auto paragraph = builder->Build();
@@ -635,6 +677,7 @@ ZantTextLayout *zant_rich_text_layout_create(const ZantRichSpan *spans, size_t c
     paragraph->layout(std::max(max_width, 1.0f));
     auto *result = new (std::nothrow) ZantTextLayout();
     if (!result) return nullptr;
+    result->text = std::move(joined);
     result->paragraph = std::move(paragraph);
     result->layout_width = max_width;
     return result;
@@ -730,6 +773,174 @@ int zant_text_layout_range_rects(ZantTextLayout *layout, size_t start_byte, size
     auto rects = layout->paragraph->getRectsForRange(static_cast<unsigned>(start),
                                                      static_cast<unsigned>(end),
                                                      RectHeightStyle::kMax, RectWidthStyle::kTight);
+    int count = 0;
+    for (const auto &box : rects) {
+        if (count >= max_rects) break;
+        out_rects[count].x = box.rect.left();
+        out_rects[count].y = box.rect.top();
+        out_rects[count].width = box.rect.width();
+        out_rects[count].height = box.rect.height();
+        count++;
+    }
+    return count;
+}
+
+}  // extern "C"
+
+namespace {
+
+sk_sp<SkTypeface> typeface_for(int family, int weight, bool italic) {
+    ensure_skia();
+    struct Entry { int family; int weight; bool italic; sk_sp<SkTypeface> face; };
+    static std::vector<Entry> cache;
+    for (const auto &entry : cache) {
+        if (entry.family == family && entry.weight == weight && entry.italic == italic) return entry.face;
+    }
+    const SkFontStyle style(std::max(100, std::min(900, weight)), SkFontStyle::kNormal_Width,
+                            italic ? SkFontStyle::kItalic_Slant : SkFontStyle::kUpright_Slant);
+    const char *names[] = {"SF Pro Text", "Georgia", "Menlo", "Songti SC", "STIX Two Math"};
+    const char *name = names[(family >= 0 && family <= 4) ? family : 0];
+    sk_sp<SkTypeface> face = g_font_mgr->matchFamilyStyle(name, style);
+    if (!face) face = g_font_mgr->matchFamilyStyle("Helvetica Neue", style);
+    if (!face) face = g_font_mgr->legacyMakeTypeface(nullptr, style);
+    cache.push_back({family, weight, italic, face});
+    return face;
+}
+
+struct GlyphRun {
+    sk_sp<SkTypeface> face;
+    size_t start;
+    size_t end;
+};
+
+// Splits UTF-8 text into runs that share one typeface, falling back per
+// character to any installed font that has the glyph (CJK in \text{}, emoji).
+std::vector<GlyphRun> fallback_runs(const char *utf8, size_t length, int family, int weight,
+                                    bool italic) {
+    std::vector<GlyphRun> runs;
+    sk_sp<SkTypeface> primary = typeface_for(family, weight, italic);
+    const SkFontStyle style(std::max(100, std::min(900, weight)), SkFontStyle::kNormal_Width,
+                            italic ? SkFontStyle::kItalic_Slant : SkFontStyle::kUpright_Slant);
+    std::string_view text(utf8, length);
+    size_t at = 0;
+    while (at < length) {
+        uint32_t cp = 0;
+        int len = 1;
+        if (!utf8_decode_one(text, at, &cp, &len) || len <= 0) {
+            cp = 0xFFFD;
+            len = 1;
+        }
+        sk_sp<SkTypeface> face = primary;
+        if (primary && primary->unicharToGlyph(static_cast<SkUnichar>(cp)) == 0 && cp > 0x20) {
+            sk_sp<SkTypeface> fallback =
+                    g_font_mgr->matchFamilyStyleCharacter(nullptr, style, nullptr, 0, static_cast<SkUnichar>(cp));
+            if (fallback) face = fallback;
+        }
+        if (!runs.empty() && runs.back().face == face) {
+            runs.back().end = at + len;
+        } else {
+            runs.push_back({face, at, at + static_cast<size_t>(len)});
+        }
+        at += static_cast<size_t>(len);
+    }
+    return runs;
+}
+
+}  // namespace
+
+extern "C" {
+
+ZantInkMetrics zant_text_measure_ink(const char *utf8, size_t length, float size, int family,
+                                     int weight, int italic) {
+    ZantInkMetrics m{};
+    if (!utf8 || length == 0 || size <= 0.0f) return m;
+    float x = 0.0f;
+    float top = 0.0f;
+    float bottom = 0.0f;
+    bool any_ink = false;
+    for (const auto &run : fallback_runs(utf8, length, family, weight, italic != 0)) {
+        SkFont font(run.face, size);
+        font.setSubpixel(true);
+        SkRect bounds;
+        const float advance =
+                font.measureText(utf8 + run.start, run.end - run.start, SkTextEncoding::kUTF8, &bounds);
+        if (!bounds.isEmpty()) {
+            top = any_ink ? std::min(top, bounds.top()) : bounds.top();
+            bottom = any_ink ? std::max(bottom, bounds.bottom()) : bounds.bottom();
+            any_ink = true;
+        }
+        SkFontMetrics fm;
+        font.getMetrics(&fm);
+        m.font_ascent = std::max(m.font_ascent, -fm.fAscent);
+        m.font_descent = std::max(m.font_descent, fm.fDescent);
+        x += advance;
+    }
+    m.advance = x;
+    m.ink_top = any_ink ? top : 0.0f;
+    m.ink_bottom = any_ink ? bottom : 0.0f;
+    m.ascent = any_ink ? std::max(0.0f, -top) : 0.0f;
+    m.descent = any_ink ? std::max(0.0f, bottom) : 0.0f;
+    return m;
+}
+
+void zant_canvas_draw_simple_text(ZantCanvas *canvas, const char *utf8, size_t length, float x,
+                                  float y, float size, int family, int weight, int italic,
+                                  uint32_t color, float scale_y) {
+    if (!canvas || !canvas->canvas || !utf8 || length == 0 || size <= 0.0f) return;
+    SkPaint paint;
+    paint.setAntiAlias(true);
+    paint.setColor(make_color(color));
+    SkCanvas *c = canvas->canvas;
+    const bool stretch = scale_y > 0.0f && std::abs(scale_y - 1.0f) > 0.001f;
+    if (stretch) {
+        c->save();
+        c->translate(0.0f, y);
+        c->scale(1.0f, scale_y);
+        c->translate(0.0f, -y);
+    }
+    float pen = x;
+    for (const auto &run : fallback_runs(utf8, length, family, weight, italic != 0)) {
+        SkFont font(run.face, size);
+        font.setSubpixel(true);
+        font.setEdging(SkFont::Edging::kSubpixelAntiAlias);
+        c->drawSimpleText(utf8 + run.start, run.end - run.start, SkTextEncoding::kUTF8, pen, y, font, paint);
+        pen += font.measureText(utf8 + run.start, run.end - run.start, SkTextEncoding::kUTF8);
+    }
+    if (stretch) c->restore();
+}
+
+void zant_canvas_fill_path(ZantCanvas *canvas, const float *xy, int count, uint32_t color) {
+    if (!canvas || !canvas->canvas || !xy || count < 3) return;
+    SkPathBuilder builder;
+    builder.moveTo(xy[0], xy[1]);
+    for (int i = 1; i < count; ++i) builder.lineTo(xy[i * 2], xy[i * 2 + 1]);
+    builder.close();
+    SkPaint paint;
+    paint.setAntiAlias(true);
+    paint.setColor(make_color(color));
+    canvas->canvas->drawPath(builder.detach(), paint);
+}
+
+void zant_canvas_stroke_path(ZantCanvas *canvas, const float *xy, int count, uint32_t color,
+                             float stroke_width, int closed) {
+    if (!canvas || !canvas->canvas || !xy || count < 2) return;
+    SkPathBuilder builder;
+    builder.moveTo(xy[0], xy[1]);
+    for (int i = 1; i < count; ++i) builder.lineTo(xy[i * 2], xy[i * 2 + 1]);
+    if (closed) builder.close();
+    SkPaint paint;
+    paint.setAntiAlias(true);
+    paint.setStyle(SkPaint::kStroke_Style);
+    paint.setStrokeWidth(stroke_width);
+    paint.setStrokeJoin(SkPaint::kRound_Join);
+    paint.setStrokeCap(SkPaint::kRound_Cap);
+    paint.setColor(make_color(color));
+    canvas->canvas->drawPath(builder.detach(), paint);
+}
+
+int zant_text_layout_placeholder_rects(ZantTextLayout *layout, ZantRect *out_rects, int max_rects) {
+    if (!layout || !layout->paragraph || !out_rects || max_rects <= 0) return 0;
+    auto rects = layout->paragraph->getRectsForPlaceholders();
     int count = 0;
     for (const auto &box : rects) {
         if (count >= max_rects) break;

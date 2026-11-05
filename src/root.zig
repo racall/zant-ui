@@ -1,6 +1,10 @@
 pub const geometry = @import("core/geometry.zig");
 pub const unicode = @import("core/unicode.zig");
 pub const node = @import("core/node.zig");
+pub const icons = @import("core/icons.zig");
+pub const vector = @import("core/vector.zig");
+pub const hash = @import("core/hash.zig");
+pub const motion = @import("motion/motion.zig");
 pub const actions = @import("core/actions.zig");
 pub const tree = @import("core/tree.zig");
 pub const layout = @import("core/layout.zig");
@@ -28,6 +32,11 @@ pub const WindowOptions = platform.WindowOptions;
 pub const db = @import("db/mod.zig");
 
 pub const markdown = @import("markdown/mod.zig");
+
+test {
+    _ = markdown;
+    _ = math;
+}
 
 pub const math = @import("math/mod.zig");
 

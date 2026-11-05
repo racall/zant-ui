@@ -1,287 +1,248 @@
-//! Small native LaTeX math renderer.
-//! This is a structural renderer for common formulas, not a full TeX engine:
-//! fractions, roots, scripts, groups, Greek letters and operators are laid out
-//! with Zant nodes. Unknown commands fall back to readable text.
+//! Native LaTeX math (the `zant.math` component).
+//!
+//! Mirrors what Streamdown does with KaTeX: the TeX subset KaTeX supports is
+//! parsed (`parser.zig`) and laid out with KaTeX's algorithms and font
+//! metrics (`layout.zig`), then drawn with STIX Two Math as a retained vector
+//! drawing. Like KaTeX with `throwOnError: false`, a formula that fails to
+//! parse is shown as its source in `error_color`.
 const std = @import("std");
+const hash_mod = @import("../core/hash.zig");
 const ui = @import("../ui.zig");
+const vector = @import("../core/vector.zig");
+pub const parser = @import("parser.zig");
+pub const layout_engine = @import("layout.zig");
+pub const symbols = @import("symbols.zig");
+pub const fonts = @import("fonts.zig");
 
-const Expr = union(enum) {
-    text: []const u8,
-    row: []const Expr,
-    frac: struct { num: *Expr, den: *Expr },
-    sqrt: *Expr,
+pub const Drawing = vector.Drawing;
+
+pub const Options = struct {
+    /// Font size of the surrounding text (px).
+    size: f32 = 16,
+    /// Math is drawn `scale` times larger than the surrounding text
+    /// (KaTeX: 1.21 with Computer Modern; STIX Two has a larger x-height).
+    scale: f32 = 1.1,
+    color: u32 = 0xff292d2a,
+    /// Streamdown's default `errorColor` is the muted foreground.
+    error_color: u32 = 0xff8b918c,
+    /// Display (block) style; false = inline/text style.
+    display: bool = true,
+    /// Shrinks the formula to fit this width (display math).
+    max_width: ?f32 = null,
 };
 
-const Parser = struct {
-    arena: std.mem.Allocator,
-    src: []const u8,
-    i: usize = 0,
-
-    fn parse(self: *Parser) ![]const Expr {
-        return self.sequence(0);
-    }
-
-    fn sequence(self: *Parser, stop: u8) ![]const Expr {
-        var out: std.ArrayListUnmanaged(Expr) = .empty;
-        while (self.i < self.src.len) {
-            if (stop != 0 and self.src[self.i] == stop) break;
-            if (self.src[self.i] == '&') {
-                self.i += 1;
-                continue;
-            }
-            const item = try self.atom();
-            if (self.i < self.src.len and (self.src[self.i] == '^' or self.src[self.i] == '_')) {
-                try out.append(self.arena, item);
-                while (self.i < self.src.len and (self.src[self.i] == '^' or self.src[self.i] == '_')) {
-                    const is_sup = self.src[self.i] == '^';
-                    self.i += 1;
-                    const arg = try self.atom();
-                    const plain = try self.flatten(arg);
-                    try out.append(self.arena, .{ .text = try self.scriptText(plain, is_sup) });
-                }
-                continue;
-            }
-            try out.append(self.arena, item);
+/// Lays out `source` into a drawing allocated in `arena`.
+pub fn layout(arena: std.mem.Allocator, source: []const u8, options: Options) !Drawing {
+    var drawing = try layoutOnce(arena, source, options, options.size * options.scale);
+    if (options.max_width) |max| {
+        if (drawing.width > max and drawing.width > 0) {
+            const factor = @max(0.5, max / drawing.width);
+            drawing = try layoutOnce(arena, source, options, options.size * options.scale * factor);
         }
-        return out.toOwnedSlice(self.arena);
     }
+    var h = std.hash.Wyhash.init(0x6d617468);
+    h.update(source);
+    hash_mod.hashValue(&h, options);
+    drawing.hash = h.final();
+    return drawing;
+}
 
-    fn flatten(self: *Parser, expr: Expr) ![]const u8 {
-        return switch (expr) {
-            .text => |text| text,
-            .row => |items| blk: {
-                var out: std.ArrayListUnmanaged(u8) = .empty;
-                for (items) |item| try out.appendSlice(self.arena, try self.flatten(item));
-                break :blk out.toOwnedSlice(self.arena);
-            },
-            .frac => |f| std.fmt.allocPrint(self.arena, "({s})/({s})", .{ try self.flatten(f.num.*), try self.flatten(f.den.*) }),
-            .sqrt => |body| std.fmt.allocPrint(self.arena, "√({s})", .{try self.flatten(body.*)}),
-        };
-    }
-
-    fn scriptText(self: *Parser, plain: []const u8, sup: bool) ![]const u8 {
-        var out: std.ArrayListUnmanaged(u8) = .empty;
-        for (plain) |c| {
-            const mapped: ?[]const u8 = if (sup) switch (c) {
-                '0' => "⁰", '1' => "¹", '2' => "²", '3' => "³", '4' => "⁴",
-                '5' => "⁵", '6' => "⁶", '7' => "⁷", '8' => "⁸", '9' => "⁹",
-                'n' => "ⁿ", 'i' => "ⁱ", 'x' => "ˣ", 'a' => "ᵃ", 'b' => "ᵇ",
-                'c' => "ᶜ", 'd' => "ᵈ", 'e' => "ᵉ", 'k' => "ᵏ", 'm' => "ᵐ",
-                'o' => "ᵒ", 'p' => "ᵖ", 't' => "ᵗ", 'u' => "ᵘ", 'v' => "ᵛ",
-                'w' => "ʷ", 'y' => "ʸ", '+' => "⁺", '-' => "⁻", '=' => "⁼",
-                else => null,
-            } else switch (c) {
-                '0' => "₀", '1' => "₁", '2' => "₂", '3' => "₃", '4' => "₄",
-                '5' => "₅", '6' => "₆", '7' => "₇", '8' => "₈", '9' => "₉",
-                'i' => "ᵢ", 'j' => "ⱼ", 'n' => "ₙ", 'x' => "ₓ", '+' => "₊", '-' => "₋",
-                else => null,
-            };
-            if (mapped) |value| {
-                try out.appendSlice(self.arena, value);
-            } else {
-                try out.append(self.arena, if (sup) '^' else '_');
-                try out.append(self.arena, c);
-            }
-        }
-        return out.toOwnedSlice(self.arena);
-    }
-
-    fn box(self: *Parser, expr: Expr) !*Expr {
-        const value = try self.arena.create(Expr);
-        value.* = expr;
-        return value;
-    }
-
-    fn atom(self: *Parser) anyerror!Expr {
-        if (self.i >= self.src.len) return .{ .text = "" };
-        const ch = self.src[self.i];
-        if (ch == '{') {
-            self.i += 1;
-            const body = try self.sequence('}');
-            if (self.i < self.src.len and self.src[self.i] == '}') self.i += 1;
-            return .{ .row = body };
-        }
-        if (ch == '\\') {
-            self.i += 1;
-            const start = self.i;
-            while (self.i < self.src.len and std.ascii.isAlphabetic(self.src[self.i])) self.i += 1;
-            const name = self.src[start..self.i];
-            if (std.mem.eql(u8, name, "frac")) {
-                const num = try self.atom();
-                const den = try self.atom();
-                return .{ .frac = .{ .num = try self.box(num), .den = try self.box(den) } };
-            }
-            if (std.mem.eql(u8, name, "sqrt")) {
-                const body = try self.atom();
-                return .{ .sqrt = try self.box(body) };
-            }
-            if (std.mem.eql(u8, name, "text") or std.mem.eql(u8, name, "mathrm")) {
-                return self.atom();
-            }
-            if (std.mem.eql(u8, name, "left") or std.mem.eql(u8, name, "right")) {
-                if (self.i < self.src.len) self.i += 1;
-                return self.atom();
-            }
-            return .{ .text = try self.arena.dupe(u8, commandText(name)) };
-        }
-        if (ch == '^' or ch == '_') return .{ .text = "" };
-        const start = self.i;
-        self.i += 1;
-        while (self.i < self.src.len and (self.src[self.i] & 0xC0) == 0x80) self.i += 1;
-        return .{ .text = try self.arena.dupe(u8, self.src[start..self.i]) };
-    }
-};
-
-fn commandText(name: []const u8) []const u8 {
-    const map = [_]struct { []const u8, []const u8 }{
-        .{ "alpha", "α" }, .{ "beta", "β" }, .{ "gamma", "γ" }, .{ "delta", "δ" },
-        .{ "theta", "θ" }, .{ "lambda", "λ" }, .{ "mu", "μ" }, .{ "pi", "π" },
-        .{ "sigma", "σ" }, .{ "phi", "φ" }, .{ "omega", "ω" }, .{ "Gamma", "Γ" },
-        .{ "Delta", "Δ" }, .{ "Theta", "Θ" }, .{ "Lambda", "Λ" }, .{ "Pi", "Π" },
-        .{ "Sigma", "Σ" }, .{ "Phi", "Φ" }, .{ "Omega", "Ω" },
-        .{ "sum", "∑" }, .{ "prod", "∏" }, .{ "int", "∫" }, .{ "infty", "∞" },
-        .{ "times", "×" }, .{ "cdot", "·" }, .{ "pm", "±" }, .{ "le", "≤" },
-        .{ "ge", "≥" }, .{ "neq", "≠" }, .{ "approx", "≈" }, .{ "to", "→" },
-        .{ "rightarrow", "→" }, .{ "leftarrow", "←" }, .{ "partial", "∂" },
-        .{ "nabla", "∇" }, .{ "in", "∈" }, .{ "forall", "∀" }, .{ "exists", "∃" },
-        .{ "ldots", "…" }, .{ "cdots", "⋯" },
+fn layoutOnce(arena: std.mem.Allocator, source: []const u8, options: Options, size: f32) !Drawing {
+    const nodes = parser.parse(arena, source) catch |err| switch (err) {
+        error.ParseError => return errorDrawing(arena, source, options, size),
+        else => |e| return e,
     };
-    for (map) |entry| if (std.mem.eql(u8, name, entry[0])) return entry[1];
-    return name;
-}
-
-fn richText(text: []const u8, size: f32) ui.Node {
-    return ui.text(text, .{ .size = size, .family = .serif, .color = 0xff292d2a });
-}
-
-fn renderExpr(expr: Expr, size: f32) ui.Node {
-    return switch (expr) {
-        .text => |text| richText(text, size),
-        .row => |items| blk: {
-            var children: [64]ui.Node = undefined;
-            var n: usize = 0;
-            for (items) |item| {
-                if (n >= children.len) break;
-                children[n] = renderExpr(item, size);
-                n += 1;
-            }
-            if (n == 1) break :blk children[0];
-            break :blk ui.row(.{ .gap = 1, .align_items = .center, .children = children[0..n] });
-        },
-        .frac => |f| ui.column(.{
-            .align_items = .stretch,
-            .gap = 2,
-            .children = &.{
-                renderExpr(f.num.*, size - 1),
-                ui.styled(ui.space(.{ .height = 1 }), .{ .background = 0xff292d2a }),
-                renderExpr(f.den.*, size - 1),
-            },
-        }),
-        .sqrt => |body| ui.row(.{
-            .gap = 1,
-            .align_items = .end,
-            .children = &.{
-                richText("√", size),
-                ui.column(.{
-                    .align_items = .stretch,
-                    .children = &.{
-                        ui.styled(ui.space(.{ .height = 1 }), .{ .background = 0xff292d2a }),
-                        renderExpr(body.*, size),
-                    },
-                }),
-            },
-        }),
-    };
-}
-
-fn renderCell(allocator: std.mem.Allocator, source: []const u8) ui.Node {
-    var arena = std.heap.ArenaAllocator.init(allocator);
-    defer arena.deinit();
-    var parser = Parser{ .arena = arena.allocator(), .src = source };
-    const items = parser.parse() catch return ui.text(source, .{ .size = 18, .family = .serif });
-    if (items.len == 0) return ui.space(.{ .width = 1, .height = 1 });
-    return renderExpr(.{ .row = items }, 18);
-}
-
-fn findEnv(source: []const u8) ?struct { body: []const u8, kind: []const u8 } {
-    const begin = std.mem.indexOf(u8, source, "\\begin{") orelse return null;
-    const name_start = begin + "\\begin{".len;
-    const name_end = std.mem.indexOfScalarPos(u8, source, name_start, '}') orelse return null;
-    const kind = source[name_start..name_end];
-    const end_marker = std.fmt.allocPrint(std.heap.c_allocator, "{s}{s}{s}", .{ "\\end{", kind, "}" }) catch return null;
-    defer std.heap.c_allocator.free(end_marker);
-    const end = std.mem.indexOfPos(u8, source, name_end + 1, end_marker) orelse return null;
-    return .{ .body = source[name_end + 1 .. end], .kind = kind };
-}
-
-fn renderMatrix(allocator: std.mem.Allocator, source: []const u8, kind: []const u8) ui.Node {
-    const env = findEnv(source) orelse return ui.text(source, .{ .size = 18, .family = .serif });
-    var row_nodes: [24]ui.Node = undefined;
-    var row_count: usize = 0;
-    var rows = std.mem.splitSequence(u8, env.body, "\\\\");
-    while (rows.next()) |row| {
-        if (row_count >= row_nodes.len) break;
-        var cell_nodes: [24]ui.Node = undefined;
-        var cell_count: usize = 0;
-        var cells = std.mem.splitScalar(u8, row, '&');
-        while (cells.next()) |cell| {
-            if (cell_count >= cell_nodes.len) break;
-            cell_nodes[cell_count] = renderCell(allocator, std.mem.trim(u8, cell, " \t\n"));
-            cell_count += 1;
-        }
-        row_nodes[row_count] = ui.row(.{
-            .gap = 18,
-            .align_items = .center,
-            .children = cell_nodes[0..cell_count],
-        });
-        row_count += 1;
+    var engine = layout_engine.Engine.init(arena, .{ .size = size, .color = options.color, .error_color = options.error_color });
+    const style = if (options.display) layout_engine.Style.display else layout_engine.Style.text;
+    var box = try engine.list(nodes, style);
+    if (engine.tag) |tag| {
+        // \tag{n}: placed after a quad
+        var cmds: std.ArrayListUnmanaged(vector.Command) = .empty;
+        try cmds.appendSlice(arena, box.cmds);
+        const x = box.width + 2 * size;
+        for (tag.cmds) |cmd| try cmds.append(arena, try vector.translate(arena, cmd, x, 0));
+        box.cmds = try cmds.toOwnedSlice(arena);
+        box.width = x + tag.width;
+        box.height = @max(box.height, tag.height);
+        box.depth = @max(box.depth, tag.depth);
     }
-    const grid = ui.column(.{ .gap = 8, .align_items = .center, .children = row_nodes[0..row_count] });
-    if (std.mem.eql(u8, kind, "matrix")) return grid;
-    if (std.mem.eql(u8, kind, "pmatrix") or std.mem.eql(u8, kind, "bmatrix")) {
-        const left = if (std.mem.eql(u8, kind, "pmatrix")) "(" else "[";
-        const right = if (std.mem.eql(u8, kind, "pmatrix")) ")" else "]";
-        return ui.row(.{
-            .gap = 7,
-            .align_items = .center,
-            .children = &.{
-                ui.text(left, .{ .size = 30, .family = .serif, .color = 0xff292d2a }),
-                grid,
-                ui.text(right, .{ .size = 30, .family = .serif, .color = 0xff292d2a }),
-            },
-        });
-    }
-    return grid;
+    return .{ .width = box.width, .ascent = box.height, .descent = box.depth, .commands = box.cmds };
 }
 
-pub fn render(allocator: std.mem.Allocator, source: []const u8) ui.Node {
-    if (findEnv(source)) |env| {
-        return ui.column(.{
-            .width_percent = 100,
-            .align_items = .center,
-            .padding = .{ .top = 7, .bottom = 7 },
-            .children = &.{renderMatrix(allocator, source, env.kind)},
-        });
-    }
-    var arena = std.heap.ArenaAllocator.init(allocator);
-    defer arena.deinit();
-    var parser = Parser{ .arena = arena.allocator(), .src = source };
-    const items = parser.parse() catch return ui.text(source, .{ .size = 15, .family = .serif });
-    if (items.len == 0) return ui.text(source, .{ .size = 15, .family = .serif });
-    return ui.column(.{
+fn errorDrawing(arena: std.mem.Allocator, source: []const u8, options: Options, size: f32) !Drawing {
+    const text = std.mem.trim(u8, source, " \t\n");
+    const m = vector.measure(text, size * 0.9, .math, 400, false);
+    const cmds = try arena.alloc(vector.Command, 1);
+    cmds[0] = .{ .text = .{ .x = 0, .y = 0, .text = text, .size = size * 0.9, .family = .math, .color = options.error_color } };
+    return .{ .width = m.advance, .ascent = @max(m.ascent, m.font_ascent), .descent = @max(m.descent, m.font_descent), .commands = cmds };
+}
+
+/// A centred display formula (KaTeX `.katex-display`: 1em vertical margin).
+pub fn block(source: []const u8, options: Options) ui.Node {
+    var opts = options;
+    opts.display = true;
+    const arena = ui.frameAllocator();
+    const drawing = arena.create(Drawing) catch @panic("Zant UI: out of memory");
+    drawing.* = layout(arena, source, opts) catch errorDrawing(arena, source, opts, opts.size) catch @panic("Zant UI: out of memory");
+    return ui.row(.{
         .width_percent = 100,
-        .align_items = .center,
-        .padding = .{ .top = 7, .bottom = 7 },
-        .children = &.{renderExpr(.{ .row = items }, 20)},
+        .justify = .center,
+        .margin = .{ .top = 0.5 * opts.size, .bottom = 0.5 * opts.size },
+        .children = &.{ui.vector(.{ .drawing = drawing })},
     });
 }
 
+/// Inline (text-style) formula for embedding in rich text.
+pub fn inlineDrawing(arena: std.mem.Allocator, source: []const u8, options: Options) !*const Drawing {
+    var opts = options;
+    opts.display = false;
+    const drawing = try arena.create(Drawing);
+    drawing.* = try layout(arena, source, opts);
+    // keep line metrics stable: never shorter than the surrounding text
+    drawing.ascent = @max(drawing.ascent, 0.75 * opts.size);
+    drawing.descent = @max(drawing.descent, 0.22 * opts.size);
+    return drawing;
+}
+
+/// Backwards-compatible: display formula with default options.
+pub fn render(allocator: std.mem.Allocator, source: []const u8) ui.Node {
+    _ = allocator;
+    return block(source, .{});
+}
+
+/// Plain-text rendering of a formula (copy, word counts, accessibility):
+/// `\frac{a}{b}` → `a/b`, `x^2` → `x²`, `\alpha` → `α`.
 pub fn inlineText(allocator: std.mem.Allocator, source: []const u8) ![]const u8 {
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
-    var parser = Parser{ .arena = arena.allocator(), .src = source };
-    const items = parser.parse() catch return allocator.dupe(u8, source);
-    if (items.len == 0) return allocator.dupe(u8, source);
-    const flat = try parser.flatten(.{ .row = items });
-    return allocator.dupe(u8, flat);
+    const nodes = parser.parse(arena.allocator(), source) catch return allocator.dupe(u8, source);
+    var out: std.ArrayListUnmanaged(u8) = .empty;
+    errdefer out.deinit(allocator);
+    try flatten(allocator, &out, nodes);
+    return out.toOwnedSlice(allocator);
+}
+
+const superscripts = [_][2][]const u8{
+    .{ "0", "⁰" },
+    .{ "1", "¹" },
+    .{ "2", "²" },
+    .{ "3", "³" },
+    .{ "4", "⁴" },
+    .{ "5", "⁵" },
+    .{ "6", "⁶" },
+    .{ "7", "⁷" },
+    .{ "8", "⁸" },
+    .{ "9", "⁹" },
+    .{ "+", "⁺" },
+    .{ "−", "⁻" },
+    .{ "n", "ⁿ" },
+    .{ "i", "ⁱ" },
+};
+const subscripts = [_][2][]const u8{
+    .{ "0", "₀" },
+    .{ "1", "₁" },
+    .{ "2", "₂" },
+    .{ "3", "₃" },
+    .{ "4", "₄" },
+    .{ "5", "₅" },
+    .{ "6", "₆" },
+    .{ "7", "₇" },
+    .{ "8", "₈" },
+    .{ "9", "₉" },
+    .{ "+", "₊" },
+    .{ "−", "₋" },
+    .{ "i", "ᵢ" },
+    .{ "n", "ₙ" },
+};
+
+fn scriptText(allocator: std.mem.Allocator, out: *std.ArrayListUnmanaged(u8), node: *const parser.Node, sup: bool) !void {
+    var tmp: std.ArrayListUnmanaged(u8) = .empty;
+    defer tmp.deinit(allocator);
+    try flatten(allocator, &tmp, &.{node.*});
+    const table = if (sup) &superscripts else &subscripts;
+    var mapped: std.ArrayListUnmanaged(u8) = .empty;
+    defer mapped.deinit(allocator);
+    var it = (std.unicode.Utf8View.init(tmp.items) catch {
+        try out.appendSlice(allocator, if (sup) "^" else "_");
+        try out.appendSlice(allocator, tmp.items);
+        return;
+    }).iterator();
+    while (it.nextCodepointSlice()) |cp| {
+        var found: ?[]const u8 = null;
+        for (table) |entry| if (std.mem.eql(u8, entry[0], cp)) {
+            found = entry[1];
+        };
+        if (found) |f| try mapped.appendSlice(allocator, f) else {
+            try out.appendSlice(allocator, if (sup) "^(" else "_(");
+            try out.appendSlice(allocator, tmp.items);
+            try out.appendSlice(allocator, ")");
+            return;
+        }
+    }
+    try out.appendSlice(allocator, mapped.items);
+}
+
+fn flatten(allocator: std.mem.Allocator, out: *std.ArrayListUnmanaged(u8), nodes: []const parser.Node) anyerror!void {
+    for (nodes) |node| switch (node) {
+        .atom => |a| try out.appendSlice(allocator, a.text),
+        .group => |g| try flatten(allocator, out, g),
+        .supsub => |s| {
+            if (s.base) |b| try flatten(allocator, out, &.{b.*});
+            if (s.sub) |n| try scriptText(allocator, out, n, false);
+            if (s.sup) |n| try scriptText(allocator, out, n, true);
+        },
+        .frac => |f| {
+            try out.appendSlice(allocator, "(");
+            try flatten(allocator, out, f.num);
+            try out.appendSlice(allocator, ")/(");
+            try flatten(allocator, out, f.den);
+            try out.appendSlice(allocator, ")");
+        },
+        .sqrt => |s| {
+            try out.appendSlice(allocator, "√(");
+            try flatten(allocator, out, s.body);
+            try out.appendSlice(allocator, ")");
+        },
+        .left_right => |lr| {
+            try out.appendSlice(allocator, lr.left);
+            try flatten(allocator, out, lr.body);
+            try out.appendSlice(allocator, lr.right);
+        },
+        .sized_delim => |d| try out.appendSlice(allocator, d.delim),
+        .accent => |a| try flatten(allocator, out, a.base),
+        .over_under => |o| try flatten(allocator, out, o.body),
+        .op => |o| {
+            try out.appendSlice(allocator, o.text);
+            if (!o.symbol) try out.append(allocator, ' ');
+        },
+        .text => |t| try out.appendSlice(allocator, t.text),
+        .space => try out.append(allocator, ' '),
+        .array => |a| for (a.rows, 0..) |row, r| {
+            if (r > 0) try out.appendSlice(allocator, "; ");
+            for (row, 0..) |cell, c| {
+                if (c > 0) try out.appendSlice(allocator, ", ");
+                try flatten(allocator, out, cell);
+            }
+        },
+        .color => |c| try flatten(allocator, out, c.body),
+        .style => |s| try flatten(allocator, out, s.body),
+        .phantom => {},
+        .boxed => |b| try flatten(allocator, out, b),
+        .cancel => |c| try flatten(allocator, out, c.body),
+        .stack => |s| try flatten(allocator, out, &.{s.base.*}),
+        .tag => |t| {
+            try out.appendSlice(allocator, " (");
+            try out.appendSlice(allocator, t);
+            try out.appendSlice(allocator, ")");
+        },
+        .unknown => |name| {
+            try out.append(allocator, '\\');
+            try out.appendSlice(allocator, name);
+        },
+    };
+}
+
+test {
+    _ = parser;
+    _ = fonts;
 }

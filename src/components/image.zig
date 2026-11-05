@@ -2,6 +2,7 @@ const std = @import("std");
 const node_mod = @import("../core/node.zig");
 const Canvas = @import("../renderer/canvas.zig").Canvas;
 const geometry = @import("../core/geometry.zig");
+const tokens = @import("../theme/tokens.zig");
 
 pub const Node = node_mod.Node;
 pub const ImageData = node_mod.ImageData;
@@ -49,10 +50,11 @@ pub fn measureHeight(node: *const Node, width: f32) f32 {
     return 120;
 }
 
-pub fn paint(node: *const Node, canvas: Canvas) void {
+pub fn paint(node: *const Node, canvas: Canvas, theme: tokens.Theme) void {
     const data = &node.data.image;
-    if (!node.visible or data.handle == null) {
-        canvas.fillRoundRect(node.bounds, node.visual.radius, 0xfff0f0f0);
+    if (data.handle == null) {
+        // placeholder until the image loads (or when it cannot be decoded)
+        canvas.fillRoundRect(node.bounds, node.visual.radius, theme.color_fill_secondary);
         return;
     }
     zant_canvas_draw_image_rect(canvas.ptr, data.handle, node.bounds.x, node.bounds.y, node.bounds.width, node.bounds.height, node.visual.radius, @backingInt(data.fit));

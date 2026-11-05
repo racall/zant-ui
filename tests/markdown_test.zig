@@ -1,11 +1,18 @@
 const std = @import("std");
 const zant = @import("zant");
+const md = zant.markdown;
+
+test {
+    // run the module's own unit tests (parser, remend, blocks, cache, …)
+    _ = md;
+    _ = zant.math;
+}
 
 test "markdown blocks and inline styles" {
     const source =
         \\# Title
         \\
-        \\Hello **bold** and `code` and $x^2$.
+        \\Hello **bold** and `code` and $$x^2$$.
         \\
         \\- one
         \\- two
@@ -14,221 +21,222 @@ test "markdown blocks and inline styles" {
         \\const x = 1;
         \\```
     ;
-    var doc = try zant.markdown.parse(std.testing.allocator, source);
+    var doc = try md.parse(std.testing.allocator, source);
     defer doc.deinit();
     try std.testing.expectEqual(@as(usize, 4), doc.blocks.len);
-    const heading = doc.blocks[0].heading;
-    try std.testing.expectEqual(@as(u8, 1), heading.level);
-    const para = doc.blocks[1].paragraph;
+    try std.testing.expectEqual(@as(u8, 1), doc.blocks[0].heading.level);
     var has_bold = false;
     var has_code = false;
     var has_math = false;
-    for (para) |span| {
+    for (doc.blocks[1].paragraph) |span| {
         if (span.style.bold) has_bold = true;
         if (span.style.code) has_code = true;
         if (span.style.math) has_math = true;
     }
     try std.testing.expect(has_bold and has_code and has_math);
-    const list = doc.blocks[2].list;
-    try std.testing.expectEqual(@as(usize, 2), list.items.len);
+    try std.testing.expectEqual(@as(usize, 2), doc.blocks[2].list.items.len);
     try std.testing.expectEqualStrings("const x = 1;", doc.blocks[3].code.text);
+    try std.testing.expectEqualStrings("zig", doc.blocks[3].code.lang);
 }
 
 test "markdown table and task list" {
     const source =
         \\| Name | Value |
-        \\| --- | --- |
+        \\| --- | ---: |
         \\| A | 1 |
         \\
         \\- [x] done
         \\- [ ] todo
     ;
-    var doc = try zant.markdown.parse(std.testing.allocator, source);
+    var doc = try md.parse(std.testing.allocator, source);
     defer doc.deinit();
     try std.testing.expectEqual(@as(usize, 2), doc.blocks.len);
-    try std.testing.expectEqual(@as(usize, 2), doc.blocks[1].list.items.len);
-    try std.testing.expect(doc.blocks[1].list.checked[0].?);
+    const table = doc.blocks[0].table;
+    try std.testing.expectEqual(md.ast.Align.right, table.aligns[1]);
+    try std.testing.expectEqualStrings("A", table.raw_rows[0][0]);
+    try std.testing.expect(doc.blocks[1].list.items[0].checked.?);
+    try std.testing.expect(!doc.blocks[1].list.items[1].checked.?);
 }
 
-test "markdown document renders to Zant nodes" {
-    var doc = try zant.markdown.parse(std.testing.allocator, "# Title\n\nHello **world**.");
+test "setext heading, autolinks, indented code" {
+    var doc = try md.parse(std.testing.allocator, "Title\n=====\n\n<https://example.com>\n\n    let x = 1;\n    let y = 2;\n");
     defer doc.deinit();
-    zant.ui.beginFrame();
-    defer zant.ui.endFrame();
-    const node = doc.render();
-    try std.testing.expect(node.element.children.len > 0);
-}
-
-test "markdown display math block renders" {
-    var doc = try zant.markdown.parse(std.testing.allocator, "$$\\frac{a}{b}$$");
-    defer doc.deinit();
-    try std.testing.expectEqual(@as(usize, 1), doc.blocks.len);
-    try std.testing.expectEqualStrings("\\frac{a}{b}", doc.blocks[0].math);
-    zant.ui.beginFrame();
-    defer zant.ui.endFrame();
-    _ = doc.render();
-}
-
-test "math script formula renders" {
-    zant.ui.beginFrame();
-    defer zant.ui.endFrame();
-    _ = zant.math.render(std.testing.allocator, "a^2 + b^2 = c^2");
-}
-
-test "math fraction uses native layout" {
-    zant.ui.beginFrame();
-    defer zant.ui.endFrame();
-    _ = zant.math.render(std.testing.allocator, "\\frac{a}{b} + \\sqrt{x}");
-}
-
-test "inline math flattens to unicode" {
-    const text = try zant.math.inlineText(std.testing.allocator, "a^2 + \\frac{a}{b}");
-    defer std.testing.allocator.free(text);
-    try std.testing.expect(std.mem.indexOf(u8, text, "a²") != null);
-    try std.testing.expect(std.mem.indexOf(u8, text, "(a)/(b)") != null);
-}
-
-test "math matrix renders rows and columns" {
-    zant.ui.beginFrame();
-    defer zant.ui.endFrame();
-    _ = zant.math.render(std.testing.allocator,
-        "\\\\begin{matrix} a & b \\\\\\\\ c & d \\\\end{matrix}");
-}
-
-test "setext heading and gfm autolink" {
-    const source = "Title\n=====\n\n<https://example.com>\n";
-    var doc = try zant.markdown.parse(std.testing.allocator, source);
-    defer doc.deinit();
-    try std.testing.expectEqual(@as(usize, 2), doc.blocks.len);
+    try std.testing.expectEqual(@as(usize, 3), doc.blocks.len);
     try std.testing.expectEqual(@as(u8, 1), doc.blocks[0].heading.level);
-    const para = doc.blocks[1].paragraph;
-    try std.testing.expect(para.len > 0 and para[0].style.link);
+    try std.testing.expect(doc.blocks[1].paragraph[0].style.link);
+    try std.testing.expectEqualStrings("let x = 1;\nlet y = 2;", doc.blocks[2].code.text);
 }
 
-test "indented code block" {
-    var doc = try zant.markdown.parse(std.testing.allocator, "    let x = 1;\n    let y = 2;\n");
+test "nested blockquote and nested lists" {
+    var doc = try md.parse(std.testing.allocator, "> outer\n>> inner\n\n- a\n  - b\n    - c\n");
     defer doc.deinit();
-    try std.testing.expectEqual(@as(usize, 1), doc.blocks.len);
-    try std.testing.expectEqualStrings("let x = 1;\nlet y = 2;", doc.blocks[0].code.text);
-}
-
-test "math radical has an overline" {
-    zant.ui.beginFrame();
-    defer zant.ui.endFrame();
-    _ = zant.math.render(std.testing.allocator, "\\sqrt{x^2 + y^2}");
-}
-
-test "link reference definitions resolve" {
-    const source = "[site]: https://example.com\n\nRead [the site][site].\n";
-    var doc = try zant.markdown.parse(std.testing.allocator, source);
-    defer doc.deinit();
-    try std.testing.expectEqual(@as(usize, 1), doc.blocks.len);
-    const para = doc.blocks[0].paragraph;
-    var linked = false;
-    for (para) |span| if (span.style.link) { linked = true; };
-    try std.testing.expect(linked);
-}
-
-test "nested blockquote" {
-    var doc = try zant.markdown.parse(std.testing.allocator, "> outer\n>> inner\n");
-    defer doc.deinit();
-    try std.testing.expectEqual(@as(usize, 1), doc.blocks.len);
     const outer = doc.blocks[0].quote;
     try std.testing.expectEqual(@as(usize, 2), outer.len);
     try std.testing.expectEqual(@as(usize, 1), outer[1].quote.len);
+    const level1 = doc.blocks[1].list;
+    const level2 = level1.items[0].blocks[1].list;
+    const level3 = level2.items[0].blocks[1].list;
+    try std.testing.expectEqual(@as(usize, 1), level3.items.len);
 }
 
-test "gfm table alignment" {
-    const source = "| A | B |\n| :--- | ---: |\n| 1 | 2 |\n";
-    var doc = try zant.markdown.parse(std.testing.allocator, source);
+test "entities, escapes, breaks" {
+    var doc = try md.parse(std.testing.allocator, "a &amp; b &lt;tag&gt; \\*not italic\\* `a < b`\none\ntwo  \nthree");
     defer doc.deinit();
-    const table = doc.blocks[0].table;
-    try std.testing.expectEqual(@as(usize, 2), table.aligns.len);
-    try std.testing.expectEqual(.start, table.aligns[0]);
-    try std.testing.expectEqual(.end, table.aligns[1]);
-}
-
-test "nested list indentation" {
-    var doc = try zant.markdown.parse(std.testing.allocator, "- a\n  - b\n    - c\n");
-    defer doc.deinit();
-    const list = doc.blocks[0].list;
-    try std.testing.expectEqual(@as(usize, 3), list.items.len);
-    try std.testing.expectEqual(@as(u2, 0), list.indents[0]);
-    try std.testing.expectEqual(@as(u2, 1), list.indents[1]);
-    try std.testing.expectEqual(@as(u2, 2), list.indents[2]);
-}
-
-test "html entities decode in plain text" {
-    var doc = try zant.markdown.parse(std.testing.allocator, "a &amp; b &lt;tag&gt;");
-    defer doc.deinit();
-    const para = doc.blocks[0].paragraph;
-    var found_amp = false;
-    var found_lt = false;
-    for (para) |span| {
-        if (std.mem.indexOf(u8, span.text, "&") != null) found_amp = true;
-        if (std.mem.indexOf(u8, span.text, "<") != null) found_lt = true;
+    var joined: std.ArrayListUnmanaged(u8) = .empty;
+    defer joined.deinit(std.testing.allocator);
+    for (doc.blocks[0].paragraph) |span| {
+        try std.testing.expect(!span.style.italic);
+        try joined.appendSlice(std.testing.allocator, span.text);
     }
-    try std.testing.expect(found_amp and found_lt);
+    try std.testing.expect(std.mem.indexOf(u8, joined.items, "a & b <tag>") != null);
+    try std.testing.expect(std.mem.indexOf(u8, joined.items, "one two") != null);
+    try std.testing.expect(std.mem.indexOf(u8, joined.items, "two\nthree") != null);
 }
 
-test "soft break becomes space and hard break keeps newline" {
-    var doc = try zant.markdown.parse(std.testing.allocator, "one\ntwo  \nthree");
+test "thematic break and html block" {
+    var doc = try md.parse(std.testing.allocator, "a\n\n* * *\n\n<div>hello</div>\n");
     defer doc.deinit();
-    const para = doc.blocks[0].paragraph;
-    var joined: [64]u8 = undefined;
-    var n: usize = 0;
-    for (para) |span| {
-        for (span.text) |c| {
-            if (n < joined.len) { joined[n] = c; n += 1; }
-        }
+    try std.testing.expectEqual(md.Block.rule, doc.blocks[1]);
+    try std.testing.expectEqualStrings("<div>hello</div>", doc.blocks[2].html);
+}
+
+pub const full_sample =
+    \\---
+    \\title: Sample
+    \\---
+    \\
+    \\# Heading with $$E=mc^2$$
+    \\
+    \\Paragraph with **bold**, *italic*, ~~strike~~, ==mark==, `code`, [link](https://example.com), <https://zant.dev>, a footnote[^1] and $$\frac{a}{b}$$ inline.
+    \\
+    \\> [!TIP]
+    \\> A callout with **markdown**.
+    \\
+    \\> A quote
+    \\> > nested
+    \\
+    \\1. first
+    \\2. second
+    \\   - [x] task
+    \\   - [ ] todo
+    \\
+    \\| Left | Center | Right |
+    \\| :--- | :---: | ---: |
+    \\| a | b | c |
+    \\
+    \\```ts
+    \\const x: number = 42; // answer
+    \\function f(a: string) { return `v${a}`; }
+    \\```
+    \\
+    \\```mermaid
+    \\graph TD
+    \\  A[Start] --> B{Ok?}
+    \\  B -->|yes| C(Done)
+    \\  B -->|no| A
+    \\```
+    \\
+    \\```mermaid
+    \\sequenceDiagram
+    \\  Alice->>Bob: Hello
+    \\  Bob-->>Alice: Hi
+    \\```
+    \\
+    \\```mermaid
+    \\pie title Pets
+    \\  "Dogs" : 386
+    \\  "Cats" : 85
+    \\```
+    \\
+    \\$$
+    \\\sum_{k=1}^{n} k = \frac{n(n+1)}{2}
+    \\$$
+    \\
+    \\![alt text](https://example.com/a.png)
+    \\
+    \\---
+    \\
+    \\[^1]: The footnote.
+;
+
+test "full document renders" {
+    var doc = try md.parse(std.testing.allocator, full_sample);
+    defer doc.deinit();
+    try std.testing.expectEqualStrings("title: Sample", doc.front_matter);
+    try std.testing.expectEqual(@as(usize, 1), doc.footnotes.len);
+    zant.ui.beginFrame();
+    defer zant.ui.endFrame();
+    const node = md.renderDocument(&doc, .{ .is_animating = true, .caret = .block });
+    try std.testing.expect(node.element.children.len > 0);
+    const dark = md.renderDocument(&doc, .{ .theme = md.theme.dark(), .labels = md.Labels.zh });
+    try std.testing.expect(dark.element.children.len > 0);
+}
+
+test "streamdown view memoises blocks" {
+    var cache = md.Cache.init(std.testing.allocator);
+    defer cache.deinit();
+    zant.ui.beginFrame();
+    const first = md.streamdown(&cache, "# A\n\npara **bo", .{ .mode = .streaming, .render = .{ .is_animating = true, .caret = .block } });
+    const first_hash = first.element.children[0].element.memo_hash.?;
+    zant.ui.endFrame();
+    try std.testing.expectEqual(@as(usize, 2), first.element.children.len);
+    zant.ui.beginFrame();
+    defer zant.ui.endFrame();
+    const second = md.streamdown(&cache, "# A\n\npara **bold** done", .{ .mode = .streaming, .render = .{ .is_animating = true, .caret = .block } });
+    // the unchanged heading block keeps its memo hash
+    try std.testing.expectEqual(first_hash, second.element.children[0].element.memo_hash.?);
+}
+
+test "block keys are stable across insertions and resolvable by offset" {
+    var cache = md.Cache.init(std.testing.allocator);
+    defer cache.deinit();
+    const src1 = "# A\n\nOne.\n\n## B\n\nTwo.";
+    zant.ui.beginFrame();
+    const first = md.streamdown(&cache, src1, .{});
+    const heading_key = try std.testing.allocator.dupe(u8, first.element.children[2].element.key.?);
+    defer std.testing.allocator.free(heading_key);
+    zant.ui.endFrame();
+    zant.ui.beginFrame();
+    defer zant.ui.endFrame();
+    const src2 = "# A\n\nInserted.\n\nOne.\n\n## B\n\nTwo.";
+    const second = md.streamdown(&cache, src2, .{});
+    try std.testing.expectEqualStrings(heading_key, second.element.children[3].element.key.?);
+    var buf: [64]u8 = undefined;
+    const offset = std.mem.indexOf(u8, src2, "## B").?;
+    try std.testing.expectEqualStrings(heading_key, md.blockKeyAtOffset(&cache, "md", offset + 2, &buf).?);
+}
+
+test "editor renders in every mode" {
+    var cache = md.Cache.init(std.testing.allocator);
+    defer cache.deinit();
+    zant.ui.beginFrame();
+    defer zant.ui.endFrame();
+    inline for (.{ md.EditorMode.edit, md.EditorMode.split, md.EditorMode.preview }) |mode| {
+        const node = md.editor(.{ .value = "# Hi\n\n- a", .mode = mode, .cache = &cache, .labels = md.EditorLabels.zh });
+        try std.testing.expect(node.element.children.len == 2);
     }
-    try std.testing.expect(std.mem.indexOf(u8, joined[0..n], "one two") != null);
-    try std.testing.expect(std.mem.indexOf(u8, joined[0..n], "three") != null);
 }
 
-test "gfm bare autolinks" {
-    var doc = try zant.markdown.parse(std.testing.allocator, "Visit https://example.com and www.example.org.");
-    defer doc.deinit();
-    const para = doc.blocks[0].paragraph;
-    var links: usize = 0;
-    for (para) |span| {
-        if (span.style.link) links += 1;
-    }
-    try std.testing.expectEqual(@as(usize, 2), links);
+test "link safety modal" {
+    zant.ui.beginFrame();
+    defer zant.ui.endFrame();
+    const node = md.linkSafetyModal(.{ .url = "https://example.com", .labels = md.Labels.zh });
+    try std.testing.expect(node.element.layout.absolute);
 }
 
-test "thematic break with spaces" {
-    var doc = try zant.markdown.parse(std.testing.allocator, "a\n\n* * *\n\nb");
-    defer doc.deinit();
-    try std.testing.expectEqual(@as(usize, 3), doc.blocks.len);
-    try std.testing.expectEqual(@as(zant.markdown.Block, .rule), doc.blocks[1]);
-}
-
-test "html block is preserved" {
-    var doc = try zant.markdown.parse(std.testing.allocator, "<div>hello</div>\n");
-    defer doc.deinit();
-    try std.testing.expectEqual(@as(usize, 1), doc.blocks.len);
-    try std.testing.expectEqualStrings("<div>hello</div>", doc.blocks[0].html);
-}
-
-test "backslash escapes emphasis" {
-    var doc = try zant.markdown.parse(std.testing.allocator, "\\*not italic\\*");
-    defer doc.deinit();
-    const para = doc.blocks[0].paragraph;
-    var italic = false;
-    for (para) |span| {
-        if (span.style.italic) italic = true;
-    }
-    try std.testing.expect(!italic);
-}
-
-test "code span keeps raw entities" {
-    var doc = try zant.markdown.parse(std.testing.allocator, "`a < b & c`");
-    defer doc.deinit();
-    const para = doc.blocks[0].paragraph;
-    var found_lt = false;
-    for (para) |span| {
-        if (span.style.code and std.mem.indexOf(u8, span.text, "<") != null) found_lt = true;
-    }
-    try std.testing.expect(found_lt);
+test "heading keys resolve to rendered heading nodes, also in single-block documents" {
+    var cache = md.Cache.init(std.testing.allocator);
+    defer cache.deinit();
+    // the footnote keeps the whole document in one block
+    const src = "# A\n\ntext[^1]\n\n## B\n\nmore\n\n[^1]: note";
+    zant.ui.beginFrame();
+    defer zant.ui.endFrame();
+    _ = md.streamdown(&cache, src, .{});
+    try std.testing.expectEqual(@as(usize, 1), cache.entries.items.len);
+    var buf: [64]u8 = undefined;
+    const key = md.headingKey(&cache, "md", 1, &buf).?;
+    var expect_buf: [64]u8 = undefined;
+    const expected = try std.fmt.bufPrint(&expect_buf, "md-e{d}-2", .{cache.entries.items[0].id});
+    try std.testing.expectEqualStrings(expected, key);
+    try std.testing.expect(md.headingKey(&cache, "md", 2, &buf) == null);
 }

@@ -2,6 +2,7 @@ const std = @import("std");
 const node_mod = @import("../core/node.zig");
 const text = @import("../renderer/text.zig");
 const tokens = @import("../theme/tokens.zig");
+const motion = @import("../motion/motion.zig");
 const unicode = @import("../core/unicode.zig");
 const Canvas = @import("../renderer/canvas.zig").Canvas;
 const geometry = @import("../core/geometry.zig");
@@ -13,9 +14,25 @@ pub const Theme = tokens.Theme;
 pub const default_width: f32 = 220;
 pub const default_height: f32 = 32;
 pub const padding_x: f32 = 11;
+
+/// Left edge of the text column (centred when `content_max_width` is set).
+pub fn textLeft(data: *const InputData, node: *const Node) f32 {
+    const full = @max(0, node.bounds.width - padding_x * 2);
+    if (data.content_max_width > 0 and full > data.content_max_width) {
+        return node.bounds.x + (node.bounds.width - data.content_max_width) * 0.5;
+    }
+    return node.bounds.x + padding_x;
+}
+
+/// Width of the text column.
+pub fn textWidth(data: *const InputData, node: *const Node) f32 {
+    const full = @max(0, node.bounds.width - padding_x * 2);
+    if (data.content_max_width > 0) return @min(full, data.content_max_width);
+    return full;
+}
 pub const blink_interval_ms: i64 = 530;
 
-pub const Move = enum { left, right, home, end, word_left, word_right };
+pub const Move = enum { left, right, home, end, word_left, word_right, up, down, line_start, line_end, doc_start, doc_end };
 
 pub fn measureWidth(node: *Node) f32 {
     if (node.style.width) |w| return w;
@@ -91,6 +108,8 @@ fn replaceRange(allocator: std.mem.Allocator, data: *InputData, start: usize, en
     const cursor = start + value.len;
     data.cursor = @min(cursor, data.text.items.len);
     data.anchor = data.cursor;
+    data.preferred_x = null;
+    data.reveal_caret = true;
     data.has_composition = false;
     data.composition.clearRetainingCapacity();
     data.composition_cursor = 0;
@@ -134,10 +153,8 @@ pub fn deleteForward(allocator: std.mem.Allocator, data: *InputData) bool {
 
 fn moveTo(data: *InputData, target: usize, extend: bool) void {
     const clamped = @min(target, data.text.items.len);
+    data.reveal_caret = true;
     if (extend) {
-        if (data.anchor == data.cursor) {
-            data.anchor = data.cursor;
-        }
         data.cursor = clamped;
     } else {
         data.cursor = clamped;
@@ -169,6 +186,26 @@ pub fn moveWordRight(data: *InputData, extend: bool) void {
     moveTo(data, unicode.wordEnd(data.text.items, data.cursor), extend);
 }
 
+/// Moves the caret one visual line up or down, keeping its column.
+pub fn moveVertical(data: *InputData, down: bool, extend: bool) void {
+    const layout = ensureLayout(data) catch return;
+    const r = layout.caretRect(data.cursor) orelse return;
+    const x = data.preferred_x orelse r.x;
+    data.preferred_x = x;
+    const y = if (down) r.y + r.height + 1 else r.y - 1;
+    if (y < 0) return moveTo(data, 0, extend);
+    if (y >= layout.metrics.height) return moveTo(data, data.text.items.len, extend);
+    moveTo(data, @min(layout.indexAt(x, y), data.text.items.len), extend);
+}
+
+/// Start (`end == false`) or end of the visual line holding the caret.
+pub fn moveLineEdge(data: *InputData, end: bool, extend: bool) void {
+    const layout = ensureLayout(data) catch return;
+    const r = layout.caretRect(data.cursor) orelse return;
+    const y = r.y + r.height * 0.5;
+    moveTo(data, @min(layout.indexAt(if (end) 1.0e6 else 0, y), data.text.items.len), extend);
+}
+
 pub fn selectAll(data: *InputData) void {
     data.anchor = 0;
     data.cursor = data.text.items.len;
@@ -176,11 +213,13 @@ pub fn selectAll(data: *InputData) void {
 
 pub fn cursorFromPoint(data: *InputData, node: *const Node, x: f32, y: f32) void {
     const layout = ensureLayout(data) catch return;
-    const inner_x = node.bounds.x + padding_x - data.scroll_x;
+    const inner_x = textLeft(data, node) - data.scroll_x;
     const inner_y = if (data.multiline) node.bounds.y + 8 else node.bounds.y + (node.bounds.height - layout.metrics.height) * 0.5;
     const byte = layout.indexAt(x - inner_x, y - inner_y);
     data.cursor = @min(byte, data.text.items.len);
     data.anchor = data.cursor;
+    data.preferred_x = null;
+    data.reveal_caret = true;
 }
 
 pub fn beginComposition(
@@ -199,6 +238,7 @@ pub fn beginComposition(
     data.composition.appendSlice(allocator, marked) catch return;
     data.composition_cursor = unicode.utf16ToByte(marked, selection_end_utf16);
     data.anchor = data.cursor;
+    data.reveal_caret = true;
     rebuildDisplay(allocator, data);
 }
 
@@ -220,12 +260,15 @@ pub fn ensureCaretVisible(data: *InputData, available_width: f32, view_height: f
     const caret_byte = if (data.has_composition) data.cursor + data.composition_cursor else data.cursor;
     const caret = layout.caretRect(caret_byte) orelse return;
     const width = @max(available_width, 1);
-    if (!data.focused) {
+    // Only follow the caret after an edit / caret move / controlled
+    // selection; otherwise just clamp, so the user can scroll away freely.
+    if (!data.reveal_caret) {
         const max_x = @max(0, layout.metrics.longest_line - width + 2);
         data.scroll_x = @max(0, @min(data.scroll_x, max_x));
         if (data.multiline) data.scroll_y = @max(0, @min(data.scroll_y, maxScrollY(data, view_height)));
         return;
     }
+    data.reveal_caret = false;
     if (caret.x - data.scroll_x > width - 2) {
         data.scroll_x = caret.x - width + 2;
     } else if (caret.x - data.scroll_x < 0) {
@@ -250,9 +293,16 @@ pub fn caretRect(data: *InputData, node: *const Node) ?geometry.Rect {
     const layout = ensureLayout(data) catch return null;
     const caret_byte = if (data.has_composition) data.cursor + data.composition_cursor else data.cursor;
     const local = layout.caretRect(caret_byte) orelse return null;
-    const x = node.bounds.x + padding_x - data.scroll_x + local.x;
-    const y = (if (data.multiline) node.bounds.y + 8 - data.scroll_y else node.bounds.y + (node.bounds.height - layout.metrics.height) * 0.5) + local.y;
-    return geometry.Rect.init(x, y, @max(local.width, 1.5), @max(local.height, data.font_size));
+    const x = textLeft(data, node) - data.scroll_x + local.x;
+    const line_top = (if (data.multiline) node.bounds.y + 8 - data.scroll_y else node.bounds.y + (node.bounds.height - layout.metrics.height) * 0.5) + local.y;
+    // Skia reports the whole line box; with a tall line height (e.g. 2.0)
+    // that would make the caret twice the text height. Keep the caret at
+    // the font's own height and sit it on the baseline: the line box grows
+    // proportionally around ascent/descent (~80% / 20%).
+    const line_h = @max(local.height, data.font_size);
+    const caret_h = @min(line_h, data.font_size * 1.3);
+    const baseline = line_top + line_h * 0.8;
+    return geometry.Rect.init(x, baseline - caret_h * 0.8, @max(local.width, 1.5), caret_h);
 }
 
 pub fn updateBlink(data: *InputData, node: *const Node, now_ms: i64) bool {
@@ -285,31 +335,33 @@ pub fn paint(node: *Node, canvas: Canvas, theme: Theme) void {
         data.invalidateLayout();
     }
     const bg = node.visual.background orelse if (enabled) theme.color_bg_container else theme.color_fill_secondary;
+    // antd: border eases to primary-hover on hover and primary on focus,
+    // with a soft outline ring fading in
+    const hover_t = if (enabled) data.hover_t else 0;
+    const focus_t = if (enabled) data.focus_t else 0;
     const default_border = if (!enabled)
         theme.color_border
-    else if (data.focused)
-        theme.color_primary
-    else if (data.hovered)
-        theme.color_primary_hover
     else
-        theme.color_border;
+        tokens.lerp(tokens.lerp(theme.color_border, theme.color_primary_hover, hover_t), theme.color_primary, focus_t);
     const border = node.visual.border_color orelse default_border;
 
-    if (data.focused and enabled and data.focus_ring) {
+    if (focus_t > 0.01 and data.focus_ring) {
         const shadow = geometry.Rect.init(rect.x - 3, rect.y - 3, rect.width + 6, rect.height + 6);
-        canvas.fillRoundRect(shadow, node.visual.radius + 3, tokens.withAlpha(theme.color_primary, 0x18));
+        canvas.fillRoundRect(shadow, node.visual.radius + 3, tokens.withAlpha(theme.color_primary, @intFromFloat(0x18 * focus_t)));
     }
     canvas.fillRoundRect(rect, node.visual.radius, bg);
     canvas.strokeRoundRect(
         geometry.Rect.init(rect.x + 0.5, rect.y + 0.5, @max(0, rect.width - 1), @max(0, rect.height - 1)),
         node.visual.radius,
         border,
-        if (data.focused) 1.5 else 1.0,
+        1.0 + 0.5 * focus_t,
     );
 
-    data.available_width = @max(0, rect.width - padding_x * 2);
+    const new_width = textWidth(data, node);
+    if (data.multiline and @abs(new_width - data.available_width) > 0.5) data.invalidateLayout();
+    data.available_width = new_width;
     const inner = geometry.Rect.init(
-        rect.x + padding_x,
+        textLeft(data, node),
         rect.y + 1,
         data.available_width,
         @max(0, rect.height - 2),
@@ -323,17 +375,23 @@ pub fn paint(node: *Node, canvas: Canvas, theme: Theme) void {
     };
     ensureCaretVisible(data, inner.width, inner.height);
     const text_y = if (data.multiline) rect.y + 8 - data.scroll_y else rect.y + (rect.height - layout.metrics.height) * 0.5;
-    const origin_x = rect.x + padding_x - data.scroll_x;
+    const origin_x = textLeft(data, node) - data.scroll_x;
 
     if (data.text.items.len == 0 and !data.has_composition) {
         if (ensurePlaceholder(data, theme)) |placeholder| {
-            placeholder.paint(canvas, rect.x + padding_x, text_y);
+            placeholder.paint(canvas, textLeft(data, node), text_y);
         }
     } else {
         if (!data.has_composition and hasSelection(data)) {
             const range = selectionRange(data);
-            var rects: [64]text.NativeRect = undefined;
-            const count = layout.rangeRects(range.start, range.end, &rects);
+            // only the visible part of the selection (long selections in the
+            // editor would otherwise exceed the rect buffer)
+            const vis_start = if (data.multiline) layout.indexAt(0, data.scroll_y - 2) else 0;
+            const vis_end = if (data.multiline) layout.indexAt(1.0e6, data.scroll_y + inner.height + 2) else data.text.items.len;
+            const sel_start = @max(range.start, @min(vis_start, range.end));
+            const sel_end = @min(range.end, @max(vis_end, sel_start));
+            var rects: [256]text.NativeRect = undefined;
+            const count = if (sel_end > sel_start) layout.rangeRects(sel_start, sel_end, &rects) else 0;
             for (rects[0..count]) |r| {
                 if (r.width <= 0 or r.height <= 0) continue;
                 canvas.fillRect(
@@ -345,7 +403,7 @@ pub fn paint(node: *Node, canvas: Canvas, theme: Theme) void {
         layout.paint(canvas, origin_x, text_y);
 
         if (data.has_composition and data.composition.items.len > 0) {
-            var rects: [64]text.NativeRect = undefined;
+            var rects: [256]text.NativeRect = undefined;
             const start = data.cursor;
             const end = data.cursor + data.composition.items.len;
             const count = layout.rangeRects(start, end, &rects);
@@ -369,4 +427,28 @@ pub fn paint(node: *Node, canvas: Canvas, theme: Theme) void {
     }
 
     canvas.restore();
+
+    // overlay scroll indicator on the input's right edge
+    if (data.multiline) {
+        const view = @max(1, rect.height - 16);
+        const max_scroll = maxScrollY(data, view);
+        if (max_scroll > 0.5) {
+            const content = view + max_scroll;
+            const track = rect.height - 8;
+            const thumb = @max(28, track * view / content);
+            const y = rect.y + 4 + (track - thumb) * (data.scroll_y / max_scroll);
+            canvas.fillRoundRect(geometry.Rect.init(rect.right() - 7, y, 3.5, thumb), 1.75, tokens.withAlpha(theme.color_text, 0x40));
+        }
+    }
+}
+
+/// Border / focus-ring transitions (antd 200ms ease-in-out). Returns true
+/// while another frame is needed. The caret blink is driven separately.
+pub fn animate(data: *InputData, now: i64, theme: Theme) bool {
+    const mid: motion.Transition = .{ .duration_ms = @intCast(theme.motion_duration_mid), .easing = .ease_in_out };
+    data.hover.retarget(if (data.hovered) 1 else 0, now, mid);
+    data.focus_anim.retarget(if (data.focused) 1 else 0, now, mid);
+    data.hover_t = data.hover.value(now);
+    data.focus_t = data.focus_anim.value(now);
+    return !(data.hover.done(now) and data.focus_anim.done(now));
 }

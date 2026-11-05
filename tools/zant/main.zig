@@ -548,6 +548,8 @@ fn cmdCreate(allocator: std.mem.Allocator, io: Io, args: []const [:0]const u8) !
     defer allocator.free(agents);
     const claude = try readFile(allocator, io, try std.fs.path.join(allocator, &.{ zroot, "scaffold/template/CLAUDE.md" }));
     defer allocator.free(claude);
+    const design = try readFile(allocator, io, try std.fs.path.join(allocator, &.{ zroot, "scaffold/template/DESIGN.md" }));
+    defer allocator.free(design);
 
     const zant_rel = try std.fs.path.relativeAlloc(allocator, cwd, null, target, zroot);
     defer allocator.free(zant_rel);
@@ -595,6 +597,10 @@ fn cmdCreate(allocator: std.mem.Allocator, io: Io, args: []const [:0]const u8) !
     const claude_path = try std.fs.path.join(allocator, &.{ target, "CLAUDE.md" });
     defer allocator.free(claude_path);
     try writeFile(allocator, io, claude_path, claude_text);
+    // UI/UX design guide (highest-priority rules for AI agents)
+    const design_path = try std.fs.path.join(allocator, &.{ target, "DESIGN.md" });
+    defer allocator.free(design_path);
+    try writeFile(allocator, io, design_path, design);
 
     const sandbox_text = if (sandbox) "true" else "false";
     const sign_display = if (std.mem.eql(u8, identity, "none")) "Ad-hoc（无开发者账号）" else identity;
@@ -733,7 +739,12 @@ fn cmdRun(allocator: std.mem.Allocator, io: Io, release: bool) !void {
         try runInherit(allocator, io, args, root);
         const exe = try std.fmt.allocPrint(allocator, "{s}/zig-out/bin/app", .{root});
         defer allocator.free(exe);
-        try runInherit(allocator, io, &.{exe}, root);
+        if (rawLogs()) {
+            try runInherit(allocator, io, &.{exe}, root);
+        } else {
+            const argv = appArgv(exe);
+            try runInherit(allocator, io, &argv, root);
+        }
     }
 }
 
@@ -760,35 +771,63 @@ fn hashFileStamp(hash: *std.hash.Wyhash, io: Io, path: []const u8) void {
     hash.update(std.mem.asBytes(&st.size));
 }
 
+fn hashTree(allocator: std.mem.Allocator, io: Io, hash: *std.hash.Wyhash, dir_path: []const u8, depth: usize) void {
+    if (depth > 8) return;
+    var dir = Dir.cwd().openDir(io, dir_path, .{ .iterate = true }) catch return;
+    defer dir.close(io);
+    var it = dir.iterate();
+    while (it.next(io) catch null) |entry| {
+        const path = std.fs.path.join(allocator, &.{ dir_path, entry.name }) catch continue;
+        defer allocator.free(path);
+        switch (entry.kind) {
+            .directory => hashTree(allocator, io, hash, path, depth + 1),
+            .file => if (std.mem.endsWith(u8, entry.name, ".zig")) hashFileStamp(hash, io, path),
+            else => {},
+        }
+    }
+}
+
+/// Fingerprint of everything that affects the app build: the config files
+/// and every `.zig` file under `src/` (any depth).
 fn sourceStamp(allocator: std.mem.Allocator, io: Io, root: []const u8) !u64 {
     var hash = std.hash.Wyhash.init(0);
-    const files = [_][]const u8{
-        "app.config.json", "build.zig",     "build.zig.zon",
-        "src/main.zig",    "src/state.zig",
-    };
+    const files = [_][]const u8{ "app.config.json", "build.zig", "build.zig.zon" };
     for (files) |rel| {
         const path = try std.fs.path.join(allocator, &.{ root, rel });
         defer allocator.free(path);
         hashFileStamp(&hash, io, path);
     }
-    const comp_dir_path = try std.fs.path.join(allocator, &.{ root, "src/components" });
-    defer allocator.free(comp_dir_path);
-    if (Dir.cwd().openDir(io, comp_dir_path, .{ .iterate = true })) |dir_const| {
-        var dir = dir_const;
-        defer dir.close(io);
-        var it = dir.iterate();
-        while (try it.next(io)) |entry| {
-            if (entry.kind != .file) continue;
-            const path = try std.fs.path.join(allocator, &.{ comp_dir_path, entry.name });
-            hashFileStamp(&hash, io, path);
-        }
-    } else |_| {}
+    const src = try std.fs.path.join(allocator, &.{ root, "src" });
+    defer allocator.free(src);
+    hashTree(allocator, io, &hash, src, 0);
     return hash.final();
 }
 
+/// Harmless macOS framework log lines (InputMethodKit / Text Services
+/// Manager) that unbundled apps launched from a terminal print when an input
+/// method attaches. They do not affect input; `zant run` hides them unless
+/// ZANT_RAW_LOGS=1.
+const benign_log_filter =
+    "exec \"$0\" \"$@\" 2> >(grep --line-buffered -v " ++
+    "-e 'IMKCFRunLoopWakeUpReliable' -e 'IMKClient Stall detected' " ++
+    "-e 'TSM AdjustCapsLockLEDForKeyTransitionHandling' >&2)";
+
+/// argv that runs `exe` with benign system log lines filtered from stderr.
+/// `exec` keeps the app's pid, so waiting / killing the child still works.
+fn appArgv(exe: []const u8) [4][]const u8 {
+    return .{ "/bin/bash", "-c", benign_log_filter, exe };
+}
+
+fn rawLogs() bool {
+    const value = std.c.getenv("ZANT_RAW_LOGS") orelse return false;
+    return value[0] == '1';
+}
+
 fn spawnApp(io: Io, exe: []const u8, root: []const u8) !std.process.Child {
+    const filtered = appArgv(exe);
+    const plain = [_][]const u8{exe};
     return std.process.spawn(io, .{
-        .argv = &.{exe},
+        .argv = if (rawLogs()) &plain else &filtered,
         .cwd = .{ .path = root },
         .stdin = .inherit,
         .stdout = .inherit,

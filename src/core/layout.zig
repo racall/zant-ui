@@ -76,7 +76,7 @@ fn visibleChildren(children: []const NodeId, nodes: []*Node, out: *std.ArrayList
     out.clearRetainingCapacity();
     for (children) |id| {
         const child = nodes[id];
-        if (!child.visible) continue;
+        if (!child.inFlow()) continue;
         try out.append(allocator, id);
     }
 }
@@ -93,7 +93,8 @@ pub fn intrinsicWidth(nodes: []*Node, node: *Node, max_avail: f32, theme: Theme)
             var index: usize = 0;
             for (node.children.items) |id| {
                 const child = nodes[id];
-                if (!child.visible) continue;
+                // absolutely positioned children do not size their parent
+                if (!child.inFlow() or child.style.absolute) continue;
                 const child_width = intrinsicWidth(nodes, child, avail, theme) +
                     child.style.margin.left + child.style.margin.right;
                 if (direction == .row) {
@@ -117,12 +118,15 @@ pub fn intrinsicWidth(nodes: []*Node, node: *Node, max_avail: f32, theme: Theme)
         .image => image_mod.measureWidth(node),
         .select => select_mod.measureWidth(node),
         .rich_text => |*data| if (data.ensureLayout(1.0e6)) |layout| layout.width else |_| 0,
+        .vector => |*data| data.drawing.width,
     };
     return clampDim(node, value, true);
 }
 
 pub fn intrinsicHeight(nodes: []*Node, node: *Node, width: f32, theme: Theme) f32 {
     if (node.style.height) |h| return clampDim(node, h, false);
+    // A scroll container's natural height is its viewport, not its content.
+    if (node.style.scroll) return clampDim(node, node.style.padding.vertical(), false);
     const value: f32 = switch (node.data) {
         .root, .container => blk: {
             const inner_width = @max(0, width - node.style.padding.horizontal());
@@ -131,7 +135,7 @@ pub fn intrinsicHeight(nodes: []*Node, node: *Node, width: f32, theme: Theme) f3
             if (node.style.direction == .row) {
                 for (node.children.items) |id| {
                     const child = nodes[id];
-                    if (!child.visible) continue;
+                    if (!child.inFlow() or child.style.absolute) continue;
                     const child_width = child.style.width orelse intrinsicWidth(nodes, child, inner_width, theme);
                     const h = intrinsicHeight(nodes, child, child_width, theme) +
                         child.style.margin.top + child.style.margin.bottom;
@@ -142,7 +146,7 @@ pub fn intrinsicHeight(nodes: []*Node, node: *Node, width: f32, theme: Theme) f3
                 var index: usize = 0;
                 for (node.children.items) |id| {
                     const child = nodes[id];
-                    if (!child.visible) continue;
+                    if (!child.inFlow() or child.style.absolute) continue;
                     const child_width = if (node.style.align_items == .stretch and child.style.width == null)
                         @max(0, inner_width - child.style.margin.horizontal())
                     else
@@ -166,6 +170,7 @@ pub fn intrinsicHeight(nodes: []*Node, node: *Node, width: f32, theme: Theme) f3
         .image => image_mod.measureHeight(node, width),
         .select => select_mod.measureHeight(node),
         .rich_text => |*data| if (data.ensureLayout(width)) |layout| layout.height else |_| @as(f32, @floatFromInt(data.spans.len)) * 20,
+        .vector => |*data| data.drawing.height(),
     };
     return clampDim(node, value, false);
 }
@@ -200,7 +205,7 @@ fn layoutNode(
     switch (node.data) {
         .text => |*data| {
             var height = assigned_height orelse if (node.style.height_percent) |percent| @max(0, available_height) * percent / 100.0 else node.style.height;
-            const max_width = if (data.style.wrap) width else 1.0e6;
+            const max_width = data.layoutWidth(width);
             if (data.ensureLayout(max_width)) |layout| {
                 if (height == null) height = layout.metrics.height;
             } else |_| {
@@ -226,6 +231,10 @@ fn layoutNode(
         },
         .select => {
             const height = assigned_height orelse if (node.style.height_percent) |percent| @max(0, available_height) * percent / 100.0 else select_mod.measureHeight(node);
+            node.bounds.height = clampDim(node, height, false);
+        },
+        .vector => |*data| {
+            const height = assigned_height orelse node.style.height orelse data.drawing.height();
             node.bounds.height = clampDim(node, height, false);
         },
         .rich_text => |*data| {
@@ -277,19 +286,62 @@ fn layoutContainer(nodes: []*Node, node: *Node, width: f32, definite_height: ?f3
         } else {
             layoutRow(nodes, node, flow.items, inner_x, inner_y, inner_width, if (definite_height != null) inner_height else null, theme, allocator);
         }
+    } else if (node.style.scroll and definite_height != null) {
+        // Scroll containers lay children out at their natural height, then
+        // shift them by the retained scroll offset.
+        layoutColumn(nodes, node, flow.items, inner_x, inner_y, inner_width, null, theme, allocator);
+        const content = @max(0, node.bounds.height - padding.vertical());
+        node.bounds.height = clampDim(node, definite_height.?, false);
+        switch (node.data) {
+            .container => |*data| {
+                data.content_height = content + padding.vertical();
+                data.scroll_offset = @max(0, @min(data.scroll_offset, data.maxScroll(node.bounds.height)));
+                for (flow.items) |id| translateSubtreeY(nodes, nodes[id], -data.scroll_offset);
+            },
+            else => {},
+        }
     } else {
         layoutColumn(nodes, node, flow.items, inner_x, inner_y, inner_width, if (definite_height != null) inner_height else null, theme, allocator);
     }
 
+    // CSS containing block: absolute children are positioned and sized
+    // against the parent's padding box (padding included), so a full-size
+    // hit target / hover background also covers the parent's padding.
+    const box_x = node.bounds.x;
+    const box_y = node.bounds.y;
+    const box_w = node.bounds.width;
+    const box_h = node.bounds.height;
     for (absolute.items) |id| {
         const child = nodes[id];
-        const w = resolveWidth(child, inner_width) orelse intrinsicWidth(nodes, child, inner_width, theme);
-        const h = if (child.style.height) |explicit| explicit else intrinsicHeight(nodes, child, w, theme);
-        var x = inner_x;
-        var y = inner_y;
-        if (child.style.left) |left| x = inner_x + left else if (child.style.right) |right| x = inner_x + inner_width - w - right;
-        if (child.style.top) |top| y = inner_y + top else if (child.style.bottom) |bottom| y = inner_y + inner_height - h - bottom;
-        _ = layoutNode(nodes, child, x, y, w, h, w, inner_height, theme, false);
+        // CSS: `left` + `right` without a width stretch between the insets
+        const inset_w: ?f32 = if (child.style.left != null and child.style.right != null and child.style.width == null and child.style.width_percent == null)
+            @max(0, box_w - child.style.left.? - child.style.right.?)
+        else
+            null;
+        const w = inset_w orelse resolveWidth(child, box_w) orelse intrinsicWidth(nodes, child, box_w, theme);
+        // a percentage wins over a builder's fixed height (as in flow layout),
+        // so `ui.styled(button, .{ .height_percent = 100 })` fills the parent
+        const h = if (child.style.height_percent) |percent|
+            box_h * percent / 100.0
+        else if (child.style.height) |explicit|
+            explicit
+        else
+            intrinsicHeight(nodes, child, w, theme);
+        var x = box_x;
+        var y = box_y;
+        if (child.style.left) |left| x = box_x + left else if (child.style.right) |right| x = box_x + box_w - w - right;
+        if (child.style.top) |top| y = box_y + top else if (child.style.bottom) |bottom| y = box_y + box_h - h - bottom;
+        if (child.style.anchor) |n_anchor| {
+            if (n_anchor < flow.items.len) {
+                // follow the n-th in-flow sibling (FLIP animates the moves)
+                const target = nodes[flow.items[n_anchor]].bounds;
+                const s = child.style;
+                const own_vertical = s.top != null or s.bottom != null or s.height != null or s.height_percent != null;
+                _ = layoutNode(nodes, child, target.x, if (own_vertical) y else target.y, target.width, if (own_vertical) h else target.height, target.width, box_h, theme, false);
+                continue;
+            }
+        }
+        _ = layoutNode(nodes, child, x, y, w, h, w, box_h, theme, false);
     }
 
     if (definite_height) |h| {
@@ -489,10 +541,21 @@ fn layoutRow(
         node.bounds.height = clampDim(node, node.style.padding.vertical() + tallest, false);
     }
     const final_inner_height = @max(0, node.bounds.height - node.style.padding.vertical());
+    if (inner_height == null) {
+        // CSS: stretch items fill the line's cross size even when the row's
+        // height comes from its content.
+        for (ids) |id| {
+            const child = nodes[id];
+            if (effectiveAlign(node, child) != .stretch or child.style.height != null) continue;
+            const target = @max(0, final_inner_height - child.style.margin.vertical());
+            if (@abs(child.bounds.height - target) < 0.25) continue;
+            _ = layoutNode(nodes, child, child.bounds.x, inner_y + child.style.margin.top, child.bounds.width, target, child.bounds.width, final_inner_height, theme, false);
+        }
+    }
     for (ids) |id| {
         const child = nodes[id];
         const alignment = effectiveAlign(node, child);
-        if (alignment == .stretch and inner_height != null) continue;
+        if (alignment == .stretch and child.style.height == null) continue;
         const remaining = @max(0, final_inner_height - child.bounds.height - child.style.margin.vertical());
         const offset: f32 = switch (alignment) {
             .start, .stretch => 0,

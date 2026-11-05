@@ -117,7 +117,8 @@ pub const App = struct {
 
     fn buttonAnimate(data: *node_mod.ButtonData, dt: f32, theme: tokens.Theme, node: *node_mod.Node) bool {
         _ = node;
-        return @import("components/button.zig").animate(data, dt, theme);
+        _ = dt;
+        return @import("components/button.zig").animate(data, monotonicMs(), theme);
     }
 
     fn computeNextDelay(self: *App) void {
@@ -189,7 +190,7 @@ pub const App = struct {
                 self.tree.markLayoutDirty();
                 return 0;
             },
-            .window_close => return 0,
+            .window_close, .window_close_request => return 0,
             .scroll => return 0,
         }
     }
