@@ -116,6 +116,7 @@ pub const RichSpan = struct {
     color: u32 = 0xff292d2a,
     italic: bool = false,
     family: text.Family = .sans,
+    background: u32 = 0,
 };
 
 pub const RichTextData = struct {
@@ -146,6 +147,7 @@ pub const RichTextData = struct {
             .color = span.color,
             .italic = if (span.italic) 1 else 0,
             .family = @intFromEnum(span.family),
+            .background = span.background,
         };
         self.layout = try rich_text.Layout.create(native, max_width, 2.0);
         self.layout_width = max_width;

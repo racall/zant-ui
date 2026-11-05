@@ -621,6 +621,11 @@ ZantTextLayout *zant_rich_text_layout_create(const ZantRichSpan *spans, size_t c
             style.setHeight(line_height);
             style.setHeightOverride(true);
         }
+        if (span.background != 0) {
+            SkPaint background;
+            background.setColor(span.background);
+            style.setBackgroundPaint(std::move(background));
+        }
         builder->pushStyle(style);
         if (span.text && span.length > 0) builder->addText(span.text, span.length);
         builder->pop();

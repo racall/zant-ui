@@ -12,6 +12,7 @@ var active_refs: ?*RefMap = null;
 
 pub const Style = struct {
     bold: bool = false,
+    marker: bool = false,
     italic: bool = false,
     code: bool = false,
     strike: bool = false,
@@ -478,7 +479,9 @@ pub fn parse(allocator: std.mem.Allocator, text: []const u8) !Document {
 
 fn spanColor(span: Span) u32 {
     if (span.style.link) return 0xff607d6b;
-    if (span.style.code or span.style.math) return 0xff3c4a3e;
+    if (span.style.marker) return 0xff607d6b;
+    if (span.style.code) return 0xff292d2a;
+    if (span.style.math) return 0xff3c4a3e;
     return 0xff292d2a;
 }
 
@@ -488,11 +491,12 @@ fn makeRich(spans: []const Span, size: f32, family: zant_text.Family, out: *[96]
         if (count >= out.len) break;
         out[count] = .{
             .text = span.text,
-            .font_size = if (span.style.code or span.style.math) size - 1 else size,
+            .font_size = if (span.style.code or span.style.math) size * 0.84 else size,
             .weight = if (span.style.bold) .semibold else .regular,
             .color = spanColor(span),
             .italic = span.style.italic,
-            .family = family,
+            .family = if (span.style.code) .mono else family,
+            .background = if (span.style.code) 0xfff0f2ed else if (span.style.math) 0xfffff7e6 else 0,
         };
         count += 1;
     }
@@ -544,7 +548,7 @@ fn listRow(list: List, index: usize) ui.Node {
     var combined_len: usize = 0;
     const marker = if (list.ordered) std.fmt.allocPrint(std.heap.c_allocator, "{d}. ", .{list.start + index}) catch "• " else if (index < list.checked.len) (if (list.checked[index]) |checked| (if (checked) "☑ " else "☐ ") else "• ") else "• ";
     defer if (list.ordered) std.heap.c_allocator.free(marker);
-    combined[0] = .{ .text = marker };
+    combined[0] = .{ .text = marker, .style = .{ .marker = true } };
     combined_len = 1;
     for (item) |span| {
         if (combined_len >= combined.len) break;
@@ -613,7 +617,7 @@ fn renderBlock(block: Block) ui.Node {
         },
         .list => |list| blk: {
             var index: usize = 0;
-            break :blk buildListColumn(list, &index, 0);
+            break :blk ui.styled(buildListColumn(list, &index, 0), .{ .margin = .{ .top = 10, .bottom = 24 } });
         },
         .table => |table| blk: {
             var rows: [64]ui.Node = undefined;

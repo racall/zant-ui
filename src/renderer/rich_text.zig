@@ -8,6 +8,7 @@ pub const Span = extern struct {
     color: u32,
     italic: c_int,
     family: c_int,
+    background: u32,
 };
 
 const Metrics = extern struct {
