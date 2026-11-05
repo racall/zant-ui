@@ -143,7 +143,9 @@ pub fn paint(node: *Node, canvas: Canvas, theme: Theme) void {
     }
 
     const color = data.text_color orelse textColor(data, enabled, theme);
-    if (data.ensureLayout(color)) |layout| {
+    if (data.icon != .none) {
+        paintIcon(node, canvas, color);
+    } else if (data.ensureLayout(color)) |layout| {
         const x = switch (data.text_align) {
             .left => rect.x + if (data.label_padding > 0) data.label_padding else horizontalPadding(data.size, data.button_type),
             .right => rect.right() - layout.metrics.longest_line - if (data.label_padding > 0) data.label_padding else horizontalPadding(data.size, data.button_type),
@@ -189,4 +191,45 @@ pub fn setEnabled(node: *Node, enabled: bool, theme: Theme) void {
     }
     const color = textColor(data, enabled, theme);
     data.ensureLayout(color) catch {};
+}
+
+
+fn paintIcon(node: *Node, canvas: Canvas, color: u32) void {
+    const rect = node.bounds;
+    const cx = rect.x + rect.width * 0.5;
+    const cy = rect.y + rect.height * 0.5;
+    switch (node.data.button.icon) {
+        .none => {},
+        .more => {
+            for ([_]f32{ -6, 0, 6 }) |dx| {
+                canvas.fillRoundRect(geometry.Rect.init(cx + dx - 1.5, cy - 1.5, 3, 3), 1.5, color);
+            }
+        },
+        .search => {
+            const r: f32 = 4.5;
+            var prev_x = cx - r + 1.5;
+            var prev_y = cy;
+            var i: usize = 1;
+            while (i <= 12) : (i += 1) {
+                const a = @as(f32, @floatFromInt(i)) / 12.0 * std.math.pi * 2.0;
+                const px = cx + @cos(a) * r;
+                const py = cy - 2 + @sin(a) * r;
+                canvas.drawLine(prev_x, prev_y, px, py, color, 1.5);
+                prev_x = px;
+                prev_y = py;
+            }
+            canvas.drawLine(cx + 3.2, cy + 1.2, cx + 7.5, cy + 5.5, color, 1.5);
+        },
+        .eye => {
+            const points = [_][2]f32{
+                .{ -8, 0 }, .{ -5, -3.5 }, .{ -2, -5 }, .{ 2, -5 }, .{ 5, -3.5 },
+                .{ 8, 0 }, .{ 5, 3.5 }, .{ 2, 5 }, .{ -2, 5 }, .{ -5, 3.5 }, .{ -8, 0 },
+            };
+            var i: usize = 1;
+            while (i < points.len) : (i += 1) {
+                canvas.drawLine(cx + points[i - 1][0], cy + points[i - 1][1], cx + points[i][0], cy + points[i][1], color, 1.4);
+            }
+            canvas.fillRoundRect(geometry.Rect.init(cx - 2, cy - 2, 4, 4), 2, color);
+        },
+    }
 }

@@ -156,6 +156,8 @@ pub const ButtonType = enum {
     link,
 };
 
+pub const ButtonIcon = enum { none, search, eye, more };
+
 pub const ButtonSize = enum {
     small,
     middle,
@@ -182,6 +184,7 @@ pub const ButtonData = struct {
     text_align: text.Align = .center,
     label_padding: f32 = 0,
     text_color: ?u32 = null,
+    icon: ButtonIcon = .none,
 
     pub fn invalidateLayout(self: *ButtonData) void {
         self.layout_dirty = true;

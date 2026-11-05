@@ -80,3 +80,10 @@ test "math fraction uses native layout" {
     defer zant.ui.endFrame();
     _ = zant.math.render(std.testing.allocator, "\\frac{a}{b} + \\sqrt{x}");
 }
+
+test "inline math flattens to unicode" {
+    const text = try zant.math.inlineText(std.testing.allocator, "a^2 + \\frac{a}{b}");
+    defer std.testing.allocator.free(text);
+    try std.testing.expect(std.mem.indexOf(u8, text, "a²") != null);
+    try std.testing.expect(std.mem.indexOf(u8, text, "(a)/(b)") != null);
+}

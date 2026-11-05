@@ -200,32 +200,11 @@ pub fn render(allocator: std.mem.Allocator, source: []const u8) ui.Node {
 }
 
 pub fn inlineText(allocator: std.mem.Allocator, source: []const u8) ![]const u8 {
-    // Readable inline fallback used by the rich-text Markdown path.
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
-    var out: std.ArrayListUnmanaged(u8) = .empty;
-    var i: usize = 0;
-    while (i < source.len) {
-        if (source[i] == '\\') {
-            i += 1;
-            const start = i;
-            while (i < source.len and std.ascii.isAlphabetic(source[i])) i += 1;
-            const name = source[start..i];
-            if (std.mem.eql(u8, name, "frac")) {
-                try out.appendSlice(allocator, "(");
-                // Keep the fallback deterministic; full fractions use block math.
-                try out.appendSlice(allocator, "a/b");
-                try out.appendSlice(allocator, ")");
-            } else {
-                try out.appendSlice(allocator, commandText(name));
-            }
-        } else if (source[i] == '^') {
-            i += 1;
-            try out.appendSlice(allocator, "^");
-        } else {
-            try out.append(allocator, source[i]);
-            i += 1;
-        }
-    }
-    return out.toOwnedSlice(allocator);
+    var parser = Parser{ .arena = arena.allocator(), .src = source };
+    const items = parser.parse() catch return allocator.dupe(u8, source);
+    if (items.len == 0) return allocator.dupe(u8, source);
+    const flat = try parser.flatten(.{ .row = items });
+    return allocator.dupe(u8, flat);
 }

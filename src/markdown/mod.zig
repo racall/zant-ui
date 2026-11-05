@@ -360,8 +360,21 @@ fn makeRich(spans: []const Span, size: f32, out: *[96]zant_node_mod.RichSpan) []
 
 fn spansNode(spans: []const Span, size: f32) ui.Node {
     if (spans.len == 0) return ui.space(.{ .height = 1 });
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var rendered: [96]Span = undefined;
+    var rendered_len: usize = 0;
+    for (spans) |span| {
+        if (rendered_len >= rendered.len) break;
+        var copy = span;
+        if (span.style.math) {
+            copy.text = math.inlineText(arena.allocator(), span.text) catch span.text;
+        }
+        rendered[rendered_len] = copy;
+        rendered_len += 1;
+    }
     var rich: [96]zant_node_mod.RichSpan = undefined;
-    return ui.richText(.{ .spans = makeRich(spans, size, &rich) });
+    return ui.richText(.{ .spans = makeRich(rendered[0..rendered_len], size, &rich) });
 }
 
 fn spansRow(spans: []const Span, size: f32) ui.Node {

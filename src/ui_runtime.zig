@@ -449,6 +449,7 @@ pub const Runtime = struct {
                 data.text_align = element.text_style.text_align;
                 data.label_padding = element.label_padding;
                 data.text_color = element.text_color;
+                data.icon = element.icon;
                 data.invalidateLayout();
             },
             .input => |*data| {
