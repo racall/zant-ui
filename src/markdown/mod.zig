@@ -203,6 +203,25 @@ fn parseInlineStyle(arena: std.mem.Allocator, text: []const u8, base: Style, out
                 }
             }
         }
+        if ((ch == 'h' or ch == 'w') and i + 1 < text.len) {
+            const rest = text[i..];
+            const is_http = std.mem.startsWith(u8, rest, "http://") or std.mem.startsWith(u8, rest, "https://");
+            const is_www = std.mem.startsWith(u8, rest, "www.");
+            if (is_http or is_www) {
+                var end = i;
+                while (end < text.len and !std.ascii.isWhitespace(text[end]) and text[end] != '<' and text[end] != '>' and text[end] != '"') end += 1;
+                while (end > i and (text[end - 1] == '.' or text[end - 1] == ',' or text[end - 1] == ':' or text[end - 1] == ';' or text[end - 1] == '!' or text[end - 1] == '?')) end -= 1;
+                if (end > i) {
+                    if (i > plain_start) try appendText(arena, out, text[plain_start..i], base);
+                    var style = base;
+                    style.link = true;
+                    try appendText(arena, out, text[i..end], style);
+                    i = end;
+                    plain_start = i;
+                    continue;
+                }
+            }
+        }
         if (ch == '<') {
             if (findClose(text, i + 1, ">")) |end| {
                 const target = text[i + 1 .. end];

@@ -185,3 +185,14 @@ test "soft break becomes space and hard break keeps newline" {
     try std.testing.expect(std.mem.indexOf(u8, joined[0..n], "one two") != null);
     try std.testing.expect(std.mem.indexOf(u8, joined[0..n], "three") != null);
 }
+
+test "gfm bare autolinks" {
+    var doc = try zant.markdown.parse(std.testing.allocator, "Visit https://example.com and www.example.org.");
+    defer doc.deinit();
+    const para = doc.blocks[0].paragraph;
+    var links: usize = 0;
+    for (para) |span| {
+        if (span.style.link) links += 1;
+    }
+    try std.testing.expectEqual(@as(usize, 2), links);
+}
