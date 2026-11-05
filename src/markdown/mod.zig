@@ -532,6 +532,47 @@ fn spansRow(spans: []const Span, size: f32) ui.Node {
     return ui.row(.{ .gap = 0, .align_items = .start, .children = children[0..count] });
 }
 
+fn listRow(list: List, index: usize) ui.Node {
+    const item = list.items[index];
+    var combined: [97]Span = undefined;
+    var combined_len: usize = 0;
+    const marker = if (list.ordered) std.fmt.allocPrint(std.heap.c_allocator, "{d}. ", .{list.start + index}) catch "• " else if (index < list.checked.len) (if (list.checked[index]) |checked| (if (checked) "☑ " else "☐ ") else "• ") else "• ";
+    defer if (list.ordered) std.heap.c_allocator.free(marker);
+    combined[0] = .{ .text = marker };
+    combined_len = 1;
+    for (item) |span| {
+        if (combined_len >= combined.len) break;
+        combined[combined_len] = span;
+        combined_len += 1;
+    }
+    return spansNode(combined[0..combined_len], 15);
+}
+
+fn buildListColumn(list: List, index: *usize, depth: u2) ui.Node {
+    var rows: [64]ui.Node = undefined;
+    var count: usize = 0;
+    while (index.* < list.items.len) {
+        const item_depth = if (index.* < list.indents.len) list.indents[index.*] else 0;
+        if (item_depth < depth or item_depth > depth) break;
+        const row = listRow(list, index.*);
+        index.* += 1;
+        var item_children: [2]ui.Node = undefined;
+        item_children[0] = row;
+        var item_count: usize = 1;
+        if (index.* < list.items.len and index.* < list.indents.len and list.indents[index.*] > depth) {
+            const child_depth = list.indents[index.*];
+            item_children[1] = ui.styled(buildListColumn(list, index, child_depth), .{
+                .padding = .{ .left = 16 },
+            });
+            item_count = 2;
+        }
+        rows[count] = ui.column(.{ .gap = 4, .children = item_children[0..item_count] });
+        count += 1;
+        if (count >= rows.len) break;
+    }
+    return ui.column(.{ .gap = 6, .children = rows[0..count] });
+}
+
 fn renderBlock(block: Block) ui.Node {
     return switch (block) {
         .heading => |h| ui.column(.{ .gap = 4, .children = &.{
@@ -560,30 +601,8 @@ fn renderBlock(block: Block) ui.Node {
             });
         },
         .list => |list| blk: {
-            var rows: [64]ui.Node = undefined;
-            var count: usize = 0;
-            for (list.items, 0..) |item, index| {
-                if (count >= rows.len) break;
-                var combined: [97]Span = undefined;
-                var combined_len: usize = 0;
-                const marker = if (list.ordered) std.fmt.allocPrint(std.heap.c_allocator, "{d}. ", .{list.start + index}) catch "• " else if (list.checked[index]) |checked| (if (checked) "☑ " else "☐ ") else "• ";
-                defer if (list.ordered) std.heap.c_allocator.free(marker);
-                combined[0] = .{ .text = marker, .style = .{ .link = false } };
-                combined_len = 1;
-                for (item) |span| {
-                    if (combined_len >= combined.len) break;
-                    combined[combined_len] = span;
-                    combined_len += 1;
-                }
-                var row_node = spansNode(combined[0..combined_len], 15);
-                const depth = if (index < list.indents.len) list.indents[index] else 0;
-                if (depth > 0) {
-                    row_node = ui.styled(row_node, .{ .padding = .{ .left = @as(f32, @floatFromInt(depth)) * 16 } });
-                }
-                rows[count] = row_node;
-                count += 1;
-            }
-            break :blk ui.column(.{ .gap = 6, .children = rows[0..count] });
+            var index: usize = 0;
+            break :blk buildListColumn(list, &index, 0);
         },
         .table => |table| blk: {
             var rows: [64]ui.Node = undefined;
