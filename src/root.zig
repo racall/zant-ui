@@ -28,3 +28,5 @@ pub const WindowOptions = platform.WindowOptions;
 pub const db = @import("db/mod.zig");
 
 pub const markdown = @import("markdown/mod.zig");
+
+pub const math = @import("math/mod.zig");

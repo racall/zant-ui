@@ -58,3 +58,25 @@ test "markdown document renders to Zant nodes" {
     const node = doc.render();
     try std.testing.expect(node.element.children.len > 0);
 }
+
+test "markdown display math block renders" {
+    var doc = try zant.markdown.parse(std.testing.allocator, "$$\\frac{a}{b}$$");
+    defer doc.deinit();
+    try std.testing.expectEqual(@as(usize, 1), doc.blocks.len);
+    try std.testing.expectEqualStrings("\\frac{a}{b}", doc.blocks[0].math);
+    zant.ui.beginFrame();
+    defer zant.ui.endFrame();
+    _ = doc.render();
+}
+
+test "math script formula renders" {
+    zant.ui.beginFrame();
+    defer zant.ui.endFrame();
+    _ = zant.math.render(std.testing.allocator, "a^2 + b^2 = c^2");
+}
+
+test "math fraction uses native layout" {
+    zant.ui.beginFrame();
+    defer zant.ui.endFrame();
+    _ = zant.math.render(std.testing.allocator, "\\frac{a}{b} + \\sqrt{x}");
+}

@@ -3,6 +3,7 @@
 const std = @import("std");
 const ui = @import("../ui.zig");
 const zant_node_mod = @import("../core/node.zig");
+const math = @import("../math/mod.zig");
 
 pub const Style = struct {
     bold: bool = false,
@@ -34,6 +35,7 @@ pub const Block = union(enum) {
     quote: []const Span,
     list: List,
     table: Table,
+    math: []const u8,
     rule,
 };
 
@@ -211,6 +213,29 @@ fn parseBlocks(arena: std.mem.Allocator, text: []const u8) ![]const Block {
             }
             if (i < lines.items.len) i += 1;
             try blocks.append(arena, .{ .code = .{ .lang = try arena.dupe(u8, lang), .text = try body.toOwnedSlice(arena) } });
+            continue;
+        }
+        if (std.mem.startsWith(u8, trimmed, "$$")) {
+            var source: std.ArrayListUnmanaged(u8) = .empty;
+            if (trimmed.len > 4 and std.mem.endsWith(u8, trimmed, "$$")) {
+                try source.appendSlice(arena, trimmed[2 .. trimmed.len - 2]);
+                i += 1;
+            } else {
+                if (trimmed.len > 2) try source.appendSlice(arena, trimmed[2..]);
+                i += 1;
+                while (i < lines.items.len) : (i += 1) {
+                    const t = std.mem.trim(u8, lines.items[i], " \t");
+                    if (std.mem.endsWith(u8, t, "$$")) {
+                        if (source.items.len > 0) try source.append(arena, '\n');
+                        try source.appendSlice(arena, t[0 .. t.len - 2]);
+                        i += 1;
+                        break;
+                    }
+                    if (source.items.len > 0) try source.append(arena, '\n');
+                    try source.appendSlice(arena, lines.items[i]);
+                }
+            }
+            try blocks.append(arena, .{ .math = try source.toOwnedSlice(arena) });
             continue;
         }
         if (trimmed.len >= 2 and trimmed[0] == '#') {
@@ -422,6 +447,7 @@ fn renderBlock(block: Block) ui.Node {
             }
             break :blk ui.column(.{ .gap = 8, .children = rows[0..count] });
         },
+        .math => |source| math.render(std.heap.c_allocator, source),
         .rule => ui.divider(.{ .margin = .{ .top = 8, .bottom = 8 } }),
     };
 }
