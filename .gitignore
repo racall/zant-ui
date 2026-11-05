@@ -1,0 +1,17 @@
+.zig-cache/
+.zig-global-cache/
+zig-out/
+.scratch/
+.DS_Store
+third_party/skia/
+third_party/skia-headers/
+third_party/*.tar.gz
+test
+
+.env
+.env.*
+*.p12
+*.cer
+*.mobileprovision
+*.key
+*.pdf

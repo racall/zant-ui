@@ -1,0 +1,19 @@
+.{
+    .name = .zant_ui,
+    .version = "0.1.0",
+    .fingerprint = 0xd5454fc1e5d045b1,
+    .minimum_zig_version = "0.17.1",
+    .dependencies = .{},
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        "examples",
+        "scaffold",
+        "tests",
+        "docs",
+        "scripts",
+        "README.md",
+        "LICENSE",
+    },
+}
