@@ -204,12 +204,10 @@ const Note = struct {
     body: []const u8,
 };
 
-var db = try zant.db.Database.open(allocator, "app.sqlite");
-defer db.close();
-var notes = db.table(Note);
-try notes.create();
-const id = try notes.insert(.{ .body = "hello" });
-const note = (try notes.get(id)).?;
+var notes = try zant.db.collection(Note, allocator, "app.data");
+defer notes.close();
+const id = try notes.add(.{ .body = "hello" });
+const note = (try notes.find(id)).?;
 defer notes.free(note);
 ```
 

@@ -1,99 +1,113 @@
-# SQLite 持久化
+# 数据持久化
 
-`zant.db` 是内置的 SQLite 持久化库。日常使用 **不需要写 SQL**：定义 Struct，
-CLI 会自动建表并生成增删改查。
+`zant.db` 的目标是让业务代码只保存和读取 Struct，不需要知道 SQLite、表、
+连接、SQL 或结果集。
 
 ## 定义模型
 
 ```zig
 const User = struct {
-    id: i64 = 0,           // 自动主键
-    name: []const u8,      // TEXT
-    age: i32,              // INTEGER
-    active: bool,          // INTEGER (0/1)
+    id: i64 = 0,       // 自动生成
+    name: []const u8,
+    age: i32,
+    active: bool,
 
-    pub const table_name = "users";
+    pub const table_name = "users"; // 可选
 };
 ```
 
-字段类型自动映射：
-
-| Zig | SQLite |
-|---|---|
-| `i8..i64` / `u8..u32` | INTEGER |
-| `f32/f64` | REAL |
-| `bool` | INTEGER |
-| `[]const u8` / `[]u8` | TEXT |
-| `?T` | 可为 NULL |
-
-## 打开与建表
+## 打开集合
 
 ```zig
-var db = try zant.db.Database.open(allocator, "app.sqlite");
-defer db.close();
-
-var users = db.table(User);
-try users.create();   // CREATE TABLE IF NOT EXISTS + 主键/非空
+var users = try zant.db.collection(User, allocator, "app.data");
+defer users.close();
 ```
 
-`zant.db.Database.openMemory(allocator)` 用于测试。
+第一次打开会自动准备存储结构。不需要 `CREATE TABLE`，也不需要迁移脚本。
 
 ## 增删改查
 
 ```zig
-const id = try users.insert(.{
+const id = try users.add(.{
     .name = "Ada",
     .age = 36,
     .active = true,
 });
 
-const user = (try users.get(id)).?;
+const user = (try users.find(id)).?;
 defer users.free(user);
 
 var updated = user;
 updated.age = 37;
 try users.update(updated);
 
-const count = try users.count();
-
 const all_users = try users.all();
 defer users.freeAll(all_users);
 
-try users.delete(id);
+try users.remove(id);
+
+const count = try users.count();
 ```
 
-- `insert` 返回自增主键。
-- `get` 返回 `?User`，字符串字段由库分配，使用后调用 `free`。
-- `all` 返回 `[]User`，使用后调用 `freeAll`。
-- 不需要手写 INSERT/SELECT/UPDATE/DELETE。
-- 所有值通过 prepared statement 参数绑定，避免 SQL 注入。
+## 开发者需要记住的 API
+
+| 操作 | API |
+|---|---|
+| 写入 | `add(value)` |
+| 按 id 读取 | `find(id)` |
+| 全部读取 | `all()` |
+| 修改 | `update(value)` |
+| 删除 | `remove(id)` |
+| 数量 | `count()` |
+| 释放单条字符串 | `free(value)` |
+| 释放列表 | `freeAll(list)` |
+| 关闭 | `close()` |
+
+不需要：
+
+- 手写 SQL
+- 管理 `sqlite3*`、连接、statement
+- 建表
+- 映射列索引
+- 处理占位符
+
+## 类型映射
+
+| Zig | 存储 |
+|---|---|
+| `i8..i64`, `u8..u32` | 整数 |
+| `f32/f64` | 浮点 |
+| `bool` | 0/1 |
+| `[]const u8` / `[]u8` | 文本 |
+| `?T` | 可为空 |
+
+字符串字段由库分配，`find/all` 返回后调用 `free/freeAll`。
 
 ## 事务
 
 ```zig
-try db.begin();
-errdefer db.rollback() catch {};
-try users.insert(...);
-try users.insert(...);
-try db.commit();
+try users.begin();
+errdefer users.rollback() catch {};
+try users.add(...);
+try users.add(...);
+try users.commit();
 ```
 
-或自动回滚：
+当前 `Collection` 暂未暴露事务方法；先使用底层 `Database` 是高级用法。
+日常单条 CRUD 不需要关心事务。
 
-```zig
-fn saveAll(d: *zant.db.Database) !void {
-    var users = d.table(User);
-    try users.insert(.{ .name = "A", .age = 1, .active = true });
-    try users.insert(.{ .name = "B", .age = 2, .active = true });
-}
+## 适合什么场景
 
-try db.transaction(saveAll, .{});
-```
+适合：
 
-## 设计原则
+- 应用设置、最近文件、收藏、草稿
+- 本地列表数据
+- 简单的增删改查
 
-- 业务代码不写 SQL，不关心列名/占位符/结果集映射。
-- 表名默认取 Struct 名，可用 `pub const table_name` 覆盖。
-- 字段名就是列名；`id` 自动作为自增主键。
-- 不提供 ORM 关系、迁移框架、连接池；复杂查询可以后续扩展 Query builder。
-- 底层 `exec/query/prepare` 仍保留给高级用户和框架内部使用。
+不适合：
+
+- 复杂联表查询
+- 多写者/连接池
+- 复杂 schema 迁移
+
+需要这些能力时再使用底层 SQLite API。

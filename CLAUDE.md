@@ -9,7 +9,7 @@
 - 声明式 API：`src/ui.zig`；协调器：`src/ui_runtime.zig`。
 - 组件：`src/components/`；样式统一入口：`ui.styled`。
 - 脚手架：`tools/zant/main.zig`；模板：`scaffold/template/`。
-- 测试：`zig build test`（当前 32/32）。
+- 测试：`zig build test`（当前 31/31）。
 - 全局 CLI：`zant`；框架更新后执行 `zant update`。
 - 热更新：`zant run --watch`（重启式，非沙盒）。
 - PDF：`ui.pdfPreview`，原生 PDFKit。
