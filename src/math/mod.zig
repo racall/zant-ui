@@ -169,11 +169,11 @@ fn renderExpr(expr: Expr, size: f32) ui.Node {
             break :blk ui.row(.{ .gap = 1, .align_items = .center, .children = children[0..n] });
         },
         .frac => |f| ui.column(.{
-            .align_items = .center,
+            .align_items = .stretch,
             .gap = 2,
             .children = &.{
                 renderExpr(f.num.*, size - 1),
-                ui.styled(ui.space(.{ .height = 1, .width = 34 }), .{ .background = 0xff292d2a }),
+                ui.styled(ui.space(.{ .height = 1 }), .{ .background = 0xff292d2a }),
                 renderExpr(f.den.*, size - 1),
             },
         }),
