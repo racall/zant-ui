@@ -444,6 +444,7 @@ pub const Runtime = struct {
                 data.submit_action = element.on_click;
                 data.read_only = element.read_only;
                 data.password = element.password;
+                data.multiline = element.multiline;
                 data.font_size = element.text_style.font_size;
                 input_mod.rebuildDisplay(self.tree.allocator, data);
             },
@@ -1010,7 +1011,9 @@ pub const Runtime = struct {
                             return 1;
                         },
                         .enter => {
-                            if (data.submit_action) |action| action.func(action.ctx);
+                            if (data.multiline) {
+                                _ = self.tree.inputInsert(id, "\n");
+                            } else if (data.submit_action) |action| action.func(action.ctx);
                             return 1;
                         },
                         .character => return 0,

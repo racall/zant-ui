@@ -64,9 +64,9 @@ pub fn ensureLayout(data: *InputData) !*text.TextLayout {
         .font_size = data.font_size,
         .weight = .regular,
         .color = data.text_color,
-        .wrap = false,
+        .wrap = data.multiline,
         .text_align = .left,
-    }, 1.0e6);
+    }, if (data.multiline) @max(1, data.available_width) else 1.0e6);
     data.layout_dirty = false;
     return &data.layout.?;
 }
@@ -175,7 +175,7 @@ pub fn selectAll(data: *InputData) void {
 pub fn cursorFromPoint(data: *InputData, node: *const Node, x: f32, y: f32) void {
     const layout = ensureLayout(data) catch return;
     const inner_x = node.bounds.x + padding_x - data.scroll_x;
-    const inner_y = node.bounds.y + (node.bounds.height - layout.metrics.height) * 0.5;
+    const inner_y = if (data.multiline) node.bounds.y + 8 else node.bounds.y + (node.bounds.height - layout.metrics.height) * 0.5;
     const byte = layout.indexAt(x - inner_x, y - inner_y);
     data.cursor = @min(byte, data.text.items.len);
     data.anchor = data.cursor;
@@ -227,7 +227,7 @@ pub fn caretRect(data: *InputData, node: *const Node) ?geometry.Rect {
     const caret_byte = if (data.has_composition) data.cursor + data.composition_cursor else data.cursor;
     const local = layout.caretRect(caret_byte) orelse return null;
     const x = node.bounds.x + padding_x - data.scroll_x + local.x;
-    const y = node.bounds.y + (node.bounds.height - layout.metrics.height) * 0.5 + local.y;
+    const y = (if (data.multiline) node.bounds.y + 8 else node.bounds.y + (node.bounds.height - layout.metrics.height) * 0.5) + local.y;
     return geometry.Rect.init(x, y, @max(local.width, 1.5), @max(local.height, data.font_size));
 }
 
@@ -283,10 +283,11 @@ pub fn paint(node: *Node, canvas: Canvas, theme: Theme) void {
         if (data.focused) 1.5 else 1.0,
     );
 
+    data.available_width = @max(0, rect.width - padding_x * 2);
     const inner = geometry.Rect.init(
         rect.x + padding_x,
         rect.y + 1,
-        @max(0, rect.width - padding_x * 2),
+        data.available_width,
         @max(0, rect.height - 2),
     );
     canvas.save();
@@ -297,7 +298,7 @@ pub fn paint(node: *Node, canvas: Canvas, theme: Theme) void {
         return;
     };
     ensureCaretVisible(data, inner.width);
-    const text_y = rect.y + (rect.height - layout.metrics.height) * 0.5;
+    const text_y = if (data.multiline) rect.y + 8 else rect.y + (rect.height - layout.metrics.height) * 0.5;
     const origin_x = rect.x + padding_x - data.scroll_x;
 
     if (data.text.items.len == 0 and !data.has_composition) {
