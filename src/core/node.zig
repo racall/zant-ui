@@ -197,7 +197,7 @@ pub const ButtonData = struct {
             .weight = .medium,
             .color = color,
             .wrap = false,
-            .text_align = self.text_align,
+            .text_align = .left,
         }, 4096);
         self.layout_dirty = false;
         self.layout_color = color;
