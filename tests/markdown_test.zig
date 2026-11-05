@@ -117,3 +117,14 @@ test "math radical has an overline" {
     defer zant.ui.endFrame();
     _ = zant.math.render(std.testing.allocator, "\\sqrt{x^2 + y^2}");
 }
+
+test "link reference definitions resolve" {
+    const source = "[site]: https://example.com\n\nRead [the site][site].\n";
+    var doc = try zant.markdown.parse(std.testing.allocator, source);
+    defer doc.deinit();
+    try std.testing.expectEqual(@as(usize, 1), doc.blocks.len);
+    const para = doc.blocks[0].paragraph;
+    var linked = false;
+    for (para) |span| if (span.style.link) { linked = true; };
+    try std.testing.expect(linked);
+}

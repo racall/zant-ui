@@ -5,6 +5,9 @@ const ui = @import("../ui.zig");
 const zant_node_mod = @import("../core/node.zig");
 const math = @import("../math/mod.zig");
 
+const RefMap = std.StringHashMapUnmanaged([]const u8);
+var active_refs: ?*RefMap = null;
+
 pub const Style = struct {
     bold: bool = false,
     italic: bool = false,
@@ -144,6 +147,30 @@ fn parseInlineStyle(arena: std.mem.Allocator, text: []const u8, base: Style, out
                 continue;
             }
         }
+        if (ch == '[') {
+            if (findClose(text, i + 1, "]")) |label_end| {
+                var id = text[i + 1 .. label_end];
+                var after = label_end + 1;
+                if (after < text.len and text[after] == '[') {
+                    if (findClose(text, after + 1, "]")) |id_end| {
+                        const explicit = text[after + 1 .. id_end];
+                        if (explicit.len > 0) id = explicit;
+                        after = id_end + 1;
+                    }
+                }
+                if (active_refs) |refs| {
+                    if (refs.get(id)) |_| {
+                        if (i > plain_start) try appendText(arena, out, text[plain_start..i], base);
+                        var style = base;
+                        style.link = true;
+                        try parseInlineStyle(arena, text[i + 1 .. label_end], style, out);
+                        i = after;
+                        plain_start = i;
+                        continue;
+                    }
+                }
+            }
+        }
         if (ch == '<') {
             if (findClose(text, i + 1, ">")) |end| {
                 const target = text[i + 1 .. end];
@@ -204,14 +231,40 @@ fn isBlockStart(line: []const u8) bool {
         (t.len > 2 and std.ascii.isDigit(t[0]) and std.mem.indexOfScalar(u8, t, '.') != null);
 }
 
+const Definition = struct { id: []const u8, url: []const u8 };
+
+fn parseDefinition(line: []const u8) ?Definition {
+    const trimmed = std.mem.trim(u8, line, " \t");
+    if (trimmed.len < 4 or trimmed[0] != '[') return null;
+    const close = std.mem.indexOf(u8, trimmed, "]:") orelse return null;
+    if (close <= 1) return null;
+    const id = std.mem.trim(u8, trimmed[1..close], " \t");
+    if (id.len == 0) return null;
+    var url = std.mem.trim(u8, trimmed[close + 2 ..], " \t");
+    if (url.len >= 2 and url[0] == '<' and url[url.len - 1] == '>') url = url[1 .. url.len - 1];
+    if (url.len == 0) return null;
+    return .{ .id = id, .url = url };
+}
+
 fn parseBlocks(arena: std.mem.Allocator, text: []const u8) ![]const Block {
     var lines: std.ArrayListUnmanaged([]const u8) = .empty;
     var it = std.mem.splitScalar(u8, text, '\n');
     while (it.next()) |line| try lines.append(arena, std.mem.trimEnd(u8, line, "\r"));
+    if (active_refs) |refs| {
+        for (lines.items) |line| {
+            if (parseDefinition(line)) |def| {
+                refs.put(arena, try arena.dupe(u8, def.id), try arena.dupe(u8, def.url)) catch {};
+            }
+        }
+    }
     var blocks: std.ArrayListUnmanaged(Block) = .empty;
     var i: usize = 0;
     while (i < lines.items.len) {
         const line = lines.items[i];
+        if (parseDefinition(line) != null) {
+            i += 1;
+            continue;
+        }
         const trimmed = std.mem.trim(u8, line, " \t");
         if (trimmed.len == 0) {
             i += 1;
@@ -388,6 +441,9 @@ fn parseBlocks(arena: std.mem.Allocator, text: []const u8) ![]const Block {
 pub fn parse(allocator: std.mem.Allocator, text: []const u8) !Document {
     var arena = std.heap.ArenaAllocator.init(allocator);
     errdefer arena.deinit();
+    var refs: RefMap = .empty;
+    active_refs = &refs;
+    defer active_refs = null;
     const blocks = try parseBlocks(arena.allocator(), text);
     return .{ .arena = arena, .blocks = blocks };
 }
