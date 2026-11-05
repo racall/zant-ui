@@ -203,3 +203,10 @@ test "thematic break with spaces" {
     try std.testing.expectEqual(@as(usize, 3), doc.blocks.len);
     try std.testing.expectEqual(@as(zant.markdown.Block, .rule), doc.blocks[1]);
 }
+
+test "html block is preserved" {
+    var doc = try zant.markdown.parse(std.testing.allocator, "<div>hello</div>\n");
+    defer doc.deinit();
+    try std.testing.expectEqual(@as(usize, 1), doc.blocks.len);
+    try std.testing.expectEqualStrings("<div>hello</div>", doc.blocks[0].html);
+}

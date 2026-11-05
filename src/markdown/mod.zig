@@ -44,6 +44,7 @@ pub const Block = union(enum) {
     list: List,
     table: Table,
     math: []const u8,
+    html: []const u8,
     rule,
 };
 
@@ -271,6 +272,16 @@ pub fn parseInline(arena: std.mem.Allocator, text: []const u8) ![]const Span {
     var out: std.ArrayListUnmanaged(Span) = .empty;
     try parseInlineStyle(arena, text, .{}, &out);
     return out.toOwnedSlice(arena);
+}
+
+fn isHtmlBlockStart(line: []const u8) bool {
+    if (line.len == 0 or line[0] != '<') return false;
+    if (std.mem.startsWith(u8, line, "<http") or std.mem.startsWith(u8, line, "<https") or std.mem.startsWith(u8, line, "<mailto")) return false;
+    if (std.mem.startsWith(u8, line, "<!--")) return true;
+    if (line.len < 3) return false;
+    const second = line[1];
+    if (second == '/') return line.len > 2 and std.ascii.isAlphabetic(line[2]);
+    return std.ascii.isAlphabetic(second);
 }
 
 fn isThematicBreak(line: []const u8) bool {
@@ -510,6 +521,17 @@ fn parseBlocks(arena: std.mem.Allocator, text: []const u8) ![]const Block {
                     continue;
                 }
             }
+        }
+        if (isHtmlBlockStart(trimmed)) {
+            var raw: std.ArrayListUnmanaged(u8) = .empty;
+            try raw.appendSlice(arena, lines.items[i]);
+            i += 1;
+            while (i < lines.items.len and std.mem.trim(u8, lines.items[i], " \t").len != 0) : (i += 1) {
+                try raw.append(arena, '\n');
+                try raw.appendSlice(arena, lines.items[i]);
+            }
+            try blocks.append(arena, .{ .html = try raw.toOwnedSlice(arena) });
+            continue;
         }
         var body: std.ArrayListUnmanaged(u8) = .empty;
         var prev_line: ?[]const u8 = null;
@@ -760,6 +782,11 @@ fn renderBlock(block: Block) ui.Node {
             break :blk ui.column(.{ .width_percent = 100, .gap = 4, .children = rows[0..count] });
         },
         .math => |source| math.render(std.heap.c_allocator, source),
+        .html => |source| ui.styled(ui.text(source, .{ .size = 13, .family = .mono, .color = 0xff8b918c }), .{
+            .background = 0xfff0f2ed,
+            .radius = 7,
+            .padding = .{ .left = 12, .right = 12, .top = 8, .bottom = 8 },
+        }),
         .rule => ui.divider(.{ .margin = .{ .top = 28, .bottom = 28 } }),
     };
 }
