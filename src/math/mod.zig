@@ -179,8 +179,17 @@ fn renderExpr(expr: Expr, size: f32) ui.Node {
         }),
         .sqrt => |body| ui.row(.{
             .gap = 1,
-            .align_items = .center,
-            .children = &.{ richText("√", size), renderExpr(body.*, size) },
+            .align_items = .end,
+            .children = &.{
+                richText("√", size),
+                ui.column(.{
+                    .align_items = .stretch,
+                    .children = &.{
+                        ui.styled(ui.space(.{ .height = 1 }), .{ .background = 0xff292d2a }),
+                        renderExpr(body.*, size),
+                    },
+                }),
+            },
         }),
     };
 }

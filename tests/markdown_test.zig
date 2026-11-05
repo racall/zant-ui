@@ -111,3 +111,9 @@ test "indented code block" {
     try std.testing.expectEqual(@as(usize, 1), doc.blocks.len);
     try std.testing.expectEqualStrings("let x = 1;\nlet y = 2;", doc.blocks[0].code.text);
 }
+
+test "math radical has an overline" {
+    zant.ui.beginFrame();
+    defer zant.ui.endFrame();
+    _ = zant.math.render(std.testing.allocator, "\\sqrt{x^2 + y^2}");
+}
