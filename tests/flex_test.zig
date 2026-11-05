@@ -250,3 +250,18 @@ test "rich text lays out and wraps" {
     try std.testing.expect(tree.get(id).bounds.height >= 20);
     try std.testing.expect(tree.get(id).bounds.width <= 120.1);
 }
+
+test "absolute button participates in hit testing" {
+    var tree = try Tree.init(std.testing.allocator, zant.tokens.antLight());
+    defer tree.deinit();
+    const id = try tree.addButton(tree.root, "menu", .text, .middle, null);
+    const node = tree.get(id);
+    node.style.absolute = true;
+    node.style.top = 10;
+    node.style.right = 10;
+    node.style.width = 80;
+    node.style.height = 30;
+    tree.layout(.{ .width = 200, .height = 100 });
+    try expectRect(node, 110, 10, 80, 30);
+    try std.testing.expectEqual(@as(?zant.node.NodeId, id), tree.hitTest(140, 20));
+}
