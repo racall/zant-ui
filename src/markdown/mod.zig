@@ -217,6 +217,28 @@ fn parseBlocks(arena: std.mem.Allocator, text: []const u8) ![]const Block {
             i += 1;
             continue;
         }
+        if ((line.len >= 4 and std.mem.startsWith(u8, line, "    ")) or (line.len > 0 and line[0] == '\t')) {
+            var body: std.ArrayListUnmanaged(u8) = .empty;
+            var started = false;
+            while (i < lines.items.len) : (i += 1) {
+                const raw = lines.items[i];
+                const is_indented = (raw.len >= 4 and std.mem.startsWith(u8, raw, "    ")) or (raw.len > 0 and raw[0] == '\t');
+                if (std.mem.trim(u8, raw, " \t").len == 0) {
+                    if (body.items.len > 0) try body.append(arena, '\n');
+                    continue;
+                }
+                if (!is_indented) break;
+                if (started) try body.append(arena, '\n');
+                const stripped = if (raw[0] == '\t') raw[1..] else raw[4..];
+                try body.appendSlice(arena, stripped);
+                started = true;
+            }
+            if (started) {
+                const trimmed_code = std.mem.trimEnd(u8, body.items, "\n");
+                try blocks.append(arena, .{ .code = .{ .lang = "", .text = try arena.dupe(u8, trimmed_code) } });
+                continue;
+            }
+        }
         if (std.mem.startsWith(u8, trimmed, "```")) {
             const lang = trimmed[3..];
             var body: std.ArrayListUnmanaged(u8) = .empty;

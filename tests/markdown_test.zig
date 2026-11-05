@@ -104,3 +104,10 @@ test "setext heading and gfm autolink" {
     const para = doc.blocks[1].paragraph;
     try std.testing.expect(para.len > 0 and para[0].style.link);
 }
+
+test "indented code block" {
+    var doc = try zant.markdown.parse(std.testing.allocator, "    let x = 1;\n    let y = 2;\n");
+    defer doc.deinit();
+    try std.testing.expectEqual(@as(usize, 1), doc.blocks.len);
+    try std.testing.expectEqualStrings("let x = 1;\nlet y = 2;", doc.blocks[0].code.text);
+}
