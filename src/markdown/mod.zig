@@ -481,12 +481,21 @@ fn parseBlocks(arena: std.mem.Allocator, text: []const u8) ![]const Block {
             }
         }
         var body: std.ArrayListUnmanaged(u8) = .empty;
+        var prev_line: ?[]const u8 = null;
         while (i < lines.items.len) {
-            const t = std.mem.trim(u8, lines.items[i], " \t");
+            const pline = lines.items[i];
+            const t = std.mem.trim(u8, pline, " \t");
             if (t.len == 0) break;
-            if (body.items.len > 0 and isBlockStart(lines.items[i])) break;
-            if (body.items.len > 0) try body.append(arena, '\n');
-            try body.appendSlice(arena, lines.items[i]);
+            if (body.items.len > 0 and isBlockStart(pline)) break;
+            if (body.items.len > 0) {
+                const hard = if (prev_line) |prev| blk: {
+                    if (prev.len >= 2 and prev[prev.len - 1] == ' ' and prev[prev.len - 2] == ' ') break :blk true;
+                    break :blk prev.len > 0 and prev[prev.len - 1] == '\\';
+                } else false;
+                try body.append(arena, if (hard) '\n' else ' ');
+            }
+            try body.appendSlice(arena, pline);
+            prev_line = pline;
             i += 1;
         }
         try blocks.append(arena, .{ .paragraph = try parseInline(arena, body.items) });

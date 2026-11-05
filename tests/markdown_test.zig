@@ -170,3 +170,18 @@ test "html entities decode in plain text" {
     }
     try std.testing.expect(found_amp and found_lt);
 }
+
+test "soft break becomes space and hard break keeps newline" {
+    var doc = try zant.markdown.parse(std.testing.allocator, "one\ntwo  \nthree");
+    defer doc.deinit();
+    const para = doc.blocks[0].paragraph;
+    var joined: [64]u8 = undefined;
+    var n: usize = 0;
+    for (para) |span| {
+        for (span.text) |c| {
+            if (n < joined.len) { joined[n] = c; n += 1; }
+        }
+    }
+    try std.testing.expect(std.mem.indexOf(u8, joined[0..n], "one two") != null);
+    try std.testing.expect(std.mem.indexOf(u8, joined[0..n], "three") != null);
+}
