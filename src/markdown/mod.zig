@@ -273,12 +273,24 @@ pub fn parseInline(arena: std.mem.Allocator, text: []const u8) ![]const Span {
     return out.toOwnedSlice(arena);
 }
 
+fn isThematicBreak(line: []const u8) bool {
+    var count: usize = 0;
+    var marker: u8 = 0;
+    for (line) |c| {
+        if (c == ' ' or c == '\t') continue;
+        if (c != '-' and c != '*' and c != '_') return false;
+        if (marker == 0) marker = c else if (c != marker) return false;
+        count += 1;
+    }
+    return count >= 3;
+}
+
 fn isBlockStart(line: []const u8) bool {
     const t = std.mem.trimStart(u8, line, " \t");
     return std.mem.startsWith(u8, t, "#") or std.mem.startsWith(u8, t, "```") or
         std.mem.startsWith(u8, t, ">") or std.mem.startsWith(u8, t, "- ") or
         std.mem.startsWith(u8, t, "* ") or std.mem.startsWith(u8, t, "+ ") or
-        std.mem.eql(u8, t, "---") or std.mem.eql(u8, t, "***") or
+        isThematicBreak(t) or
         (t.len > 2 and std.ascii.isDigit(t[0]) and std.mem.indexOfScalar(u8, t, '.') != null);
 }
 
@@ -389,7 +401,7 @@ fn parseBlocks(arena: std.mem.Allocator, text: []const u8) ![]const Block {
                 continue;
             }
         }
-        if (std.mem.eql(u8, trimmed, "---") or std.mem.eql(u8, trimmed, "***") or std.mem.eql(u8, trimmed, "___")) {
+        if (isThematicBreak(trimmed)) {
             try blocks.append(arena, .rule);
             i += 1;
             continue;

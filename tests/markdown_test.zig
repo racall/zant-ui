@@ -196,3 +196,10 @@ test "gfm bare autolinks" {
     }
     try std.testing.expectEqual(@as(usize, 2), links);
 }
+
+test "thematic break with spaces" {
+    var doc = try zant.markdown.parse(std.testing.allocator, "a\n\n* * *\n\nb");
+    defer doc.deinit();
+    try std.testing.expectEqual(@as(usize, 3), doc.blocks.len);
+    try std.testing.expectEqual(@as(zant.markdown.Block, .rule), doc.blocks[1]);
+}
