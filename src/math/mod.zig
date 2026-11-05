@@ -185,7 +185,75 @@ fn renderExpr(expr: Expr, size: f32) ui.Node {
     };
 }
 
+fn renderCell(allocator: std.mem.Allocator, source: []const u8) ui.Node {
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    var parser = Parser{ .arena = arena.allocator(), .src = source };
+    const items = parser.parse() catch return ui.text(source, .{ .size = 18, .family = .serif });
+    if (items.len == 0) return ui.space(.{ .width = 1, .height = 1 });
+    return renderExpr(.{ .row = items }, 18);
+}
+
+fn findEnv(source: []const u8) ?struct { body: []const u8, kind: []const u8 } {
+    const begin = std.mem.indexOf(u8, source, "\\begin{") orelse return null;
+    const name_start = begin + "\\begin{".len;
+    const name_end = std.mem.indexOfScalarPos(u8, source, name_start, '}') orelse return null;
+    const kind = source[name_start..name_end];
+    const end_marker = std.fmt.allocPrint(std.heap.c_allocator, "{s}{s}{s}", .{ "\\end{", kind, "}" }) catch return null;
+    defer std.heap.c_allocator.free(end_marker);
+    const end = std.mem.indexOfPos(u8, source, name_end + 1, end_marker) orelse return null;
+    return .{ .body = source[name_end + 1 .. end], .kind = kind };
+}
+
+fn renderMatrix(allocator: std.mem.Allocator, source: []const u8, kind: []const u8) ui.Node {
+    const env = findEnv(source) orelse return ui.text(source, .{ .size = 18, .family = .serif });
+    var row_nodes: [24]ui.Node = undefined;
+    var row_count: usize = 0;
+    var rows = std.mem.splitSequence(u8, env.body, "\\\\");
+    while (rows.next()) |row| {
+        if (row_count >= row_nodes.len) break;
+        var cell_nodes: [24]ui.Node = undefined;
+        var cell_count: usize = 0;
+        var cells = std.mem.splitScalar(u8, row, '&');
+        while (cells.next()) |cell| {
+            if (cell_count >= cell_nodes.len) break;
+            cell_nodes[cell_count] = renderCell(allocator, std.mem.trim(u8, cell, " \t\n"));
+            cell_count += 1;
+        }
+        row_nodes[row_count] = ui.row(.{
+            .gap = 18,
+            .align_items = .center,
+            .children = cell_nodes[0..cell_count],
+        });
+        row_count += 1;
+    }
+    const grid = ui.column(.{ .gap = 8, .align_items = .center, .children = row_nodes[0..row_count] });
+    if (std.mem.eql(u8, kind, "matrix")) return grid;
+    if (std.mem.eql(u8, kind, "pmatrix") or std.mem.eql(u8, kind, "bmatrix")) {
+        const left = if (std.mem.eql(u8, kind, "pmatrix")) "(" else "[";
+        const right = if (std.mem.eql(u8, kind, "pmatrix")) ")" else "]";
+        return ui.row(.{
+            .gap = 7,
+            .align_items = .center,
+            .children = &.{
+                ui.text(left, .{ .size = 30, .family = .serif, .color = 0xff292d2a }),
+                grid,
+                ui.text(right, .{ .size = 30, .family = .serif, .color = 0xff292d2a }),
+            },
+        });
+    }
+    return grid;
+}
+
 pub fn render(allocator: std.mem.Allocator, source: []const u8) ui.Node {
+    if (findEnv(source)) |env| {
+        return ui.column(.{
+            .width_percent = 100,
+            .align_items = .center,
+            .padding = .{ .top = 7, .bottom = 7 },
+            .children = &.{renderMatrix(allocator, source, env.kind)},
+        });
+    }
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
     var parser = Parser{ .arena = arena.allocator(), .src = source };

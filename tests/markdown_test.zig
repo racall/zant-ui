@@ -87,3 +87,10 @@ test "inline math flattens to unicode" {
     try std.testing.expect(std.mem.indexOf(u8, text, "a²") != null);
     try std.testing.expect(std.mem.indexOf(u8, text, "(a)/(b)") != null);
 }
+
+test "math matrix renders rows and columns" {
+    zant.ui.beginFrame();
+    defer zant.ui.endFrame();
+    _ = zant.math.render(std.testing.allocator,
+        "\\\\begin{matrix} a & b \\\\\\\\ c & d \\\\end{matrix}");
+}
