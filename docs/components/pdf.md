@@ -32,8 +32,8 @@ ui.pdfPreview(.{
 
 ## 实现
 
-macOS 使用 **PDFKit**、Windows 使用 **PDFium**（`pdfium.dll` 与 `zant_skia.dll` 同目录，
-首次使用时加载；缺失时显示“无法预览 PDF”）将页面渲染为 PNG，再交给 Skia 图片管线绘制。
+macOS 使用 **PDFKit**、Windows 使用 **PDFium**（`pdfium.dll` 放在可执行文件或
+`zant_skia.dll` 同目录，首次使用时加载；缺失时显示“无法预览 PDF”）将页面渲染为 PNG，再交给 Skia 图片管线绘制。
 页面图片按「文件 + 页码 + 尺寸」缓存在临时目录，不引入 WebView、JavaScript
 或 WASM。
 

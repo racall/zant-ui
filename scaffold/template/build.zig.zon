@@ -14,5 +14,6 @@
         "README.md",
         "AGENTS.md",
         "CLAUDE.md",
+        "DESIGN.md",
     },
 }

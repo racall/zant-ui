@@ -10,7 +10,17 @@ var store = try zant.db.open(allocator, "app.data");
 defer store.close();
 ```
 
-`":memory:"` 可用于测试。
+`path` 是 UTF-8、以 0 结尾的路径（`[:0]const u8`），相对路径按当前目录解析；`":memory:"` 可用于测试。
+正式应用把文件放在应用数据目录（macOS `~/Library/Application Support/<id>`，Windows `%APPDATA%\<id>`）：
+
+```zig
+const dir = (try zant.paths.appDataDir(allocator, init.environ_map, cfg.bundle_id)).?; // 不会自动创建
+// 创建 dir 后：
+const path = try std.fs.path.joinZ(allocator, &.{ dir, "app.data" });
+var store = try zant.db.open(allocator, path);
+```
+
+使用系统 SQLite：macOS 链接 `libsqlite3`，Windows 链接系统自带的 `winsqlite3.dll`，不需要额外分发。
 
 ## 键值
 
@@ -104,7 +114,7 @@ const count = try users.count();
 | 布尔 | `setBool` / `getBool` |
 | 浮点 | `setFloat` / `getFloat` |
 | JSON | `setJson` / `getJson` |
-| 删除键 | `remove(key)` |
+| 删除键 | `remove(key)`；清空所有键值 `clear()` |
 | 是否存在 | `has(key)` |
 | 对象集合 | `store.collection(T)` |
 | 集合 CRUD | `add/find/all/update/remove/count` |

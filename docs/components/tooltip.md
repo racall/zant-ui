@@ -14,4 +14,6 @@ ui.tooltip(.{
 
 `text`、`child`。
 
-Hover 或键盘聚焦后显示；提示层绘制在窗口最上层。
+悬停约 450ms 后显示在目标下方（zoom 动效），放不下时翻到上方；提示层绘制在窗口最上层。
+`ui.image`、`ui.select`、`ui.iconButton` 和 `SegmentedOption` 也有 `tooltip` 字段。
+提示里的快捷键用 `zant.keys.label("mod+c")` 生成，不要写死 ⌘。

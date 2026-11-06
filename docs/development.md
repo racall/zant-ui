@@ -3,15 +3,19 @@
 ## 依赖
 
 - Zig 0.17.1
-- macOS 13+、Xcode 命令行工具，Skia 预编译包（首次执行 `./scripts/fetch_skia.sh`）
+- macOS 13+（Apple Silicon）、Xcode 命令行工具，Skia 预编译包（首次执行 `./scripts/fetch_skia.sh`）
 - 或 Windows 10/11 x64、Visual Studio 2022+ / Build Tools（「使用 C++ 的桌面开发」），
   依赖（Skia、头文件、PDFium、STIX Two Math）首次执行
-  `powershell -ExecutionPolicy Bypass -File scripts/fetch_skia_windows.ps1`
+  `powershell -ExecutionPolicy Bypass -File scripts/fetch_skia_windows.ps1`。
+  `zant_skia.dll` 由 `zig build` 调用 MSVC 构建（`scripts/win/build_bridge.ps1`，有缓存）。
+
+在 macOS 上 `zig build -Dtarget=x86_64-windows` 可检查 Windows 代码能否编译（DLL 只能在 Windows 上构建）。
+Windows 上 Debug 构建是控制台程序（双击运行会带控制台窗口，便于看 stderr），Release 构建为 GUI 子系统。
 
 ## 常用命令
 
 ```bash
-./scripts/fetch_skia.sh
+./scripts/fetch_skia.sh    # macOS 首次；Windows 用 scripts/fetch_skia_windows.ps1
 zig build
 zig build test
 zig build -Doptimize=ReleaseFast
@@ -30,7 +34,7 @@ zig build run-pdf -- a.pdf # PDF 预览（ZANT_PDF_PAGE=页码，ZANT_PDF_PROBE=
 - `ZANT_SNAPSHOT=/path/out.png`：绘制后保存 PNG，用于视觉检查（截图模式关闭动效）。
 - `ZANT_SNAPSHOT_EXIT=1`：截图后退出。
 - `ZANT_NO_MOTION=1`：关闭动效（系统“减少动态效果”打开时也会关闭）。
-- `ZANT_RAW_LOGS=1`：`zant run` 显示原始日志（默认隐藏输入法框架的无害日志）。
+- `ZANT_RAW_LOGS=1`：`zant run` 显示原始日志（macOS 默认隐藏输入法框架的无害日志；Windows 不过滤）。
 - `ZANT_LAYOUT_FILE=/path/layout.txt`：每帧写出带 key 节点的位置（`key x y 宽 高`，逻辑像素，
   Tab 分隔），供 UI 自动化按 key 点击。
 - `ZANT_FRAME_STATS=1`：每秒在 stderr 输出 `[frames]`：帧数、最慢一帧及其 rebuild / layout / paint
@@ -46,8 +50,8 @@ Windows 上写 stderr 很贵（每行约 10 ms），不要在每帧都会执行�
 
 ## 测试
 
-`zig build test`（129 项，macOS 与 Windows 都要通过）覆盖 Flex 布局、组件、声明式 UI 与协调、节点生命周期、动效
-（假时钟）、文本、Store / SQLite、Markdown（含 remend 522 条上游用例）与数学排版。
+`zig build test`（129 项，macOS 与 Windows 都要通过）覆盖 Flex 布局、组件、声明式 UI 与协调、
+节点生命周期、动效（假时钟）、文本、Store / SQLite、PDF、Markdown（含 remend 522 条上游用例）与数学排版。
 测试不依赖真实窗口；时间相关测试注入假时钟（`runtime.clock`），不要 sleep。
 
 ## Windows 测试机
@@ -87,8 +91,9 @@ zig build
 ./zig-out/bin/zant create my-app
 ```
 
-生成项目的 `build.zig` 通过 `zant_ui` 依赖导入框架；模板位于
-`scaffold/template/`，由 CLI 写入目标目录。
+生成项目的 `build.zig` 通过 `zant_ui` 依赖导入框架，并调用 `configureApp`（Windows 上嵌入 manifest、
+Release 用 GUI 子系统、把 `zant_skia.dll` / `pdfium.dll` 装到 exe 旁；macOS 上无操作）；模板位于
+`scaffold/template/`，由 CLI 写入目标目录。框架更新后执行 `zant update` 重编译全局 CLI。详见 [脚手架](scaffold.md)。
 
 ## 目录
 
@@ -101,4 +106,6 @@ zig build
 - `src/renderer/skia/`：C ABI 与 Skia 桥（可移植核心 + mac / win 平台文件）。
 - `src/platform/platform.h`：平台 C ABI；`macos/window.m`（AppKit）与 `windows/window.c`（Win32）实现。
 - `scripts/win/`：Windows 桥接 DLL 构建、测试机同步、远程执行与桌面冒烟测试。
+- `src/core/keys.zig`、`src/core/paths.zig`：平台快捷键（`zant.keys`）与应用数据目录（`zant.paths`）。
+- `src/db/`：SQLite 封装（macOS 系统 libsqlite3，Windows 系统 `winsqlite3.dll`）。
 - `tools/zant/`：编译后的脚手架 CLI。

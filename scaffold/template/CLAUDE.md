@@ -17,7 +17,7 @@
 - 组件：`src/components/`，父组件通过 props 传值，子组件通过回调向上发事件。
 - 配置：`app.config.json`；`src/app_config.zig`、`Info.plist`、`app.entitlements`
   由 `zant` 生成，不要手改。
-- 运行：`zant run`。
+- 运行：`zant run`（`--watch` 改动后自动重编译、重启）。
 - 打包：`zant package`。
 - 测试：`zig build test`。
 - 格式化：`zig fmt src build.zig`。

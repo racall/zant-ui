@@ -1,5 +1,6 @@
 //! Markdown editor component: edit / split / preview modes, a formatting
-//! toolbar and editing shortcuts (⌘B ⌘I ⌘K ⌘E ⌘⇧X, list continuation on
+//! toolbar and editing shortcuts (mod+B/I/K/E, mod+Shift+X — ⌘ on macOS,
+//! Ctrl on Windows; list continuation on
 //! Enter, Tab / ⇧Tab list indentation).
 //!
 //! Stateless like every Zant component: the text, selection and mode live in
@@ -11,6 +12,7 @@ const events = @import("../core/events.zig");
 const edit = @import("edit.zig");
 const cache_mod = @import("cache.zig");
 const view = @import("render/view.zig");
+const keys = @import("../core/keys.zig");
 
 pub const Mode = enum(usize) { edit = 0, split = 1, preview = 2 };
 
@@ -19,13 +21,13 @@ pub const Labels = struct {
     split: []const u8 = "Split",
     preview: []const u8 = "Preview",
     /// Toolbar tooltips, in `edit.Command` order.
-    tools: [15][]const u8 = .{ "Bold ⌘B", "Italic ⌘I", "Strikethrough ⇧⌘X", "Inline code ⌘E", "Link ⌘K", "Heading", "Quote", "Bulleted list", "Numbered list", "Task list", "Code block", "Inline math", "Math block", "Divider", "Table" },
+    tools: [15][]const u8 = .{ "Bold " ++ keys.label("mod+b"), "Italic " ++ keys.label("mod+i"), "Strikethrough " ++ keys.label("mod+shift+x"), "Inline code " ++ keys.label("mod+e"), "Link " ++ keys.label("mod+k"), "Heading", "Quote", "Bulleted list", "Numbered list", "Task list", "Code block", "Inline math", "Math block", "Divider", "Table" },
 
     pub const zh: Labels = .{
         .edit = "编辑",
         .split = "分栏",
         .preview = "预览",
-        .tools = .{ "粗体 ⌘B", "斜体 ⌘I", "删除线 ⇧⌘X", "行内代码 ⌘E", "链接 ⌘K", "标题", "引用", "无序列表", "有序列表", "任务列表", "代码块", "行内公式", "公式块", "分隔线", "表格" },
+        .tools = .{ "粗体 " ++ keys.label("mod+b"), "斜体 " ++ keys.label("mod+i"), "删除线 " ++ keys.label("mod+shift+x"), "行内代码 " ++ keys.label("mod+e"), "链接 " ++ keys.label("mod+k"), "标题", "引用", "无序列表", "有序列表", "任务列表", "代码块", "行内公式", "公式块", "分隔线", "表格" },
     };
 };
 

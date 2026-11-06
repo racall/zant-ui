@@ -12,7 +12,7 @@ if (state.menu_open) {
         .width = 240,
         .items = &.{
             ui.MenuItem.group("文件"),
-            .{ .key = "m-open", .label = "打开…", .icon = .folder, .extra = "⌘O", .on_click = ui.action(state, State.open) },
+            .{ .key = "m-open", .label = "打开…", .icon = .folder, .extra = zant.keys.label("mod+o"), .on_click = ui.action(state, State.open) },
             ui.MenuItem.divider,
             .{ .key = "m-del", .label = "删除", .icon = .trash, .danger = true, .on_click = ui.action(state, State.remove) },
         },
@@ -20,6 +20,11 @@ if (state.menu_open) {
 }
 ```
 
+- `MenuOptions`：`key`、`items`、`width`（默认 220）、`max_height`、`font_size`（14）、
+  颜色覆盖 `background` / `text_color` / `extra_color` / `border_color`、`motion`、`motion_origin`。
+- `MenuItem`：`key`、`label`、`icon`、`extra`（右侧快捷键，用 `zant.keys.label`）、`disabled`、
+  `danger`、`selected`、`indent`（每级缩进 12px）、`on_click` 或 `index_action` + `index`、
+  `content`（自定义行内容）；`MenuItem.divider`、`MenuItem.group("标题")`。
 - `MenuItem.selected` 用 `color_primary_bg` 高亮当前项（如大纲中的当前章节）。
 - `max_height` 设置后内容可滚动；`motion` / `motion_origin` 可改进出场动效与原点。
 - 菜单面板 `block_pointer`：点在内边距、分隔线、禁用项上不会穿透关闭。

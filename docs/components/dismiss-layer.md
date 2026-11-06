@@ -8,4 +8,6 @@ children.append(ui.dismissLayer(.{ .on_dismiss = ui.action(state, State.closeMen
 children.append(menu);
 ```
 
+选项：`key`（默认 `"dismiss-layer"`，同屏多个时各给一个）、`on_dismiss`、`background`。
+
 弹层本身应设 `block_pointer = true`（`ui.dropdownMenu` 已默认），点在其空白处不会穿透。

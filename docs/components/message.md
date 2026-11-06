@@ -16,4 +16,7 @@ if (now < state.toast_until_ms) {
 }
 ```
 
+选项：`key`（默认 `"message"`）、`text`、`kind`（默认 `.success`）、`top`（距窗口顶部，默认 16）、
+`icon_color`。
+
 设置提示：`state.toast_until_ms = zant.ui.nowMs() + 1800`（在动作回调里调用）。

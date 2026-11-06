@@ -22,12 +22,18 @@
   `ZANT_NO_MOTION=1` 关闭动效。
 - 全局 CLI：`zant`；框架更新后执行 `zant update`。
 - 热更新：`zant run --watch`（重启式，非沙盒，监视 `src/` 下所有 .zig）。
-- `zant run` 会隐藏 macOS 输入法框架的无害日志（IMKCFRunLoopWakeUpReliable 等），
+- macOS 上 `zant run` 会隐藏输入法框架的无害日志（IMKCFRunLoopWakeUpReliable 等），
   需要原始输出时设 `ZANT_RAW_LOGS=1`。
 - PDF：`ui.pdfPreview`（macOS PDFKit，Windows PDFium）。
 - Markdown：`src/markdown/`（Streamdown 移植，模块化），数学：`src/math/`（KaTeX 算法）。
   详见 `docs/markdown.md`；示例 `zig build run-markdown` / `run-math`。
-- 视觉检查：`ZANT_SNAPSHOT=out.png ZANT_SNAPSHOT_EXIT=1 ./zig-out/bin/<app>`。
+- 视觉检查：`ZANT_SNAPSHOT=out.png ZANT_SNAPSHOT_EXIT=1 ./zig-out/bin/<app>`；Windows 的窗口要在
+  已登录桌面里看（`scripts/win/run-desktop.ps1`），SSH 会话里不可见。
+- 自动化与性能：`ZANT_LAYOUT_FILE`（按 key 定位控件）、`ZANT_FRAME_STATS=1`（每秒帧统计，
+  性能看 Release 构建）、`zant-components` 的 `ZANT_AUTOPLAY=quiet`；Windows 桌面测试脚本见
+  `docs/development.md`「Windows 测试机」。
+- 平台差异不写进组件和应用：快捷键用 `zant.keys`，自绘标题栏用 `ui.titlebarInsets()`，
+  浮层跟随控件用 `ui.keyBounds()`，数据目录用 `zant.paths`（见 `AGENTS.md`「跨平台规范」）。
 
 ## 改动原则
 
@@ -43,6 +49,8 @@
 3. 新组件必须是 `fn (props) ui.Node`，不依赖平台细节。
 4. 新增外观属性要真正被 paint 使用；不要只加字段不渲染。
 5. 改布局/渲染后补测试，并运行 `zig build test`。
-6. 不提交密钥、证书、token、真实签名身份或本机绝对路径。
+6. 不提交密钥、证书、token、真实签名身份或本机绝对路径；Windows 测试机的地址只写在
+   不提交的 `scripts/win/.env` 里。
 7. 提交前运行 `zig fmt`、检查 `git diff`，不要提交 `.zig-cache`、
-   `zig-out`、`third_party` 或测试项目。
+   `zig-out`、`third_party` 或测试项目；改了 `skia_bridge.h` / `pdf.h` 的函数要运行
+   `scripts/win/gen_def.sh`，并确认 macOS 与 Windows 都通过 `zig build test`。

@@ -42,7 +42,7 @@ cd my-app
 zant run
 zant run --watch              # 重启式热更新，非沙盒
 zant build --release
-zant package                  # ReleaseFast + .app + codesign
+zant package                  # ReleaseFast；macOS 生成 .app 并 codesign，Windows 生成 zig-out/<标题>/ 目录
 zant update                   # 重新编译框架并更新全局二进制
 ```
 
@@ -101,7 +101,9 @@ third_party/            Skia 预编译依赖（不提交到 Git）
     全尺寸点击层/悬停底色会覆盖父元素的 padding。
   - 已按 antd 实现：Button、Input、Checkbox/Switch/Radio、Select、Tabs、Card、Tag、
     Alert、Avatar、Progress、Divider、Tooltip、Dropdown 菜单（`ui.dropdownMenu`）、
-    Segmented（`ui.segmented`）、Modal（`ui.modal`）、快捷键列表（`ui.shortcutList`）、全局提示（`ui.message`）。
+    Segmented（`ui.segmented`）、Modal（`ui.modal`）、快捷键列表（`ui.shortcutList`）、全局提示（`ui.message`）、
+    Windows 标题栏按钮（`ui.windowControls`，运行时自动添加）。全部组件的可交互示例在
+    `examples/components.zig`（`zig build run-components`）。
   - **通用组件属于 Zant UI**：任何应用都可能用到的组件（模态框、快捷键列表、菜单、提示…）
     必须加到框架 `src/components/` 并经 `ui.*` 导出，应用里只写业务数据和组合；
     应用里发现缺的通用组件，先补进框架再使用。
@@ -109,6 +111,8 @@ third_party/            Skia 预编译依赖（不提交到 Git）
     图标、统一线宽），不要用文字字符（☰、⋯）冒充图标。
   - 弹出层（菜单、面板）前放 `ui.dismissLayer`：点击外部任意位置关闭，且不绘制遮罩
     （需要遮罩时传 `background`）。弹层/模态容器设 `block_pointer = true`，空白处不穿透。
+  - 弹出层放在根容器里，用 `ui.keyBounds(触发控件的 key)` 定位到触发控件下方（放不下时翻到上方），
+    不要写死窗口坐标（见 `docs/components/dropdown-menu.md`）。
 
 ## 动效规范（详见 docs/motion.md）
 
@@ -126,13 +130,14 @@ third_party/            Skia 预编译依赖（不提交到 Git）
   `ZANT_NO_MOTION=1`、截图模式、系统“减少动态效果”都会关闭动效。
 - 命令式接口：`ui.focus(key)`、`ui.scrollIntoView(key)`（布局后执行）、`ui.wakeAfter(ms)`、
   `ui.nowMs()`；关窗/退出拦截：State 声明 `pub fn onCloseRequest(self) bool`。
-- 文档类应用：`ui.documentEdited(bool)`（在 render 里声明未保存状态 → 关闭按钮圆点）；
-  `WindowOptions.titlebar_height`（`.hidden_titlebar` 时让红绿灯垂直居中到自定义顶栏高度）。
+- 文档类应用：`ui.documentEdited(bool)`（在 render 里声明未保存状态 → macOS 关闭按钮圆点，
+  Windows 标题前 `*`）；`WindowOptions.titlebar_height`（`.hidden_titlebar` 时 macOS 红绿灯垂直居中、
+  Windows 标题按钮填满自定义顶栏高度），顶栏两侧用 `ui.titlebarInsets()` 留位。
 - 绝对定位同时设 `left` 与 `right`（且无宽度）时按 CSS 拉伸到两侧之间；单行文本设
   `max_lines = 1` 时在空间不足处以“…”截断。
 
 - 组件是普通函数：`fn component(props) ui.Node`。
-- 业务组件只组合 `ui.*`，不直接调用 AppKit/Skia。
+- 业务组件只组合 `ui.*`，不直接调用 AppKit / Win32 / Skia。
 - 通用样式覆盖使用：
 
 ```zig
@@ -167,16 +172,17 @@ ui.styled(node, .{
 ## 窗口与配置
 
 - 项目配置：`app.config.json`。
-- 生成文件：`src/app_config.zig`、`Info.plist`、`app.entitlements`，
-  不要手改。
+- 生成文件：`src/app_config.zig`、`Info.plist`、`app.entitlements`（后两者只在 macOS 打包时用），
+  不要手改。Windows 上 Bundle ID 用作 `%APPDATA%` 下的数据目录名（`zant.paths.appDataDir`）。
 - 配置字段：标题、Bundle ID、版本、`sandbox`、`signing_identity`，以及
   `window` 下的 style/width/height/min/background/resizable/always_on_top/
   movable_by_background/center。
 - 代码中的 `WindowOptions` 优先级高于 JSON。
 - 修改 JSON 后执行 `zant run` / `zant build` / `zant package`。
 
-## 沙盒与签名
+## 沙盒与签名（macOS）
 
+- 沙盒和签名只用于 macOS；Windows 打包不签名（Authenticode 未自动化），`sandbox` 被忽略。
 - `sandbox: true` 时打包写入 `com.apple.security.app-sandbox` entitlement。
 - 沙盒应用必须通过 LaunchServices 启动；`zant run` 已处理。
 - 签名身份来自本机 keychain 或 `app.config.json`；`none` 表示 ad-hoc。
@@ -197,9 +203,10 @@ ui.styled(node, .{
 
 ## PDF 组件
 
-- `ui.pdfPreview` 使用原生 PDFKit 渲染到 PNG，再走 Skia 图片管线。
+- `ui.pdfPreview` 用 PDFKit（macOS）/ PDFium（Windows）渲染到 PNG，再走 Skia 图片管线。
 - 基本功能：首页/上一页/下一页/末页、页码、复制本页文本。
-- 页面图片缓存在系统临时目录；不要每帧重复渲染。
+- 页面图片缓存在系统临时目录；不要每帧重复渲染。Windows 需要 `pdfium.dll`
+  （`configureApp` / `zant package` 会放到 exe 旁边，缺失时显示“无法预览 PDF”）。
 - 扫描版 PDF 没有文本层时，复制无内容。
 - 当前不支持拖拽选区、搜索、缩略图、连续滚动和缩放控件。
 - 交互参考 EmbedPDF，但不嵌入 WebView/JS。
@@ -210,7 +217,8 @@ ui.styled(node, .{
   `build.zig`、`build.zig.zon`，自动重编译并重启。
 - 这是**重启式热更新**：窗口和内存状态会重建。
 - App Sandbox 模式下不支持自动重启。
-- 编译失败时保留旧窗口并等待下一次改动。
+- macOS：编译失败时保留旧窗口并等待下一次改动。Windows 不能覆盖正在运行的 exe，
+  所以先结束应用再编译，编译失败时重新打开上一次的版本。
 - 修改框架本身后执行 `zant update` 更新全局二进制。
 
 ## 性能规则
@@ -243,14 +251,17 @@ ui.styled(node, .{
     生成按键文字（⇧⌘S / Ctrl+Shift+S），平台习惯不同用 `zant.keys.pick(mac, win)`。
   - 自绘标题栏：`ui.titlebarInsets()` 给出系统控件占位（macOS 左侧红绿灯，Windows 右侧标题按钮）；
     Windows 的最小化/最大化/关闭按钮由运行时自动绘制（`ui.windowControls`）。
+  - 弹出层跟随控件：`ui.keyBounds(key)`（上一帧的窗口坐标）。
   - 数据目录：`zant.paths.appDataDir`；文件对话框：`zant.dialogs.*`（扩展名由调用方给）。
 - Windows 构建：Zig 编译 `window.c`，Skia 桥接与 PDF 由 `scripts/win/build_bridge.ps1`
   用 MSVC 编成 `zant_skia.dll`（预编译 Skia 是 MSVC STL）；应用的 `build.zig` 调
   `@import("zant_ui").configureApp(...)` 嵌入 manifest、安装 DLL。
-- 测试机：`scripts/win/sync.sh [../app]` 同步，`scripts/win/remote.sh <dir> '<cmd>'` 远程执行，
+- 测试机：主机与目录写在不提交的 `scripts/win/.env`（`ZANT_WIN_HOST` / `ZANT_WIN_DIR` /
+  `ZANT_WIN_ZIG`）；`scripts/win/sync.sh [../app]` 同步，`scripts/win/remote.sh <dir> '<cmd>'` 远程执行，
   `scripts/win/run-desktop.ps1` 在可见桌面运行（SSH 会话看不到窗口），
   桌面自动化测试见 `docs/development.md`「Windows 测试机」（`components-check.ps1` 点击全部组件、
-  `smoke-stillmd.ps1`、`docs-check.ps1`、`pdf-check.ps1`），按 key 定位靠 `ZANT_LAYOUT_FILE`。
+  `smoke-stillmd.ps1`、`docs-check.ps1`、`pdf-check.ps1`、`resize-check.ps1`），按 key 定位靠
+  `ZANT_LAYOUT_FILE`。PowerShell 变量名不区分大小写，测试脚本里不要让 `$app` 和参数 `$App` 撞名。
 - 新组件要加进 `examples/components.zig`（交互时打印 `[event] ...`），并在
   `scripts/win/components-check.ps1` 里补点击用例。
 - 提交前检查 `git diff`，确认没有密钥、本机绝对路径、测试产物。

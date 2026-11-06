@@ -1,16 +1,17 @@
 //! Keyboard shortcut reference: grouped "action — keys" rows laid out in
 //! balanced columns (macOS / antd Descriptions style). Typically the content
-//! of a `ui.modal` opened with ⌘/.
+//! of a `ui.modal` opened with mod+/ (⌘/ on macOS, Ctrl+/ on Windows).
 //!
 //!     ui.shortcutList(.{ .groups = &.{
-//!         .{ .title = "文件", .items = &.{ .{ .label = "保存", .keys = "⌘S" } } },
+//!         .{ .title = "文件", .items = &.{ .{ .label = "保存", .keys = zant.keys.label("mod+s") } } },
 //!     } })
 const std = @import("std");
 const ui = @import("../ui.zig");
 
 pub const Shortcut = struct {
     label: []const u8,
-    /// Key glyphs as shown (e.g. "⇧⌘S", "⌘Z  ⇧⌘Z", "Esc").
+    /// Key text as shown (e.g. "⇧⌘S" / "Ctrl+Shift+S", "Esc"); build it with
+    /// `zant.keys.label("mod+shift+s")` so it matches the platform.
     keys: []const u8,
 };
 

@@ -32,7 +32,7 @@ Metal / Direct3D 12 GPU 渲染，以及一个编译后的项目脚手架。不�
 | 文本：中文、自动换行、富文本、单行省略号截断、输入法 | ✅ |
 | antd 组件：Button、Input、Checkbox / Switch / Radio、Select、Tabs、Tooltip、Card、Tag、Alert、Avatar、Progress、Dropdown 菜单、Segmented、Modal、Message、Icon | ✅ |
 | 浅色 / 深色主题（运行时切换） | ✅ |
-| 动效：antd 缓动与时长、进场 / 退场、FLIP 布局过渡、CADisplayLink、减少动态效果 | ✅ |
+| 动效：antd 缓动与时长、进场 / 退场、FLIP 布局过渡、按刷新率出帧（CADisplayLink / D3D12 垂直同步）、减少动态效果 | ✅ |
 | Markdown（Streamdown 移植）+ LaTeX 公式（KaTeX 算法）+ Mermaid + HTML 导出 | ✅ |
 | 编译后脚手架 `zant`、app.config.json、App Sandbox + Developer ID 签名（macOS） | ✅ |
 | 平台快捷键（`zant.keys`：⌘ / Ctrl 与按键文字）、应用数据目录（`zant.paths`） | ✅ |
@@ -82,7 +82,7 @@ cd my-app
 zant run                  # 生成配置代码、编译并运行
 zant run --watch          # 重启式热更新
 zant build --release
-zant package              # 生成并签名 .app
+zant package              # macOS：生成并签名 .app；Windows：生成可分发目录
 ```
 
 生成项目包含 `app.config.json`、`src/state.zig`（`AppState`）、父子组件示例、
@@ -129,13 +129,15 @@ Zig 没有闭包；回调统一用 `ui.action` / `ui.textAction` / `ui.boolActio
 `ui.indexAction` / `ui.rangeAction` / `ui.inputKeyAction` 包装，`ctx` 通常是 `*State`。
 
 `zant.launch.run` 会识别状态类型上的可选钩子：`theme`（运行时主题，深色模式）、
-`onKey`（应用快捷键）、`onCloseRequest`（关窗 / ⌘W / ⌘Q 前确认未保存修改）。
+`onKey`（应用快捷键）、`onCloseRequest`（关窗 / ⌘W / ⌘Q，Windows 上为关闭按钮 / Ctrl+W / Alt+F4，前确认未保存修改）。
 
 命令式辅助（在动作回调或 render 中调用）：
 
 - `ui.focus(key)`、`ui.scrollIntoView(key)`：下一次布局后聚焦 / 平滑滚动到节点。
 - `ui.wakeAfter(ms)`、`ui.nowMs()`：定时重建（如轻提示到期消失）。
-- `ui.documentEdited(bool)`：文档类应用的未保存状态（关闭按钮圆点）。
+- `ui.documentEdited(bool)`：文档类应用的未保存状态（macOS 关闭按钮圆点，Windows 窗口标题前加 `*`）。
+- `ui.keyBounds(key)`：上一帧某个 key 节点的位置，浮层（菜单、气泡）据此跟随按钮。
+- `ui.titlebarInsets()`：自绘标题栏要让出的宽度（macOS 左侧红绿灯，Windows 右侧标题栏按钮）。
 
 ## 组件
 
@@ -178,7 +180,7 @@ ui.styled(panel, .{ .key = "menu", .motion = .slide_up, .motion_origin = .top_ri
 ## 状态与持久化
 
 共享或异步状态用 Zustand 风格的 `zant.store.Store`（见 [状态管理](docs/state.md)）；
-本地持久化用内置的 `zant.db`（系统 libsqlite3，键值 + 集合，见 [SQLite 持久化](docs/database.md)）：
+本地持久化用内置的 `zant.db`（系统 SQLite：macOS libsqlite3，Windows winsqlite3；键值 + 集合，见 [SQLite 持久化](docs/database.md)）：
 
 ```zig
 var store = try zant.db.open(allocator, "app.data");
@@ -228,12 +230,12 @@ scripts/win/               Windows 构建（MSVC 桥接 DLL）、测试机同步
 src/store.zig, src/db/     Zustand 风格状态、SQLite 持久化
 tools/zant/                编译后的脚手架 CLI
 scaffold/template/         生成项目模板（含 DESIGN.md / AGENTS.md / CLAUDE.md）
-examples/                  示例与画廊
+examples/                  示例：declarative、gallery、components（全部组件）、markdown、math、pdf
 tests/                     布局 / 组件 / 运行时 / 动效 / Markdown / 数学测试
 docs/                      文档、截图与 showcase.md
 ```
 
 ## License
 
-MIT。Skia 使用 BSD-3-Clause；见 `third_party/skia/skia-binaries/LICENSE_SKIA`；
-数学字体与 Streamdown / KaTeX 相关说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+MIT。Skia（BSD-3-Clause，含 HarfBuzz / ICU / libpng 等）、Windows 上的 PDFium、
+数学字体 STIX Two Math（OFL）与 Streamdown / KaTeX 相关说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

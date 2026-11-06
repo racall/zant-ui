@@ -43,7 +43,7 @@ zant.markdown.editor(.{
 });
 ```
 
-编辑器快捷键：⌘B 粗体、⌘I 斜体、⌘K 链接、⌘E 行内代码、⌘⇧X 删除线；
+编辑器快捷键：⌘B 粗体、⌘I 斜体、⌘K 链接、⌘E 行内代码、⌘⇧X 删除线（Windows 上 ⌘ 换成 Ctrl）；
 列表/引用中回车自动续写，空项回车结束列表；Tab / ⇧Tab 缩进列表。
 
 ## 渲染选项（Streamdown props）

@@ -11,7 +11,7 @@ const md = zant.markdown;
 // 只读预览（流式/静态）：只重新解析变化的块
 md.streamdown(&state.md_cache, state.text(), .{ .render = .{ .theme = md.theme.light() } })
 
-// 编辑器：编辑 / 分栏 / 预览、格式工具栏、快捷键（⌘B ⌘I ⌘K ⌘E ⇧⌘X）、列表续写
+// 编辑器：编辑 / 分栏 / 预览、格式工具栏、快捷键（mod+B/I/K/E、mod+Shift+X：macOS ⌘，Windows Ctrl）、列表续写
 md.editor(.{
     .key = "doc",
     .value = state.text(),
@@ -26,6 +26,12 @@ md.editor(.{
 // 导出 HTML（独立页面，KaTeX 渲染公式）
 const html = try md.html.toHtml(gpa, &doc, .{ .title = "Note" });
 ```
+
+`md.editor` 其余选项：`on_mode`（`md.EditorMode` 索引：edit / split / preview）、`on_undo` /
+`on_redo`、`preview`（`md.Props`，含 `render` 主题等）、`placeholder`、`font_size`（16）、
+`line_height`（1.8）、`toolbar`、`toolbar_commands`、`mode_switch`、`shortcuts`、
+`preview_width`、`labels`（`md.EditorLabels`，界面文字与工具栏提示；中文用 `md.EditorLabels.zh`）。
+`md.streamdown` 的 `mode` 为 `.static` / `.streaming`。深色主题用 `md.theme.dark()`。
 
 ## 支持
 

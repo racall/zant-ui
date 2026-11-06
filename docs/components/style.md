@@ -17,10 +17,14 @@ ui.styled(
 
 ## 可覆盖字段
 
-`background`、`border_color`、`border_width`、`radius`、`padding`、`margin`、
-`width`、`height`、`min_width`、`min_height`、`max_width`、`max_height`、
-`grow`、`shrink`、`basis`、`clip`、`text_color`、`font_size`、`font_weight`、
-`text_align`、`line_height`、`wrap`。
+- 外观：`background`、`border_color`、`border_width`、`radius`（别名 `border_radius`）、
+  `shadow_color`、`shadow_blur`、`shadow_offset_y`、`clip`、`block_pointer`。
+- 布局：`padding`、`margin`、`width`、`height`、`width_percent`、`height_percent`、
+  `min_width`、`min_height`、`max_width`、`max_height`、`grow`、`shrink`、`basis`、
+  `order`、`align_self`、`absolute`、`top`、`right`、`bottom`、`left`、`anchor`。
+- 文本：`text_color`（别名 `color`）、`font_size`、`font_weight`、`text_align`、
+  `line_height`、`wrap`。
+- 动效：`motion`、`motion_origin`、`layout_transition`（见 [动效](../motion.md)）。
 
 规则：
 

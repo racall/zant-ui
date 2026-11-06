@@ -5,10 +5,16 @@ curves, per-component transitions) using two ideas borrowed from **Framer
 Motion**: *presence* (enter / exit transitions) and *layout* transitions
 (FLIP). Everything is plain Zig in `src/motion/`; no dependency.
 
-Because the whole window is painted by Skia on one `CAMetalLayer`, Core
-Animation cannot animate individual nodes. The platform contributes only
-`CADisplayLink` (frames paced to the display while something animates) and
-the system **Reduce motion** setting.
+Because the whole window is painted by Skia on one surface (a `CAMetalLayer`
+on macOS, a Direct3D 12 swap chain on Windows), the system compositor cannot
+animate individual nodes. The platform contributes only frame pacing while
+something animates (`CADisplayLink` on macOS; the swap chain's vsync /
+`DwmFlush` on Windows) and the system's reduced-motion setting (macOS
+**Reduce motion**, Windows **Animation effects**).
+
+Measure frame times on a release build with `ZANT_FRAME_STATS=1`
+(`zig build run-components` with `ZANT_AUTOPLAY=quiet` animates on its own);
+see `docs/development.md`.
 
 ## Rules
 
@@ -74,8 +80,9 @@ this.
 ## Turning motion off
 
 `motion.enabled = false` completes every transition immediately. The
-runtime sets it in `Runtime.run` from the system *Reduce motion* setting,
-`ZANT_NO_MOTION=1` and `ZANT_SNAPSHOT` (snapshots are static).
+runtime sets it in `Runtime.run` from the system setting (macOS *Reduce
+motion*, Windows *Animation effects*), `ZANT_NO_MOTION=1` and
+`ZANT_SNAPSHOT` (snapshots are static).
 
 ## Testing
 

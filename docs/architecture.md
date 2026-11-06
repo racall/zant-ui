@@ -35,7 +35,7 @@ Windows 的隐藏标题栏：`WM_NCCALCSIZE` 去掉系统标题栏但保留缩�
 
 默认 GPU：macOS 每帧从 `CAMetalLayer` 取 drawable；Windows 使用 Direct3D 12 flip-model
 交换链（帧延迟 1，`Present(1)` 垂直同步）。二者都包装为 Skia render target 后绘制。
-`ZANT_RENDERER=raster` 回退 CPU 光栅，分别通过 `CGImage` / `SetDIBitsToDevice` 显示。
+GPU 不可用或 `ZANT_RENDERER=raster` 时回退 CPU 光栅，分别通过 `CGImage` / `SetDIBitsToDevice` 显示。
 滚动容器只绘制可见区域附近的子节点。
 
 Skia 桥接层 `skia_bridge.cpp` 是可移植 C++；字体管理器、字体族名和 GPU 交换链在
@@ -67,17 +67,20 @@ Skia Paragraph 负责 shaping、换行、字体回退、装饰线和单行省略
 富文本支持多段样式、链接与内嵌绘制（行内公式与正文基线对齐）。公式（`math/`）与
 Mermaid 图表输出保留式矢量绘制（字形、矩形、线、路径），可整体缩放适配内容列。
 
+默认字体（正文 / 中文 / 等宽 / 衬线中文）：macOS SF Pro Text / PingFang SC / Menlo / Songti SC；
+Windows Segoe UI / Microsoft YaHei UI / Cascadia Mono（回退 Consolas）/ SimSun。公式用 STIX Two Math（macOS 系统自带，Windows 嵌在 `zant_skia.dll` 中）。
+
 ## 动效与帧调度
 
 组件以布尔状态为唯一来源，在 `animate(data, now, theme)` 中用基于时间戳的
 `motion.Animated` 缓动出呈现值；状态变化处 `tree.poke(id)` 登记动画节点，Runtime 每帧只推进
 `tree.animating` 列表。进场 / 退场与 FLIP 变换在绘制时应用（必要时 `saveLayerAlpha`）。
 动画帧只重绘、不重建。有动画时按屏幕刷新出帧（macOS `CADisplayLink`；Windows 的帧都从
-`WM_PAINT` 绘制，由交换链或 `DwmFlush` 垂直同步节拍，拖动缩放的模态循环里也会继续），空闲时只在光标闪烁、
-提示延迟或 `ui.wakeAfter` 到期时用一次性定时器唤醒；鼠标移动只在界面确有变化时重绘。
+`WM_PAINT` 绘制，由交换链或 `DwmFlush` 垂直同步节拍，拖动缩放的模态循环里也会继续）；
+空闲时只在光标闪烁、提示延迟或 `ui.wakeAfter` 到期时用一次性定时器唤醒；鼠标移动只在界面确有变化时重绘。
 
 ## 平台范围
 
-macOS 13+ 与 Windows 10/11 x64。平台差异只在 `src/platform/` 与 Skia 桥接的平台文件中；
+macOS 13+（Apple Silicon，预编译 Skia 为 arm64）与 Windows 10/11 x64。平台差异只在 `src/platform/` 与 Skia 桥接的平台文件中；
 组件和应用通过 `zant.keys`（⌘ / Ctrl、按键文字）、`ui.titlebarInsets()`、`zant.paths`、
 `zant.dialogs` 获得平台习惯，不写 `builtin.os.tag` 分支。

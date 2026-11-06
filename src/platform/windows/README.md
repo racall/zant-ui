@@ -17,8 +17,13 @@ cached by Zig). Zig code links that DLL only through the C ABI, using an import 
 by `zig dlltool` from `src/renderer/skia/zant_skia.def`; that also lets
 `zig build -Dtarget=x86_64-windows` type-check on macOS.
 
+Apps get the manifest, the GUI subsystem for non-Debug builds (Debug builds are console apps)
+and `zant_skia.dll` / `pdfium.dll` next to the exe from `configureApp` in the root `build.zig`.
+
 Frames are drawn from `WM_PAINT`: redraw requests invalidate the window, so they work in any
 message loop (live resize, modal dialogs) and input is always handled before the next frame.
-Animation frames are paced by the swap chain (frame latency 1) or by `DwmFlush` on raster.
+Animation frames are paced by the swap chain (frame latency 1) or by `DwmFlush` on raster
+(`ZANT_RENDERER=raster`, or automatically when Direct3D 12 is unavailable; presented with
+`SetDIBitsToDevice`).
 
 Known gaps: IMM32 rather than TSF (no reconversion), x64 only.

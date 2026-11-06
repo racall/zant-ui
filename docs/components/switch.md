@@ -9,6 +9,7 @@ ui.@"switch"(.{
 
 ## 选项
 
-`key`、`checked`、`on_change`、`disabled`。
+`key`、`label`、`checked`、`on_change`、`disabled`、`font_size`（与 checkbox 共用
+`ToggleOptions`）。
 
 `switch` 是 Zig 关键字，因此 API 写作 `ui.@"switch"`。

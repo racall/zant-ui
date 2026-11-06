@@ -539,7 +539,10 @@ fn cmdCreate(allocator: std.mem.Allocator, io: Io, args: []const [:0]const u8) !
             title = value;
         }
         if (style_arg == null) {
-            std.debug.print("\n窗口风格:\n  1) 原生标题栏\n  2) 隐藏标题栏（全尺寸内容 + 红黄绿按钮）\n  3) 无边框（可拖拽移动，Cmd+Q 退出）\n", .{});
+            std.debug.print("\n窗口风格:\n  1) 原生标题栏\n  2) 隐藏标题栏（全尺寸内容 + {s}）\n  3) 无边框（movable_by_background 时可拖动背景移动，{s} 退出）\n", .{
+                if (is_windows) "右上角最小化 / 最大化 / 关闭按钮" else "红黄绿按钮",
+                if (is_windows) "Alt+F4" else "Cmd+Q",
+            });
             while (true) {
                 const value = try prompt(allocator, "选择", "1");
                 if (std.mem.eql(u8, value, "1") or std.mem.eql(u8, value, "native")) {

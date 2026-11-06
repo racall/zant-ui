@@ -26,17 +26,18 @@
 
 ```bash
 zant run              # 生成配置代码、编译并运行
-zant run --watch      # 重启式热更新（非沙盒）
+zant run --watch      # 重启式热更新（macOS 沙盒应用不支持）
 zant run --release
 zant build
 zant build --release
-zant package           # 生成并签名 .app
+zant package           # macOS：生成并签名 .app；Windows：zig-out/<标题>/ 可分发目录
 zig fmt src build.zig  # 格式化
 zig build test         # 测试
 ```
 
 不要手动编辑 `src/app_config.zig`、`Info.plist`、`app.entitlements`，它们由
-`zant` 根据 `app.config.json` 生成。
+`zant` 根据 `app.config.json` 生成（`zant sync` 只重新生成它们）。
+Windows 上 Debug 构建是控制台程序，Release（`--release`、`zant package`）为 GUI 子系统。
 
 ## 目录结构
 
@@ -48,6 +49,7 @@ src/components/counter_card.zig 自定义子组件（props + 事件回调）
 src/components/dashboard.zig 自定义父组件（组合子组件）
 src/app_config.zig           生成文件，不要手改
 app.config.json              窗口、沙盒、签名配置
+DESIGN.md                    UI/UX 设计规范（最高优先级）
 AGENTS.md / CLAUDE.md        给 AI coding agent 的规范
 ```
 
@@ -85,11 +87,12 @@ AGENTS.md / CLAUDE.md        给 AI coding agent 的规范
 代码中的 `WindowOptions` 优先级高于配置文件。修改 JSON 后重新执行
 `zant run` / `zant build`。
 
-## 沙盒与签名
+## 沙盒与签名（仅 macOS）
 
 - `sandbox: true` 时 `zant package` 写入 `com.apple.security.app-sandbox`。
 - 签名使用 `signing_identity`；`none` 表示 ad-hoc。
 - 沙盒应用运行必须通过 LaunchServices；`zant run` 已处理。
+- Windows 上不签名、不沙盒，`zant package` 只生成可分发目录。
 - 不要提交私钥、证书或密码。
 
 ## 代码质量

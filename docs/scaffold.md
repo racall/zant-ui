@@ -14,7 +14,8 @@ zig build
 macOS 与 Windows 用法相同。Windows 上先运行一次
 `powershell -ExecutionPolicy Bypass -File scripts/fetch_skia_windows.ps1`，并把 Zig 和
 `<zant-ui>\zig-out\bin` 加入 PATH；需要 Visual Studio 2022+ / Build Tools 的 C++ 工作负载。
-Bundle ID、沙盒、签名是 macOS 选项，Windows 上 Bundle ID 用作 `%APPDATA%` 下的数据目录名。
+沙盒、签名、Info.plist 只对 macOS 有效；Bundle ID 在 Windows 上只作应用标识（例如传给
+`zant.paths.appDataDir` 得到 `%APPDATA%\<id>`）。
 
 ## 创建项目
 
@@ -29,9 +30,9 @@ cd /path/to/work
 2. 窗口风格：原生标题栏 / 隐藏标题栏 / 无边框
 3. Apple Bundle ID
 4. 是否启用 App Sandbox
-5. 打包开发者账号（自动列出本机 codesign 身份；0 = ad-hoc）
+5. 打包开发者账号（自动列出本机 codesign 身份；0 = ad-hoc；Windows 上没有可选身份，直接回车）
 
-生成过程会逐步输出状态，不再出现长时间无输出。
+生成过程会逐步输出状态。目标目录已存在时加 `--force` 覆盖。
 
 非交互：
 
@@ -64,8 +65,12 @@ zant run --release
 zant build
 zant build --release
 zant package
-zant sync
+zant sync             # 只重新生成 src/app_config.zig、Info.plist（沙盒时还有 app.entitlements）
+zant update           # 框架更新后重编译全局 zant CLI（Windows 上先把运行中的 zant.exe 改名为 zant.old.exe）
 ```
+
+`zant run` / `zant build` 默认 Debug 构建（Windows 上是控制台程序）；`--release` 与 `zant package`
+用 ReleaseFast（Windows 为 GUI 子系统）。
 
 ## 热更新
 
@@ -75,17 +80,16 @@ zant run --watch
 
 监听：
 
-- `src/`（包括 `src/components/` 下的直接文件）
-- `src/main.zig`、`src/state.zig`
+- `src/` 下所有 `.zig`（任意深度）
 - `app.config.json`
 - `build.zig`、`build.zig.zon`
 
 文件变化后自动重新编译并重启应用。当前是**重启式热更新**：
 
 - 会重新创建窗口和状态
-- 编译失败时保留当前窗口，继续等待下一次改动
-- App Sandbox 模式暂不支持（需要 LaunchServices 启动，无法可靠重启）
-- Windows 上运行中的 exe 不能被覆盖，所以先结束旧进程再编译；编译失败时重新打开上一次的版本
+- macOS：编译失败时保留当前窗口，继续等待下一次改动；App Sandbox 模式暂不支持
+  （需要 LaunchServices 启动，无法可靠重启）
+- Windows：运行中的 exe 不能被覆盖，所以先结束旧进程再编译；编译失败时重新打开上一次的版本
 
 ## 打包与签名
 
@@ -93,8 +97,10 @@ zant run --watch
 zant package
 ```
 
+总是用 ReleaseFast 编译。
+
 Windows：生成 `zig-out/<应用标题>/` 目录（`<应用标题>.exe`、`zant_skia.dll`、`pdfium.dll`、
-MSVC 运行库），Release 构建为 GUI 子系统，压缩即可分发。
+MSVC 运行库 `vcruntime140*.dll` / `msvcp140.dll`），GUI 子系统，压缩即可分发；不签名。
 
 macOS：生成 `zig-out/<应用标题>.app`：
 
@@ -104,7 +110,7 @@ macOS：生成 `zig-out/<应用标题>.app`：
 - 使用配置中的 Developer ID 签名
 - 无开发者账号时使用 ad-hoc 签名
 
-未自动做 notarization。
+未自动做 notarization。沙盒应用 `zant run` 也会先打包，再用 `open -n -W` 启动。
 
 ## 组件与状态示例
 

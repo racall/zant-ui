@@ -2,6 +2,8 @@
 
 每个组件一份文档，API 均为声明式 `ui.*` builder。全部组件的可交互示例：
 `examples/components.zig`（`zig build run-components`，`ZANT_DARK=1` 深色）。
+macOS 与 Windows 共用同一套 API；快捷键文字一律用 `zant.keys.label("mod+s")`
+（⌘S / Ctrl+S），判断命令键用 `key.modifiers.primary()`，不要写死 ⌘。
 
 | 组件 | 文档 |
 |---|---|
@@ -29,6 +31,7 @@
 | 全局提示 | [message.md](message.md) |
 | 快捷键列表 | [shortcut-list.md](shortcut-list.md) |
 | 点击外部关闭 | [dismiss-layer.md](dismiss-layer.md) |
+| 标题栏按钮 | [window-controls.md](window-controls.md) |
 | Markdown 编辑器/预览 | [markdown.md](markdown.md) |
 | 样式覆盖 | [style.md](style.md) |
 

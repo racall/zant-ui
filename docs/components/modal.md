@@ -14,3 +14,6 @@ if (state.help_open) children.append(ui.modal(.{
     .footer = ui.button(.{ .text = "知道了", .variant = .primary, .on_click = ui.action(state, State.closeHelp) }),
 }));
 ```
+
+选项：`key`、`title`、`content`、`footer`（null 无底栏）、`width`（默认 520，null 按内容）、
+`on_close`、`closable`（右上角关闭按钮）、`mask_closable`、`mask`（遮罩 ARGB，默认 `0x73000000`）。
