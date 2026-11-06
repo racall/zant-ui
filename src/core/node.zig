@@ -284,6 +284,11 @@ pub const ButtonType = enum {
     link,
     /// Paints nothing: an invisible click target (`ui.dismissLayer`).
     plain,
+    /// Windows caption button (minimize / maximize): square, no radius,
+    /// subtle hover fill (`ui.windowControls`).
+    caption,
+    /// Windows close caption button: red hover fill, white glyph.
+    caption_close,
 };
 
 /// Button icons come from the Zant icon set (`core/icons.zig`).

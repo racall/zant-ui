@@ -1,4 +1,7 @@
-#include "skia_bridge.h"
+// Portable Skia bridge core: canvas, text (SkParagraph), images, paths and
+// the raster renderer. Font manager, font names and the GPU swap chain live
+// in skia_bridge_mac.mm / skia_bridge_win.cpp (see skia_bridge_internal.h).
+#include "skia_bridge_internal.h"
 
 #include "include/core/SkBitmap.h"
 #include "include/core/SkCanvas.h"
@@ -21,34 +24,33 @@
 #include "include/core/SkStream.h"
 #include "include/core/SkSurface.h"
 #include "include/encode/SkPngEncoder.h"
-#include "include/ports/SkFontMgr_mac_ct.h"
 #include "modules/skparagraph/include/FontCollection.h"
 #include "modules/skparagraph/include/Paragraph.h"
 #include "modules/skparagraph/include/ParagraphBuilder.h"
 #include "modules/skparagraph/include/ParagraphStyle.h"
 #include "modules/skparagraph/include/TextStyle.h"
 #include "modules/skunicode/include/SkUnicode_icu.h"
-#include "include/gpu/ganesh/GrBackendSurface.h"
 #include "include/gpu/ganesh/GrDirectContext.h"
-#include "include/gpu/ganesh/SkSurfaceGanesh.h"
-#include "include/gpu/ganesh/mtl/GrMtlBackendContext.h"
-#include "include/gpu/ganesh/mtl/GrMtlDirectContext.h"
-#include "include/gpu/ganesh/mtl/GrMtlBackendSurface.h"
-#include "include/gpu/ganesh/mtl/SkSurfaceMetal.h"
-#include "include/ports/SkCFObject.h"
-
-#import <Metal/Metal.h>
-#import <QuartzCore/CAMetalLayer.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <cstdio>
-#include <fstream>
 #include <limits>
 #include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
+
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
 
 using namespace skia::textlayout;
 
@@ -62,16 +64,23 @@ void ensure_skia() {
     if (g_font_collection) {
         return;
     }
-    g_font_mgr = SkFontMgr_New_CoreText(nullptr);
+    g_font_mgr = zant_platform::make_font_mgr();
     if (!g_font_mgr) {
         g_font_mgr = SkFontMgr::RefEmpty();
     }
     g_font_collection = sk_make_sp<FontCollection>();
-    g_font_collection->setDefaultFontManager(
-            g_font_mgr, std::vector<SkString>{SkString("SF Pro Text"), SkString("Helvetica Neue"),
-                                              SkString("PingFang SC"), SkString("Apple Color Emoji")});
+    g_font_collection->setDefaultFontManager(g_font_mgr, zant_platform::default_families());
     g_font_collection->enableFontFallback();
     g_unicode = SkUnicodes::ICU::Make();
+}
+
+/* First installed family for a ZantTextStyle family id (cached). */
+sk_sp<SkTypeface> family_typeface(int family, const SkFontStyle &style) {
+    if (auto face = zant_platform::bundled_typeface(family)) return face;
+    for (const char *const *name = zant_platform::family_names(family); name && *name; ++name) {
+        if (auto face = g_font_mgr->matchFamilyStyle(*name, style)) return face;
+    }
+    return nullptr;
 }
 
 SkColor make_color(uint32_t argb) {
@@ -182,10 +191,6 @@ TextAlign text_align_from_int(int align) {
 
 }  // namespace
 
-struct ZantCanvas {
-    SkCanvas *canvas = nullptr;
-};
-
 struct ZantImage {
     sk_sp<SkImage> image;
     int width = 0;
@@ -207,21 +212,6 @@ struct ZantTextLayout {
     }
 };
 
-struct ZantRenderer {
-    bool gpu = false;
-    int width = 0;
-    int height = 0;
-    sk_sp<SkSurface> surface;
-    ZantCanvas canvas{};
-    int saved = 0;
-
-    __unsafe_unretained CAMetalLayer *metal_layer = nil;
-    sk_sp<GrDirectContext> gr_context;
-    sk_sp<SkSurface> gpu_surface;
-    GrMTLHandle current_drawable = nil;
-    std::string capture_path;
-};
-
 namespace {
 
 std::unique_ptr<Paragraph> build_paragraph(std::string_view text, const ZantTextStyle &style,
@@ -240,18 +230,8 @@ std::unique_ptr<Paragraph> build_paragraph(std::string_view text, const ZantText
     const int weight = std::max(100, std::min(900, style.weight));
     const SkFontStyle sk_style(weight, SkFontStyle::kNormal_Width, SkFontStyle::kUpright_Slant);
     text_style.setFontStyle(sk_style);
-    if (style.family == 1) {
-        auto face = g_font_mgr->matchFamilyStyle("Georgia", sk_style);
-        if (face) text_style.setTypeface(std::move(face));
-    } else if (style.family == 2) {
-        auto face = g_font_mgr->matchFamilyStyle("Menlo", sk_style);
-        if (face) text_style.setTypeface(std::move(face));
-    } else if (style.family == 3) {
-        auto face = g_font_mgr->matchFamilyStyle("Songti SC", sk_style);
-        if (face) text_style.setTypeface(std::move(face));
-    } else if (style.family == 4) {
-        auto face = g_font_mgr->matchFamilyStyle("STIX Two Math", sk_style);
-        if (face) text_style.setTypeface(std::move(face));
+    if (style.family >= 1 && style.family <= 4) {
+        if (auto face = family_typeface(style.family, sk_style)) text_style.setTypeface(std::move(face));
     }
     if (style.line_height > 0.0f) {
         text_style.setHeight(style.line_height);
@@ -269,18 +249,48 @@ std::unique_ptr<Paragraph> build_paragraph(std::string_view text, const ZantText
     auto paragraph = builder->Build();
     if (paragraph) {
         // max_lines text is laid out at the box width so it ends in "…"
-        const float width = (style.wrap || style.max_lines > 0) ? std::max(max_width, 1.0f) : 1.0e9f;
-        paragraph->layout(width);
+        const bool fixed_width = style.wrap || style.max_lines > 0;
+        paragraph->layout(fixed_width ? std::max(max_width, 1.0f) : 1.0e9f);
+        // a single unwrapped line: centre / right alignment within the huge
+        // layout width would move the glyphs far off the box, so lay it out
+        // at its own width (the container positions it)
+        if (!fixed_width && style.align != 0) {
+            paragraph->layout(std::ceil(paragraph->getMaxIntrinsicWidth()) + 1.0f);
+        }
     }
     return paragraph;
 }
 
 }  // namespace
 
+void zant_skia_ensure() {
+    ensure_skia();
+}
+
+bool zant_write_file_utf8(const char *path, const void *data, size_t size) {
+    if (!path) return false;
+#if defined(_WIN32)
+    const int wide_len = MultiByteToWideChar(CP_UTF8, 0, path, -1, nullptr, 0);
+    if (wide_len <= 0) return false;
+    std::wstring wide(static_cast<size_t>(wide_len), L'\0');
+    MultiByteToWideChar(CP_UTF8, 0, path, -1, wide.data(), wide_len);
+    FILE *file = _wfopen(wide.c_str(), L"wb");
+#else
+    FILE *file = fopen(path, "wb");
+#endif
+    if (!file) return false;
+    const bool ok = size == 0 || fwrite(data, 1, size, file) == size;
+    return fclose(file) == 0 && ok;
+}
+
 extern "C" {
 
 void zant_skia_init(void) {
     ensure_skia();
+}
+
+int zant_write_file(const char *path, const void *data, size_t size) {
+    return zant_write_file_utf8(path, data, size) ? 1 : 0;
 }
 
 ZantRenderer *zant_renderer_create_raster(int pixel_width, int pixel_height) {
@@ -300,48 +310,13 @@ ZantRenderer *zant_renderer_create_raster(int pixel_width, int pixel_height) {
     return renderer;
 }
 
-ZantRenderer *zant_renderer_create_metal(void *metal_layer_handle, int pixel_width, int pixel_height) {
-    ensure_skia();
-    if (!metal_layer_handle || pixel_width <= 0 || pixel_height <= 0) return nullptr;
-    @autoreleasepool {
-        CAMetalLayer *layer = (__bridge CAMetalLayer *)metal_layer_handle;
-        id<MTLDevice> device = layer.device;
-        if (!device) device = MTLCreateSystemDefaultDevice();
-        if (!device) return nullptr;
-        id<MTLCommandQueue> queue = [device newCommandQueue];
-        if (!queue) return nullptr;
-
-        layer.device = device;
-        layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
-        layer.framebufferOnly = YES;
-        layer.opaque = YES;
-        layer.drawableSize = CGSizeMake(pixel_width, pixel_height);
-
-        GrMtlBackendContext backend;
-        backend.fDevice = sk_cfp<GrMTLHandle>((__bridge_retained GrMTLHandle)device);
-        backend.fQueue = sk_cfp<GrMTLHandle>((__bridge_retained GrMTLHandle)queue);
-        auto context = GrDirectContexts::MakeMetal(backend);
-        if (!context) return nullptr;
-
-        auto *renderer = new (std::nothrow) ZantRenderer();
-        if (!renderer) return nullptr;
-        renderer->gpu = true;
-        renderer->width = pixel_width;
-        renderer->height = pixel_height;
-        renderer->metal_layer = layer;
-        renderer->gr_context = std::move(context);
-        return renderer;
-    }
-}
-
 void zant_renderer_destroy(ZantRenderer *renderer) {
     if (!renderer) return;
     renderer->canvas.canvas = nullptr;
     renderer->surface.reset();
     renderer->gpu_surface.reset();
+    if (renderer->gpu) zant_platform::gpu_destroy(renderer);
     renderer->gr_context.reset();
-    renderer->current_drawable = nil;
-    renderer->metal_layer = nil;
     delete renderer;
 }
 
@@ -349,11 +324,9 @@ bool zant_renderer_resize(ZantRenderer *renderer, int pixel_width, int pixel_hei
     if (!renderer || pixel_width <= 0 || pixel_height <= 0) return false;
     if (renderer->width == pixel_width && renderer->height == pixel_height) return true;
     if (renderer->gpu) {
+        zant_platform::gpu_resize(renderer, pixel_width, pixel_height);
         renderer->width = pixel_width;
         renderer->height = pixel_height;
-        if (renderer->metal_layer) {
-            renderer->metal_layer.drawableSize = CGSizeMake(pixel_width, pixel_height);
-        }
         return true;
     }
     const SkImageInfo info = SkImageInfo::Make(pixel_width, pixel_height, kN32_SkColorType,
@@ -369,22 +342,9 @@ bool zant_renderer_resize(ZantRenderer *renderer, int pixel_width, int pixel_hei
 ZantCanvas *zant_renderer_begin(ZantRenderer *renderer, float scale) {
     if (!renderer) return nullptr;
     if (renderer->gpu) {
-        if (!renderer->gr_context || !renderer->metal_layer) return nullptr;
-        id<CAMetalDrawable> drawable = [renderer->metal_layer nextDrawable];
-        if (!drawable) return nullptr;
-        id<MTLTexture> texture = drawable.texture;
-        GrMtlTextureInfo texture_info;
-        texture_info.fTexture =
-                sk_cfp<GrMTLHandle>((__bridge_retained GrMTLHandle)texture);
-        GrBackendRenderTarget target = GrBackendRenderTargets::MakeMtl(
-                (int)texture.width, (int)texture.height, texture_info);
-        SkSurfaceProps props(0, kUnknown_SkPixelGeometry);
-        auto surface = SkSurfaces::WrapBackendRenderTarget(
-                renderer->gr_context.get(), target, kTopLeft_GrSurfaceOrigin,
-                kBGRA_8888_SkColorType, SkColorSpace::MakeSRGB(), &props);
-        if (!surface) return nullptr;
-        renderer->gpu_surface = std::move(surface);
-        renderer->current_drawable = (__bridge_retained GrMTLHandle)drawable;
+        if (!renderer->gr_context) return nullptr;
+        renderer->gpu_surface = zant_platform::gpu_begin_frame(renderer);
+        if (!renderer->gpu_surface) return nullptr;
         renderer->canvas.canvas = renderer->gpu_surface->getCanvas();
     } else {
         if (!renderer->surface) return nullptr;
@@ -399,6 +359,18 @@ ZantCanvas *zant_renderer_begin(ZantRenderer *renderer, float scale) {
     return &renderer->canvas;
 }
 
+namespace {
+
+bool write_png(const SkPixmap &pixmap, const char *path) {
+    SkDynamicMemoryWStream stream;
+    SkPngEncoder::Options opts;
+    if (!SkPngEncoder::Encode(&stream, pixmap, opts)) return false;
+    auto data = stream.detachAsData();
+    return zant_write_file_utf8(path, data->data(), data->size());
+}
+
+}  // namespace
+
 void zant_renderer_end(ZantRenderer *renderer) {
     if (!renderer) return;
     if (renderer->canvas.canvas) {
@@ -410,31 +382,16 @@ void zant_renderer_end(ZantRenderer *renderer) {
     }
     if (renderer->gpu) {
         if (renderer->gpu_surface && renderer->gr_context) {
-            renderer->gr_context->flushAndSubmit(renderer->gpu_surface.get(), GrSyncCpu::kYes);
             if (!renderer->capture_path.empty()) {
                 SkBitmap bitmap;
-                if (bitmap.tryAllocPixels(renderer->gpu_surface->imageInfo())) {
-                    if (renderer->gpu_surface->readPixels(bitmap.pixmap(), 0, 0)) {
-                        SkDynamicMemoryWStream stream;
-                        SkPngEncoder::Options opts;
-                        if (SkPngEncoder::Encode(&stream, bitmap.pixmap(), opts)) {
-                            auto data = stream.detachAsData();
-                            std::ofstream file(renderer->capture_path, std::ios::binary);
-                            if (file) {
-                                file.write(static_cast<const char *>(data->data()),
-                                           static_cast<std::streamsize>(data->size()));
-                                fprintf(stderr, "[zant] GPU snapshot: %s\n",
-                                        renderer->capture_path.c_str());
-                            }
-                        }
-                    }
+                if (bitmap.tryAllocPixels(renderer->gpu_surface->imageInfo()) &&
+                    renderer->gpu_surface->readPixels(bitmap.pixmap(), 0, 0) &&
+                    write_png(bitmap.pixmap(), renderer->capture_path.c_str())) {
+                    fprintf(stderr, "[zant] GPU snapshot: %s\n", renderer->capture_path.c_str());
                 }
                 renderer->capture_path.clear();
             }
-            id<CAMetalDrawable> drawable =
-                    (__bridge_transfer id<CAMetalDrawable>)renderer->current_drawable;
-            renderer->current_drawable = nil;
-            if (drawable) [drawable present];
+            zant_platform::gpu_present(renderer);
         }
         renderer->gpu_surface.reset();
     }
@@ -459,27 +416,33 @@ void *zant_renderer_pixels(ZantRenderer *renderer, int *width, int *height, int 
     return pixmap.writable_addr();
 }
 
+uint32_t zant_renderer_pixel_argb(ZantRenderer *renderer, int x, int y) {
+    if (!renderer || !renderer->surface) return 0;
+    SkPixmap pixmap;
+    if (!renderer->surface->peekPixels(&pixmap)) return 0;
+    if (x < 0 || y < 0 || x >= pixmap.width() || y >= pixmap.height()) return 0;
+    /* raw (premultiplied) bytes, independent of the native byte order */
+    const uint8_t *p = static_cast<const uint8_t *>(pixmap.addr(x, y));
+    const bool bgra = pixmap.colorType() == kBGRA_8888_SkColorType;
+    const uint32_t r = bgra ? p[2] : p[0];
+    const uint32_t b = bgra ? p[0] : p[2];
+    return (uint32_t(p[3]) << 24) | (r << 16) | (uint32_t(p[1]) << 8) | b;
+}
+
 bool zant_renderer_is_gpu(ZantRenderer *renderer) {
     return renderer && renderer->gpu;
 }
 
 const char *zant_renderer_backend_name(ZantRenderer *renderer) {
     if (!renderer) return "none";
-    return renderer->gpu ? "Metal (Skia Ganesh)" : "Raster CPU (Skia)";
+    return renderer->gpu ? zant_platform::gpu_backend_name() : "Raster CPU (Skia)";
 }
 
 bool zant_renderer_write_png(ZantRenderer *renderer, const char *path) {
     if (!renderer || !renderer->surface || !path) return false;
     SkPixmap pixmap;
     if (!renderer->surface->peekPixels(&pixmap)) return false;
-    SkDynamicMemoryWStream stream;
-    SkPngEncoder::Options opts;
-    if (!SkPngEncoder::Encode(&stream, pixmap, opts)) return false;
-    auto data = stream.detachAsData();
-    std::ofstream file(path, std::ios::binary);
-    if (!file) return false;
-    file.write(static_cast<const char *>(data->data()), static_cast<std::streamsize>(data->size()));
-    return file.good();
+    return write_png(pixmap, path);
 }
 
 void zant_canvas_save(ZantCanvas *canvas) {
@@ -630,18 +593,8 @@ ZantTextLayout *zant_rich_text_layout_create(const ZantRichSpan *spans, size_t c
         const SkFontStyle sk_style(weight, SkFontStyle::kNormal_Width,
                                    span.italic ? SkFontStyle::kItalic_Slant : SkFontStyle::kUpright_Slant);
         style.setFontStyle(sk_style);
-        if (span.family == 1) {
-            auto face = g_font_mgr->matchFamilyStyle("Georgia", sk_style);
-            if (face) style.setTypeface(std::move(face));
-        } else if (span.family == 2) {
-            auto face = g_font_mgr->matchFamilyStyle("Menlo", sk_style);
-            if (face) style.setTypeface(std::move(face));
-        } else if (span.family == 3) {
-            auto face = g_font_mgr->matchFamilyStyle("Songti SC", sk_style);
-            if (face) style.setTypeface(std::move(face));
-        } else if (span.family == 4) {
-            auto face = g_font_mgr->matchFamilyStyle("STIX Two Math", sk_style);
-            if (face) style.setTypeface(std::move(face));
+        if (span.family >= 1 && span.family <= 4) {
+            if (auto face = family_typeface(span.family, sk_style)) style.setTypeface(std::move(face));
         }
         if (line_height > 0.0f) {
             style.setHeight(line_height);
@@ -798,10 +751,8 @@ sk_sp<SkTypeface> typeface_for(int family, int weight, bool italic) {
     }
     const SkFontStyle style(std::max(100, std::min(900, weight)), SkFontStyle::kNormal_Width,
                             italic ? SkFontStyle::kItalic_Slant : SkFontStyle::kUpright_Slant);
-    const char *names[] = {"SF Pro Text", "Georgia", "Menlo", "Songti SC", "STIX Two Math"};
-    const char *name = names[(family >= 0 && family <= 4) ? family : 0];
-    sk_sp<SkTypeface> face = g_font_mgr->matchFamilyStyle(name, style);
-    if (!face) face = g_font_mgr->matchFamilyStyle("Helvetica Neue", style);
+    sk_sp<SkTypeface> face = family_typeface((family >= 0 && family <= 4) ? family : 0, style);
+    if (!face) face = family_typeface(0, style);
     if (!face) face = g_font_mgr->legacyMakeTypeface(nullptr, style);
     cache.push_back({family, weight, italic, face});
     return face;

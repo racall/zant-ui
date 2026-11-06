@@ -8,15 +8,17 @@
 
 ## 项目是什么
 
-这是一个由 **Zant UI** 生成的 macOS 原生桌面应用。
+这是一个由 **Zant UI** 生成的原生桌面应用，运行在 macOS 与 Windows 上。
 
 - 应用标题：`__APP_TITLE__`
 - Bundle ID：`__BUNDLE_ID__`
 
 - 语言：Zig 0.17.1
 - UI：Zant UI 声明式 `ui.*` API
-- 渲染：Skia + Metal（默认）
-- 平台：AppKit / NSWindow
+- 渲染：Skia + Metal（macOS）/ Direct3D 12（Windows）
+- 平台：AppKit / NSWindow（macOS）、Win32（Windows），由框架封装
+- 跨平台：快捷键用 `key.modifiers.primary()` 与 `zant.keys.label("mod+s")`（⌘S / Ctrl+S），
+  自绘标题栏用 `ui.titlebarInsets()` 留出系统控件位置，数据目录用 `zant.paths.appDataDir`
 - 配置：项目根目录 `app.config.json`
 - 脚手架：编译后的 `zant` CLI，不使用 shell 脚本
 
@@ -62,7 +64,7 @@ AGENTS.md / CLAUDE.md        给 AI coding agent 的规范
 ## UI 规范
 
 - 组件都是普通函数：`fn foo(props) ui.Node`，不要引入平台相关代码。
-- 只组合 `ui.*` 基础组件，不要直接操作 NSWindow/Skia。
+- 只组合 `ui.*` 基础组件，不要直接操作 NSWindow / HWND / Skia，也不要写 `builtin.os.tag` 分支。
 - 布局使用 `ui.column` / `ui.row` / `ui.card`，避免手写绝对坐标。
 - 文本使用 `ui.text`、`ui.heading`、`ui.paragraph`、`ui.textFmt`。
 - 回调直接接收 `*AppState`，不要做 `*anyopaque` 转换。

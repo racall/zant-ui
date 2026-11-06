@@ -291,6 +291,16 @@ pub const Tree = struct {
         node.tooltip = if (value) |tip| self.allocator.dupe(u8, tip) catch null else null;
     }
 
+    /// Window-space box of the laid-out node with `key` (null when absent).
+    pub fn boundsOfKey(self: *const Tree, key: []const u8) ?geometry.Rect {
+        for (self.nodes.items) |node| {
+            if (!node.alive or !node.inFlow()) continue;
+            const k = node.key orelse continue;
+            if (std.mem.eql(u8, k, key)) return node.bounds;
+        }
+        return null;
+    }
+
     pub fn setKey(self: *Tree, id: NodeId, key: ?[]const u8) void {
         const node = self.get(id);
         if (node.key) |old| self.allocator.free(old);

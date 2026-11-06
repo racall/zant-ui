@@ -65,18 +65,22 @@ try zant.launch.run(init.gpa, State.init(), State.render, .{
 
 ## 窗口风格
 
-- `native`：原生标题栏、红黄绿按钮。
-- `hidden-titlebar`：隐藏标题文字，内容延伸到标题栏区域，交通灯保留。应用自绘标题栏时，
-  在代码里设 `window.titlebar_height = 52`（与自绘标题栏同高），交通灯会垂直居中其中，
-  窗口缩放和退出全屏后自动保持。
-- `borderless`：无标题栏和交通灯，可拖拽背景移动，Cmd+Q 退出。
+- `native`：原生标题栏（macOS 红黄绿按钮；Windows 系统标题栏，颜色随窗口底色深浅）。
+- `hidden-titlebar`：内容延伸到标题栏区域。应用自绘标题栏时，在代码里设
+  `window.titlebar_height = 52`（与自绘标题栏同高）：
+  - macOS：交通灯垂直居中其中，窗口缩放和退出全屏后自动保持；
+  - Windows：框架在右上角自动绘制 Windows 11 风格的最小化 / 最大化 / 关闭按钮（高度填满标题栏），
+    标题栏空白处可拖动、双击最大化，最大化按钮支持 Windows 11 贴靠布局；保留缩放边框和阴影。
+  - 应用用 `ui.titlebarInsets()` 给系统控件留位置（`left`：macOS 交通灯；`right`：Windows 按钮）。
+- `borderless`：无标题栏和交通灯，可拖拽背景移动，Cmd+Q / Alt+F4 退出。
 
 ## 文档类应用
 
-- 关窗 / ⌘W / ⌘Q 前确认未保存修改：状态类型声明 `pub fn onCloseRequest(self: *State) bool`
-  （返回 false 保持打开）。应用菜单自动包含“Quit <标题>”和“Close Window ⌘W”。
-- 未保存标记：在 `render` 里调用 `ui.documentEdited(state.dirty)`，关闭按钮显示圆点；
-  标题按 macOS 习惯可显示“文件名 — 已编辑”。
+- 关窗 / ⌘W / ⌘Q（Windows：关闭按钮 / Ctrl+W / Alt+F4）前确认未保存修改：状态类型声明
+  `pub fn onCloseRequest(self: *State) bool`（返回 false 保持打开）。macOS 应用菜单自动包含
+  “Quit <标题>”和“Close Window ⌘W”。
+- 未保存标记：在 `render` 里调用 `ui.documentEdited(state.dirty)`，macOS 关闭按钮显示圆点，
+  Windows 任务栏标题前加 `*`；标题可显示“文件名 — 已编辑”。
 - 窗口底色跟随根节点背景（深色模式下缩放窗口不闪白）。
 
 ## 沙盒

@@ -10,19 +10,21 @@
 
 ## 快速上下文
 
-- 项目：Zant UI，Zig + Skia + Metal + AppKit 的原生 macOS UI 框架。
-- 入口/示例：`src/main.zig`、`src/gallery.zig`、`examples/declarative.zig`。
+- 项目：Zant UI，Zig + Skia 的原生桌面 UI 框架（macOS：Metal + AppKit；Windows：Direct3D 12 + Win32）。
+- 入口/示例：`src/main.zig`、`src/gallery.zig`、`examples/declarative.zig`、
+  `examples/components.zig`（全部组件，`zig build run-components`）、`examples/pdf.zig`（`run-pdf`）。
 - 声明式 API：`src/ui.zig`；协调器：`src/ui_runtime.zig`。
 - 组件：`src/components/`；样式统一入口：`ui.styled`。
 - 脚手架：`tools/zant/main.zig`；模板：`scaffold/template/`。
-- 测试：`zig build test`（当前 123/123，含 remend 522 条上游用例）。
+- 测试：`zig build test`（当前 129/129，含 remend 522 条上游用例；macOS 与 Windows 都要过）。
+- Windows：测试机见 `AGENTS.md`「跨平台规范」；`scripts/win/` 同步、远程构建、桌面冒烟测试。
 - 动效：`src/motion/`，规范见 `docs/motion.md` 与 `AGENTS.md`「动效规范」；
   `ZANT_NO_MOTION=1` 关闭动效。
 - 全局 CLI：`zant`；框架更新后执行 `zant update`。
 - 热更新：`zant run --watch`（重启式，非沙盒，监视 `src/` 下所有 .zig）。
 - `zant run` 会隐藏 macOS 输入法框架的无害日志（IMKCFRunLoopWakeUpReliable 等），
   需要原始输出时设 `ZANT_RAW_LOGS=1`。
-- PDF：`ui.pdfPreview`，原生 PDFKit。
+- PDF：`ui.pdfPreview`（macOS PDFKit，Windows PDFium）。
 - Markdown：`src/markdown/`（Streamdown 移植，模块化），数学：`src/math/`（KaTeX 算法）。
   详见 `docs/markdown.md`；示例 `zig build run-markdown` / `run-math`。
 - 视觉检查：`ZANT_SNAPSHOT=out.png ZANT_SNAPSHOT_EXIT=1 ./zig-out/bin/<app>`。

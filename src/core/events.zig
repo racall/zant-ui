@@ -28,6 +28,11 @@ pub const Modifiers = packed struct {
     alt: bool = false,
     meta: bool = false,
     caps_lock: bool = false,
+
+    /// The platform's command modifier: ⌘ on macOS, Ctrl on Windows.
+    pub fn primary(self: Modifiers) bool {
+        return @import("keys.zig").primary(self);
+    }
 };
 
 pub const PointerEvent = struct {

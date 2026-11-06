@@ -28,4 +28,5 @@ ui.input(.{
 输入法偏移按原始字节对齐。
 
 `value != null` 时是受控输入；支持光标、选区、剪贴板和
-`NSTextInputClient` 输入法组合事件。真实系统拼音候选流程尚未自动化验证。
+输入法组合事件（macOS `NSTextInputClient`，Windows IMM32）。Windows 微软拼音的组字、候选窗定位
+和上屏由 `scripts/win/smoke-stillmd.ps1` 端到端验证；macOS 拼音候选流程尚未自动化验证。

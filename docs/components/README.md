@@ -1,6 +1,7 @@
 # 组件文档
 
-每个组件一份文档，API 均为声明式 `ui.*` builder。
+每个组件一份文档，API 均为声明式 `ui.*` builder。全部组件的可交互示例：
+`examples/components.zig`（`zig build run-components`，`ZANT_DARK=1` 深色）。
 
 | 组件 | 文档 |
 |---|---|

@@ -117,11 +117,37 @@ pub const Host = extern struct {
     event: *const fn (?*anyopaque, *const Event) callconv(.c) c_int,
     ime_rect: *const fn (?*anyopaque, *f32, *f32, *f32, *f32) callconv(.c) c_int,
     next_frame_delay: *const fn (?*anyopaque) callconv(.c) c_int,
+    /// `Hit` for a point in logical window coordinates (app-drawn title bars).
+    titlebar_hit: ?*const fn (?*anyopaque, f32, f32) callconv(.c) c_int = null,
 };
 
-pub const MacWindow = opaque {};
+/// Answers of `Host.titlebar_hit`.
+pub const Hit = struct {
+    pub const client: c_int = 0;
+    pub const caption: c_int = 1;
+    pub const maximize: c_int = 2;
+};
 
-pub const supported = builtin.os.tag == .macos;
+/// One native window (`window.m` on macOS, `window.c` on Windows).
+pub const Window = opaque {};
+
+pub const is_macos = builtin.os.tag == .macos;
+pub const is_windows = builtin.os.tag == .windows;
+pub const supported = is_macos or is_windows;
+
+/// Width the system keeps for its own window controls in an app-drawn
+/// (`.hidden_titlebar`) title bar: the traffic lights on the left on macOS,
+/// the caption buttons the framework draws on the right on Windows.
+pub const TitlebarInsets = struct { left: f32 = 0, right: f32 = 0 };
+
+/// Windows caption button size (Windows 11: 46 × 32 at 100 %).
+pub const caption_button_width: f32 = 46;
+
+pub fn titlebarInsets(style: WindowStyle) TitlebarInsets {
+    if (style != .hidden_titlebar) return .{};
+    if (is_windows) return .{ .right = caption_button_width * 3 };
+    return .{ .left = 84 };
+}
 
 const NativeWindowOptions = extern struct {
     style: c_int,
@@ -137,21 +163,26 @@ const NativeWindowOptions = extern struct {
     titlebar_height: f32,
 };
 
-extern fn zant_macos_window_create(title: [*:0]const u8, options: *const NativeWindowOptions, host: *const Host) ?*MacWindow;
-extern fn zant_macos_run(window: *MacWindow) void;
-extern fn zant_macos_destroy(window: *MacWindow) void;
-extern fn zant_macos_request_redraw(window: *MacWindow, delay_ms: c_int) void;
-extern fn zant_macos_set_cursor(window: *MacWindow, cursor: c_int) void;
-extern fn zant_macos_set_background(window: *MacWindow, argb: u32) void;
-extern fn zant_macos_reduce_motion() c_int;
-extern fn zant_macos_set_document_edited(window: *MacWindow, edited: c_int) void;
-extern fn zant_macos_renderer_name(window: *MacWindow) [*:0]const u8;
-extern fn zant_macos_schedule_snapshot(window: *MacWindow, path: [*:0]const u8, delay_ms: c_int) void;
+extern fn zant_window_create(title: [*:0]const u8, options: *const NativeWindowOptions, host: *const Host) ?*Window;
+extern fn zant_window_run(window: *Window) void;
+extern fn zant_window_destroy(window: *Window) void;
+extern fn zant_window_request_redraw(window: *Window, delay_ms: c_int) void;
+extern fn zant_window_set_cursor(window: *Window, cursor: c_int) void;
+extern fn zant_window_set_background(window: *Window, argb: u32) void;
+extern fn zant_window_reduce_motion() c_int;
+extern fn zant_window_set_document_edited(window: *Window, edited: c_int) void;
+extern fn zant_window_renderer_name(window: *Window) [*:0]const u8;
+extern fn zant_window_schedule_snapshot(window: *Window, path: [*:0]const u8, delay_ms: c_int) void;
+extern fn zant_window_minimize(window: *Window) void;
+extern fn zant_window_toggle_maximize(window: *Window) void;
+extern fn zant_window_is_maximized(window: *Window) c_int;
+extern fn zant_window_close(window: *Window) void;
+extern fn zant_window_is_active(window: *Window) c_int;
 
 extern fn zant_clipboard_set_text(text: [*]const u8, length: usize) c_int;
 extern fn zant_clipboard_get_text(out: ?[*]u8, capacity: usize) usize;
 
-pub fn createWindow(title: [:0]const u8, options: WindowOptions, host: *const Host) !*MacWindow {
+pub fn createWindow(title: [:0]const u8, options: WindowOptions, host: *const Host) !*Window {
     if (!supported) return error.UnsupportedPlatform;
     const native = NativeWindowOptions{
         .style = @backingInt(options.style),
@@ -166,45 +197,109 @@ pub fn createWindow(title: [:0]const u8, options: WindowOptions, host: *const Ho
         .center = if (options.center) 1 else 0,
         .titlebar_height = options.titlebar_height,
     };
-    return zant_macos_window_create(title.ptr, &native, host) orelse error.WindowCreationFailed;
+    return zant_window_create(title.ptr, &native, host) orelse error.WindowCreationFailed;
 }
 
-pub fn run(window: *MacWindow) void {
-    zant_macos_run(window);
+pub fn run(window: *Window) void {
+    zant_window_run(window);
 }
 
-pub fn destroy(window: *MacWindow) void {
-    zant_macos_destroy(window);
+pub fn destroy(window: *Window) void {
+    zant_window_destroy(window);
 }
 
-pub fn requestRedraw(window: ?*MacWindow, delay_ms: c_int) void {
-    if (window) |w| zant_macos_request_redraw(w, delay_ms);
+pub fn requestRedraw(window: ?*Window, delay_ms: c_int) void {
+    if (window) |w| zant_window_request_redraw(w, delay_ms);
 }
 
-pub fn setCursor(window: ?*MacWindow, cursor: Cursor) void {
-    if (window) |w| zant_macos_set_cursor(w, @backingInt(cursor));
+pub fn setCursor(window: ?*Window, cursor: Cursor) void {
+    if (window) |w| zant_window_set_cursor(w, @backingInt(cursor));
 }
 
 /// Marks the window as having unsaved changes (dot in the close button).
-pub fn setDocumentEdited(window: *MacWindow, edited: bool) void {
-    zant_macos_set_document_edited(window, @intFromBool(edited));
+pub fn setDocumentEdited(window: *Window, edited: bool) void {
+    zant_window_set_document_edited(window, @intFromBool(edited));
 }
 
 /// System "Reduce motion" accessibility setting.
 pub fn reduceMotion() bool {
-    return zant_macos_reduce_motion() != 0;
+    return zant_window_reduce_motion() != 0;
 }
 
-pub fn setBackground(window: *MacWindow, argb: u32) void {
-    zant_macos_set_background(window, argb);
+pub fn setBackground(window: *Window, argb: u32) void {
+    zant_window_set_background(window, argb);
 }
 
-pub fn rendererName(window: *MacWindow) []const u8 {
-    return std.mem.span(zant_macos_renderer_name(window));
+pub fn rendererName(window: *Window) []const u8 {
+    return std.mem.span(zant_window_renderer_name(window));
 }
 
-pub fn scheduleSnapshot(window: *MacWindow, path: [:0]const u8, delay_ms: c_int) void {
-    zant_macos_schedule_snapshot(window, path.ptr, delay_ms);
+pub fn scheduleSnapshot(window: *Window, path: [:0]const u8, delay_ms: c_int) void {
+    zant_window_schedule_snapshot(window, path.ptr, delay_ms);
+}
+
+pub fn minimize(window: ?*Window) void {
+    if (window) |w| zant_window_minimize(w);
+}
+
+pub fn toggleMaximize(window: ?*Window) void {
+    if (window) |w| zant_window_toggle_maximize(w);
+}
+
+pub fn isMaximized(window: ?*Window) bool {
+    return if (window) |w| zant_window_is_maximized(w) != 0 else false;
+}
+
+/// Asks the window to close; the app's close-request hook may veto it.
+pub fn close(window: ?*Window) void {
+    if (window) |w| zant_window_close(w);
+}
+
+pub fn isActive(window: ?*Window) bool {
+    return if (window) |w| zant_window_is_active(w) != 0 else true;
+}
+
+/// Monotonic clock in microseconds.
+pub fn monotonicUs() i64 {
+    if (is_windows) {
+        const win = struct {
+            extern "kernel32" fn QueryPerformanceCounter(count: *i64) callconv(.winapi) c_int;
+            extern "kernel32" fn QueryPerformanceFrequency(frequency: *i64) callconv(.winapi) c_int;
+        };
+        var count: i64 = 0;
+        var frequency: i64 = 1;
+        _ = win.QueryPerformanceCounter(&count);
+        _ = win.QueryPerformanceFrequency(&frequency);
+        return @intCast(@divTrunc(@as(i128, count) * 1_000_000, frequency));
+    }
+    var ts: std.c.timespec = undefined;
+    _ = std.c.clock_gettime(.MONOTONIC, &ts);
+    return @as(i64, @intCast(ts.sec)) * 1_000_000 + @divTrunc(@as(i64, @intCast(ts.nsec)), 1000);
+}
+
+/// Monotonic clock in milliseconds.
+pub fn monotonicMs() i64 {
+    if (is_windows) {
+        const win = struct {
+            extern "kernel32" fn QueryPerformanceCounter(count: *i64) callconv(.winapi) c_int;
+            extern "kernel32" fn QueryPerformanceFrequency(frequency: *i64) callconv(.winapi) c_int;
+        };
+        var count: i64 = 0;
+        var frequency: i64 = 1;
+        _ = win.QueryPerformanceCounter(&count);
+        _ = win.QueryPerformanceFrequency(&frequency);
+        return @divTrunc(count, @divTrunc(frequency, 1000));
+    }
+    var ts: std.c.timespec = undefined;
+    _ = std.c.clock_gettime(.MONOTONIC, &ts);
+    return @as(i64, @intCast(ts.sec)) * 1000 + @divTrunc(@as(i64, @intCast(ts.nsec)), 1_000_000);
+}
+
+/// Process environment variable (UTF-8 on Windows with the framework's
+/// manifest, which selects the UTF-8 code page).
+pub fn getenv(name: [*:0]const u8) ?[:0]const u8 {
+    const value = std.c.getenv(name) orelse return null;
+    return std.mem.span(value);
 }
 
 pub fn setClipboard(text: []const u8) bool {

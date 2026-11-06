@@ -15,18 +15,14 @@ const NodeId = node_mod.NodeId;
 const Event = events.Event;
 const Key = events.Key;
 
-fn monotonicMs() i64 {
-    var ts: std.c.timespec = undefined;
-    _ = std.c.clock_gettime(.MONOTONIC, &ts);
-    return @as(i64, @intCast(ts.sec)) * 1000 + @divTrunc(@as(i64, @intCast(ts.nsec)), 1_000_000);
-}
+const monotonicMs = platform.monotonicMs;
 
 pub const App = struct {
     allocator: std.mem.Allocator,
     theme: tokens.Theme,
     tree: *Tree,
     gallery: gallery.GalleryState,
-    window: ?*platform.MacWindow = null,
+    window: ?*platform.Window = null,
     viewport: geometry.Size = .{},
     last_width: f32 = 0,
     last_height: f32 = 0,

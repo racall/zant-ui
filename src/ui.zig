@@ -89,6 +89,23 @@ pub fn setBuildTheme(theme: tokens.Theme) void {
     build_theme = theme;
 }
 
+threadlocal var build_tree: ?*const @import("core/tree.zig").Tree = null;
+
+/// Retained tree of the runtime being built (set by the runtime).
+pub fn setBuildTree(tree: ?*const @import("core/tree.zig").Tree) void {
+    build_tree = tree;
+}
+
+/// Window-space box (logical px) of the node with `key` as laid out in the
+/// previous frame, or null (first frame, key not shown). Use it to place a
+/// popover next to its trigger from the root container:
+///
+///     if (ui.keyBounds("menu-btn")) |b| ui.styled(menu, .{ .absolute = true, .left = b.x, .top = b.bottom() + 4 })
+pub fn keyBounds(key: []const u8) ?geometry.Rect {
+    const tree = build_tree orelse return null;
+    return tree.boundsOfKey(key);
+}
+
 /// Active theme while building a frame.
 pub fn currentTheme() tokens.Theme {
     return build_theme;
@@ -101,6 +118,36 @@ threadlocal var pending_edited: ?bool = null;
 /// Declares whether the document has unsaved changes (call it from
 /// `render`). On macOS this shows the dot in the window's close button,
 /// like every document app; the runtime applies it after the build.
+threadlocal var build_window_style: platform_mod.WindowStyle = .native;
+
+/// Window style of the app being built (set by the runtime before render).
+pub fn setBuildWindowStyle(style: platform_mod.WindowStyle) void {
+    build_window_style = style;
+}
+
+/// Space an app-drawn title bar (`.hidden_titlebar`) must keep free for the
+/// system's window controls: the traffic lights on the left on macOS, the
+/// caption buttons on the right on Windows. Zero for other window styles.
+///
+///     const insets = ui.titlebarInsets();
+///     ui.row(.{ .padding = .{ .left = 16 + insets.left, .right = 16 + insets.right }, ... })
+pub fn titlebarInsets() platform_mod.TitlebarInsets {
+    return platform_mod.titlebarInsets(build_window_style);
+}
+
+/// Copy of a container with `extra` appended to its children (overlays the
+/// runtime adds on top of the app's root, e.g. Windows caption buttons).
+pub fn appendChildren(node: Node, extra: []const Node) Node {
+    if (extra.len == 0) return node;
+    const copy = alloc(Element);
+    copy.* = node.element.*;
+    const children = allocSlice(Node, node.element.children.len + extra.len);
+    @memcpy(children[0..node.element.children.len], node.element.children);
+    @memcpy(children[node.element.children.len..], extra);
+    copy.children = children;
+    return .{ .element = copy };
+}
+
 pub fn documentEdited(edited: bool) void {
     pending_edited = edited;
 }
@@ -1178,7 +1225,7 @@ pub const PdfOptions = struct {
     on_page_change: ?actions.IndexAction = null,
 };
 
-/// Native macOS PDF preview backed by PDFKit. Interaction is inspired by
+/// Native PDF preview backed by PDFKit (macOS) or PDFium (Windows). Interaction is inspired by
 /// EmbedPDF, but this remains a native Skia UI (no WebView).
 pub fn pdfPreview(options: PdfOptions) Node {
     const src_z = std.fmt.allocPrintSentinel(frame_arena.allocator(), "{s}", .{options.src}, 0) catch
@@ -1412,7 +1459,9 @@ pub fn avatar(options: AvatarOptions) Node {
     children[0] = text(options.text, .{
         .size = @max(12, options.size * 0.4),
         .weight = .medium,
-        .color = options.color orelse build_theme.color_primary,
+        // light primary tint by default; on a custom background white text
+        // (antd), so the label never takes the background's colour
+        .color = options.color orelse if (options.background != null) 0xffffffff else build_theme.color_primary,
         .text_align = .center,
         .wrap = false,
     });
@@ -1477,6 +1526,11 @@ pub fn progress(options: ProgressOptions) Node {
 
 // ── composite components (Ant Design style) ─────────────────────────────
 
+const window_controls_mod = @import("components/window_controls.zig");
+pub const WindowControlsOptions = window_controls_mod.WindowControlsOptions;
+/// Windows caption buttons (added by the runtime for `.hidden_titlebar`).
+pub const windowControls = window_controls_mod.windowControls;
+pub const caption_maximize_key = window_controls_mod.caption_maximize_key;
 const menu_mod = @import("components/menu.zig");
 const segmented_mod = @import("components/segmented.zig");
 pub const MenuItem = menu_mod.MenuItem;

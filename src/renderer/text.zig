@@ -76,6 +76,24 @@ pub const Metrics = struct {
     line_count: usize,
 };
 
+/// Text layouts created and time spent shaping them (ZANT_FRAME_STATS).
+pub const layout_stats = struct {
+    pub var enabled = false;
+    pub var count: u32 = 0;
+    pub var us: i64 = 0;
+    pub fn add(us_: i64) void {
+        count += 1;
+        us += us_;
+    }
+    pub fn take() struct { count: u32, us: i64 } {
+        defer {
+            count = 0;
+            us = 0;
+        }
+        return .{ .count = count, .us = us };
+    }
+};
+
 extern fn zant_text_layout_create(text: [*]const u8, length: usize, style: *const NativeStyle, max_width: f32) ?*anyopaque;
 extern fn zant_text_layout_destroy(layout: ?*anyopaque) void;
 extern fn zant_text_layout_metrics(layout: ?*anyopaque) NativeMetrics;
@@ -98,7 +116,9 @@ pub const TextLayout = struct {
             .max_lines = @intCast(style.max_lines),
             .family = @backingInt(style.family),
         };
+        const t0 = if (layout_stats.enabled) @import("../platform/platform.zig").monotonicUs() else 0;
         const handle = zant_text_layout_create(text.ptr, text.len, &native_style, max_width) orelse return error.TextLayoutFailed;
+        if (layout_stats.enabled) layout_stats.add(@import("../platform/platform.zig").monotonicUs() - t0);
         const m = zant_text_layout_metrics(handle);
         return .{
             .handle = handle,

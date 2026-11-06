@@ -1,3 +1,6 @@
+/* Zant UI platform C ABI: one window per process, implemented by
+ * src/platform/macos/window.m (AppKit) and src/platform/windows/window.c
+ * (Win32). Coordinates are logical points; dpr converts to pixels. */
 #ifndef ZANT_PLATFORM_H
 #define ZANT_PLATFORM_H
 
@@ -9,7 +12,7 @@ extern "C" {
 #endif
 
 typedef struct ZantCanvas ZantCanvas;
-typedef struct ZantMacWindow ZantMacWindow;
+typedef struct ZantWindow ZantWindow;
 
 enum {
     ZANT_EVENT_POINTER_MOVE = 1,
@@ -26,7 +29,7 @@ enum {
     ZANT_EVENT_WINDOW_BLUR = 12,
     ZANT_EVENT_WINDOW_CLOSE = 13,
     ZANT_EVENT_SCROLL = 14,
-    /* Close button / ⌘W / Quit: the handler returns non-zero to veto. */
+    /* Close button / ⌘W / Quit / Alt+F4: the handler returns non-zero to veto. */
     ZANT_EVENT_WINDOW_CLOSE_REQUEST = 15,
 };
 
@@ -70,6 +73,13 @@ enum {
     ZANT_CURSOR_IBEAM = 2,
 };
 
+/* Answers of ZantHost.titlebar_hit (app-drawn title bars on Windows). */
+enum {
+    ZANT_HIT_CLIENT = 0,
+    ZANT_HIT_CAPTION = 1,  /* drag to move, double click to maximize */
+    ZANT_HIT_MAXIMIZE = 2, /* the app-drawn maximize button (Win11 snap layouts) */
+};
+
 typedef struct ZantWindowOptions {
     int style;
     float width;
@@ -82,7 +92,8 @@ typedef struct ZantWindowOptions {
     int movable_by_background;
     int center;
     /* hidden_titlebar only: height of the app's own title bar (0 = system
-       default); the traffic lights are centred in it. */
+       default); the traffic lights are centred in it on macOS, the drawn
+       caption buttons fill it on Windows. */
     float titlebar_height;
 } ZantWindowOptions;
 
@@ -111,27 +122,50 @@ typedef struct ZantHost {
     int (*event)(void *userdata, const ZantEvent *event);
     int (*ime_rect)(void *userdata, float *x, float *y, float *width, float *height);
     int (*next_frame_delay)(void *userdata);
+    /* ZANT_HIT_* for a point in logical window coordinates (may be NULL). */
+    int (*titlebar_hit)(void *userdata, float x, float y);
 } ZantHost;
 
-ZantMacWindow *zant_macos_window_create(const char *title, const ZantWindowOptions *options,
-                                       const ZantHost *host);
-void zant_macos_run(ZantMacWindow *window);
-void zant_macos_destroy(ZantMacWindow *window);
-void zant_macos_request_redraw(ZantMacWindow *window, int delay_ms);
-void zant_macos_set_cursor(ZantMacWindow *window, int cursor);
-/* Sets the NSWindow background colour (0xAARRGGBB). */
-void zant_macos_set_background(ZantMacWindow *window, uint32_t argb);
-/* 1 when "Reduce motion" is on in System Settings › Accessibility. */
-int zant_macos_reduce_motion(void);
-/* Unsaved-changes state (dot in the close button, as in document apps). */
-void zant_macos_set_document_edited(ZantMacWindow *window, int edited);
-const char *zant_macos_renderer_name(ZantMacWindow *window);
-void zant_macos_schedule_snapshot(ZantMacWindow *window, const char *path, int delay_ms);
+ZantWindow *zant_window_create(const char *title, const ZantWindowOptions *options,
+                               const ZantHost *host);
+void zant_window_run(ZantWindow *window);
+void zant_window_destroy(ZantWindow *window);
+void zant_window_request_redraw(ZantWindow *window, int delay_ms);
+void zant_window_set_cursor(ZantWindow *window, int cursor);
+/* Window background colour (0xAARRGGBB); on Windows it also picks a light or
+   dark system title bar. */
+void zant_window_set_background(ZantWindow *window, uint32_t argb);
+/* 1 when the system asks for less motion (macOS "Reduce motion", Windows
+   "Animation effects" off). */
+int zant_window_reduce_motion(void);
+/* Unsaved-changes state (dot in the close button on macOS, "*" before the
+   title on Windows). */
+void zant_window_set_document_edited(ZantWindow *window, int edited);
+const char *zant_window_renderer_name(ZantWindow *window);
+void zant_window_schedule_snapshot(ZantWindow *window, const char *path, int delay_ms);
+/* Window controls for app-drawn title bars. */
+void zant_window_minimize(ZantWindow *window);
+void zant_window_toggle_maximize(ZantWindow *window);
+int zant_window_is_maximized(ZantWindow *window);
+/* Asks to close (goes through ZANT_EVENT_WINDOW_CLOSE_REQUEST). */
+void zant_window_close(ZantWindow *window);
+/* 1 while the window is the active (key) window. */
+int zant_window_is_active(ZantWindow *window);
 
 int zant_clipboard_set_text(const char *text, size_t length);
 /* Returns the number of UTF-8 bytes required, including the trailing NUL. When
  * out is non-NULL, copies up to capacity bytes including the NUL. */
 size_t zant_clipboard_get_text(char *out, size_t capacity);
+
+/* Native dialogs. Paths are UTF-8; free results with zant_dialog_free.
+ * extensions: comma separated ("md,markdown,txt"); NULL or "" allows any. */
+char *zant_open_file_dialog_ext(const char *extensions);
+char *zant_save_file_dialog_ext(const char *default_name, const char *extensions);
+void zant_dialog_free(char *value);
+/* Returns 0 for the first button, 1 for the second, 2 for the third. */
+int zant_confirm_dialog(const char *title, const char *message, const char *first,
+                        const char *second, const char *third);
+int zant_open_url(const char *url);
 
 #ifdef __cplusplus
 }

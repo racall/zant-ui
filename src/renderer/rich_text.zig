@@ -41,7 +41,10 @@ pub const Layout = struct {
     baseline: f32 = 0,
 
     pub fn create(spans: []const Span, max_width: f32, line_height: f32) !Layout {
+        const stats = @import("text.zig").layout_stats;
+        const t0 = if (stats.enabled) @import("../platform/platform.zig").monotonicUs() else 0;
         const handle = zant_rich_text_layout_create(spans.ptr, spans.len, max_width, line_height) orelse return error.LayoutFailed;
+        if (stats.enabled) stats.add(@import("../platform/platform.zig").monotonicUs() - t0);
         const m = zant_text_layout_metrics(handle);
         return .{ .handle = handle, .width = m.width, .height = m.height, .baseline = m.first_baseline };
     }

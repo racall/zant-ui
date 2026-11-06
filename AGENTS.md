@@ -8,24 +8,25 @@
 
 ## 项目介绍
 
-**Zant UI** 是一个用 Zig 编写的原生 macOS 桌面 UI 框架。
+**Zant UI** 是一个用 Zig 编写的原生桌面 UI 框架，支持 macOS 与 Windows。
 
 - 语言：Zig 0.17.1
-- 窗口：AppKit / NSWindow（原生，不使用 WebView）
-- 渲染：Skia Ganesh + Metal；CPU 光栅回退用于测试/特殊环境
+- 窗口：macOS AppKit / NSWindow；Windows Win32 HWND（原生，不使用 WebView）
+- 渲染：Skia Ganesh + Metal（macOS）/ Direct3D 12（Windows）；CPU 光栅回退用于测试/特殊环境
 - 布局：Zig 实现的单行 Flex
 - 文本：Skia Paragraph，支持中英文、换行、字体回退
 - 状态：父组件持有状态 + 回调；可选 Zustand 风格 `zant.store.Store(T)`
 - 脚手架：编译后的 `zant` CLI，不使用 shell 脚手架
-- PDF：原生 PDFKit 预览组件
-- 平台：macOS 已完成；Windows 为二期，当前未实现
+- PDF：预览组件（macOS PDFKit，Windows PDFium）
+- 平台：macOS、Windows 10/11 x64 均已完成（见下文「跨平台规范」）
 
 这个仓库既包含框架，也包含生成项目的模板和 CLI。
 
 ## 常用命令
 
 ```bash
-./scripts/fetch_skia.sh       # 首次准备 Skia 依赖
+./scripts/fetch_skia.sh       # 首次准备 Skia 依赖（macOS）
+# Windows: powershell -ExecutionPolicy Bypass -File scripts/fetch_skia_windows.ps1
 zig build                     # 构建框架、示例和 zant CLI
 zig build test                # 全部测试
 zig build run                 # 声明式示例
@@ -55,9 +56,10 @@ src/
   store.zig             Zustand 风格 Store
   core/                 节点、树、布局、几何、事件、Unicode
   components/           文本、按钮、输入、Toggle、Select、图片
-  renderer/skia/        Skia C ABI 与 Metal/CPU 渲染
+  renderer/skia/        Skia C ABI：可移植核心 + mac（CoreText/Metal）/ win（DirectWrite/D3D12）
+  platform/platform.h   平台 C ABI（两个平台各实现一份）
   platform/macos/       AppKit 窗口、PDFKit 桥
-  platform/windows/     二期说明，未实现
+  platform/windows/     Win32 窗口、IMM32、自绘标题栏、对话框、PDFium、manifest
   motion/               动效：缓动曲线（antd）、Animated、presence 预设
   markdown/             Streamdown 移植：remend/ parser/ render/ blocks cache editor html
   math/                 LaTeX 公式（KaTeX 排版算法，STIX Two Math）
@@ -219,22 +221,45 @@ ui.styled(node, .{
 - PDF 页面按文件/页码/尺寸缓存 PNG；不要每帧渲染 PDF。
 - 避免在 render 内做文件 I/O、网络、睡眠或大分配。
 - 新增分配必须跟随节点/帧生命周期释放。
-- 修改热点路径后运行 `zig build test`，并检查内存/时间回归。
-- 当前测试 123/123（`tests/` + 框架模块内单元测试）；新增行为应补测试。
+- 修改热点路径后运行 `zig build test`，并检查内存/时间回归：Release 构建下用 `ZANT_FRAME_STATS=1`
+  （`zant-components` 配合 `ZANT_AUTOPLAY=quiet`）看每帧耗时，单帧应远低于 16.7 ms；
+  Windows 上用 `scripts/win/resize-check.ps1` 测拖动缩放帧率（应跟满刷新率）。
+- 每帧路径里不要写 stderr（Windows 上每行约 10 ms）。
+- 当前测试 129/129（`tests/` + 框架模块内单元测试），macOS 与 Windows 都要通过；新增行为应补测试。
 
 ## 代码质量
 
 - 运行 `zig fmt`。
 - 保持 API 简单，优先组合而不是新增抽象。
-- 不要引入不必要的依赖；Skia 通过 `fetch_skia.sh` 固定版本。
-- 变更 C/ObjC++ ABI 时同步更新 `.h`、Zig extern 和文档。
+- 不要引入不必要的依赖；Skia 通过 `fetch_skia.sh` / `fetch_skia_windows.ps1` 固定版本。
+- 变更 C/ObjC++ ABI 时同步更新 `.h`、Zig extern、两个平台的实现和文档；改了
+  `skia_bridge.h` / `pdf.h` 的函数要运行 `scripts/win/gen_def.sh` 更新 DLL 导出表。
+
+## 跨平台规范
+
+- 平台差异只放在 `src/platform/` 与 `src/renderer/skia/skia_bridge_{mac.mm,win.cpp}`；
+  组件和应用代码不写 `builtin.os.tag` 分支，需要时用框架 API：
+  - 快捷键：`key.modifiers.primary()`（⌘ / Ctrl）、`zant.keys.label("mod+shift+s")`
+    生成按键文字（⇧⌘S / Ctrl+Shift+S），平台习惯不同用 `zant.keys.pick(mac, win)`。
+  - 自绘标题栏：`ui.titlebarInsets()` 给出系统控件占位（macOS 左侧红绿灯，Windows 右侧标题按钮）；
+    Windows 的最小化/最大化/关闭按钮由运行时自动绘制（`ui.windowControls`）。
+  - 数据目录：`zant.paths.appDataDir`；文件对话框：`zant.dialogs.*`（扩展名由调用方给）。
+- Windows 构建：Zig 编译 `window.c`，Skia 桥接与 PDF 由 `scripts/win/build_bridge.ps1`
+  用 MSVC 编成 `zant_skia.dll`（预编译 Skia 是 MSVC STL）；应用的 `build.zig` 调
+  `@import("zant_ui").configureApp(...)` 嵌入 manifest、安装 DLL。
+- 测试机：`scripts/win/sync.sh [../app]` 同步，`scripts/win/remote.sh <dir> '<cmd>'` 远程执行，
+  `scripts/win/run-desktop.ps1` 在可见桌面运行（SSH 会话看不到窗口），
+  桌面自动化测试见 `docs/development.md`「Windows 测试机」（`components-check.ps1` 点击全部组件、
+  `smoke-stillmd.ps1`、`docs-check.ps1`、`pdf-check.ps1`），按 key 定位靠 `ZANT_LAYOUT_FILE`。
+- 新组件要加进 `examples/components.zig`（交互时打印 `[event] ...`），并在
+  `scripts/win/components-check.ps1` 里补点击用例。
 - 提交前检查 `git diff`，确认没有密钥、本机绝对路径、测试产物。
 
 ## 已知限制
 
-- Windows 未实现。
+- Windows 输入法走 IMM32；TSF 专有能力（重新转换等）未实现。Windows 仅 x64。
 - 内置 `antLight` / `antDark`；应用可通过 `pub fn theme` 运行时切换。
 - Flex 纵向 wrap、wrap-reverse、auto/calc 未支持。
 - Select/Tabs 为基础实现。
-- 真实 macOS 拼音输入法未自动化端到端验证。
+- 真实 macOS 拼音输入法未自动化端到端验证（Windows 微软拼音已由冒烟测试覆盖）。
 - 无障碍 API 未暴露。

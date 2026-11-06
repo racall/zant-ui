@@ -24,7 +24,8 @@ pub const ShortcutListOptions = struct {
     groups: []const ShortcutGroup,
     /// Groups are spread over this many columns, keeping heights balanced.
     columns: usize = 2,
-    column_width: f32 = 250,
+    /// Windows key names ("Ctrl+Shift+S") are wider than macOS glyphs ("⇧⌘S").
+    column_width: f32 = if (@import("builtin").os.tag == .macos) 250 else 310,
     column_gap: f32 = 40,
     row_height: f32 = 28,
     font_size: f32 = 13,

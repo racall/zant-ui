@@ -72,17 +72,25 @@ typedef struct ZantTextMetrics {
 
 /* Global one-time Skia initialization. Safe to call repeatedly. */
 void zant_skia_init(void);
+/* Writes a whole file; path is UTF-8 (wide APIs on Windows). 1 on success. */
+int zant_write_file(const char *path, const void *data, size_t size);
 
 ZantRenderer *zant_renderer_create_raster(int pixel_width, int pixel_height);
-/* Optional GPU path. layer is a CAMetalLayer* on macOS. Returns NULL when the
- * backend could not be created; callers may fall back to raster. */
-ZantRenderer *zant_renderer_create_metal(void *metal_view, int pixel_width, int pixel_height);
+/* Optional GPU paths. Return NULL when the backend could not be created;
+ * callers fall back to raster.
+ * macOS: layer is a CAMetalLayer*. Windows: hwnd is the window's HWND
+ * (Direct3D 12 flip-model swap chain, vsync'd present). */
+ZantRenderer *zant_renderer_create_metal(void *metal_layer, int pixel_width, int pixel_height);
+ZantRenderer *zant_renderer_create_d3d(void *hwnd, int pixel_width, int pixel_height);
 void zant_renderer_destroy(ZantRenderer *renderer);
 bool zant_renderer_resize(ZantRenderer *renderer, int pixel_width, int pixel_height);
 ZantCanvas *zant_renderer_begin(ZantRenderer *renderer, float scale);
 void zant_renderer_end(ZantRenderer *renderer);
 void zant_renderer_present(ZantRenderer *renderer);
+/* Raster pixels in the native byte order (RGBA on macOS, BGRA on Windows). */
 void *zant_renderer_pixels(ZantRenderer *renderer, int *width, int *height, int *stride);
+/* One raster pixel as premultiplied 0xAARRGGBB (tests). */
+uint32_t zant_renderer_pixel_argb(ZantRenderer *renderer, int x, int y);
 bool zant_renderer_is_gpu(ZantRenderer *renderer);
 const char *zant_renderer_backend_name(ZantRenderer *renderer);
 bool zant_renderer_write_png(ZantRenderer *renderer, const char *path);
@@ -132,7 +140,8 @@ int zant_text_layout_placeholder_rects(ZantTextLayout *layout, ZantRect *out_rec
 
 /* Single-line glyph run measurement / drawing with per-character font
  * fallback. family: 0 sans, 1 serif, 2 mono, 3 serif CJK, 4 math (STIX Two
- * Math). y is the baseline; scale_y stretches glyphs vertically around it. */
+ * Math; Cambria Math on Windows). y is the baseline; scale_y stretches glyphs
+ * vertically around it. */
 ZantInkMetrics zant_text_measure_ink(const char *utf8, size_t length, float size, int family,
                                      int weight, int italic);
 void zant_canvas_draw_simple_text(ZantCanvas *canvas, const char *utf8, size_t length, float x,

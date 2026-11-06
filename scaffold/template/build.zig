@@ -1,8 +1,12 @@
 const std = @import("std");
+const zant_build = @import("zant_ui");
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+    // Skia's C++ is linked statically on macOS; on Windows it lives in
+    // zant_skia.dll, so only macOS needs libc++
+    const libcpp = target.result.os.tag == .macos;
 
     const zant_dep = b.dependency("zant_ui", .{
         .target = target,
@@ -17,7 +21,7 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .link_libc = true,
-            .link_libcpp = true,
+            .link_libcpp = libcpp,
             .imports = &.{.{ .name = "zant", .module = zant }},
         }),
     });
@@ -34,10 +38,14 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
         .link_libc = true,
-        .link_libcpp = true,
+        .link_libcpp = libcpp,
         .imports = &.{.{ .name = "zant", .module = zant }},
     }) });
     const run_tests = b.addRunArtifact(tests);
     const test_step = b.step("test", "运行单元测试");
     test_step.dependOn(&run_tests.step);
+
+    // Windows: manifest, zant_skia.dll next to app.exe, DLL path for runs
+    // (a no-op on macOS)
+    zant_build.configureApp(b, zant_dep, exe, &.{ run_cmd, run_tests });
 }

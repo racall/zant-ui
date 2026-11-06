@@ -15,3 +15,8 @@ test
 *.mobileprovision
 *.key
 *.pdf
+third_party/skia-win/
+third_party/pdfium-win/
+third_party/fonts/
+third_party/*.tgz
+zig-out-*/

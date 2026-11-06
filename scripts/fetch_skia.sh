@@ -40,7 +40,9 @@ if [[ ! -f "third_party/skia-headers/include/core/SkSurface.h" ]]; then
       modules/skparagraph/include \
       modules/skshaper/include \
       modules/skunicode/include \
-      modules/skcms
+      modules/skcms \
+      src/core \
+      src/utils
     ACTUAL_COMMIT="$(git rev-parse HEAD)"
     if [[ "$ACTUAL_COMMIT" != "$HEADERS_COMMIT" ]]; then
       echo "Warning: expected header commit $HEADERS_COMMIT, got $ACTUAL_COMMIT" >&2

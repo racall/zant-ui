@@ -185,7 +185,7 @@ const State = struct {
             .gap = 18,
             .children = &.{
                 ui.text("Zant UI", .{ .size = 30, .weight = .semibold }),
-                ui.text("Declarative macOS components powered by Zig + Skia", .{
+                ui.text("Declarative native components powered by Zig + Skia", .{
                     .size = 14,
                     .color = 0xa6000000,
                 }),

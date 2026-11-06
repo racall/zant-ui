@@ -1,6 +1,6 @@
 # __APP_TITLE__
 
-由 Zant UI 生成的 macOS 原生桌面应用。
+由 Zant UI 生成的原生桌面应用（macOS 与 Windows）。
 
 - Bundle ID：`__BUNDLE_ID__`
 - 沙盒：`__SANDBOX__`
@@ -25,13 +25,15 @@ zant build
 zant build --release
 ```
 
-## 打包 .app
+## 打包
 
 ```bash
 zant package
 ```
 
-生成并签名 `zig-out/__APP_TITLE__.app`。
+- macOS：生成并签名 `zig-out/__APP_TITLE__.app`。
+- Windows：生成 `zig-out/__APP_TITLE__/` 目录（exe、`zant_skia.dll`、`pdfium.dll` 与
+  MSVC 运行库），压缩即可分发。
 
 ## 配置
 

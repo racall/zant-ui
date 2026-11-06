@@ -2,6 +2,7 @@ const std = @import("std");
 const build_options = @import("build_options");
 const Io = std.Io;
 const Dir = Io.Dir;
+const is_windows = @import("builtin").os.tag == .windows;
 
 var child_environ: ?*std.process.Environ.Map = null;
 
@@ -107,12 +108,27 @@ fn runCapture(allocator: std.mem.Allocator, io: Io, argv: []const []const u8) !s
     });
 }
 
+/// One byte from stdin (0 at end of input).
+fn readStdin(buf: []u8) usize {
+    if (is_windows) {
+        const win = struct {
+            extern "kernel32" fn GetStdHandle(id: u32) callconv(.winapi) ?*anyopaque;
+            extern "kernel32" fn ReadFile(file: ?*anyopaque, buffer: [*]u8, len: u32, read: *u32, overlapped: ?*anyopaque) callconv(.winapi) c_int;
+        };
+        var read: u32 = 0;
+        const STD_INPUT_HANDLE: u32 = @bitCast(@as(i32, -10));
+        if (win.ReadFile(win.GetStdHandle(STD_INPUT_HANDLE), buf.ptr, @intCast(buf.len), &read, null) == 0) return 0;
+        return read;
+    }
+    return std.posix.read(std.posix.STDIN_FILENO, buf) catch 0;
+}
+
 fn prompt(allocator: std.mem.Allocator, label: []const u8, default: []const u8) ![]u8 {
     std.debug.print("{s} [{s}]: ", .{ label, default });
     var buf: [1024]u8 = undefined;
     var n: usize = 0;
     while (n < buf.len) {
-        const r = std.posix.read(std.posix.STDIN_FILENO, buf[n .. n + 1]) catch 0;
+        const r = readStdin(buf[n .. n + 1]);
         if (r == 0 or buf[n] == '\n') break;
         n += 1;
     }
@@ -127,7 +143,7 @@ fn promptYesNo(allocator: std.mem.Allocator, label: []const u8, default: bool) !
         var buf: [16]u8 = undefined;
         var n: usize = 0;
         while (n < buf.len) {
-            const r = std.posix.read(std.posix.STDIN_FILENO, buf[n .. n + 1]) catch 0;
+            const r = readStdin(buf[n .. n + 1]);
             if (r == 0 or buf[n] == '\n') break;
             n += 1;
         }
@@ -140,6 +156,7 @@ fn promptYesNo(allocator: std.mem.Allocator, label: []const u8, default: bool) !
 }
 
 fn listIdentities(allocator: std.mem.Allocator, io: Io) ![]const []const u8 {
+    if (is_windows) return &.{}; // code signing identities are a macOS concept
     const result = runCapture(allocator, io, &.{ "security", "find-identity", "-v", "-p", "codesigning" }) catch return &.{};
     defer allocator.free(result.stdout);
     defer allocator.free(result.stderr);
@@ -346,6 +363,7 @@ fn packageApp(allocator: std.mem.Allocator, io: Io, root: []const u8, cfg: *cons
     step("{s}", .{if (release) "正在编译 ReleaseFast" else "正在编译"});
     try runInherit(allocator, io, args, root);
     ok("编译完成", .{});
+    if (is_windows) return packageWindows(allocator, io, root, cfg);
 
     const app_name = cfg.title;
     if (std.mem.indexOfScalar(u8, app_name, '/') != null) fail("应用标题不能包含 '/'", .{});
@@ -390,6 +408,50 @@ fn packageApp(allocator: std.mem.Allocator, io: Io, root: []const u8, cfg: *cons
     try runInherit(allocator, io, sign_argv.items, root);
     ok("已生成 {s}", .{app_path});
     return app_path;
+}
+
+/// `zig-out/bin/app` (`app.exe` on Windows).
+fn appExePath(allocator: std.mem.Allocator, root: []const u8) ![]u8 {
+    return std.fmt.allocPrint(allocator, "{s}/zig-out/bin/app{s}", .{ root, if (is_windows) ".exe" else "" });
+}
+
+/// Windows: a folder with the exe, zant_skia.dll, pdfium.dll and the MSVC
+/// runtime the DLL needs, ready to zip or run anywhere on Windows 10+.
+fn packageWindows(allocator: std.mem.Allocator, io: Io, root: []const u8, cfg: *const AppConfig) ![]u8 {
+    for ([_]u8{ '/', '\\', ':', '*', '?', '"', '<', '>', '|' }) |bad| {
+        if (std.mem.indexOfScalar(u8, cfg.title, bad) != null) fail("应用标题不能包含 {c}", .{bad});
+    }
+    const out = try std.fmt.allocPrint(allocator, "{s}/zig-out/{s}", .{ root, cfg.title });
+    errdefer allocator.free(out);
+    Dir.cwd().deleteTree(io, out) catch {};
+    try Dir.cwd().createDirPath(io, out);
+    const exe_name = try std.fmt.allocPrint(allocator, "{s}.exe", .{cfg.title});
+    defer allocator.free(exe_name);
+    const files = [_]struct { src: []const u8, dst: []const u8 }{
+        .{ .src = "app.exe", .dst = exe_name },
+        .{ .src = "zant_skia.dll", .dst = "zant_skia.dll" },
+        .{ .src = "pdfium.dll", .dst = "pdfium.dll" },
+    };
+    for (files) |f| {
+        const src = try std.fmt.allocPrint(allocator, "{s}/zig-out/bin/{s}", .{ root, f.src });
+        defer allocator.free(src);
+        const dst = try std.fs.path.join(allocator, &.{ out, f.dst });
+        defer allocator.free(dst);
+        Dir.cwd().copyFile(src, Dir.cwd(), dst, io, .{ .replace = true }) catch |err| {
+            if (!std.mem.eql(u8, f.src, "pdfium.dll")) return err;
+        };
+    }
+    // zant_skia.dll is built with /MD: ship the MSVC runtime next to it
+    const system_root = (if (child_environ) |env| env.get("SystemRoot") else null) orelse "C:\\Windows";
+    for ([_][]const u8{ "vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll" }) |name| {
+        const src = try std.fmt.allocPrint(allocator, "{s}\\System32\\{s}", .{ system_root, name });
+        defer allocator.free(src);
+        const dst = try std.fs.path.join(allocator, &.{ out, name });
+        defer allocator.free(dst);
+        Dir.cwd().copyFile(src, Dir.cwd(), dst, io, .{ .replace = true }) catch {};
+    }
+    ok("已生成 {s}", .{out});
+    return out;
 }
 
 fn validName(name: []const u8) bool {
@@ -553,6 +615,8 @@ fn cmdCreate(allocator: std.mem.Allocator, io: Io, args: []const [:0]const u8) !
 
     const zant_rel = try std.fs.path.relativeAlloc(allocator, cwd, null, target, zroot);
     defer allocator.free(zant_rel);
+    // a Zig string literal in build.zig.zon: "\\" would be an escape
+    std.mem.replaceScalar(u8, zant_rel, '\\', '/');
     const fingerprint = (@as(u64, std.hash.Crc32.hash(zig_name)) << 32) | 0x9e3779b9;
     const zon_path = try std.fs.path.join(allocator, &.{ target, "build.zig.zon" });
     defer allocator.free(zon_path);
@@ -654,7 +718,8 @@ fn cmdCreate(allocator: std.mem.Allocator, io: Io, args: []const [:0]const u8) !
     try syncProject(allocator, io, target, &cfg);
     ok("app.config.json / app_config.zig / Info.plist 已生成", .{});
     ok("项目已生成: {s}", .{target});
-    std.debug.print("\n下一步：\n  cd {s}\n  {s}/zig-out/bin/zant run\n\n", .{ name, zroot });
+    const sep = if (is_windows) "\\" else "/";
+    std.debug.print("\n下一步：\n  cd {s}\n  {s}{s}zig-out{s}bin{s}zant run\n\n", .{ name, zroot, sep, sep, sep });
 }
 
 fn replace(allocator: std.mem.Allocator, input: []u8, needle: []const u8, value: []const u8) ![]u8 {
@@ -728,7 +793,7 @@ fn cmdRun(allocator: std.mem.Allocator, io: Io, release: bool) !void {
     defer allocator.free(root);
     const config = try loadConfig(allocator, io, root);
     try syncProject(allocator, io, root, &config);
-    if (config.sandbox) {
+    if (config.sandbox and !is_windows) {
         const app_path = try packageApp(allocator, io, root, &config, true);
         defer allocator.free(app_path);
         // App Sandbox apps must be launched through LaunchServices, not by
@@ -737,9 +802,9 @@ fn cmdRun(allocator: std.mem.Allocator, io: Io, release: bool) !void {
     } else {
         const args = if (release) &[_][]const u8{ "zig", "build", "-Doptimize=ReleaseFast" } else &[_][]const u8{ "zig", "build" };
         try runInherit(allocator, io, args, root);
-        const exe = try std.fmt.allocPrint(allocator, "{s}/zig-out/bin/app", .{root});
+        const exe = try appExePath(allocator, root);
         defer allocator.free(exe);
-        if (rawLogs()) {
+        if (rawLogs() or is_windows) {
             try runInherit(allocator, io, &.{exe}, root);
         } else {
             const argv = appArgv(exe);
@@ -819,15 +884,16 @@ fn appArgv(exe: []const u8) [4][]const u8 {
 }
 
 fn rawLogs() bool {
-    const value = std.c.getenv("ZANT_RAW_LOGS") orelse return false;
-    return value[0] == '1';
+    const env = child_environ orelse return false;
+    const value = env.get("ZANT_RAW_LOGS") orelse return false;
+    return value.len > 0 and value[0] == '1';
 }
 
 fn spawnApp(io: Io, exe: []const u8, root: []const u8) !std.process.Child {
     const filtered = appArgv(exe);
     const plain = [_][]const u8{exe};
     return std.process.spawn(io, .{
-        .argv = if (rawLogs()) &plain else &filtered,
+        .argv = if (rawLogs() or is_windows) &plain else &filtered,
         .cwd = .{ .path = root },
         .stdin = .inherit,
         .stdout = .inherit,
@@ -841,14 +907,14 @@ fn cmdWatch(allocator: std.mem.Allocator, io: Io, release: bool) !void {
     const root = try std.process.currentPathAlloc(io, allocator);
     defer allocator.free(root);
     const config = try loadConfig(allocator, io, root);
-    if (config.sandbox) fail("App Sandbox 下暂不支持热更新；请使用 zant run", .{});
+    if (config.sandbox and !is_windows) fail("App Sandbox 下暂不支持热更新；请使用 zant run", .{});
     try syncProject(allocator, io, root, &config);
     step("首次编译", .{});
     if (!try buildOnce(allocator, io, root, release)) fail("编译失败", .{});
     ok("编译完成", .{});
 
     var last = try sourceStamp(allocator, io, root);
-    const exe_path = try std.fmt.allocPrint(allocator, "{s}/zig-out/bin/app", .{root});
+    const exe_path = try appExePath(allocator, root);
     defer allocator.free(exe_path);
     var child = try spawnApp(io, exe_path, root);
     std.debug.print("\n热更新已开启：监听 src/、app.config.json；Ctrl+C 退出\n", .{});
@@ -859,6 +925,17 @@ fn cmdWatch(allocator: std.mem.Allocator, io: Io, release: bool) !void {
         if (now == last) continue;
         last = now;
         std.debug.print("\n检测到改动，重新编译...\n", .{});
+        if (is_windows) {
+            // a running .exe cannot be overwritten: stop it before linking,
+            // and bring the last good build back if this one fails
+            child.kill(io);
+            const built = try buildOnce(allocator, io, root, release);
+            if (!built) std.debug.print("编译失败，重新打开上一次的版本，等待下一次改动\n", .{});
+            try syncProject(allocator, io, root, &config);
+            child = try spawnApp(io, exe_path, root);
+            if (built) std.debug.print("已重启应用\n", .{});
+            continue;
+        }
         if (!try buildOnce(allocator, io, root, release)) {
             std.debug.print("编译失败，保持当前窗口，等待下一次改动\n", .{});
             continue;
@@ -918,8 +995,15 @@ pub fn main(init: std.process.Init) !void {
         try cmdSync(allocator, io, root);
     } else if (std.mem.eql(u8, args[1], "update")) {
         step("重新编译 Zant UI 全局 CLI", .{});
+        if (is_windows) {
+            // a running .exe cannot be overwritten, but it can be renamed
+            const exe = try std.fmt.allocPrint(allocator, "{s}/zig-out/bin/zant.exe", .{build_options.zant_root});
+            const old = try std.fmt.allocPrint(allocator, "{s}/zig-out/bin/zant.old.exe", .{build_options.zant_root});
+            Dir.cwd().deleteFile(io, old) catch {};
+            Dir.cwd().rename(exe, Dir.cwd(), old, io) catch {};
+        }
         try runInherit(allocator, io, &.{ "zig", "build" }, build_options.zant_root);
-        ok("已更新：{s}/zig-out/bin/zant", .{build_options.zant_root});
+        ok("已更新：{s}/zig-out/bin/zant{s}", .{ build_options.zant_root, if (is_windows) ".exe" else "" });
     } else {
         std.debug.print("未知命令: {s}\n", .{args[1]});
     }

@@ -11,6 +11,11 @@ cd /path/to/zant-ui
 zig build
 ```
 
+macOS 与 Windows 用法相同。Windows 上先运行一次
+`powershell -ExecutionPolicy Bypass -File scripts/fetch_skia_windows.ps1`，并把 Zig 和
+`<zant-ui>\zig-out\bin` 加入 PATH；需要 Visual Studio 2022+ / Build Tools 的 C++ 工作负载。
+Bundle ID、沙盒、签名是 macOS 选项，Windows 上 Bundle ID 用作 `%APPDATA%` 下的数据目录名。
+
 ## 创建项目
 
 ```bash
@@ -80,6 +85,7 @@ zant run --watch
 - 会重新创建窗口和状态
 - 编译失败时保留当前窗口，继续等待下一次改动
 - App Sandbox 模式暂不支持（需要 LaunchServices 启动，无法可靠重启）
+- Windows 上运行中的 exe 不能被覆盖，所以先结束旧进程再编译；编译失败时重新打开上一次的版本
 
 ## 打包与签名
 
@@ -87,7 +93,10 @@ zant run --watch
 zant package
 ```
 
-生成 `zig-out/<应用标题>.app`：
+Windows：生成 `zig-out/<应用标题>/` 目录（`<应用标题>.exe`、`zant_skia.dll`、`pdfium.dll`、
+MSVC 运行库），Release 构建为 GUI 子系统，压缩即可分发。
+
+macOS：生成 `zig-out/<应用标题>.app`：
 
 - 读取 Bundle ID、版本、窗口配置
 - 生成 Info.plist

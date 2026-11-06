@@ -25,15 +25,18 @@ ui.pdfPreview(.{
 - 页面保持比例缩放（`contain`）
 - 工具栏和外框可自定义
 
-复制使用 PDFKit 的文本层，因此文字型 PDF 可以复制；扫描版 PDF 如果没有
+复制使用 PDF 的文本层（PDFKit / PDFium），因此文字型 PDF 可以复制；扫描版 PDF 如果没有
 文本层，则没有可复制内容。
+
+示例：`zig build run-pdf -- 文件.pdf`（`examples/pdf.zig`）。
 
 ## 实现
 
-使用 macOS **PDFKit** 将页面渲染为 PNG，再交给 Skia 图片管线绘制。
+macOS 使用 **PDFKit**、Windows 使用 **PDFium**（`pdfium.dll` 与 `zant_skia.dll` 同目录，
+首次使用时加载；缺失时显示“无法预览 PDF”）将页面渲染为 PNG，再交给 Skia 图片管线绘制。
 页面图片按「文件 + 页码 + 尺寸」缓存在临时目录，不引入 WebView、JavaScript
 或 WASM。
 
 交互思路参考 [EmbedPDF](https://github.com/embedpdf/embed-pdf-viewer)，
 但这里是原生子集。当前还不支持拖拽选中文本、搜索、缩略图侧栏、连续滚动和
-缩放控件；需要这些能力时应优先扩展原生 PDFKit 桥，而不是嵌入 Web 查看器。
+缩放控件；需要这些能力时应优先扩展原生 PDF 桥（`src/platform/pdf.h`），而不是嵌入 Web 查看器。

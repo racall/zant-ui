@@ -49,3 +49,9 @@ comptime {
 comptime {
     _ = @import("motion_test.zig");
 }
+comptime {
+    _ = @import("pdf_test.zig");
+}
+comptime {
+    _ = @import("text_align_test.zig");
+}

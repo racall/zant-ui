@@ -1,10 +1,10 @@
 # Zant UI
 
-**用 Zig + Skia 构建原生 macOS 桌面 UI。**
+**用 Zig + Skia 构建原生桌面 UI（macOS 与 Windows）。**
 
 保留模式树、CSS 风格 Flex 布局、声明式 `ui.*` API、Ant Design 5 风格组件（浅色 / 深色）、
 antd 动效系统、原生 Markdown 与 LaTeX 公式渲染、Zustand 风格状态、SQLite 持久化、
-Metal GPU 渲染，以及一个编译后的项目脚手架。不使用 WebView / Electron / HTML。
+Metal / Direct3D 12 GPU 渲染，以及一个编译后的项目脚手架。不使用 WebView / Electron / HTML。
 
 ## 示例应用：still.
 
@@ -25,15 +25,17 @@ Metal GPU 渲染，以及一个编译后的项目脚手架。不使用 WebView /
 | 模块 | 状态 |
 |---|---|
 | macOS AppKit 窗口（原生 / 隐藏标题栏 / 无边框，自定义标题栏高度） | ✅ |
-| Skia Ganesh + Metal（默认），CPU 光栅回退（`ZANT_RENDERER=raster`） | ✅ |
+| Windows Win32 窗口（同三种风格；隐藏标题栏时框架绘制 Windows 11 标题按钮，支持贴靠布局） | ✅ |
+| Skia Ganesh + Metal / Direct3D 12（默认），CPU 光栅回退（`ZANT_RENDERER=raster`） | ✅ |
+| 每显示器 DPI（Windows PerMonitorV2）、IMM32 输入法（微软拼音已端到端验证） | ✅ |
 | Flex 布局（wrap、百分比、order、align-self、绝对定位 / anchor） | ✅ |
 | 文本：中文、自动换行、富文本、单行省略号截断、输入法 | ✅ |
 | antd 组件：Button、Input、Checkbox / Switch / Radio、Select、Tabs、Tooltip、Card、Tag、Alert、Avatar、Progress、Dropdown 菜单、Segmented、Modal、Message、Icon | ✅ |
 | 浅色 / 深色主题（运行时切换） | ✅ |
 | 动效：antd 缓动与时长、进场 / 退场、FLIP 布局过渡、CADisplayLink、减少动态效果 | ✅ |
 | Markdown（Streamdown 移植）+ LaTeX 公式（KaTeX 算法）+ Mermaid + HTML 导出 | ✅ |
-| 编译后脚手架 `zant`、app.config.json、App Sandbox + Developer ID 签名 | ✅ |
-| Windows | ⏳ 二期，未实现 |
+| 编译后脚手架 `zant`、app.config.json、App Sandbox + Developer ID 签名（macOS） | ✅ |
+| 平台快捷键（`zant.keys`：⌘ / Ctrl 与按键文字）、应用数据目录（`zant.paths`） | ✅ |
 
 ## 设计规范
 
@@ -43,26 +45,36 @@ Ant Design 5 为准。脚手架生成的每个项目都自带同一份 `DESIGN.m
 
 ## 快速开始
 
-要求：macOS 13+、Xcode 命令行工具、Zig 0.17.1。
+要求：Zig 0.17.1，以及
+
+- macOS 13+、Xcode 命令行工具；或
+- Windows 10/11 x64、Visual Studio 2022+（或 Build Tools）的「使用 C++ 的桌面开发」工作负载。
 
 ```bash
-./scripts/fetch_skia.sh
+./scripts/fetch_skia.sh                                      # macOS
+powershell -ExecutionPolicy Bypass -File scripts/fetch_skia_windows.ps1   # Windows
 zig build
 zig build run             # 声明式示例
 zig build run-gallery     # 命令式组件画廊
 zig build run-markdown    # Markdown 渲染画廊（ZANT_DARK=1 深色）
 zig build run-math        # 公式画廊
-zig build test            # 测试（123 项，含 remend 522 条上游用例）
+zig build run-components  # 全部组件总览（ZANT_DARK=1 深色）
+zig build run-pdf -- a.pdf  # PDF 预览
+zig build test            # 测试（129 项，含 remend 522 条上游用例）
 ```
 
 ## 全局 CLI 与脚手架
 
-构建后把 `zant` 链接到 PATH，之后在任意目录都可以 `zant create`：
+构建后把 `zant` 放到 PATH，之后在任意目录都可以 `zant create`：
 
 ```bash
-ln -sfn "$PWD/zig-out/bin/zant" ~/.local/bin/zant
+ln -sfn "$PWD/zig-out/bin/zant" ~/.local/bin/zant     # macOS
+# Windows：把 <XyUI>\zig-out\bin 加到用户 PATH（zig 也需要在 PATH 上）
 zant update               # 框架代码更新后重新编译 CLI
 ```
+
+Windows 上 `zant package` 生成 `zig-out/<标题>/` 目录（exe、`zant_skia.dll`、`pdfium.dll`
+与 MSVC 运行库），可直接压缩分发；签名、沙盒等是 macOS 专有选项，在 Windows 上忽略。
 
 ```bash
 zant create my-app        # 交互式：标题、窗口风格、Bundle ID、沙盒、签名身份
@@ -178,17 +190,21 @@ const id = try notes.add(.{ .body = "hello" });
 
 ## 架构
 
-- 原生 `NSWindow` / `NSView`；Skia C ABI 桥接层用 Objective-C++；Metal 通过 Skia Ganesh。
+- 平台层是一套 C ABI（`src/platform/platform.h`）：macOS 用 `NSWindow` / `NSView`（`window.m`），
+  Windows 用 Win32（`window.c`）。Skia 桥接层是可移植 C++，平台部分（CoreText + Metal、
+  DirectWrite + Direct3D 12）分文件实现；Windows 上桥接层与 Skia 一起编成 `zant_skia.dll`。
 - `ui.*` 每帧在 arena 中构造轻量节点，Runtime 按 key 协调到保留树；`ui.memo` 跳过未变子树。
 - 节点被移除后释放并复用槽位；运行时对已释放节点的引用会被清理。
-- 只在状态变化时重绘；动画由“正在动画的节点列表”驱动，并由 CADisplayLink 按屏幕刷新出帧。
+- 只在状态变化时重绘；动画由“正在动画的节点列表”驱动，按屏幕刷新出帧（macOS CADisplayLink，
+  Windows 交换链 / DwmFlush 垂直同步）。
 - 文本用 Skia Paragraph 与系统字体回退；公式与图表是保留式矢量绘制。
 
 见 [架构](docs/architecture.md) 和 [开发](docs/development.md)。
 
 ## 已知限制
 
-- Windows 未实现，规划在二期。
+- Windows 输入法用 IMM32（覆盖微软拼音等主流输入法）；TSF 的重新转换等高级功能未实现。
+- Windows 只支持 x64；ARM64 需要对应的 Skia 预编译包（脚本已预留）。
 - 多行输入框每次编辑重新排版全文，超大文档会变慢。
 - 含脚注 / 引用式链接的 Markdown 文档按单块处理（与 Streamdown 一致）。
 - 尚未暴露系统无障碍 API；系统菜单栏只有退出与关闭窗口。
@@ -204,8 +220,11 @@ src/components/            按钮、输入、开关、Select、菜单、Segmente
 src/motion/                缓动曲线、Animated、presence 预设
 src/markdown/              Streamdown 移植：remend、parser、blocks、cache、render、editor、html
 src/math/                  LaTeX 公式（KaTeX 排版算法，STIX Two Math）
-src/renderer/skia/         C ABI + Skia/Metal 桥
-src/platform/macos/        AppKit 窗口、NSTextInputClient、PDFKit、对话框
+src/renderer/skia/         C ABI + Skia 桥（可移植核心 + mac / win 平台文件）
+src/platform/platform.h    平台 C ABI（窗口、事件、剪贴板、对话框）
+src/platform/macos/        AppKit 窗口、NSTextInputClient、PDFKit
+src/platform/windows/      Win32 窗口、IMM32、标题栏、对话框、PDFium、清单
+scripts/win/               Windows 构建（MSVC 桥接 DLL）、测试机同步、桌面自动化测试
 src/store.zig, src/db/     Zustand 风格状态、SQLite 持久化
 tools/zant/                编译后的脚手架 CLI
 scaffold/template/         生成项目模板（含 DESIGN.md / AGENTS.md / CLAUDE.md）

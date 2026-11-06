@@ -10,7 +10,7 @@
 
 ## 快速上下文
 
-- 项目：`__APP_TITLE__`（Zig + Skia + Metal + AppKit）。
+- 项目：`__APP_TITLE__`（Zig + Skia；macOS Metal + AppKit，Windows Direct3D 12 + Win32）。
 - Bundle ID：`__BUNDLE_ID__`。
 - 入口：`src/main.zig`。
 - 状态：`src/state.zig` 中的 `AppState`，由 main 持有。

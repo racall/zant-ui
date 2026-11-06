@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 const skia_libs = [_][]const u8{
     "third_party/skia/skia-binaries/libskparagraph.a",
@@ -16,7 +17,13 @@ fn configureMacosSkia(b: *std.Build, target: std.Build.ResolvedTarget, mod: *std
     mod.addIncludePath(b.path("third_party/skia-headers/src"));
     mod.addCSourceFiles(.{
         .root = b.path(""),
-        .files = &.{"src/renderer/skia/skia_bridge.mm"},
+        .files = &.{"src/renderer/skia/skia_bridge.cpp"},
+        .language = .cpp,
+        .flags = &.{ "-std=c++20", "-fno-exceptions", "-fno-rtti", "-Wno-deprecated-declarations" },
+    });
+    mod.addCSourceFiles(.{
+        .root = b.path(""),
+        .files = &.{"src/renderer/skia/skia_bridge_mac.mm"},
         .language = .objective_cpp,
         .flags = &.{ "-std=c++20", "-fobjc-arc", "-fno-exceptions", "-fno-rtti", "-Wno-deprecated-declarations" },
     });
@@ -44,6 +51,89 @@ fn configureMacosSkia(b: *std.Build, target: std.Build.ResolvedTarget, mod: *std
     mod.linkSystemLibrary("sqlite3", .{ .use_pkg_config = .no });
 }
 
+/// Windows: Zig compiles the Win32 layer (window.c); Skia, the D3D12 swap
+/// chain and PDF live in zant_skia.dll, built with MSVC by
+/// scripts/win/build_bridge.ps1 (the prebuilt Skia uses MSVC's STL). Zig
+/// links the DLL through an import library generated from zant_skia.def,
+/// so `zig build -Dtarget=x86_64-windows` also type-checks on other hosts.
+fn configureWindows(b: *std.Build, target: std.Build.ResolvedTarget, mod: *std.Build.Module) ?std.Build.LazyPath {
+    mod.addIncludePath(b.path(""));
+    mod.addCSourceFiles(.{
+        .root = b.path(""),
+        .files = &.{"src/platform/windows/window.c"},
+        .flags = &.{ "-std=c11", "-Wno-deprecated-declarations" },
+    });
+    const machine = switch (target.result.cpu.arch) {
+        .aarch64 => "arm64",
+        else => "i386:x86-64",
+    };
+    mod.addObjectFile(importLibrary(b, "src/renderer/skia/zant_skia.def", "zant_skia.lib", machine));
+    mod.addObjectFile(importLibrary(b, "src/platform/windows/winsqlite3.def", "winsqlite3.lib", machine));
+    const system_libs = [_][]const u8{ "user32", "gdi32", "imm32", "dwmapi", "shell32", "ole32", "comctl32", "uuid", "kernel32" };
+    for (system_libs) |lib| mod.linkSystemLibrary(lib, .{ .use_pkg_config = .no });
+
+    // the DLL itself can only be built on Windows (MSVC)
+    if (builtin.os.tag != .windows) return null;
+    const bridge = b.addSystemCommand(&.{ "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File" });
+    bridge.addFileArg(b.path("scripts/win/build_bridge.ps1"));
+    bridge.addArg("-OutDir");
+    const out = bridge.addOutputDirectoryArg("zant_skia");
+    const inputs = [_][]const u8{
+        "src/renderer/skia/skia_bridge.cpp",
+        "src/renderer/skia/skia_bridge_win.cpp",
+        "src/renderer/skia/skia_bridge.h",
+        "src/renderer/skia/skia_bridge_internal.h",
+        "src/renderer/skia/zant_skia_resources.h",
+        "src/renderer/skia/zant_skia.def",
+        "src/platform/windows/pdf_win.cpp",
+        "src/platform/pdf.h",
+        "scripts/win/build_bridge.ps1",
+    };
+    for (inputs) |input| bridge.addFileInput(b.path(input));
+    b.addNamedLazyPath("zant_skia", out);
+    return out;
+}
+
+fn importLibrary(b: *std.Build, def: []const u8, name: []const u8, machine: []const u8) std.Build.LazyPath {
+    const run = b.addSystemCommand(&.{ b.graph.zig_exe, "dlltool", "-m", machine, "-d" });
+    run.addFileArg(b.path(def));
+    run.addArg("-l");
+    return run.addOutputFileArg(name);
+}
+
+/// Per-app Windows setup, a no-op elsewhere. Call it from an app's build.zig:
+///
+///     const zant_build = @import("zant_ui");
+///     zant_build.configureApp(b, zant_dep, exe, &.{ run_cmd, run_tests });
+///
+/// It embeds the manifest (per-monitor DPI, UTF-8 code page, Common Controls
+/// v6), uses the GUI subsystem for release builds, installs zant_skia.dll
+/// (and pdfium.dll) next to the exe and puts that directory on PATH for the
+/// given run steps (tests are not installed next to the DLL).
+pub fn configureApp(b: *std.Build, zant_dep: *std.Build.Dependency, exe: *std.Build.Step.Compile, runs: []const *std.Build.Step.Run) void {
+    if (exe.rootModuleTarget().os.tag != .windows) return;
+    exe.win32_manifest = zant_dep.path("src/platform/windows/zant.manifest");
+    if (exe.root_module.optimize != .debug) exe.subsystem = .windows;
+    if (builtin.os.tag != .windows) return;
+    installRuntime(b, zant_dep.namedLazyPath("zant_skia"), runs);
+}
+
+fn installRuntime(b: *std.Build, dir: std.Build.LazyPath, runs: []const *std.Build.Step.Run) void {
+    const runtime = b.step("zant-runtime", "Install zant_skia.dll and pdfium.dll");
+    for ([_][]const u8{ "zant_skia.dll", "pdfium.dll" }) |name| {
+        runtime.dependOn(&b.addInstallBinFile(dir.path(b, name), name).step);
+    }
+    b.getInstallStep().dependOn(runtime);
+    // the install prefix is only known when the build runs; this assumes the
+    // default (zig-out) for the PATH of run steps
+    const bin = b.pathJoin(&.{ b.root.root_dir.path orelse ".", "zig-out", "bin" });
+    const path = if (b.graph.environ_map.get("PATH")) |old| b.fmt("{s};{s}", .{ bin, old }) else bin;
+    for (runs) |run| {
+        run.step.dependOn(runtime);
+        run.setEnvironmentVariable("PATH", path);
+    }
+}
+
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
@@ -53,12 +143,16 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
         .link_libc = true,
-        .link_libcpp = true,
+        // Windows: C++ lives in zant_skia.dll (MSVC), not in Zig-built code
+        .link_libcpp = target.result.os.tag == .macos,
     });
+    var bridge_dir: ?std.Build.LazyPath = null;
     switch (target.result.os.tag) {
         .macos => configureMacosSkia(b, target, zant_mod),
-        else => @panic("Zant UI currently supports macOS only; the Windows backend is not implemented yet."),
+        .windows => bridge_dir = configureWindows(b, target, zant_mod),
+        else => @panic("Zant UI supports macOS and Windows; this target has no platform backend."),
     }
+    const is_macos = target.result.os.tag == .macos;
 
     const exe = b.addExecutable(.{
         .name = "zant-gallery",
@@ -67,7 +161,7 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .link_libc = true,
-            .link_libcpp = true,
+            .link_libcpp = is_macos,
             .imports = &.{.{ .name = "zant", .module = zant_mod }},
         }),
     });
@@ -94,7 +188,7 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .link_libc = true,
-            .link_libcpp = true,
+            .link_libcpp = is_macos,
             .imports = &.{.{ .name = "zant", .module = zant_mod }},
         }),
     });
@@ -119,7 +213,7 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .link_libc = true,
-            .link_libcpp = true,
+            .link_libcpp = is_macos,
             .imports = &.{.{ .name = "zant", .module = zant_mod }},
         }),
     });
@@ -135,7 +229,7 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .link_libc = true,
-            .link_libcpp = true,
+            .link_libcpp = is_macos,
             .imports = &.{.{ .name = "zant", .module = zant_mod }},
         }),
     });
@@ -144,12 +238,46 @@ pub fn build(b: *std.Build) void {
     run_md.step.dependOn(b.getInstallStep());
     b.step("run-markdown", "Run the Markdown (Streamdown) gallery").dependOn(&run_md.step);
 
+    const pdf_demo = b.addExecutable(.{
+        .name = "zant-pdf",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("examples/pdf.zig"),
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+            .link_libcpp = is_macos,
+            .imports = &.{.{ .name = "zant", .module = zant_mod }},
+        }),
+    });
+    b.installArtifact(pdf_demo);
+    const run_pdf = b.addRunArtifact(pdf_demo);
+    run_pdf.step.dependOn(b.getInstallStep());
+    run_pdf.addPassthruArgs();
+    b.step("run-pdf", "Run the PDF preview example (zig build run-pdf -- file.pdf)").dependOn(&run_pdf.step);
+
+    const components_demo = b.addExecutable(.{
+        .name = "zant-components",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("examples/components.zig"),
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+            .link_libcpp = is_macos,
+            .imports = &.{.{ .name = "zant", .module = zant_mod }},
+        }),
+    });
+    b.installArtifact(components_demo);
+    const run_components = b.addRunArtifact(components_demo);
+    run_components.step.dependOn(b.getInstallStep());
+    run_components.addPassthruArgs();
+    b.step("run-components", "Run the all-components example").dependOn(&run_components.step);
+
     const test_mod = b.createModule(.{
         .root_source_file = b.path("tests/all.zig"),
         .target = target,
         .optimize = optimize,
         .link_libc = true,
-        .link_libcpp = true,
+        .link_libcpp = is_macos,
         .imports = &.{.{ .name = "zant", .module = zant_mod }},
     });
     const tests = b.addTest(.{ .root_module = test_mod });
@@ -159,5 +287,14 @@ pub fn build(b: *std.Build) void {
 
     // unit tests inside the framework module (parser, remend, math, ...)
     const lib_tests = b.addTest(.{ .root_module = zant_mod });
-    test_step.dependOn(&b.addRunArtifact(lib_tests).step);
+    const run_lib_tests = b.addRunArtifact(lib_tests);
+    test_step.dependOn(&run_lib_tests.step);
+
+    if (target.result.os.tag == .windows) {
+        for ([_]*std.Build.Step.Compile{ exe, demo, math_demo, md_demo, pdf_demo, components_demo }) |app| {
+            app.win32_manifest = b.path("src/platform/windows/zant.manifest");
+            if (optimize != .debug) app.subsystem = .windows;
+        }
+        if (bridge_dir) |dir| installRuntime(b, dir, &.{ run_demo, run_gallery_cmd, run_math, run_md, run_pdf, run_components, run_tests, run_lib_tests });
+    }
 }

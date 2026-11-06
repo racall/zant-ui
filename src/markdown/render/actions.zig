@@ -7,7 +7,7 @@ const std = @import("std");
 const ui = @import("../../ui.zig");
 const actions = @import("../../core/actions.zig");
 const platform = @import("../../platform/platform.zig");
-const dialogs = @import("../../platform/macos/dialog.zig");
+const dialogs = @import("../../platform/dialog.zig");
 
 pub const Copy = struct {
     text: []const u8,

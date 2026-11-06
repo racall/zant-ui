@@ -152,3 +152,51 @@ test "close requests are vetoed by close_fn" {
     runtime.config.close_fn = null;
     try std.testing.expectEqual(@as(c_int, 0), runtime.dispatch(.window_close_request));
 }
+
+/// A click handler that runs a native modal loop (file dialog, confirm
+/// alert) gets frames painted while it waits. Those frames must not rebuild
+/// the tree under the dispatching code: here the rebuild would free the
+/// clicked button and recycle its slot as a container.
+const ModalState = struct {
+    runtime: ?*Runtime = null,
+    renderer: ?*Renderer = null,
+    replaced: bool = false,
+
+    fn openDialog(self: *ModalState) void {
+        self.replaced = true;
+        self.runtime.?.invalidate();
+        // what the modal loop does: paint a frame before the action returns
+        frame(self.runtime.?, self.renderer.?);
+    }
+
+    fn render(context: *anyopaque) ui.Node {
+        const self: *ModalState = @ptrCast(@alignCast(context));
+        if (self.replaced) return ui.column(.{ .padding = ui.inset(16), .children = &.{
+            ui.column(.{ .key = "panel", .height = 40, .children = &.{} }),
+            ui.column(.{ .key = "other", .height = 40, .children = &.{} }),
+        } });
+        return ui.column(.{ .padding = ui.inset(16), .children = &.{
+            ui.button(.{ .key = "open", .text = "Open", .on_click = ui.action(self, openDialog) }),
+        } });
+    }
+};
+
+test "a frame painted inside a click handler does not rebuild under it" {
+    var state = ModalState{};
+    const runtime = try Runtime.init(std.testing.allocator, &state, ModalState.render, .{ .window = .{ .width = 400, .height = 300 } });
+    defer runtime.deinit();
+    var renderer = try Renderer.createRaster(400, 300);
+    defer renderer.deinit();
+    state.runtime = runtime;
+    state.renderer = &renderer;
+
+    frame(runtime, &renderer);
+    const p = center(findKey(runtime.tree, "open").?);
+    _ = runtime.dispatch(.{ .pointer_down = p });
+    _ = runtime.dispatch(.{ .pointer_up = p });
+    try std.testing.expect(state.replaced);
+    // the deferred rebuild runs on the next normal frame
+    frame(runtime, &renderer);
+    try std.testing.expect(findKey(runtime.tree, "open") == null);
+    try std.testing.expect(findKey(runtime.tree, "panel") != null);
+}

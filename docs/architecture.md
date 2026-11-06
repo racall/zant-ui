@@ -11,23 +11,38 @@ src/main.zig / 生成项目 main.zig
         │       ├── core/tree.zig      保留树、命中测试、绘制、FLIP
         │       ├── core/layout.zig    Flex 布局
         │       ├── motion/            缓动、Animated、presence
-        │       └── renderer/skia      Skia C ABI（Metal / 光栅）
+        │       └── renderer/skia      Skia C ABI（可移植核心；Metal / Direct3D 12 / 光栅）
         ├── markdown/, math/    Markdown 与公式（基于 ui.* 与矢量绘制）
-        └── platform/macos/window.m    AppKit 窗口、事件、输入法、显示链接
+        └── platform/platform.h        平台 C ABI，两份实现：
+                ├── macos/window.m     AppKit 窗口、事件、输入法、显示链接
+                └── windows/window.c   Win32 窗口、事件、IMM32、自绘标题栏、对话框
 ```
 
 ## 窗口
 
-AppKit `NSWindow` / `NSView` 负责原生窗口、窗口样式、事件、输入法、剪贴板、光标和 DPI。
+macOS 由 AppKit `NSWindow` / `NSView`、Windows 由 Win32 `HWND` 负责原生窗口、窗口样式、
+事件、输入法、剪贴板、光标和 DPI（Windows 为每显示器 DPI v2，逻辑坐标 = 像素 / 缩放）。
 `WindowOptions` 传入尺寸、最小尺寸、背景色、缩放、置顶、拖拽、居中，以及隐藏标题栏时的
 自定义标题栏高度（交通灯垂直居中）。关窗 / 退出前会询问应用（`onCloseRequest`）；
-文档未保存状态通过 `ui.documentEdited` 显示在关闭按钮上。窗口底色跟随根节点背景。
+文档未保存状态通过 `ui.documentEdited` 显示（macOS 关闭按钮上的圆点，Windows 标题前的 `*`）。
+窗口底色跟随根节点背景，Windows 还据此切换深 / 浅色系统标题栏（DWM）。
+
+Windows 的隐藏标题栏：`WM_NCCALCSIZE` 去掉系统标题栏但保留缩放边框、阴影和贴靠；
+`WM_NCHITTEST` 询问 Runtime（`ZantHost.titlebar_hit`）——交互控件可点击，其余区域拖动窗口，
+运行时自动叠加的最大化按钮返回 `HTMAXBUTTON`，以便 Windows 11 显示贴靠布局浮层。
 
 ## 渲染
 
-默认 Skia Ganesh + Metal：每帧从 `CAMetalLayer` 取 drawable，包装为 Skia render target
-后绘制。`ZANT_RENDERER=raster` 回退 CPU 光栅并通过 `CGImage` 显示。滚动容器只绘制可见区域
-附近的子节点。
+默认 GPU：macOS 每帧从 `CAMetalLayer` 取 drawable；Windows 使用 Direct3D 12 flip-model
+交换链（帧延迟 1，`Present(1)` 垂直同步）。二者都包装为 Skia render target 后绘制。
+`ZANT_RENDERER=raster` 回退 CPU 光栅，分别通过 `CGImage` / `SetDIBitsToDevice` 显示。
+滚动容器只绘制可见区域附近的子节点。
+
+Skia 桥接层 `skia_bridge.cpp` 是可移植 C++；字体管理器、字体族名和 GPU 交换链在
+`skia_bridge_mac.mm`（CoreText、Metal）/ `skia_bridge_win.cpp`（DirectWrite、D3D12）中实现
+（接口见 `skia_bridge_internal.h`）。Windows 上预编译 Skia 是 MSVC 的 STL，因此桥接层、
+Skia、ICU 数据和 STIX Two Math 字体一起编成 `zant_skia.dll`（`scripts/win/build_bridge.ps1`），
+Zig 侧只通过 `skia_bridge.h` 的 C ABI 链接它（导入库由 `zant_skia.def` 生成）。
 
 ## 保留树与协调
 
@@ -57,9 +72,12 @@ Mermaid 图表输出保留式矢量绘制（字形、矩形、线、路径），
 组件以布尔状态为唯一来源，在 `animate(data, now, theme)` 中用基于时间戳的
 `motion.Animated` 缓动出呈现值；状态变化处 `tree.poke(id)` 登记动画节点，Runtime 每帧只推进
 `tree.animating` 列表。进场 / 退场与 FLIP 变换在绘制时应用（必要时 `saveLayerAlpha`）。
-动画帧只重绘、不重建。有动画时由 `CADisplayLink` 按屏幕刷新出帧，空闲时只在光标闪烁、
+动画帧只重绘、不重建。有动画时按屏幕刷新出帧（macOS `CADisplayLink`；Windows 的帧都从
+`WM_PAINT` 绘制，由交换链或 `DwmFlush` 垂直同步节拍，拖动缩放的模态循环里也会继续），空闲时只在光标闪烁、
 提示延迟或 `ui.wakeAfter` 到期时用一次性定时器唤醒；鼠标移动只在界面确有变化时重绘。
 
 ## 平台范围
 
-一期只实现 macOS。`src/platform/windows/` 目前只有二期说明，未实现。
+macOS 13+ 与 Windows 10/11 x64。平台差异只在 `src/platform/` 与 Skia 桥接的平台文件中；
+组件和应用通过 `zant.keys`（⌘ / Ctrl、按键文字）、`ui.titlebarInsets()`、`zant.paths`、
+`zant.dialogs` 获得平台习惯，不写 `builtin.os.tag` 分支。

@@ -22,7 +22,7 @@ pub fn controlHeight(size: node_mod.ButtonSize) f32 {
 }
 
 pub fn horizontalPadding(size: node_mod.ButtonSize, button_type: node_mod.ButtonType) f32 {
-    if (button_type == .text or button_type == .link or button_type == .plain) return 0;
+    if (button_type == .text or button_type == .link or button_type == .plain or isCaption(button_type)) return 0;
     return switch (size) {
         .small => horizontal_padding_small,
         .middle => horizontal_padding_middle,
@@ -38,6 +38,14 @@ pub fn fontSize(size: node_mod.ButtonSize) f32 {
     };
 }
 
+fn isCaption(button_type: node_mod.ButtonType) bool {
+    return button_type == .caption or button_type == .caption_close;
+}
+
+/// Windows 11 caption buttons: close hover #C42B1C, pressed at 90 %.
+const caption_close_hover: u32 = 0xffc42b1c;
+const caption_close_pressed: u32 = 0xe6c42b1c;
+
 fn textColor(data: *const node_mod.ButtonData, enabled: bool, theme: Theme) u32 {
     if (!enabled) return theme.color_text_disabled;
     return switch (data.button_type) {
@@ -45,7 +53,7 @@ fn textColor(data: *const node_mod.ButtonData, enabled: bool, theme: Theme) u32 
         .default => theme.color_text,
         .text => theme.color_text,
         .link => theme.color_primary,
-        .plain => theme.color_text,
+        .plain, .caption, .caption_close => theme.color_text,
     };
 }
 
@@ -77,7 +85,7 @@ fn baseColors(data: *const node_mod.ButtonData, enabled: bool, theme: Theme) str
 } {
     if (!enabled) {
         // antd: disabled text / link buttons have no fill or border
-        if (data.button_type == .text or data.button_type == .link or data.button_type == .plain) {
+        if (data.button_type == .text or data.button_type == .link or data.button_type == .plain or isCaption(data.button_type)) {
             const clear = tokens.withAlpha(theme.color_fill_secondary, 0);
             return .{ .bg = clear, .hover_bg = clear, .active_bg = clear, .border = 0, .hover_border = 0, .active_border = 0 };
         }
@@ -112,6 +120,23 @@ fn baseColors(data: *const node_mod.ButtonData, enabled: bool, theme: Theme) str
             .bg = tokens.withAlpha(theme.color_fill_secondary, 0),
             .hover_bg = theme.color_fill_secondary,
             .active_bg = theme.color_fill,
+            .border = 0x00000000,
+            .hover_border = 0x00000000,
+            .active_border = 0x00000000,
+        },
+        // Windows caption buttons: a faint fill of the text colour
+        .caption => .{
+            .bg = tokens.withAlpha(theme.color_text, 0),
+            .hover_bg = tokens.withAlpha(theme.color_text, 0x12),
+            .active_bg = tokens.withAlpha(theme.color_text, 0x0c),
+            .border = 0x00000000,
+            .hover_border = 0x00000000,
+            .active_border = 0x00000000,
+        },
+        .caption_close => .{
+            .bg = tokens.withAlpha(caption_close_hover, 0),
+            .hover_bg = caption_close_hover,
+            .active_bg = caption_close_pressed,
             .border = 0x00000000,
             .hover_border = 0x00000000,
             .active_border = 0x00000000,
@@ -161,7 +186,9 @@ pub fn paint(node: *Node, canvas: Canvas, theme: Theme) void {
     }
 
     // disabled buttons always use the disabled text colour (antd)
-    const color = if (enabled) data.text_color orelse textColor(data, true, theme) else textColor(data, false, theme);
+    var color = if (enabled) data.text_color orelse textColor(data, true, theme) else textColor(data, false, theme);
+    // the close glyph turns white on its red fill
+    if (data.button_type == .caption_close) color = tokens.lerp(color, 0xffffffff, @max(hover_t, press_t));
     if (data.icon != .none) {
         paintIcon(node, canvas, color);
     } else if (data.ensureLayout(color)) |layout| {
@@ -235,5 +262,13 @@ fn paintIcon(node: *Node, canvas: Canvas, color: u32) void {
     const rect = node.bounds;
     const data = &node.data.button;
     const size = @min(data.icon_size, @min(rect.width, rect.height));
-    icons.paint(canvas.ptr, data.icon, rect.x + rect.width * 0.5, rect.y + rect.height * 0.5, size, color, null);
+    // caption glyphs: 1px hairlines on the pixel grid, like Segoe Fluent Icons
+    const stroke: ?f32 = if (isCaption(data.button_type)) 1 else null;
+    const cx = rect.x + rect.width * 0.5;
+    const cy = rect.y + rect.height * 0.5;
+    if (stroke != null) {
+        icons.paint(canvas.ptr, data.icon, @floor(cx) + 0.5, @floor(cy) + 0.5, size, color, stroke);
+    } else {
+        icons.paint(canvas.ptr, data.icon, cx, cy, size, color, null);
+    }
 }

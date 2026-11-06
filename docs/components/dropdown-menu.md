@@ -23,3 +23,26 @@ if (state.menu_open) {
 - `MenuItem.selected` 用 `color_primary_bg` 高亮当前项（如大纲中的当前章节）。
 - `max_height` 设置后内容可滚动；`motion` / `motion_origin` 可改进出场动效与原点。
 - 菜单面板 `block_pointer`：点在内边距、分隔线、禁用项上不会穿透关闭。
+
+## 跟随触发按钮定位
+
+弹层放在根容器里（这样 `ui.dismissLayer` 能盖住整个窗口），位置用 `ui.keyBounds(key)` 取
+触发按钮上一帧的窗口坐标；下方放不下时翻到按钮上方（antd `bottomLeft` / `topLeft`）：
+
+```zig
+const measured = ui.keyBounds("menu");          // 菜单自身上一帧的尺寸
+const menu_h: f32 = if (measured) |m| m.height else 160;
+if (measured == null) ui.wakeAfter(1);           // 首帧用估计值，布局后再定位一次
+if (ui.keyBounds("menu-btn")) |b| {
+    const above = b.bottom() + 4 + menu_h > window_height - 8;
+    const top = if (above) b.y - 4 - menu_h else b.bottom() + 4;
+    children.append(arena, ui.dismissLayer(.{ .on_dismiss = ui.action(s, State.closeMenu) })) catch {};
+    children.append(arena, ui.styled(ui.dropdownMenu(.{
+        .key = "menu",
+        .motion_origin = if (above) .bottom_left else .top_left,
+        .items = items,
+    }), .{ .absolute = true, .left = b.x, .top = top })) catch {};
+}
+```
+
+完整示例见 `examples/components.zig`。

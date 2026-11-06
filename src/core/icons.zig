@@ -64,6 +64,11 @@ pub const Icon = enum {
     sigma,
     image,
     minus_rule,
+    // Windows caption buttons (drawn at 10px with a 1px stroke)
+    window_minimize,
+    window_maximize,
+    window_restore,
+    window_close,
     // status
     info,
     alert,
@@ -417,6 +422,17 @@ pub fn trace(icon: Icon, sink: Sink) void {
             p.arc(12, 9.5, 6, 140, 400);
             p.line(&.{ .{ 7.4, 13.3 }, .{ 9, 16 }, .{ 15, 16 }, .{ 16.6, 13.3 } });
             p.line(&.{ .{ 9.5, 19.5 }, .{ 14.5, 19.5 } });
+        },
+        // 24 units = the 10px glyph box of Windows 11 caption buttons
+        .window_minimize => p.line(&.{ .{ 0, 12 }, .{ 24, 12 } }),
+        .window_maximize => p.rect(0, 0, 24, 24, 2.4),
+        .window_restore => {
+            p.rect(0, 4.8, 19.2, 19.2, 2.4);
+            p.line(&.{ .{ 4.8, 4.8 }, .{ 4.8, 2.4 }, .{ 7.2, 0 }, .{ 21.6, 0 }, .{ 24, 2.4 }, .{ 24, 16.8 }, .{ 21.6, 19.2 }, .{ 19.2, 19.2 } });
+        },
+        .window_close => {
+            p.line(&.{ .{ 0, 0 }, .{ 24, 24 } });
+            p.line(&.{ .{ 24, 0 }, .{ 0, 24 } });
         },
     }
 }

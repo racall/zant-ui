@@ -43,8 +43,19 @@ pub const Runtime = struct {
     tree: *Tree,
     userdata: *anyopaque,
     render_fn: *const fn (userdata: *anyopaque) ui.Node,
-    window: ?*platform.MacWindow = null,
+    window: ?*platform.Window = null,
     needs_build: bool = true,
+    /// > 0 while an event is being dispatched. Callbacks can run a native
+    /// modal loop (file dialogs, confirm alerts) that paints the window
+    /// meanwhile; such nested frames must not rebuild the tree or finish exit
+    /// animations, because the dispatching code still holds node pointers.
+    dispatch_depth: u32 = 0,
+    /// ZANT_LAYOUT_FILE: after every frame, write "key x y width height"
+    /// (logical px, tab separated) of each keyed node, for UI automation.
+    layout_file: ?[:0]u8 = null,
+    /// ZANT_FRAME_STATS=1: once a second print frames drawn, the slowest
+    /// frame (time spent in renderFrame) and the longest gap between frames.
+    frame_stats: ?FrameStats = null,
     viewport: geometry.Size = .{},
     last_width: f32 = 0,
     last_height: f32 = 0,
@@ -128,8 +139,8 @@ pub const Runtime = struct {
     pub fn run(self: *Runtime) !void {
         // motion off for Reduce Motion, ZANT_NO_MOTION=1 and snapshots
         // (decided here, not in init, so tests keep control of it)
-        const no_motion = if (std.c.getenv("ZANT_NO_MOTION")) |v| v[0] == '1' else false;
-        motion.enabled = !(no_motion or std.c.getenv("ZANT_SNAPSHOT") != null or platform.reduceMotion());
+        const no_motion = if (platform.getenv("ZANT_NO_MOTION")) |v| v.len > 0 and v[0] == '1' else false;
+        motion.enabled = !(no_motion or platform.getenv("ZANT_SNAPSHOT") != null or platform.reduceMotion());
         const host = makeHost(self);
         const window = try platform.createWindow(self.config.title, self.config.window, &host);
         self.window = window;
@@ -138,14 +149,59 @@ pub const Runtime = struct {
             self.window = null;
         }
         std.debug.print("Zant UI app — renderer: {s}\n", .{platform.rendererName(window)});
-        if (std.c.getenv("ZANT_SNAPSHOT")) |path| {
-            const len = std.mem.len(path);
-            const copy = try self.allocator.allocSentinel(u8, len, 0);
+        if (platform.getenv("ZANT_LAYOUT_FILE")) |path| self.layout_file = try self.allocator.dupeSentinel(u8, path, 0);
+        if (platform.getenv("ZANT_FRAME_STATS")) |v| {
+            if (v.len > 0 and v[0] == '1') {
+                self.frame_stats = .{};
+                @import("renderer/text.zig").layout_stats.enabled = true;
+            }
+        }
+        defer if (self.layout_file) |path| {
+            self.allocator.free(path);
+            self.layout_file = null;
+        };
+        if (platform.getenv("ZANT_SNAPSHOT")) |path| {
+            const copy = try self.allocator.dupeSentinel(u8, path, 0);
             defer self.allocator.free(copy);
-            @memcpy(copy[0..len], path[0..len]);
             platform.scheduleSnapshot(window, copy, 600);
         }
         platform.run(window);
+    }
+
+    /// Windows draws its caption buttons itself for `.hidden_titlebar`.
+    fn drawsCaptionButtons(self: *const Runtime) bool {
+        return platform.is_windows and self.config.window.style == .hidden_titlebar;
+    }
+
+    /// Height of the app-drawn title bar (Windows 11 default 32).
+    fn captionHeight(self: *const Runtime) f32 {
+        const h = self.config.window.titlebar_height;
+        return if (h > 0) h else 32;
+    }
+
+    fn captionMinimize(self: *Runtime) void {
+        platform.minimize(self.window);
+    }
+
+    fn captionMaximize(self: *Runtime) void {
+        platform.toggleMaximize(self.window);
+    }
+
+    fn captionClose(self: *Runtime) void {
+        platform.close(self.window);
+    }
+
+    /// Window-drag hit test for app-drawn title bars: interactive widgets
+    /// stay clickable, the rest of the bar moves the window.
+    pub fn titlebarHit(self: *Runtime, x: f32, y: f32) c_int {
+        if (self.tree.hitTest(x, y)) |id| {
+            const node = self.tree.get(id);
+            if (node.key) |key| {
+                if (std.mem.eql(u8, key, ui.caption_maximize_key)) return platform.Hit.maximize;
+            }
+            return platform.Hit.client;
+        }
+        return platform.Hit.caption;
     }
 
     /// Runs one rebuild + reconcile without painting (tests).
@@ -156,9 +212,22 @@ pub const Runtime = struct {
     fn rebuild(self: *Runtime) void {
         if (self.config.theme_fn) |theme_fn| self.setTheme(theme_fn(self.userdata));
         ui.setBuildTheme(self.theme);
+        ui.setBuildWindowStyle(self.config.window.style);
+        ui.setBuildTree(self.tree);
+        defer ui.setBuildTree(null);
         ui.beginFrame();
         defer ui.endFrame();
-        const root = self.render_fn(self.userdata);
+        var root = self.render_fn(self.userdata);
+        if (self.drawsCaptionButtons() and root.element.kind == .container) {
+            root = ui.appendChildren(root, &.{ui.windowControls(.{
+                .height = self.captionHeight(),
+                .maximized = platform.isMaximized(self.window),
+                .active = self.active,
+                .on_minimize = ui.action(self, captionMinimize),
+                .on_maximize = ui.action(self, captionMaximize),
+                .on_close = ui.action(self, captionClose),
+            })});
+        }
         self.wake_at_ms = if (ui.takeWake()) |ms| self.now_ms + ms else null;
         if (ui.takeDocumentEdited()) |edited| {
             if (edited != self.document_edited) {
@@ -1041,6 +1110,8 @@ pub const Runtime = struct {
 
     pub fn renderFrame(self: *Runtime, canvas: Canvas, width: f32, height: f32, dpr: f32) void {
         _ = dpr;
+        const stats_start = if (self.frame_stats != null) platform.monotonicUs() else 0;
+        defer if (self.frame_stats) |*stats| stats.frame(stats_start, platform.monotonicUs(), width, height);
         self.sampleClock();
         if (self.wake_at_ms) |at| {
             if (self.now_ms >= at) {
@@ -1048,8 +1119,15 @@ pub const Runtime = struct {
                 self.needs_build = true;
             }
         }
-        if (self.needs_build) self.rebuild();
-        self.tick();
+        // a frame painted from inside an event callback (modal dialog loop)
+        // shows the current tree as is; the rebuild waits for the event to end
+        const nested = self.dispatch_depth > 0;
+        if (self.needs_build and !nested) {
+            const t = self.statsClock();
+            self.rebuild();
+            if (self.frame_stats) |*stats| stats.phase(.rebuild, t);
+        }
+        if (!nested) self.tick();
         self.viewport = .{ .width = width, .height = height };
         var resized = false;
         if (width != self.last_width or height != self.last_height) {
@@ -1061,19 +1139,43 @@ pub const Runtime = struct {
         if (self.tree.needsLayout()) {
             // a window resize moves things without a state change: no FLIP
             self.tree.flip_enabled = !resized;
+            const t = self.statsClock();
             self.tree.layout(self.viewport);
+            if (self.frame_stats) |*stats| stats.phase(.layout, t);
             self.tree.flip_enabled = true;
         }
+        if (resized) if (self.frame_stats) |*stats| stats.resized(platform.monotonicUs());
         self.runCommands();
+        const paint_start = self.statsClock();
         canvas.clear(self.clear_color);
         self.tree.paint(canvas);
         self.paintSelectPopup(canvas);
         self.paintTooltip(canvas);
+        if (self.frame_stats) |*stats| stats.phase(.paint, paint_start);
         self.tree.clearPaint();
         self.computeNextDelay();
+        if (self.layout_file) |path| self.writeLayoutFile(path);
+    }
+
+    fn statsClock(self: *const Runtime) i64 {
+        return if (self.frame_stats != null) platform.monotonicUs() else 0;
+    }
+
+    fn writeLayoutFile(self: *Runtime, path: [:0]const u8) void {
+        var out: std.ArrayList(u8) = .empty;
+        defer out.deinit(self.allocator);
+        for (self.tree.nodes.items) |node| {
+            if (!node.alive or !node.inFlow()) continue;
+            const key = node.key orelse continue;
+            const b = node.bounds;
+            out.print(self.allocator, "{s}\t{d:.1}\t{d:.1}\t{d:.1}\t{d:.1}\n", .{ key, b.x, b.y, b.width, b.height }) catch return;
+        }
+        @import("platform/dialog.zig").writeFile(path, out.items) catch {};
     }
 
     pub fn dispatch(self: *Runtime, event: events.Event) c_int {
+        self.dispatch_depth += 1;
+        defer self.dispatch_depth -= 1;
         self.sampleClock();
         const result = self.dispatchEvent(event);
         self.reportSelection();
@@ -1136,6 +1238,7 @@ pub const Runtime = struct {
             },
             .window_blur => {
                 self.active = false;
+                if (self.drawsCaptionButtons()) self.needs_build = true;
                 self.cancelFocusedComposition();
                 self.closeSelect();
                 self.tree.setFocus(null);
@@ -1146,10 +1249,14 @@ pub const Runtime = struct {
             },
             .window_focus => {
                 self.active = true;
+                if (self.drawsCaptionButtons()) self.needs_build = true;
                 return 0;
             },
             .window_resize => {
+                if (self.frame_stats) |*stats| stats.resizeRequested(platform.monotonicUs());
                 self.tree.markLayoutDirty();
+                // maximize / restore glyph
+                if (self.drawsCaptionButtons()) self.needs_build = true;
                 return 0;
             },
             .window_close => return 0,
@@ -1367,7 +1474,10 @@ pub const Runtime = struct {
     fn updateCursorAt(self: *Runtime, target: ?NodeId, point: ?[2]f32) void {
         const cursor: platform.Cursor = if (target) |id| switch (self.tree.get(id).data) {
             .input => .ibeam,
-            .button => |data| if (data.button_type == .plain) .arrow else .pointing_hand,
+            .button => |data| switch (data.button_type) {
+                .plain, .caption, .caption_close => .arrow,
+                else => .pointing_hand,
+            },
             .toggle => .pointing_hand,
             .rich_text => if (point) |p| (if (self.linkAt(id, p[0], p[1]) != null) .pointing_hand else .arrow) else .arrow,
             else => .arrow,
@@ -1444,20 +1554,26 @@ pub const Runtime = struct {
     fn handlePointerUp(self: *Runtime, p: events.PointerEvent) void {
         self.drag_input = null;
         if (self.pressed_button) |id| {
+            self.pressed_button = null;
             const node = self.tree.get(id);
             const inside = node.bounds.contains(p.x, p.y);
             node.data.button.pressed = false;
+            self.tree.poke(id);
             if (inside and node.enabled) {
                 button_mod.startWave(&node.data.button, self.now_ms);
-                if (node.data.button.index_action) |action| {
-                    action.func(action.ctx, node.data.button.index);
-                } else if (node.data.button.action) |action| {
-                    action.func(action.ctx);
+                // copy the callbacks first: an action may change the UI (or
+                // run a modal dialog), after which `node` must not be read
+                const index_action = node.data.button.index_action;
+                const index = node.data.button.index;
+                const action = node.data.button.action;
+                const on_click = node.data.button.on_click;
+                if (index_action) |a| {
+                    a.func(a.ctx, index);
+                } else if (action) |a| {
+                    a.func(a.ctx);
                 }
-                if (node.data.button.on_click) |callback| callback.func(callback.ctx, id);
+                if (on_click) |callback| callback.func(callback.ctx, id);
             }
-            self.pressed_button = null;
-            self.tree.poke(id);
         }
         if (self.pressed_toggle) |id| {
             const node = self.tree.get(id);
@@ -1579,12 +1695,17 @@ pub const Runtime = struct {
                     if (k.key == .enter or events.characterEquals(k.key, ' ')) {
                         button_mod.startWave(data, self.now_ms);
                         self.tree.poke(id);
-                        if (data.index_action) |action| {
-                            action.func(action.ctx, data.index);
-                        } else if (data.action) |action| {
-                            action.func(action.ctx);
+                        // copy first: `data` must not be read after an action
+                        const index_action = data.index_action;
+                        const index = data.index;
+                        const action = data.action;
+                        const on_click = data.on_click;
+                        if (index_action) |a| {
+                            a.func(a.ctx, index);
+                        } else if (action) |a| {
+                            a.func(a.ctx);
                         }
-                        if (data.on_click) |callback| callback.func(callback.ctx, id);
+                        if (on_click) |callback| callback.func(callback.ctx, id);
                         return 1;
                     }
                 },
@@ -1682,6 +1803,38 @@ pub const Runtime = struct {
                             },
                             .down => if (data.multiline) {
                                 self.tree.inputMove(id, .doc_end, shift);
+                                return 1;
+                            },
+                            else => {},
+                        };
+                        // Windows text navigation: Ctrl+← / Ctrl+→ words,
+                        // Ctrl+Home / Ctrl+End document edges, Ctrl+Backspace /
+                        // Ctrl+Delete delete a word
+                        if (platform.is_windows and k.modifiers.control and !k.modifiers.alt) switch (k.key) {
+                            .left => {
+                                self.tree.inputMove(id, .word_left, shift);
+                                return 1;
+                            },
+                            .right => {
+                                self.tree.inputMove(id, .word_right, shift);
+                                return 1;
+                            },
+                            .home => {
+                                self.tree.inputMove(id, if (data.multiline) .doc_start else .home, shift);
+                                return 1;
+                            },
+                            .end => {
+                                self.tree.inputMove(id, if (data.multiline) .doc_end else .end, shift);
+                                return 1;
+                            },
+                            .backspace => {
+                                self.tree.inputMove(id, .word_left, true);
+                                _ = self.tree.inputDeleteBackward(id);
+                                return 1;
+                            },
+                            .delete => {
+                                self.tree.inputMove(id, .word_right, true);
+                                _ = self.tree.inputDeleteForward(id);
                                 return 1;
                             },
                             else => {},
@@ -1789,11 +1942,81 @@ pub const Runtime = struct {
     }
 };
 
-fn monotonicMs() i64 {
-    var ts: std.c.timespec = undefined;
-    _ = std.c.clock_gettime(.MONOTONIC, &ts);
-    return @as(i64, @intCast(ts.sec)) * 1000 + @divTrunc(@as(i64, @intCast(ts.nsec)), 1_000_000);
-}
+const monotonicMs = platform.monotonicMs;
+
+/// Frame timing for ZANT_FRAME_STATS (microsecond clock, printed per second):
+/// frames, slowest frame and its phases (rebuild / layout / paint, the time
+/// spent in Zig and in recording Skia draw calls; GPU work is not included),
+/// the longest gap between frames, and for window resizes how many size
+/// changes were drawn and the longest delay from a resize to its frame.
+const FrameStats = struct {
+    const Phase = enum { rebuild, layout, paint };
+
+    window_start: i64 = 0,
+    last_end: i64 = 0,
+    frames: u32 = 0,
+    max_frame_us: i64 = 0,
+    max_gap_us: i64 = 0,
+    max_phase_us: [3]i64 = .{ 0, 0, 0 },
+    resize_frames: u32 = 0,
+    pending_resize: i64 = 0,
+    max_resize_latency_us: i64 = 0,
+    /// phases of the frame being drawn (for the slow-frame line)
+    cur_phase_us: [3]i64 = .{ 0, 0, 0 },
+
+    fn phase(self: *FrameStats, which: Phase, start: i64) void {
+        const i = @backingInt(which);
+        const us = platform.monotonicUs() - start;
+        self.cur_phase_us[i] = us;
+        self.max_phase_us[i] = @max(self.max_phase_us[i], us);
+    }
+
+    fn resizeRequested(self: *FrameStats, now: i64) void {
+        if (self.pending_resize == 0) self.pending_resize = now;
+    }
+
+    fn resized(self: *FrameStats, now: i64) void {
+        self.resize_frames += 1;
+        if (self.pending_resize != 0) {
+            self.max_resize_latency_us = @max(self.max_resize_latency_us, now - self.pending_resize);
+            self.pending_resize = 0;
+        }
+    }
+
+    fn ms(us: i64) f64 {
+        return @as(f64, @floatFromInt(us)) / 1000.0;
+    }
+
+    fn frame(self: *FrameStats, start: i64, end: i64, width: f32, height: f32) void {
+        if (self.window_start == 0) self.window_start = start;
+        if (self.last_end != 0) self.max_gap_us = @max(self.max_gap_us, start - self.last_end);
+        self.last_end = end;
+        self.frames += 1;
+        self.max_frame_us = @max(self.max_frame_us, end - start);
+        // frames over half the 60 Hz budget, one line each
+        const text = @import("renderer/text.zig").layout_stats.take();
+        if (end - start > 8_000) {
+            std.debug.print("[slow-frame] ms={d:.2} rebuild={d:.2} layout={d:.2} paint={d:.2} text_layouts={d} text_ms={d:.2}\n", .{ ms(end - start), ms(self.cur_phase_us[0]), ms(self.cur_phase_us[1]), ms(self.cur_phase_us[2]), text.count, ms(text.us) });
+        }
+        self.cur_phase_us = .{ 0, 0, 0 };
+        const elapsed = end - self.window_start;
+        if (elapsed < 1_000_000) return;
+        const fps = @as(f64, @floatFromInt(self.frames)) * 1_000_000.0 / @as(f64, @floatFromInt(elapsed));
+        std.debug.print("[frames] fps={d:.1} max_frame_ms={d:.2} (rebuild={d:.2} layout={d:.2} paint={d:.2}) max_gap_ms={d:.2} resize_frames={d} max_resize_latency_ms={d:.2} size={d:.0}x{d:.0}\n", .{
+            fps,
+            ms(self.max_frame_us),
+            ms(self.max_phase_us[0]),
+            ms(self.max_phase_us[1]),
+            ms(self.max_phase_us[2]),
+            ms(self.max_gap_us),
+            self.resize_frames,
+            ms(self.max_resize_latency_us),
+            width,
+            height,
+        });
+        self.* = .{ .last_end = end, .pending_resize = self.pending_resize };
+    }
+};
 
 fn drawCallback(userdata: ?*anyopaque, canvas_ptr: ?*anyopaque, width: f32, height: f32, dpr: f32) callconv(.c) void {
     const self: *Runtime = @ptrCast(@alignCast(userdata orelse return));
@@ -1822,6 +2045,11 @@ fn nextFrameDelayCallback(userdata: ?*anyopaque) callconv(.c) c_int {
     return self.next_delay_ms;
 }
 
+fn titlebarHitCallback(userdata: ?*anyopaque, x: f32, y: f32) callconv(.c) c_int {
+    const self: *Runtime = @ptrCast(@alignCast(userdata orelse return platform.Hit.caption));
+    return self.titlebarHit(x, y);
+}
+
 fn makeHost(runtime: *Runtime) platform.Host {
     return .{
         .userdata = runtime,
@@ -1829,5 +2057,6 @@ fn makeHost(runtime: *Runtime) platform.Host {
         .event = eventCallback,
         .ime_rect = imeRectCallback,
         .next_frame_delay = nextFrameDelayCallback,
+        .titlebar_hit = titlebarHitCallback,
     };
 }
