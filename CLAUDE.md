@@ -16,7 +16,7 @@
 - 声明式 API：`src/ui.zig`；协调器：`src/ui_runtime.zig`。
 - 组件：`src/components/`；样式统一入口：`ui.styled`。
 - 脚手架：`tools/zant/main.zig`；模板：`scaffold/template/`。
-- 测试：`zig build test`（当前 159/159，含 remend 522 条、mhchem 823 条上游用例；macOS 与 Windows 都要过）。
+- 测试：`zig build test`（当前 160/160，含 remend 522 条、mhchem 823 条上游用例；macOS 与 Windows 都要过）。
 - Windows：测试机见 `AGENTS.md`「跨平台规范」；`scripts/win/` 同步、远程构建、桌面冒烟测试。
 - 动效：`src/motion/`，规范见 `docs/motion.md` 与 `AGENTS.md`「动效规范」；
   `ZANT_NO_MOTION=1` 关闭动效。

@@ -228,6 +228,7 @@ extern fn zant_app_single_instance(app_id: [*:0]const u8) c_int;
 extern fn zant_app_set_dock_visible(visible: c_int) void;
 extern fn zant_app_set_handler(handler: ?*const fn (?*anyopaque, *const AppEvent) callconv(.c) void, userdata: ?*anyopaque) void;
 extern fn zant_tray_set(rgba: ?[*]const u8, rgba_light: ?[*]const u8, width: c_int, height: c_int, scale: f32, template_image: c_int, tooltip: ?[*:0]const u8, items: ?[*]const TrayItem, count: c_int) c_int;
+extern fn zant_tray_set_icon(rgba: ?[*]const u8, rgba_light: ?[*]const u8, width: c_int, height: c_int, scale: f32, template_image: c_int, tooltip: ?[*:0]const u8) c_int;
 extern fn zant_tray_remove() void;
 extern fn zant_tray_icon_pixels() c_int;
 extern fn zant_hotkey_register(id: c_int, key: c_int, modifiers: c_int) c_int;
@@ -387,6 +388,12 @@ pub const TrayItem = extern struct {
 pub fn setTray(rgba: []const u8, rgba_light: ?[]const u8, width: u32, height: u32, scale: f32, template_image: bool, tooltip: ?[*:0]const u8, items: []const TrayItem) bool {
     if (!supported) return false;
     return zant_tray_set(if (rgba.len > 0) rgba.ptr else null, if (rgba_light) |l| l.ptr else null, @intCast(width), @intCast(height), scale, @intFromBool(template_image), tooltip, if (items.len > 0) items.ptr else null, @intCast(items.len)) != 0;
+}
+
+/// Icon and tooltip only (the menu stays); false without a tray icon.
+pub fn setTrayIcon(rgba: []const u8, rgba_light: ?[]const u8, width: u32, height: u32, scale: f32, template_image: bool, tooltip: ?[*:0]const u8) bool {
+    if (!supported) return false;
+    return zant_tray_set_icon(if (rgba.len > 0) rgba.ptr else null, if (rgba_light) |l| l.ptr else null, @intCast(width), @intCast(height), scale, @intFromBool(template_image), tooltip) != 0;
 }
 
 pub fn removeTray() void {

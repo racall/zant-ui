@@ -104,6 +104,24 @@ const count = try users.count();
 集合会自动建表、映射字段、生成自增 id；不需要写 `CREATE TABLE` 或任何
 `INSERT/SELECT/UPDATE/DELETE`。
 
+- 字段类型：整数、浮点、布尔、字符串（`[]const u8`）、枚举（按名字存，读到不认识的值时用字段默认值），
+  以及它们的可选类型。
+- 应用新版本给结构体加了字段：打开集合时自动加列，旧数据取字段默认值（可选字段为 null）；字段名
+  可以是 SQL 关键字（`from`、`order`）。
+- `clear()` 删除集合里的全部对象。
+- 很多次修改合成一次写入（也是“要么全部成功要么全部不做”）：
+
+```zig
+try store.begin();
+errdefer store.rollback();
+for (ids) |id| try users.remove(id);
+try store.commit();
+```
+
+数据库用 WAL 日志模式（每次小的修改不必整盘同步，读不阻塞写），旁边会有 `-wal` / `-shm` 文件，
+属于正常现象。文件损坏时 `open` 返回错误，应用可以把它改名备份后重新创建（ClipHop 的
+`storage.zig` 是参考写法）。
+
 ## 开发者需要记住的 API
 
 | 场景 | API |
@@ -117,6 +135,7 @@ const count = try users.count();
 | 删除键 | `remove(key)`；清空所有键值 `clear()` |
 | 是否存在 | `has(key)` |
 | 对象集合 | `store.collection(T)` |
-| 集合 CRUD | `add/find/all/update/remove/count` |
+| 集合 CRUD | `add/find/all/update/remove/count/clear` |
+| 批量写入 | `begin` / `commit` / `rollback` |
 
 底层 SQLite 完全由库管理；业务代码不需要接触。

@@ -101,9 +101,18 @@ pub const Statement = struct {
                 .int, .comptime_int => c.sqlite3_bind_int64(self.stmt, index, @intCast(value)),
                 .float, .comptime_float => c.sqlite3_bind_double(self.stmt, index, @floatCast(value)),
                 .bool => c.sqlite3_bind_int(self.stmt, index, if (value) 1 else 0),
+                .@"enum" => blk: {
+                    const tag = @tagName(value);
+                    break :blk c.sqlite3_bind_text(self.stmt, index, tag.ptr, @intCast(tag.len), null);
+                },
                 .optional => if (value) |v| switch (@typeInfo(@TypeOf(v))) {
                     .int => c.sqlite3_bind_int64(self.stmt, index, @intCast(v)),
                     .float => c.sqlite3_bind_double(self.stmt, index, @floatCast(v)),
+                    .bool => c.sqlite3_bind_int(self.stmt, index, if (v) 1 else 0),
+                    .@"enum" => blk: {
+                        const tag = @tagName(v);
+                        break :blk c.sqlite3_bind_text(self.stmt, index, tag.ptr, @intCast(tag.len), null);
+                    },
                     else => blk: {
                         const text: []const u8 = @ptrCast(v);
                         break :blk c.sqlite3_bind_text(self.stmt, index, text.ptr, @intCast(text.len), null);
@@ -131,6 +140,11 @@ pub const Statement = struct {
             .int, .comptime_int => c.sqlite3_bind_int64(self.stmt, @intCast(index), @intCast(value)),
             .float, .comptime_float => c.sqlite3_bind_double(self.stmt, @intCast(index), @floatCast(value)),
             .bool => c.sqlite3_bind_int(self.stmt, @intCast(index), if (value) 1 else 0),
+            .@"enum" => blk: {
+                const tag = @tagName(value);
+                break :blk c.sqlite3_bind_text(self.stmt, @intCast(index), tag.ptr, @intCast(tag.len), null);
+            },
+            .optional => if (value) |v| return self.bindValue(index, v) else c.sqlite3_bind_null(self.stmt, @intCast(index)),
             .pointer => |ptr| blk: {
                 if (ptr.size == .slice and ptr.child == u8) {
                     break :blk c.sqlite3_bind_text(self.stmt, @intCast(index), value.ptr, @intCast(value.len), null);
@@ -324,6 +338,15 @@ pub fn Table(comptime T: type) type {
             return @typeName(T);
         }
 
+        /// Quoted, so any name works ("from", "order", a type name with dots).
+        fn sqlName() []const u8 {
+            return comptime "\"" ++ name() ++ "\"";
+        }
+
+        fn sqlColumn(comptime index: usize) []const u8 {
+            return comptime "\"" ++ fieldName(index) ++ "\"";
+        }
+
         fn fieldCount() comptime_int {
             return @typeInfo(T).@"struct".field_names.len;
         }
@@ -355,15 +378,43 @@ pub fn Table(comptime T: type) type {
             return @typeInfo(FT) == .optional;
         }
 
+        /// "id, name, age": selects name the columns, so the struct's field
+        /// order decides (columns added later sit at the table's end).
+        fn columns() []const u8 {
+            comptime {
+                var list: []const u8 = "";
+                for (0..fieldCount()) |i| list = list ++ (if (i > 0) ", " else "") ++ sqlColumn(i);
+                return list;
+            }
+        }
+
+        /// Column definition for a column added to an existing table: NOT
+        /// NULL needs a default there (0, '' or the enum's default / first tag).
+        fn addedColumn(comptime index: usize) []const u8 {
+            const FT = fieldType(index);
+            const base = comptime sqlType(FT);
+            if (comptime fieldNullable(FT)) return base;
+            return base ++ " NOT NULL DEFAULT " ++ comptime switch (@typeInfo(FT)) {
+                .pointer => "''",
+                .@"enum" => "'" ++ @tagName(defaultEnum(index, FT)) ++ "'",
+                else => "0",
+            };
+        }
+
+        fn defaultEnum(comptime index: usize, comptime E: type) E {
+            if (@typeInfo(T).@"struct".field_attrs[index].defaultValue(E)) |value| return value;
+            return @fromBackingInt(@intCast(@typeInfo(E).@"enum".field_values[0]));
+        }
+
         pub fn create(self: Self) !void {
             var sql: std.ArrayListUnmanaged(u8) = .empty;
             defer sql.deinit(self.db.allocator);
             try sql.appendSlice(self.db.allocator, "CREATE TABLE IF NOT EXISTS ");
-            try sql.appendSlice(self.db.allocator, name());
+            try sql.appendSlice(self.db.allocator, comptime sqlName());
             try sql.appendSlice(self.db.allocator, " (");
             inline for (0..fieldCount()) |i| {
                 if (i > 0) try sql.appendSlice(self.db.allocator, ", ");
-                try sql.appendSlice(self.db.allocator, fieldName(i));
+                try sql.appendSlice(self.db.allocator, comptime sqlColumn(i));
                 try sql.append(self.db.allocator, ' ');
                 const FT = fieldType(i);
                 if (comptime isId(i) and @typeInfo(FT) != .optional) {
@@ -377,20 +428,47 @@ pub fn Table(comptime T: type) type {
             const z = try sql.toOwnedSliceSentinel(self.db.allocator, 0);
             defer self.db.allocator.free(z);
             try self.db.exec(z);
+            try self.addMissingColumns();
+        }
+
+        /// A field added to the struct in a newer app version becomes a new
+        /// column; existing rows get its default.
+        fn addMissingColumns(self: Self) !void {
+            const a = self.db.allocator;
+            const info_sql = try std.fmt.allocPrintSentinel(a, "PRAGMA table_info({s})", .{comptime sqlName()}, 0);
+            defer a.free(info_sql);
+            var present: [fieldCount()]bool = @splat(false);
+            {
+                var stmt = try self.db.prepare(info_sql);
+                defer stmt.deinit();
+                while (try stmt.step()) {
+                    const column = stmt.row().text(1);
+                    inline for (0..fieldCount()) |i| {
+                        if (std.mem.eql(u8, column, fieldName(i))) present[i] = true;
+                    }
+                }
+            }
+            inline for (0..fieldCount()) |i| {
+                if (!present[i] and !comptime isId(i)) {
+                    const alter = try std.fmt.allocPrintSentinel(a, "ALTER TABLE {s} ADD COLUMN {s} {s}", .{ comptime sqlName(), comptime sqlColumn(i), comptime addedColumn(i) }, 0);
+                    defer a.free(alter);
+                    try self.db.exec(alter);
+                }
+            }
         }
 
         pub fn insert(self: Self, value: T) !i64 {
             var sql: std.ArrayListUnmanaged(u8) = .empty;
             defer sql.deinit(self.db.allocator);
             try sql.appendSlice(self.db.allocator, "INSERT INTO ");
-            try sql.appendSlice(self.db.allocator, name());
+            try sql.appendSlice(self.db.allocator, comptime sqlName());
             try sql.appendSlice(self.db.allocator, " (");
             var first = true;
             inline for (0..fieldCount()) |i| {
                 if (comptime isId(i)) continue;
                 if (!first) try sql.appendSlice(self.db.allocator, ", ");
                 first = false;
-                try sql.appendSlice(self.db.allocator, fieldName(i));
+                try sql.appendSlice(self.db.allocator, comptime sqlColumn(i));
             }
             try sql.appendSlice(self.db.allocator, ") VALUES (");
             first = true;
@@ -425,6 +503,7 @@ pub fn Table(comptime T: type) type {
                         .float => row.float(i),
                         .bool => row.int(i) != 0,
                         .pointer => try self.db.allocator.dupe(u8, row.text(i)),
+                        .@"enum" => std.meta.stringToEnum(@typeInfo(FT).optional.child, row.text(i)),
                         else => @compileError("unsupported optional model field"),
                     };
                 } else {
@@ -433,6 +512,8 @@ pub fn Table(comptime T: type) type {
                         .float, .comptime_float => row.float(i),
                         .bool => row.int(i) != 0,
                         .pointer => try self.db.allocator.dupe(u8, row.text(i)),
+                        // a value this version does not know: the default
+                        .@"enum" => std.meta.stringToEnum(FT, row.text(i)) orelse defaultEnum(i, FT),
                         else => @compileError("unsupported model field"),
                     };
                 }
@@ -443,8 +524,8 @@ pub fn Table(comptime T: type) type {
         pub fn get(self: Self, id: i64) !?T {
             var sql: std.ArrayListUnmanaged(u8) = .empty;
             defer sql.deinit(self.db.allocator);
-            try sql.appendSlice(self.db.allocator, "SELECT * FROM ");
-            try sql.appendSlice(self.db.allocator, name());
+            try sql.appendSlice(self.db.allocator, "SELECT " ++ comptime columns() ++ " FROM ");
+            try sql.appendSlice(self.db.allocator, comptime sqlName());
             try sql.appendSlice(self.db.allocator, " WHERE id = ? LIMIT 1");
             const z = try sql.toOwnedSliceSentinel(self.db.allocator, 0);
             defer self.db.allocator.free(z);
@@ -458,8 +539,8 @@ pub fn Table(comptime T: type) type {
         pub fn all(self: Self) ![]T {
             var sql: std.ArrayListUnmanaged(u8) = .empty;
             defer sql.deinit(self.db.allocator);
-            try sql.appendSlice(self.db.allocator, "SELECT * FROM ");
-            try sql.appendSlice(self.db.allocator, name());
+            try sql.appendSlice(self.db.allocator, "SELECT " ++ comptime columns() ++ " FROM ");
+            try sql.appendSlice(self.db.allocator, comptime sqlName());
             const z = try sql.toOwnedSliceSentinel(self.db.allocator, 0);
             defer self.db.allocator.free(z);
             var stmt = try self.db.prepare(z);
@@ -474,7 +555,7 @@ pub fn Table(comptime T: type) type {
             var sql: std.ArrayListUnmanaged(u8) = .empty;
             defer sql.deinit(self.db.allocator);
             try sql.appendSlice(self.db.allocator, "SELECT COUNT(*) FROM ");
-            try sql.appendSlice(self.db.allocator, name());
+            try sql.appendSlice(self.db.allocator, comptime sqlName());
             const z = try sql.toOwnedSliceSentinel(self.db.allocator, 0);
             defer self.db.allocator.free(z);
             var stmt = try self.db.prepare(z);
@@ -487,14 +568,14 @@ pub fn Table(comptime T: type) type {
             var sql: std.ArrayListUnmanaged(u8) = .empty;
             defer sql.deinit(self.db.allocator);
             try sql.appendSlice(self.db.allocator, "UPDATE ");
-            try sql.appendSlice(self.db.allocator, name());
+            try sql.appendSlice(self.db.allocator, comptime sqlName());
             try sql.appendSlice(self.db.allocator, " SET ");
             var first = true;
             inline for (0..fieldCount()) |i| {
                 if (comptime isId(i)) continue;
                 if (!first) try sql.appendSlice(self.db.allocator, ", ");
                 first = false;
-                try sql.appendSlice(self.db.allocator, fieldName(i));
+                try sql.appendSlice(self.db.allocator, comptime sqlColumn(i));
                 try sql.appendSlice(self.db.allocator, " = ?");
             }
             try sql.appendSlice(self.db.allocator, " WHERE id = ?");
@@ -516,7 +597,7 @@ pub fn Table(comptime T: type) type {
             var sql: std.ArrayListUnmanaged(u8) = .empty;
             defer sql.deinit(self.db.allocator);
             try sql.appendSlice(self.db.allocator, "DELETE FROM ");
-            try sql.appendSlice(self.db.allocator, name());
+            try sql.appendSlice(self.db.allocator, comptime sqlName());
             try sql.appendSlice(self.db.allocator, " WHERE id = ?");
             const z = try sql.toOwnedSliceSentinel(self.db.allocator, 0);
             defer self.db.allocator.free(z);
@@ -524,6 +605,13 @@ pub fn Table(comptime T: type) type {
             defer stmt.deinit();
             try stmt.bindValue(1, id);
             _ = try stmt.step();
+        }
+
+        /// Deletes every row.
+        pub fn deleteAll(self: Self) !void {
+            const z = try std.fmt.allocPrintSentinel(self.db.allocator, "DELETE FROM {s}", .{comptime sqlName()}, 0);
+            defer self.db.allocator.free(z);
+            try self.db.exec(z);
         }
 
         pub fn free(self: Self, value: T) void {

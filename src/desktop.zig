@@ -222,6 +222,10 @@ pub fn clipboardText(allocator: std.mem.Allocator) ![]u8 {
 /// The image on the clipboard as PNG bytes (caller frees), or null when it
 /// holds no image. Read the text first: copied text often comes with an
 /// image too (a rendering of it).
+///
+/// May be called from a worker thread, and a large image should be: when the
+/// clipboard holds a bitmap (Windows screenshots, many apps), it is encoded
+/// to PNG here, about a second for a 12-megapixel photo.
 pub fn clipboardImage(allocator: std.mem.Allocator) !?[]u8 {
     return platform.clipboardImagePng(allocator);
 }
@@ -316,24 +320,33 @@ pub const TrayOptions = struct {
     items: []const TrayItem = &.{},
 };
 
+/// A tray icon decoded and sized for the system.
+const TrayPixels = struct { icon: png.Image, light: ?png.Image, scale: f32 };
+
+fn trayPixels(arena: std.mem.Allocator, icon_png: []const u8, light_png: ?[]const u8) !TrayPixels {
+    const decoded = try png.decode(arena, icon_png);
+    // macOS: 18 pt at @2x; Windows: the small-icon size for the DPI
+    const px = platform.trayIconPixels();
+    const height = px;
+    const width = @max(1, @as(u32, @intFromFloat(@round(@as(f32, @floatFromInt(decoded.width)) * @as(f32, @floatFromInt(px)) / @as(f32, @floatFromInt(decoded.height))))));
+    const icon = if (decoded.width == width and decoded.height == height) decoded else try png.resize(arena, decoded, width, height);
+    const light: ?png.Image = if (light_png) |bytes| blk: {
+        const l = try png.decode(arena, bytes);
+        break :blk if (l.width == width and l.height == height) l else try png.resize(arena, l, width, height);
+    } else null;
+    return .{ .icon = icon, .light = light, .scale = if (is_macos) 2 else 1 };
+}
+
 /// Adds or updates the tray icon / status bar item and its menu.
 pub fn setTray(options: TrayOptions) !void {
     const gpa = std.heap.c_allocator;
     var arena_state = std.heap.ArenaAllocator.init(gpa);
     defer arena_state.deinit();
     const arena = arena_state.allocator();
-
-    const decoded = try png.decode(arena, options.icon);
-    // macOS: 22 pt tall at @2x; Windows: the small-icon size for the DPI
-    const px = platform.trayIconPixels();
-    const height = px;
-    const width = @max(1, @as(u32, @intFromFloat(@round(@as(f32, @floatFromInt(decoded.width)) * @as(f32, @floatFromInt(px)) / @as(f32, @floatFromInt(decoded.height))))));
-    const icon = if (decoded.width == width and decoded.height == height) decoded else try png.resize(arena, decoded, width, height);
-    const light: ?png.Image = if (options.icon_light) |bytes| blk: {
-        const l = try png.decode(arena, bytes);
-        break :blk if (l.width == width and l.height == height) l else try png.resize(arena, l, width, height);
-    } else null;
-    const scale: f32 = if (is_macos) 2 else 1;
+    const pixels = try trayPixels(arena, options.icon, options.icon_light);
+    const icon = pixels.icon;
+    const light = pixels.light;
+    const scale = pixels.scale;
 
     const items = try arena.alloc(platform.TrayItem, options.items.len);
     for (options.items, items) |item, *out| {
@@ -347,6 +360,25 @@ pub fn setTray(options: TrayOptions) !void {
     }
     const tooltip = try arena.dupeSentinel(u8, options.tooltip, 0);
     if (!platform.setTray(icon.rgba, if (light) |l| l.rgba else null, icon.width, icon.height, scale, options.template, tooltip.ptr, items))
+        return error.TrayUnavailable;
+}
+
+pub const TrayIconOptions = struct {
+    icon: []const u8,
+    icon_light: ?[]const u8 = null,
+    template: bool = false,
+    tooltip: []const u8 = "",
+};
+
+/// Changes only the icon and tooltip of the tray icon `setTray` added, e.g.
+/// a "syncing" state while work runs. Cheap, and an open menu stays open.
+pub fn setTrayIcon(options: TrayIconOptions) !void {
+    var arena_state = std.heap.ArenaAllocator.init(std.heap.c_allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+    const pixels = try trayPixels(arena, options.icon, options.icon_light);
+    const tooltip = try arena.dupeSentinel(u8, options.tooltip, 0);
+    if (!platform.setTrayIcon(pixels.icon.rgba, if (pixels.light) |l| l.rgba else null, pixels.icon.width, pixels.icon.height, pixels.scale, options.template, tooltip.ptr))
         return error.TrayUnavailable;
 }
 

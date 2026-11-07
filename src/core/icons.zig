@@ -38,6 +38,8 @@ pub const Icon = enum {
     trash,
     undo,
     redo,
+    /// two circling arrows: sync, reload
+    refresh,
     settings,
     // view
     sun,
@@ -261,6 +263,12 @@ pub fn trace(icon: Icon, sink: Sink) void {
             p.line(&.{ .{ 3.5, 9 }, .{ 14.5, 9 } });
             p.arc(14.5, 14, 5, -90, 90);
             p.line(&.{ .{ 14.5, 19 }, .{ 9, 19 } });
+        },
+        .refresh => {
+            p.arc(12, 12, 8.5, 180, 320);
+            p.line(&.{ .{ 20.5, 3.5 }, .{ 20.5, 8.5 }, .{ 15.5, 8.5 } });
+            p.arc(12, 12, 8.5, 0, 140);
+            p.line(&.{ .{ 3.5, 20.5 }, .{ 3.5, 15.5 }, .{ 8.5, 15.5 } });
         },
         .redo => {
             p.line(&.{ .{ 16, 4.5 }, .{ 20.5, 9 }, .{ 16, 13.5 } });

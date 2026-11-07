@@ -37,6 +37,8 @@ self.panel.?.focus("panel-search");
 - 所有窗口渲染同一份应用状态；任何窗口里的动作改变了状态，所有窗口都会重建。每个窗口有独立的帧内存。
 - `.panel` 窗口样式：无标题栏、系统圆角与阴影、置顶、不出现在程序坞 / 任务栏；macOS 上获得键盘焦点时
   不会把整个应用切到前台（用户复制后可以直接粘贴回原来的应用）。
+- `show()` 只显示、不抢键盘焦点（提示、确认这类小窗口：用户可以继续在原来的应用里输入，第一次点击
+  按钮就有效）；`activate()` 显示并获得键盘焦点（快捷面板）。
 - `Window`：`show` / `hide` / `activate` / `isVisible` / `isActive` / `place` / `focus` / `close`；
   主窗口用 `zant.desktop.mainWindow()`。
 - `WindowOptions.hidden = true` 创建时不显示。
@@ -56,6 +58,9 @@ try zant.desktop.setTray(.{
 - 图标为 PNG，框架按系统尺寸缩放（macOS 18 pt 模板图；Windows 小图标尺寸，按 DPI）。
   Windows 托盘图标随任务栏深浅色自动切换 `icon` / `icon_light`。脚手架自带符合两端规范的默认图标。
 - macOS 点击状态栏图标弹出菜单；Windows 左键发送 `.tray_click`，右键弹出菜单。
+- 状态（例如“同步中”）：`zant.desktop.setTrayIcon(.{ .icon, .icon_light, .template, .tooltip })` 只换图标和
+  提示文字，不重建菜单（菜单正打开时也不受影响），开销很小。状态图标和普通图标一样放进 `assets/icons/`
+  （每个 PNG 都可以 `@embedFile("icon_<名字>")`，见 [scaffold.md](scaffold.md)「图标」）。
 - 隐藏到托盘：`mainWindow().?.hide()` 加 `setDockVisible(false)`（macOS 隐藏程序坞图标）。
 - `zant.desktop.quit()` 直接退出（不再询问 `onCloseRequest`）。
 
@@ -81,6 +86,8 @@ _ = zant.desktop.registerHotkey(1, .{ .key = .{ .character = 'v' }, .modifiers =
 | `clipboardImage` / `setClipboardImage` | PNG：macOS 读 PNG / TIFF，写 PNG + TIFF；Windows 读 "PNG" 或位图（CF_DIBV5 / CF_DIB），写 "PNG" + CF_DIBV5 |
 
 复制文字时很多应用也会附带一张渲染图，所以先读文字，没有文字再读图片。
+`clipboardImage` 可以在后台线程调用，大图应当这样做：剪贴板里是位图时（Windows 截图和很多应用）要在这里
+编码成 PNG，1200 万像素的照片约需 1 秒（ClipHop 的 `state.zig`「Capture」是参考写法）。
 
 ## 其他
 

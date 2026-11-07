@@ -28,6 +28,10 @@ pub fn Collection(comptime T: type) type {
         pub fn count(self: *Self) !i64 {
             return self.table().count();
         }
+        /// Removes every object.
+        pub fn clear(self: *Self) !void {
+            return self.table().deleteAll();
+        }
         pub fn free(self: *Self, value: T) void {
             self.table().free(value);
         }
@@ -44,11 +48,28 @@ pub const Store = struct {
     pub fn open(allocator: std.mem.Allocator, path: [:0]const u8) !Store {
         var db = try sqlite.Database.open(allocator, path);
         errdefer db.close();
+        // write-ahead log: small writes (one per user action) without a full
+        // sync each, and readers never block the writer
+        db.exec("PRAGMA journal_mode=WAL") catch {};
+        db.exec("PRAGMA synchronous=NORMAL") catch {};
+        db.exec("PRAGMA busy_timeout=2000") catch {};
+        // a file that is not a database (damaged) fails here
         try db.exec("CREATE TABLE IF NOT EXISTS _zant_kv (key TEXT PRIMARY KEY, kind INTEGER NOT NULL, value TEXT)");
         return .{ .allocator = allocator, .db = db };
     }
     pub fn close(self: *Store) void {
         self.db.close();
+    }
+    /// Groups many changes into one write (and makes them all-or-nothing):
+    /// `try store.begin(); errdefer store.rollback(); ...; try store.commit();`
+    pub fn begin(self: *Store) !void {
+        try self.db.begin();
+    }
+    pub fn commit(self: *Store) !void {
+        try self.db.commit();
+    }
+    pub fn rollback(self: *Store) void {
+        self.db.rollback() catch {};
     }
     pub fn collection(self: *Store, comptime T: type) !Collection(T) {
         try self.db.table(T).create();

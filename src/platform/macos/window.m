@@ -1223,6 +1223,28 @@ int zant_tray_icon_pixels(void) {
     return 36;
 }
 
+static void zant_tray_apply_icon(const uint8_t *rgba, int width, int height, float scale, int template_image,
+                                 const char *tooltip) {
+    if (rgba && width > 0 && height > 0) {
+        NSData *data = [NSData dataWithBytes:rgba length:(size_t)width * (size_t)height * 4];
+        CGDataProviderRef provider = CGDataProviderCreateWithCFData((__bridge CFDataRef)data);
+        CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+        CGImageRef cg = CGImageCreate((size_t)width, (size_t)height, 8, 32, (size_t)width * 4, space,
+                                      kCGImageAlphaLast | kCGBitmapByteOrder32Big, provider, NULL,
+                                      true, kCGRenderingIntentDefault);
+        CGColorSpaceRelease(space);
+        CGDataProviderRelease(provider);
+        if (cg) {
+            const CGFloat s = scale > 0 ? scale : 1;
+            NSImage *image = [[NSImage alloc] initWithCGImage:cg size:NSMakeSize(width / s, height / s)];
+            CGImageRelease(cg);
+            image.template = template_image ? YES : NO;
+            g_status_item.button.image = image;
+        }
+    }
+    g_status_item.button.toolTip = tooltip ? [NSString stringWithUTF8String:tooltip] : nil;
+}
+
 int zant_tray_set(const uint8_t *rgba, const uint8_t *rgba_light, int width, int height, float scale,
                   int template_image, const char *tooltip, const ZantTrayItem *items, int count) {
     (void)rgba_light; /* the template image adapts to the menu bar */
@@ -1232,24 +1254,7 @@ int zant_tray_set(const uint8_t *rgba, const uint8_t *rgba_light, int width, int
             g_status_item = [[NSStatusBar systemStatusBar] statusItemWithLength:NSSquareStatusItemLength];
             g_tray_target = [[ZantTrayTarget alloc] init];
         }
-        if (rgba && width > 0 && height > 0) {
-            NSData *data = [NSData dataWithBytes:rgba length:(size_t)width * (size_t)height * 4];
-            CGDataProviderRef provider = CGDataProviderCreateWithCFData((__bridge CFDataRef)data);
-            CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
-            CGImageRef cg = CGImageCreate((size_t)width, (size_t)height, 8, 32, (size_t)width * 4, space,
-                                          kCGImageAlphaLast | kCGBitmapByteOrder32Big, provider, NULL,
-                                          true, kCGRenderingIntentDefault);
-            CGColorSpaceRelease(space);
-            CGDataProviderRelease(provider);
-            if (cg) {
-                const CGFloat s = scale > 0 ? scale : 1;
-                NSImage *image = [[NSImage alloc] initWithCGImage:cg size:NSMakeSize(width / s, height / s)];
-                CGImageRelease(cg);
-                image.template = template_image ? YES : NO;
-                g_status_item.button.image = image;
-            }
-        }
-        g_status_item.button.toolTip = tooltip ? [NSString stringWithUTF8String:tooltip] : nil;
+        zant_tray_apply_icon(rgba, width, height, scale, template_image, tooltip);
         NSMenu *menu = [[NSMenu alloc] init];
         menu.autoenablesItems = NO;
         for (int i = 0; i < count; i++) {
@@ -1271,6 +1276,16 @@ int zant_tray_set(const uint8_t *rgba, const uint8_t *rgba_light, int width, int
         g_status_item.menu = count > 0 ? menu : nil;
         return 1;
     }
+}
+
+int zant_tray_set_icon(const uint8_t *rgba, const uint8_t *rgba_light, int width, int height, float scale,
+                       int template_image, const char *tooltip) {
+    (void)rgba_light;
+    if (!g_status_item) return 0;
+    @autoreleasepool {
+        zant_tray_apply_icon(rgba, width, height, scale, template_image, tooltip);
+    }
+    return 1;
 }
 
 void zant_tray_remove(void) {

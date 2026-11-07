@@ -1581,17 +1581,28 @@ uint8_t *zant_clipboard_get_image_png(size_t *out_len) {
         }
         if (data) GlobalUnlock(handle);
     }
+    /* a bitmap: copied out, then converted with the clipboard closed (a large
+       one takes a while to encode; other apps must not wait for it) */
+    uint8_t *dib = NULL;
+    SIZE_T dib_size = 0;
     if (!result) {
         handle = GetClipboardData(CF_DIBV5);
         if (!handle) handle = GetClipboardData(CF_DIB);
         if (handle) {
-            const SIZE_T size = GlobalSize(handle);
+            dib_size = GlobalSize(handle);
             const uint8_t *data = (const uint8_t *)GlobalLock(handle);
-            if (data) result = zant_dib_to_png(data, size, out_len);
-            if (data) GlobalUnlock(handle);
+            if (data) {
+                dib = (uint8_t *)malloc(dib_size);
+                if (dib) memcpy(dib, data, dib_size);
+                GlobalUnlock(handle);
+            }
         }
     }
     CloseClipboard();
+    if (dib) {
+        result = zant_dib_to_png(dib, dib_size, out_len);
+        free(dib);
+    }
     return result;
 }
 
@@ -1799,6 +1810,23 @@ static HICON zant_icon_from_rgba(const uint8_t *rgba, int width, int height) {
     return icon;
 }
 
+static void zant_tray_apply_icon(const uint8_t *rgba, const uint8_t *rgba_light, int width, int height,
+                                 const char *tooltip) {
+    if (rgba && width > 0 && height > 0) {
+        HICON dark = zant_icon_from_rgba(rgba, width, height);
+        HICON light = rgba_light ? zant_icon_from_rgba(rgba_light, width, height) : NULL;
+        if (dark) {
+            if (g_tray_icon_dark) DestroyIcon(g_tray_icon_dark);
+            if (g_tray_icon_light) DestroyIcon(g_tray_icon_light);
+            g_tray_icon_dark = dark;
+            g_tray_icon_light = light;
+        }
+    }
+    zant_tray_pick_icon();
+    g_tray.szTip[0] = 0;
+    if (tooltip) MultiByteToWideChar(CP_UTF8, 0, tooltip, -1, g_tray.szTip, (int)(sizeof(g_tray.szTip) / sizeof(WCHAR)) - 1);
+}
+
 int zant_tray_set(const uint8_t *rgba, const uint8_t *rgba_light, int width, int height, float scale,
                   int template_image, const char *tooltip, const ZantTrayItem *items, int count) {
     (void)scale;
@@ -1813,19 +1841,7 @@ int zant_tray_set(const uint8_t *rgba, const uint8_t *rgba_light, int width, int
         g_tray.uCallbackMessage = ZANT_WM_TRAY;
     }
     g_tray.uFlags = NIF_MESSAGE | NIF_TIP;
-    if (rgba && width > 0 && height > 0) {
-        HICON dark = zant_icon_from_rgba(rgba, width, height);
-        HICON light = rgba_light ? zant_icon_from_rgba(rgba_light, width, height) : NULL;
-        if (dark) {
-            if (g_tray_icon_dark) DestroyIcon(g_tray_icon_dark);
-            if (g_tray_icon_light) DestroyIcon(g_tray_icon_light);
-            g_tray_icon_dark = dark;
-            g_tray_icon_light = light;
-        }
-    }
-    zant_tray_pick_icon();
-    g_tray.szTip[0] = 0;
-    if (tooltip) MultiByteToWideChar(CP_UTF8, 0, tooltip, -1, g_tray.szTip, (int)(sizeof(g_tray.szTip) / sizeof(WCHAR)) - 1);
+    zant_tray_apply_icon(rgba, rgba_light, width, height, tooltip);
     if (g_tray_menu) DestroyMenu(g_tray_menu);
     g_tray_menu = count > 0 ? CreatePopupMenu() : NULL;
     for (int i = 0; i < count; i++) {
@@ -1842,6 +1858,17 @@ int zant_tray_set(const uint8_t *rgba, const uint8_t *rgba_light, int width, int
     const BOOL ok = Shell_NotifyIconW(g_tray_added ? NIM_MODIFY : NIM_ADD, &g_tray);
     if (ok) g_tray_added = true;
     return ok ? 1 : 0;
+}
+
+/* Icon and tooltip only: the menu (possibly open right now) stays. */
+int zant_tray_set_icon(const uint8_t *rgba, const uint8_t *rgba_light, int width, int height, float scale,
+                       int template_image, const char *tooltip) {
+    (void)scale;
+    (void)template_image;
+    if (!g_tray_added) return 0;
+    g_tray.uFlags = NIF_MESSAGE | NIF_TIP;
+    zant_tray_apply_icon(rgba, rgba_light, width, height, tooltip);
+    return Shell_NotifyIconW(NIM_MODIFY, &g_tray) ? 1 : 0;
 }
 
 void zant_tray_remove(void) {

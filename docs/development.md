@@ -97,7 +97,8 @@ scripts/win/remote.sh XyUI 'powershell -File scripts/win/run-desktop.ps1 -Exe zi
 ```
 
 SSH 会话里的窗口不可见、也拿不到真实缩放，所以视觉检查用 `run-desktop.ps1` 在已登录的
-桌面会话里运行。桌面自动化测试（都输出 PASS / FAIL 报告和截图）：
+桌面会话里运行。一直运行的程序（例如测试同步时的应用）用自己的 `-Name`（计划任务名，一个名字
+同时只能运行一个程序）和 `-Log <文件>`，之后再用 `run-desktop.ps1` 启动测试脚本不会互相影响。桌面自动化测试（都输出 PASS / FAIL 报告和截图）：
 
 | 脚本 | 内容 |
 |---|---|

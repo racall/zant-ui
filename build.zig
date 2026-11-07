@@ -143,9 +143,21 @@ fn appFileExists(b: *std.Build, sub_path: []const u8) bool {
     return true;
 }
 
+/// Every PNG in assets/icons is importable as `icon_<name>` ("-" → "_"):
+/// the defaults above plus the app's own (ClipHop's `statusbar-sync.png` is
+/// `@embedFile("icon_statusbar_sync")`).
 fn addAppIcons(b: *std.Build, module: *std.Build.Module) void {
-    for (app_icons) |icon| {
-        if (appFileExists(b, icon.file)) module.addAnonymousImport(icon.import, .{ .root_source_file = b.path(icon.file) });
+    const io = b.graph.io;
+    const full = b.root.joinString(b.allocator, "assets/icons") catch return;
+    var dir = std.Io.Dir.cwd().openDir(io, full, .{ .iterate = true }) catch return;
+    defer dir.close(io);
+    var it = dir.iterate();
+    while (it.next(io) catch null) |entry| {
+        if (entry.kind != .file or !std.mem.endsWith(u8, entry.name, ".png")) continue;
+        const stem = entry.name[0 .. entry.name.len - ".png".len];
+        const import = b.fmt("icon_{s}", .{stem});
+        std.mem.replaceScalar(u8, import, '-', '_');
+        module.addAnonymousImport(import, .{ .root_source_file = b.path(b.fmt("assets/icons/{s}", .{entry.name})) });
     }
 }
 

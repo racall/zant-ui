@@ -248,6 +248,10 @@ typedef struct ZantTrayItem {
 } ZantTrayItem;
 int zant_tray_set(const uint8_t *rgba, const uint8_t *rgba_light, int width, int height, float scale,
                   int template_image, const char *tooltip, const ZantTrayItem *items, int count);
+/* Changes only the icon and tooltip of the tray icon zant_tray_set added
+   (an open menu stays open); 0 when there is none. */
+int zant_tray_set_icon(const uint8_t *rgba, const uint8_t *rgba_light, int width, int height, float scale,
+                       int template_image, const char *tooltip);
 void zant_tray_remove(void);
 /* Pixel size of the tray icon on this display (Windows: the small icon
    size, 16 at 100%; macOS: 36, an 18 pt menu bar icon at @2x). */

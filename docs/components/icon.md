@@ -22,9 +22,10 @@ ui.iconButton(.{
 
 图标名：`menu list search eye eye_off more more_vertical close plus minus check
 chevron_down/up/left/right arrow_down/up file file_text folder save copy download upload
-link external_link pencil trash undo redo settings sun moon columns keyboard book_open
+link external_link pencil trash undo redo refresh settings sun moon columns keyboard book_open
 maximize minimize focus type_size heading bold italic strikethrough code code_block quote
-list_bullet list_ordered list_checks table sigma image minus_rule info alert lightbulb`；
+list_bullet list_ordered list_checks table sigma image minus_rule info alert lightbulb
+clipboard monitor wifi wifi_off clock power`；
 `window_minimize window_maximize window_restore window_close` 是 Windows 标题栏按钮用的
 10px 细线字形（见 [window-controls.md](window-controls.md)）。
 

@@ -150,6 +150,8 @@ macOS：生成 `zig-out/<应用标题>.app`：
 `icon_app_macos`、`icon_app_windows`、`icon_tray_dark`、`icon_tray_light`、`icon_statusbar`，例如
 `zant.desktop.setTray(.{ .icon = if (zant.keys.is_macos) @embedFile("icon_statusbar") else @embedFile("icon_tray_dark"), .icon_light = if (zant.keys.is_macos) null else @embedFile("icon_tray_light"), .template = zant.keys.is_macos })`。
 这些由 Zant UI 的 `configureApp`（模板 `build.zig` 已调用）在文件存在时加入，测试代码也能引用。
+`assets/icons/` 里的每个 PNG 都按同样的规则加入：`icon_` 加文件名（`-` 换成 `_`），所以应用自己的图标
+（例如同步中的托盘图标 `statusbar-sync.png`）放进来就能 `@embedFile("icon_statusbar_sync")`。
 PNG 要求 8 位、非隔行扫描（常见导出工具的默认格式）。
 
 ## 组件与状态示例
