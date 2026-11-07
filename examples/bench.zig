@@ -21,6 +21,7 @@ const md = zant.markdown;
 const Runtime = zant.ui_runtime.Runtime;
 
 var fake_now: i64 = 1_000_000;
+var bench_list = false;
 fn fakeClock() i64 {
     return fake_now;
 }
@@ -60,10 +61,12 @@ const Chat = struct {
     reply_text: std.ArrayListUnmanaged(u8) = .empty,
     input_value: std.ArrayListUnmanaged(u8) = .empty,
     with_input: bool = false,
+    use_list: bool = false,
+    list: ui.ListState,
 
     fn init(gpa: std.mem.Allocator, n: usize) !*Chat {
         const self = try gpa.create(Chat);
-        self.* = .{ .gpa = gpa, .texts = try gpa.alloc([]u8, n), .caches = try gpa.alloc(md.Cache, n), .reply = md.Cache.init(gpa) };
+        self.* = .{ .gpa = gpa, .texts = try gpa.alloc([]u8, n), .caches = try gpa.alloc(md.Cache, n), .reply = md.Cache.init(gpa), .list = .init(gpa), .use_list = bench_list };
         for (self.texts, self.caches, 0..) |*t, *c, i| {
             // ~5 KB per message, like real assistant replies
             t.* = try std.fmt.allocPrint(gpa, message_template ++ message_template ++ message_template ++ message_template, .{ i, i, i + 1, i + 1, i + 2, i + 2, i + 3, i + 3 });
@@ -77,9 +80,33 @@ const Chat = struct {
         self.input_value.appendSlice(self.gpa, value) catch {};
     }
 
+    fn message(self: *Chat, i: usize) ui.Node {
+        if (i == self.texts.len) return ui.column(.{ .padding = ui.insetXY(16, 12), .align_items = .stretch, .children = &.{
+            md.streamdown(&self.reply, self.reply_text.items, .{ .mode = .streaming, .render = .{ .key_prefix = "reply", .content_width = 680, .font_size = 15, .is_animating = true, .caret = .block } }),
+        } });
+        const key = std.fmt.allocPrint(ui.frameAllocator(), "m{d}", .{i}) catch "m";
+        return ui.column(.{ .padding = ui.insetXY(16, 12), .radius = 12, .background = 0xffffffff, .align_items = .stretch, .children = &.{
+            md.streamdown(&self.caches[i], self.texts[i], .{ .render = .{ .key_prefix = key, .content_width = 680, .font_size = 15 } }),
+        } });
+    }
+
     fn render(ctx: *anyopaque) ui.Node {
         const self: *Chat = @ptrCast(@alignCast(ctx));
         const arena = ui.frameAllocator();
+        if (self.use_list) {
+            var top: std.ArrayListUnmanaged(ui.Node) = .empty;
+            if (self.with_input) top.append(arena, ui.input(.{ .key = "input", .value = self.input_value.items, .placeholder = "Type…", .on_change = ui.textAction(self, onInput) })) catch {};
+            top.append(arena, ui.list(&self.list, .{
+                .key = "chat",
+                .count = self.texts.len + @as(usize, if (self.reply_text.items.len > 0) 1 else 0),
+                .item = ui.listItem(self, message),
+                .alignment = .bottom,
+                .follow_tail = true,
+                .gap = 16,
+                .padding = ui.inset(20),
+            })) catch {};
+            return ui.column(.{ .grow = 1, .align_items = .stretch, .background = 0xfff5f5f5, .children = top.items });
+        }
         var rows: std.ArrayListUnmanaged(ui.Node) = .empty;
         for (self.texts, self.caches, 0..) |t, *c, i| {
             const key = std.fmt.allocPrint(arena, "m{d}", .{i}) catch "m";
@@ -158,6 +185,7 @@ pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     const n = if (init.environ_map.get("ZANT_BENCH_MESSAGES")) |v| std.fmt.parseInt(usize, v, 10) catch 30 else 30;
     zant.motion.enabled = false;
+    bench_list = init.environ_map.get("ZANT_BENCH_LIST") != null;
     var renderer = try zant.renderer.Renderer.createRaster(1400, 1000);
     defer renderer.deinit();
     const want = struct {
@@ -167,7 +195,7 @@ pub fn main(init: std.process.Init) !void {
             return false;
         }
     }.f;
-    std.debug.print("zant-bench: {d} messages, raster canvas {d}x{d}\n", .{ n, W, H });
+    std.debug.print("zant-bench: {d} messages, raster canvas {d}x{d}{s}\n", .{ n, W, H, if (bench_list) ", virtual list" else "" });
 
     if (want(args, "open")) {
         var st: Stats = .{};

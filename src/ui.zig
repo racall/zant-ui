@@ -685,6 +685,9 @@ pub const PointerAreaOptions = struct {
     /// Wheel / trackpad scrolling goes to `on_pointer` (`.scroll`) instead
     /// of enclosing scroll containers (canvases, document viewers).
     capture_scroll: bool = false,
+    /// false: the area takes only hover and scroll; presses behave as if it
+    /// were a plain container (text inside stays selectable).
+    clicks: bool = true,
     /// Cursor over the area (and while dragging it).
     cursor: ?platform_mod.Cursor = null,
     /// Take keyboard focus on click (Tab reaches it too); keys go to `on_key`.
@@ -709,7 +712,7 @@ pub fn pointerArea(options: PointerAreaOptions) Node {
         .visual = visualFrom(options.box),
         .children = options.box.children,
         .focusable = options.focusable,
-        .pointer = .{ .action = options.on_pointer, .capture_scroll = options.capture_scroll },
+        .pointer = .{ .action = options.on_pointer, .capture_scroll = options.capture_scroll, .clicks = options.clicks },
         .key_action = options.on_key,
         .cursor = options.cursor,
         .on_resize = options.box.on_resize,
@@ -1685,6 +1688,14 @@ pub const ShortcutListOptions = shortcut_list_mod.ShortcutListOptions;
 /// Grouped keyboard shortcut reference in balanced columns.
 pub const shortcutList = shortcut_list_mod.shortcutList;
 const message_mod = @import("components/message.zig");
+const list_mod = @import("components/list.zig");
+/// Virtual list (`docs/components/list.md`).
+pub const list = list_mod.list;
+pub const ListState = list_mod.ListState;
+pub const ListOptions = list_mod.ListOptions;
+pub const ListAlignment = list_mod.Alignment;
+pub const listItem = list_mod.itemBuilder;
+pub const listItemId = list_mod.itemId;
 pub const MessageKind = message_mod.MessageKind;
 pub const MessageOptions = message_mod.MessageOptions;
 /// antd message: a transient pill near the top of the window.

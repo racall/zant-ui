@@ -129,6 +129,9 @@ pub const PointerArea = struct {
     action: actions.PointerAction,
     /// Wheel / trackpad scroll goes to the handler instead of scroll containers.
     capture_scroll: bool = false,
+    /// false: presses are not taken (no capture, no `down` / `drag`), so
+    /// they reach what is inside — text selection in a scrolling list.
+    clicks: bool = true,
 };
 
 pub const ContainerData = struct {

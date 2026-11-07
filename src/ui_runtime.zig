@@ -1234,10 +1234,13 @@ pub const Runtime = struct {
             self.tree.layout(self.viewport);
             // size-dependent UI (on_resize): rebuild and lay out again now,
             // so the new size never shows a frame of the old layout
-            if (!nested and self.notifyResizes()) {
+            // up to three passes: a virtual list measures the items it just
+            // built, places them, and may then build the ones that came
+            // into view
+            var passes: usize = 0;
+            while (!nested and passes < 3 and self.notifyResizes()) : (passes += 1) {
                 self.rebuild();
                 if (self.tree.needsLayout()) self.tree.layout(self.viewport);
-                _ = self.notifyResizes();
             }
             if (self.frame_stats) |*stats| stats.phase(.layout, t);
             self.tree.flip_enabled = true;
@@ -1505,7 +1508,7 @@ pub const Runtime = struct {
             const node = self.tree.get(id);
             switch (node.data) {
                 .rich_text => if (self.linkAt(id, p.x, p.y) != null) return false,
-                .container => |*d| if (d.pointer != null) return false,
+                .container => |*d| if (d.pointer) |area| if (area.clicks) return false,
                 else => return false,
             }
         }
@@ -1827,7 +1830,7 @@ pub const Runtime = struct {
                 else => .pointing_hand,
             },
             .toggle => .pointing_hand,
-            .container => |data| data.cursor orelse .arrow,
+            .container => |data| data.cursor orelse if (point) |p| (if (self.selectableTextAt(p[0], p[1])) .ibeam else .arrow) else .arrow,
             .rich_text => if (point) |p| (if (self.linkAt(id, p[0], p[1]) != null) .pointing_hand else .arrow) else .arrow,
             else => .arrow,
         } else if (point) |p| (if (self.selectableTextAt(p[0], p[1])) .ibeam else .arrow) else .arrow;
@@ -1893,14 +1896,15 @@ pub const Runtime = struct {
                     self.open_select = id;
                     self.tree.poke(id);
                 },
-                .container => |*data| if (data.pointer != null and node.enabled) {
+                .container => |*data| if (data.pointer != null and data.pointer.?.clicks and node.enabled) {
                     self.focusNode(if (node.focusable) id else null);
                     self.countClick(p);
                     self.pointer_capture = id;
                     self.sendPointer(id, .down, p, 0, 0);
                 } else {
-                    // blocking panels (block_pointer) still blur inputs
-                    self.focusNode(null);
+                    // blocking panels (block_pointer) still blur inputs; a
+                    // scroll-only area (a list) takes the focus for its keys
+                    self.focusNode(if (data.pointer != null and node.focusable) id else null);
                 },
                 else => {},
             }

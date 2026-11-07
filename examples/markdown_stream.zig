@@ -46,6 +46,8 @@ const State = struct {
     build_us_max: i64 = 0,
     streaming: bool = true,
     exited: bool = false,
+    done_now: bool = false,
+    list: ui.ListState,
 
     pub fn theme(self: *State) zant.tokens.Theme {
         return if (self.dark) zant.tokens.antDark() else zant.tokens.antLight();
@@ -82,29 +84,45 @@ const State = struct {
             std.process.exit(0);
         }
         const t = ui.currentTheme();
+        self.done_now = done;
+        return ui.column(.{
+            .grow = 1,
+            .align_items = .stretch,
+            .background = t.color_bg_layout,
+            .children = &.{
+                ui.row(.{ .padding = ui.insetXY(20, 10), .gap = 12, .align_items = .center, .children = &.{
+                    ui.text("Streaming Markdown", .{ .size = 14, .weight = .semibold }),
+                    ui.textFmt("{d} bytes · {d} deltas{s}", .{ self.view.items.len, deltas, if (done) " · done" else "" }, .{ .size = 12, .color = t.color_text_secondary }),
+                } }),
+                // a virtual list: only the messages in view are built and laid
+                // out; it follows the reply while it streams
+                ui.list(&self.list, .{
+                    .key = "chat",
+                    .count = self.history.len + 1,
+                    .item = ui.listItem(self, message),
+                    .alignment = .bottom,
+                    .follow_tail = true,
+                    .gap = 16,
+                    .padding = ui.insetXY(24, 16),
+                    .selectable = true,
+                }),
+            },
+        });
+    }
+
+    fn message(self: *State, i: usize) ui.Node {
+        const t = ui.currentTheme();
         const md_theme = if (self.dark) md.theme.dark() else md.theme.light();
-        const arena = ui.frameAllocator();
-        var rows: std.ArrayListUnmanaged(ui.Node) = .empty;
-        for (self.history, self.history_text, 0..) |*cache, text, i| {
-            const key = std.fmt.allocPrint(arena, "h{d}", .{i}) catch "h";
-            rows.append(arena, bubble(key, i % 2 == 0, t, md.streamdown(cache, text, .{ .parse = .{ .latex_delimiters = true }, .render = .{ .theme = md_theme, .key_prefix = key, .content_width = 680, .font_size = 15 } }))) catch {};
+        if (i < self.history.len) {
+            const key = std.fmt.allocPrint(ui.frameAllocator(), "h{d}", .{i}) catch "h";
+            return bubble(key, i % 2 == 0, t, md.streamdown(&self.history[i], self.history_text[i], .{ .parse = .{ .latex_delimiters = true }, .render = .{ .theme = md_theme, .key_prefix = key, .content_width = 680, .font_size = 15, .selectable = false } }));
         }
-        rows.append(arena, bubble("reply", false, t, md.streamdown(&self.reply, self.view.items, .{
+        return bubble("reply", false, t, md.streamdown(&self.reply, self.view.items, .{
             .mode = .streaming,
             // Sia's replies (like most model output) use \( \) and \[ \]
             .parse = .{ .latex_delimiters = true },
-            .render = .{ .theme = md_theme, .key_prefix = "reply", .content_width = 680, .font_size = 15, .is_animating = !done, .caret = .block },
-        }))) catch {};
-        rows.append(arena, ui.space(.{ .key = "tail", .height = 1 })) catch {};
-        // follow the reply while it streams
-        if (!done) ui.scrollToEnd("chat");
-        return ui.column(.{ .grow = 1, .align_items = .stretch, .background = t.color_bg_layout, .children = &.{
-            ui.row(.{ .padding = ui.insetXY(20, 10), .gap = 12, .align_items = .center, .children = &.{
-                ui.text("Streaming Markdown", .{ .size = 14, .weight = .semibold }),
-                ui.textFmt("{d} bytes · {d} deltas{s}", .{ self.view.items.len, deltas, if (done) " · done" else "" }, .{ .size = 12, .color = t.color_text_secondary }),
-            } }),
-            ui.column(.{ .key = "chat", .grow = 1, .shrink = 1, .basis = 0, .scroll = true, .padding = ui.insetXY(24, 16), .gap = 16, .align_items = .stretch, .children = rows.items }),
-        } });
+            .render = .{ .theme = md_theme, .key_prefix = "reply", .content_width = 680, .font_size = 15, .is_animating = !self.done_now, .caret = .block, .selectable = false },
+        }));
     }
 
     fn summary(self: *State, deltas: usize) void {
@@ -372,6 +390,7 @@ pub fn main(init: std.process.Init) !void {
         .reply = md.Cache.init(gpa),
         .history = history,
         .history_text = history_text,
+        .list = .init(gpa),
         .dark = env.get("ZANT_DARK") != null,
         .exit_when_done = env.get("ZANT_STREAM_EXIT") != null,
     }, State.render, .{
