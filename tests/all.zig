@@ -55,3 +55,15 @@ comptime {
 comptime {
     _ = @import("text_align_test.zig");
 }
+comptime {
+    _ = @import("pointer_test.zig");
+}
+comptime {
+    _ = @import("pdf_viewer_test.zig");
+}
+comptime {
+    _ = @import("selection_test.zig");
+}
+comptime {
+    _ = @import("mhchem_render_test.zig");
+}

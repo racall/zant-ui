@@ -12,7 +12,8 @@ src/main.zig / 生成项目 main.zig
         │       ├── core/layout.zig    Flex 布局
         │       ├── motion/            缓动、Animated、presence
         │       └── renderer/skia      Skia C ABI（可移植核心；Metal / Direct3D 12 / 光栅）
-        ├── markdown/, math/    Markdown 与公式（基于 ui.* 与矢量绘制）
+        ├── markdown/, math/    Markdown 与公式（基于 ui.* 与矢量绘制；mhchem 化学式）
+        ├── pdf/                PDF 阅读器（原生文档句柄 + 后台分块渲染 + 文字几何 + 批注）
         └── platform/platform.h        平台 C ABI，两份实现：
                 ├── macos/window.m     AppKit 窗口、事件、输入法、显示链接
                 └── windows/window.c   Win32 窗口、事件、IMM32、自绘标题栏、对话框
@@ -63,7 +64,9 @@ Zig 实现的 CSS 风格 Flex：方向、换行、justify / align、grow / shrin
 
 ## 文本与矢量
 
-Skia Paragraph 负责 shaping、换行、字体回退、装饰线和单行省略号；布局结果按宽度缓存。
+Skia Paragraph 负责 shaping、换行、字体回退、装饰线和单行省略号；布局结果按宽度缓存，
+保留当前与上一个宽度（Flex 先按试探宽度、再按最终宽度排版时不互相驱逐），自然宽度另行缓存。
+`selectable` 容器内的文字（含多个节点）可拖选，选区画在文字后面，复制时嵌入绘制取其 `copy` 文本。
 富文本支持多段样式、链接与内嵌绘制（行内公式与正文基线对齐）。公式（`math/`）与
 Mermaid 图表输出保留式矢量绘制（字形、矩形、线、路径），可整体缩放适配内容列。
 
@@ -78,6 +81,13 @@ Windows Segoe UI / Microsoft YaHei UI / Cascadia Mono（回退 Consolas）/ SimS
 动画帧只重绘、不重建。有动画时按屏幕刷新出帧（macOS `CADisplayLink`；Windows 的帧都从
 `WM_PAINT` 绘制，由交换链或 `DwmFlush` 垂直同步节拍，拖动缩放的模态循环里也会继续）；
 空闲时只在光标闪烁、提示延迟或 `ui.wakeAfter` 到期时用一次性定时器唤醒；鼠标移动只在界面确有变化时重绘。
+后台线程用 `ui.postWake()`（`zant_window_post_wake`，合并多次调用）请求下一次重建。
+
+## 输入
+
+指针事件先给交互控件（按钮、输入框…），其余给 `ui.pointerArea`：按下后捕获指针直到松开，
+带区域内坐标、多击次数与修饰键；`capture_scroll` 的区域接收滚轮（触控板捏合以 Control + 滚轮送达）。
+`BoxOptions.on_resize` 在布局后尺寸变化时回调，并在同一帧内重建、重新布局。
 
 ## 平台范围
 

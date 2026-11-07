@@ -37,6 +37,8 @@ pub const Tree = struct {
     root: NodeId = 0,
     focused: ?NodeId = null,
     theme: Theme,
+    /// Fill behind selected text (`Node.text_sel`).
+    selection_color: u32 = 0x401677ff,
 
     pub fn init(allocator: std.mem.Allocator, theme: Theme) !Tree {
         var tree = Tree{ .allocator = allocator, .theme = theme };
@@ -142,10 +144,13 @@ pub const Tree = struct {
         const data = &node.data.vector;
         const hash = drawing.contentHash();
         if (hash == data.hash) return;
+        const keep = try self.allocator.dupe(u8, data.copy);
+        defer self.allocator.free(keep);
         _ = data.arena.reset(.retain_capacity);
         const copy = try drawing.clone(data.arena.allocator());
         data.drawing = copy;
         data.hash = hash;
+        data.copy = try data.arena.allocator().dupe(u8, keep);
         self.markDirty(id, true, true);
     }
 
@@ -154,12 +159,14 @@ pub const Tree = struct {
         owned.text = try self.allocator.dupe(u8, span.text);
         errdefer self.allocator.free(owned.text);
         owned.link = if (span.link.len > 0) try self.allocator.dupe(u8, span.link) else "";
+        owned.copy = if (span.copy) |c| try self.allocator.dupe(u8, c) else null;
         return owned;
     }
 
     fn freeRichSpan(self: *Tree, span: node_mod.RichSpan) void {
         self.allocator.free(span.text);
         if (span.link.len > 0) self.allocator.free(span.link);
+        if (span.copy) |c| self.allocator.free(c);
     }
 
     pub fn richTextSet(self: *Tree, id: NodeId, spans: []const node_mod.RichSpan) !void {
@@ -490,6 +497,7 @@ pub const Tree = struct {
             .root, .container => {},
             .text => |*data| {
                 if (data.ensureLayout(data.layoutWidth(rect.width))) |value| {
+                    if (node.text_sel) |r| paintSelection(canvas, value.handle, r, rect.x, rect.y, self.selection_color);
                     value.paint(canvas, rect.x, rect.y);
                 } else |_| {}
             },
@@ -499,9 +507,15 @@ pub const Tree = struct {
             .image => image_mod.paint(node, canvas, self.theme),
             .select => select_mod.paint(node, canvas, self.theme),
             .rich_text => |*data| {
-                if (data.ensureLayout(rect.width)) |rich_layout| data.paintAt(canvas.ptr, rich_layout, rect.x, rect.y) else |_| {}
+                if (data.ensureLayout(rect.width)) |rich_layout| {
+                    if (node.text_sel) |r| paintSelection(canvas, rich_layout.handle, r, rect.x, rect.y, self.selection_color);
+                    data.paintAt(canvas.ptr, rich_layout, rect.x, rect.y);
+                } else |_| {}
             },
-            .vector => |*data| node_mod.vector.paint(canvas.ptr, data.drawing, rect.x, rect.y + data.drawing.ascent),
+            .vector => |*data| {
+                if (node.text_sel != null) canvas.fillRect(rect, self.selection_color);
+                node_mod.vector.paint(canvas.ptr, data.drawing, rect.x, rect.y + data.drawing.ascent);
+            },
         }
 
         const should_clip = node.visual.clip or std.meta.activeTag(node.data) == .input;
@@ -536,6 +550,17 @@ pub const Tree = struct {
         if (node.style.scroll) paintScrollIndicator(node, canvas, tokens.withAlpha(self.theme.color_text, 0x40));
         if (should_clip) canvas.restore();
     }
+
+    fn paintSelection(canvas: Canvas, handle: ?*anyopaque, range: [2]u32, x: f32, y: f32, color: u32) void {
+        if (range[0] >= range[1]) return;
+        var rects: [64]text.NativeRect = undefined;
+        const n = zant_text_layout_range_rects(handle, range[0], range[1], &rects, rects.len);
+        for (rects[0..@intCast(@max(n, 0))]) |r| {
+            canvas.fillRect(geometry.Rect.init(x + r.x, y + r.y, r.width, r.height), color);
+        }
+    }
+
+    extern fn zant_text_layout_range_rects(layout: ?*anyopaque, start: usize, end: usize, rects: [*]text.NativeRect, max_rects: c_int) c_int;
 
     fn paintScrollIndicator(node: *Node, canvas: Canvas, color: u32) void {
         const data = switch (node.data) {
@@ -591,6 +616,29 @@ pub const Tree = struct {
         }
         if (node.style.scroll and std.meta.activeTag(node.data) == .container) {
             if (node.data.container.content_height > node.bounds.height + 0.5) return node.id;
+        }
+        return null;
+    }
+
+    /// Innermost node under `(x, y)` that takes wheel input: a scroll
+    /// container with overflow or a pointer area with `capture_scroll`.
+    pub fn wheelTargetAt(self: *Tree, x: f32, y: f32) ?NodeId {
+        return self.wheelTargetNode(self.get(self.root), x, y);
+    }
+
+    fn wheelTargetNode(self: *Tree, node: *Node, x: f32, y: f32) ?NodeId {
+        if (!node.inFlow() or !node.bounds.contains(x, y)) return null;
+        var i = node.children.items.len;
+        while (i > 0) {
+            i -= 1;
+            if (self.wheelTargetNode(self.get(node.children.items[i]), x, y)) |hit| return hit;
+        }
+        switch (node.data) {
+            .container => |*data| {
+                if (data.pointer) |area| if (area.capture_scroll) return node.id;
+                if (node.style.scroll and data.content_height > node.bounds.height + 0.5) return node.id;
+            },
+            else => {},
         }
         return null;
     }

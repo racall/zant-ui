@@ -6,6 +6,7 @@
 //! sequences are kept as `.unknown` nodes and coloured individually.
 const std = @import("std");
 const symbols = @import("symbols.zig");
+const mhchem = @import("mhchem.zig");
 const fonts = @import("fonts.zig");
 
 pub const Class = symbols.Class;
@@ -41,7 +42,34 @@ pub const Node = union(enum) {
     stack: struct { base: *const Node, over: ?*const Node, under: ?*const Node },
     /// `\tag{..}`
     tag: []const u8,
+    /// `\xrightarrow[below]{above}` and friends (KaTeX functions/arrow).
+    xarrow: XArrow,
+    /// `\large`, `\small`, ...: the rest of the group scaled.
+    sized: struct { factor: f32, body: []const Node },
+    /// `\colorbox{bg}{..}` / `\fcolorbox{frame}{bg}{..}`.
+    colorbox: struct { background: u32, frame: ?u32 = null, body: []const Node },
+    /// `\smash{..}`: no height / depth.
+    smash: []const Node,
+    /// `\rule{w}{h}` in em.
+    rule_box: struct { width: f32, height: f32 },
+    /// `\mathrlap` / `\mathllap` / `\mathclap` (and `\rlap`, `\llap`):
+    /// zero-width content overlapping its neighbours.
+    lap: struct { side: LapSide, body: []const Node },
+    /// `\mathchoice{D}{T}{S}{SS}`: one branch per math style.
+    choice: [4][]const Node,
+    /// `\raisebox{dimen}{..}`: content moved up by `amount` em.
+    raise: struct { amount: f32, body: []const Node },
     unknown: []const u8,
+};
+
+pub const LapSide = enum { left, right, center };
+
+pub const XArrowKind = enum { right, left, left_right, double_right, double_left, double_left_right, hook_right, hook_left, maps_to, long_equal, harpoons_rl, harpoons_lr, arrows_rl, two_head_right, two_head_left };
+
+pub const XArrow = struct {
+    kind: XArrowKind,
+    above: []const Node,
+    below: ?[]const Node = null,
 };
 
 pub const CancelKind = enum { cancel, bcancel, xcancel, sout };
@@ -520,6 +548,117 @@ pub const Parser = struct {
         }) |entry| {
             if (eql(u8, name, entry[0])) return .{ .over_under = .{ .body = try self.parseArg(), .kind = entry[1] } };
         }
+        inline for (.{
+            .{ "xrightarrow", XArrowKind.right },                 .{ "xleftarrow", XArrowKind.left },
+            .{ "xleftrightarrow", XArrowKind.left_right },        .{ "xRightarrow", XArrowKind.double_right },
+            .{ "xLeftarrow", XArrowKind.double_left },            .{ "xLeftrightarrow", XArrowKind.double_left_right },
+            .{ "xhookrightarrow", XArrowKind.hook_right },        .{ "xhookleftarrow", XArrowKind.hook_left },
+            .{ "xmapsto", XArrowKind.maps_to },                   .{ "xlongequal", XArrowKind.long_equal },
+            .{ "xrightleftharpoons", XArrowKind.harpoons_rl },    .{ "xleftrightharpoons", XArrowKind.harpoons_lr },
+            .{ "xrightleftarrows", XArrowKind.arrows_rl },        .{ "xtofrom", XArrowKind.arrows_rl },
+            .{ "xrightequilibrium", XArrowKind.harpoons_rl },     .{ "xleftequilibrium", XArrowKind.harpoons_lr },
+            .{ "xtwoheadrightarrow", XArrowKind.two_head_right }, .{ "xtwoheadleftarrow", XArrowKind.two_head_left },
+        }) |entry| {
+            if (eql(u8, name, entry[0])) {
+                self.skipSpace();
+                const below: ?[]const Node = if (self.peek() == '[') try self.optionalArg() else null;
+                return .{ .xarrow = .{ .kind = entry[1], .above = try self.parseArg(), .below = below } };
+            }
+        }
+        inline for (.{
+            .{ "tiny", 0.5 },  .{ "scriptsize", 0.7 }, .{ "footnotesize", 0.8 }, .{ "small", 0.9 },  .{ "normalsize", 1.0 },
+            .{ "large", 1.2 }, .{ "Large", 1.44 },     .{ "LARGE", 1.728 },      .{ "huge", 2.074 }, .{ "Huge", 2.488 },
+        }) |entry| {
+            if (eql(u8, name, entry[0])) return .{ .sized = .{ .factor = entry[1], .body = try self.parseList(.brace) } };
+        }
+        if (eql(u8, name, "substack")) {
+            // lines centred in script style (amsmath \\substack)
+            const body = try self.rawArg();
+            return .{ .group = try self.subParse(&.{ "\\begin{smallmatrix}", body, "\\end{smallmatrix}" }) };
+        }
+        if (eql(u8, name, "displaylines")) {
+            const body = try self.rawArg();
+            return .{ .group = try self.subParse(&.{ "\\begin{gathered}", body, "\\end{gathered}" }) };
+        }
+        inline for (.{ .{ "mathrlap", LapSide.right }, .{ "rlap", LapSide.right }, .{ "mathllap", LapSide.left }, .{ "llap", LapSide.left }, .{ "mathclap", LapSide.center }, .{ "clap", LapSide.center } }) |entry| {
+            if (eql(u8, name, entry[0])) {
+                const body = if (entry[0][0] == 'm') try self.parseArg() else try self.textOrMathArg();
+                return .{ .lap = .{ .side = entry[1], .body = body } };
+            }
+        }
+        if (eql(u8, name, "mathchoice")) {
+            return .{ .choice = .{ try self.parseArg(), try self.parseArg(), try self.parseArg(), try self.parseArg() } };
+        }
+        if (eql(u8, name, "ce") or eql(u8, name, "pu")) {
+            // mhchem: the argument becomes TeX (KaTeX defines these as macros)
+            const arg = try self.rawArg();
+            const tex = mhchem.toTex(self.arena, arg, if (eql(u8, name, "ce")) .ce else .pu) catch |err| switch (err) {
+                error.OutOfMemory => return error.OutOfMemory,
+                error.MhchemError => return .{ .unknown = name },
+            };
+            return .{ .group = try self.subParse(&.{tex}) };
+        }
+        if (eql(u8, name, "tripledash")) {
+            // mhchem's macro: three small dashes (a "tripledash" bond)
+            return .{ .group = try self.subParse(&.{"{\\vphantom{-}\\raisebox{2.56mu}{$\\mkern2mu\\tiny\\text{-}\\mkern1mu\\text{-}\\mkern1mu\\text{-}\\mkern2mu$}}"}) };
+        }
+        if (eql(u8, name, "href")) {
+            _ = try self.rawArg(); // the URL: formulas are not clickable
+            return .{ .group = try self.parseArg() };
+        }
+        if (eql(u8, name, "url")) return .{ .text = .{ .text = try self.rawArg(), .variant = .monospace } };
+        if (eql(u8, name, "colorbox")) {
+            const c = parseColor(try self.rawArg()) orelse 0xffffff00;
+            return .{ .colorbox = .{ .background = c, .body = try self.textOrMathArg() } };
+        }
+        if (eql(u8, name, "fcolorbox")) {
+            const frame = parseColor(try self.rawArg()) orelse 0xff000000;
+            const bg = parseColor(try self.rawArg()) orelse 0xffffffff;
+            return .{ .colorbox = .{ .background = bg, .frame = frame, .body = try self.textOrMathArg() } };
+        }
+        if (eql(u8, name, "smash")) {
+            self.skipSpace();
+            if (self.peek() == '[') _ = try self.optionalArg();
+            return .{ .smash = try self.parseArg() };
+        }
+        if (eql(u8, name, "mathstrut")) return .{ .phantom = .{ .body = try self.arena.dupe(Node, &.{Node{ .atom = .{ .text = "(" } }}), .horizontal = false } };
+        if (eql(u8, name, "rule")) {
+            self.skipSpace();
+            if (self.peek() == '[') _ = try self.optionalArg();
+            const w = parseDimen(try self.rawArg());
+            const h = parseDimen(try self.rawArg());
+            return .{ .rule_box = .{ .width = w, .height = h } };
+        }
+        if (eql(u8, name, "raisebox")) {
+            const amount = parseDimen(try self.rawArg());
+            return .{ .raise = .{ .amount = amount, .body = try self.textOrMathArg() } };
+        }
+        if (eql(u8, name, "unicode") or eql(u8, name, "char")) {
+            const raw = if (eql(u8, name, "unicode")) try self.rawArg() else blk: {
+                self.skipSpace();
+                const start = self.i;
+                while (self.i < self.src.len and (std.ascii.isAlphanumeric(self.src[self.i]) or self.src[self.i] == '"' or self.src[self.i] == '\'')) self.i += 1;
+                break :blk self.src[start..self.i];
+            };
+            const cp = parseCharCode(raw) orelse return .{ .unknown = name };
+            var buf: [4]u8 = undefined;
+            const n = std.unicode.utf8Encode(cp, &buf) catch return .{ .unknown = name };
+            return .{ .atom = .{ .text = try self.arena.dupe(u8, buf[0..n]) } };
+        }
+        if (eql(u8, name, "genfrac")) {
+            const left = try stripBraces(self.arena, try self.rawArg());
+            const right = try stripBraces(self.arena, try self.rawArg());
+            const thickness = try self.rawArg();
+            const style_arg = try self.rawArg();
+            const num = try self.parseArg();
+            const den = try self.parseArg();
+            const bar = !(std.mem.startsWith(u8, std.mem.trim(u8, thickness, " "), "0"));
+            return .{ .frac = .{ .num = num, .den = den, .bar = bar, .left = symbols.delimiter(left) orelse "", .right = symbols.delimiter(right) orelse "", .style = if (std.mem.eql(u8, std.mem.trim(u8, style_arg, " "), "0")) .display else if (std.mem.eql(u8, std.mem.trim(u8, style_arg, " "), "1")) .text else null } };
+        }
+        if (eql(u8, name, "Set") or eql(u8, name, "set")) {
+            const body = try self.parseArg();
+            return .{ .left_right = .{ .left = "{", .right = "}", .body = body } };
+        }
         if (eql(u8, name, "overset") or eql(u8, name, "underset") or eql(u8, name, "stackrel")) {
             const annotation = try self.parseArg();
             const base = try self.parseArg();
@@ -588,6 +727,21 @@ pub const Parser = struct {
             return .{ .group = body };
         }
         return .{ .unknown = name };
+    }
+
+    /// Parses TeX assembled from `parts` (macros expanding to environments).
+    fn subParse(self: *Parser, parts: []const []const u8) Error![]const Node {
+        const src = std.mem.concat(self.arena, u8, parts) catch return error.OutOfMemory;
+        return parse(self.arena, src);
+    }
+
+    /// Text-mode argument (\\colorbox, \\raisebox): `{text}` as roman text,
+    /// `{$math$}` as math.
+    fn textOrMathArg(self: *Parser) Error![]const Node {
+        const raw = try self.rawArg();
+        const t = std.mem.trim(u8, raw, " ");
+        if (t.len >= 2 and t[0] == '$' and t[t.len - 1] == '$') return parse(self.arena, t[1 .. t.len - 1]);
+        return self.arena.dupe(Node, &.{Node{ .text = .{ .text = try textModeString(self.arena, raw), .variant = .roman } }}) catch error.OutOfMemory;
     }
 
     fn rawArgOrDimen(self: *Parser) Error![]const u8 {
@@ -814,6 +968,21 @@ fn applyVariant(arena: std.mem.Allocator, body: []const Node, variant: fonts.Var
 }
 
 /// Parses a TeX dimension into em (`3mu`, `1em`, `2pt`, `0.5ex`).
+/// `\\unicode{x41}`, `\\unicode{65}`, `\\char"41`, `\\char'101`, `\\char65`.
+fn parseCharCode(raw: []const u8) ?u21 {
+    const t = std.mem.trim(u8, raw, " {}");
+    if (t.len == 0) return null;
+    const v: ?u32 = if (t[0] == 'x' or t[0] == '"')
+        std.fmt.parseInt(u32, t[1..], 16) catch null
+    else if (t[0] == '\'')
+        std.fmt.parseInt(u32, t[1..], 8) catch null
+    else
+        std.fmt.parseInt(u32, t, 10) catch null;
+    const cp = v orelse return null;
+    if (cp > 0x10FFFF or (cp >= 0xD800 and cp <= 0xDFFF)) return null;
+    return @intCast(cp);
+}
+
 pub fn parseDimen(raw: []const u8) f32 {
     const t = std.mem.trim(u8, raw, " \t");
     var end: usize = 0;

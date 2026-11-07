@@ -16,6 +16,25 @@ You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2
 [KaTeX](https://github.com/KaTeX/KaTeX). Copyright (c) 2013-2020 Khan Academy
 and other contributors. Licensed under the MIT License.
 
+## mhchem
+
+`src/math/mhchem.zig` is a Zig port of the mhchem extension for KaTeX
+(`katex/contrib/mhchem/mhchem.js`), and `src/math/mhchem_cases.json` was
+generated with it. mhchem: Copyright (c) 2011-2015 The MathJax Consortium,
+Copyright (c) 2015-2018 Martin Hensel; licensed under the Apache License,
+Version 2.0. KaTeX's adaptation of it is released under the MIT License.
+
+## EmbedPDF, Chromium, PDFium (text selection)
+
+`src/pdf/text.zig` ports the text selection helpers of
+[EmbedPDF](https://github.com/embedpdf/embed-pdf-viewer)
+(`plugin-selection/src/lib/utils.ts`; MIT License, Copyright (c) EmbedPDF
+contributors), which adapt PDFium's `CPDF_TextPage::GetIndexAtPos` and
+Chromium's PDF selection (`pdf/pdfium/pdfium_range.cc`,
+`PDFiumEngine::OnMultipleClick`; Copyright The Chromium Authors, BSD 3-Clause
+License). The viewer's behaviour (render tiling, zoom, scroll, annotation and
+history plugins) follows EmbedPDF.
+
 ## Skia
 
 Rendering uses [Skia](https://skia.org) (milestone 157), linked from the
@@ -33,7 +52,7 @@ own license, notably:
 
 ## PDFium (Windows)
 
-On Windows `ui.pdfPreview` loads `pdfium.dll` from
+On Windows the PDF viewer (`zant.pdf`) and `ui.pdfPreview` load `pdfium.dll` from
 [pdfium-binaries](https://github.com/bblanchon/pdfium-binaries)
 (`scripts/fetch_skia_windows.ps1`), shipped next to the app by `zant package`.
 PDFium: Copyright 2014 The PDFium Authors, BSD 3-Clause License (portions under

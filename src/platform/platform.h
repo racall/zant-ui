@@ -71,6 +71,12 @@ enum {
     ZANT_CURSOR_ARROW = 0,
     ZANT_CURSOR_POINTING_HAND = 1,
     ZANT_CURSOR_IBEAM = 2,
+    ZANT_CURSOR_CROSSHAIR = 3,
+    ZANT_CURSOR_RESIZE_HORIZONTAL = 4, /* splitters: drag left / right */
+    ZANT_CURSOR_RESIZE_VERTICAL = 5,   /* drag up / down */
+    ZANT_CURSOR_GRAB = 6,              /* open hand (pannable content) */
+    ZANT_CURSOR_GRABBING = 7,          /* closed hand (panning) */
+    ZANT_CURSOR_NOT_ALLOWED = 8,
 };
 
 /* Answers of ZantHost.titlebar_hit (app-drawn title bars on Windows). */
@@ -124,6 +130,8 @@ typedef struct ZantHost {
     int (*next_frame_delay)(void *userdata);
     /* ZANT_HIT_* for a point in logical window coordinates (may be NULL). */
     int (*titlebar_hit)(void *userdata, float x, float y);
+    /* Called on the UI thread after zant_window_post_wake (may be NULL). */
+    void (*wake)(void *userdata);
 } ZantHost;
 
 ZantWindow *zant_window_create(const char *title, const ZantWindowOptions *options,
@@ -131,6 +139,10 @@ ZantWindow *zant_window_create(const char *title, const ZantWindowOptions *optio
 void zant_window_run(ZantWindow *window);
 void zant_window_destroy(ZantWindow *window);
 void zant_window_request_redraw(ZantWindow *window, int delay_ms);
+/* Thread-safe: may be called from any thread. Asks the UI thread to call
+   ZantHost.wake once (coalesced) and redraw; used by background work
+   (PDF page rendering, decoding) to hand results to the UI. */
+void zant_window_post_wake(ZantWindow *window);
 void zant_window_set_cursor(ZantWindow *window, int cursor);
 /* Window background colour (0xAARRGGBB); on Windows it also picks a light or
    dark system title bar. */

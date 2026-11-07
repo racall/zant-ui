@@ -116,9 +116,32 @@ pub const Visual = struct {
     /// Swallows clicks on the node's empty areas so they do not reach what
     /// is painted behind it (modals, popover panels).
     block_pointer: bool = false,
+    /// Text inside can be selected with the pointer and copied
+    /// (`BoxOptions.selectable`).
+    selectable: bool = false,
+    /// Text inside is left out of selections (CSS `user-select: none`):
+    /// gutters, labels, toolbars inside selectable content.
+    unselectable: bool = false,
+};
+
+/// Pointer handling of a container (`ui.pointerArea`).
+pub const PointerArea = struct {
+    action: actions.PointerAction,
+    /// Wheel / trackpad scroll goes to the handler instead of scroll containers.
+    capture_scroll: bool = false,
 };
 
 pub const ContainerData = struct {
+    /// Pointer area handler (`ui.pointerArea`); makes the container interactive.
+    pointer: ?PointerArea = null,
+    /// Key handler while the container is focused (focusable pointer areas).
+    key_action: ?actions.KeyAction = null,
+    /// Called after layout when the container's size changed (`on_resize`).
+    resize_action: ?actions.Action = null,
+    reported_width: f32 = -1,
+    reported_height: f32 = -1,
+    /// Cursor shown over the container (pointer areas).
+    cursor: ?@import("../platform/platform.zig").Cursor = null,
     /// Current vertical scroll offset for `scroll` containers.
     scroll_offset: f32 = 0,
     /// Natural height of the children, measured during layout.
@@ -138,6 +161,16 @@ pub const TextData = struct {
     layout: ?text.TextLayout = null,
     layout_width: f32 = -1,
     layout_dirty: bool = true,
+    /// Intrinsic width measured at `measure_avail` (layout's min/max-content
+    /// pass), kept apart from `layout` so measuring never discards the
+    /// laid-out paragraph (that re-shaped every text node every frame).
+    measure_avail: f32 = -1,
+    measure_width: f32 = 0,
+    /// The layout at the previous width. Flex layout measures a node at a
+    /// trial width before its final one; keeping both stops them from
+    /// evicting each other (that re-shaped every paragraph every frame).
+    alt_layout: ?text.TextLayout = null,
+    alt_width: f32 = -1,
 
     /// Width to lay the text out at inside a box `box_width` wide: wrapping
     /// text uses the box; single-line text with `max_lines` too, so it ends
@@ -151,20 +184,54 @@ pub const TextData = struct {
 
     pub fn invalidate(self: *TextData) void {
         self.layout_dirty = true;
+        self.measure_avail = -1;
         if (self.layout) |*layout| layout.deinit();
         self.layout = null;
         self.layout_width = -1;
+        if (self.alt_layout) |*layout| layout.deinit();
+        self.alt_layout = null;
+        self.alt_width = -1;
     }
 
     pub fn ensureLayout(self: *TextData, max_width: f32) !*text.TextLayout {
         if (!self.layout_dirty and self.layout != null and @abs(self.layout_width - max_width) < 0.25) {
             return &self.layout.?;
         }
-        if (self.layout) |*old| old.deinit();
-        self.layout = try text.TextLayout.init(self.content, self.style, max_width);
+        if (!self.layout_dirty and self.alt_layout != null and @abs(self.alt_width - max_width) < 0.25) {
+            std.mem.swap(?text.TextLayout, &self.layout, &self.alt_layout);
+            std.mem.swap(f32, &self.layout_width, &self.alt_width);
+            return &self.layout.?;
+        }
+        const fresh = try text.TextLayout.init(self.content, self.style, max_width);
+        if (self.alt_layout) |*old| old.deinit();
+        // the current layout stays as the alternate (unless it is stale)
+        if (self.layout_dirty) {
+            if (self.layout) |*old| old.deinit();
+            self.alt_layout = null;
+            self.alt_width = -1;
+        } else {
+            self.alt_layout = self.layout;
+            self.alt_width = self.layout_width;
+        }
+        self.layout = fresh;
         self.layout_width = max_width;
         self.layout_dirty = false;
         return &self.layout.?;
+    }
+
+    /// Longest line when laid out `max_width` wide, cached per width.
+    pub fn measureWidth(self: *TextData, max_width: f32) f32 {
+        if (@abs(self.measure_avail - max_width) < 0.25) return self.measure_width;
+        const w = blk: {
+            if (self.layout != null and !self.layout_dirty and @abs(self.layout_width - max_width) < 0.25)
+                break :blk self.layout.?.metrics.longest_line;
+            var tmp = text.TextLayout.init(self.content, self.style, max_width) catch return 0;
+            defer tmp.deinit();
+            break :blk tmp.metrics.longest_line;
+        };
+        self.measure_avail = max_width;
+        self.measure_width = w;
+        return w;
     }
 };
 
@@ -183,6 +250,10 @@ pub const RichSpan = struct {
     embed: ?*const vector.Drawing = null,
     /// Optional link target. Clicking the span calls the rich text `on_link`.
     link: []const u8 = "",
+    /// Text copied for this span when selected text is copied (null: the
+    /// span's `text`; "" leaves it out). Embeds use it for their source,
+    /// e.g. "$x^2$" for inline math.
+    copy: ?[]const u8 = null,
 };
 
 pub const RichTextData = struct {
@@ -194,19 +265,63 @@ pub const RichTextData = struct {
     layout: ?rich_text.Layout = null,
     layout_width: f32 = -1,
     layout_dirty: bool = true,
+    /// Unwrapped width (layout's max-content pass), cached apart from
+    /// `layout` (see `TextData.measure_width`).
+    natural_width: ?f32 = null,
+    /// Layout at the previous width (see `TextData.alt_layout`).
+    alt_layout: ?rich_text.Layout = null,
+    alt_width: f32 = -1,
 
     pub fn invalidateLayout(self: *RichTextData) void {
         self.layout_dirty = true;
+        self.natural_width = null;
         if (self.layout) |*layout| layout.deinit();
         self.layout = null;
         self.layout_width = -1;
+        if (self.alt_layout) |*layout| layout.deinit();
+        self.alt_layout = null;
+        self.alt_width = -1;
     }
 
     pub fn ensureLayout(self: *RichTextData, max_width: f32) !*rich_text.Layout {
         if (!self.layout_dirty and self.layout != null and @abs(self.layout_width - max_width) < 0.25) {
             return &self.layout.?;
         }
-        if (self.layout) |*old| old.deinit();
+        if (!self.layout_dirty and self.alt_layout != null and @abs(self.alt_width - max_width) < 0.25) {
+            std.mem.swap(?rich_text.Layout, &self.layout, &self.alt_layout);
+            std.mem.swap(f32, &self.layout_width, &self.alt_width);
+            return &self.layout.?;
+        }
+        const fresh = try self.createLayout(max_width);
+        if (self.alt_layout) |*old| old.deinit();
+        if (self.layout_dirty) {
+            if (self.layout) |*old| old.deinit();
+            self.alt_layout = null;
+            self.alt_width = -1;
+        } else {
+            self.alt_layout = self.layout;
+            self.alt_width = self.layout_width;
+        }
+        self.layout = fresh;
+        self.layout_width = max_width;
+        self.layout_dirty = false;
+        return &self.layout.?;
+    }
+
+    /// Width of the paragraph without wrapping (cached).
+    pub fn naturalWidth(self: *RichTextData) f32 {
+        if (self.natural_width) |w| return w;
+        const w = blk: {
+            if (self.layout != null and !self.layout_dirty and self.layout_width >= 1.0e5) break :blk self.layout.?.width;
+            var tmp = self.createLayout(1.0e6) catch return 0;
+            defer tmp.deinit();
+            break :blk tmp.width;
+        };
+        self.natural_width = w;
+        return w;
+    }
+
+    fn createLayout(self: *RichTextData, max_width: f32) !rich_text.Layout {
         const native = std.heap.c_allocator.alloc(rich_text.Span, self.spans.len) catch return error.OutOfMemory;
         defer std.heap.c_allocator.free(native);
         for (self.spans, 0..) |span, i| native[i] = .{
@@ -223,10 +338,7 @@ pub const RichTextData = struct {
             .placeholder_ascent = if (span.embed) |e| e.ascent else 0,
             .placeholder_descent = if (span.embed) |e| e.descent else 0,
         };
-        self.layout = try rich_text.Layout.create(native, max_width, self.line_height);
-        self.layout_width = max_width;
-        self.layout_dirty = false;
-        return &self.layout.?;
+        return rich_text.Layout.create(native, max_width, self.line_height);
     }
 
     pub fn hasEmbeds(self: *const RichTextData) bool {
@@ -475,6 +587,8 @@ pub const ImageFit = enum(c_int) {
 pub const ImageData = struct {
     path: []u8,
     handle: ?*anyopaque = null,
+    /// `zant.image.Image.id` of an in-memory source (0 = file `path`).
+    source_id: u64 = 0,
     intrinsic_width: c_int = 0,
     intrinsic_height: c_int = 0,
     fit: ImageFit = .cover,
@@ -527,6 +641,9 @@ pub const VectorData = struct {
     arena: *std.heap.ArenaAllocator,
     drawing: *const vector.Drawing,
     hash: u64,
+    /// Text copied for the drawing in a text selection ("" = not selectable),
+    /// e.g. a formula's LaTeX. Owned by `arena`.
+    copy: []const u8 = "",
 
     pub fn deinit(self: *VectorData) void {
         const backing = self.arena.child_allocator;
@@ -569,6 +686,8 @@ pub const Node = struct {
     /// Playing its exit transition: painted, but out of layout, hit
     /// testing and focus; freed when the transition ends.
     exiting: bool = false,
+    /// Selected byte range of a text / rich text node (text selection).
+    text_sel: ?[2]u32 = null,
     visible: bool = true,
     enabled: bool = true,
     focusable: bool = false,
@@ -592,7 +711,7 @@ pub const Node = struct {
         self.tooltip = null;
         switch (self.data) {
             .text => |*value| {
-                if (value.layout) |*layout| layout.deinit();
+                value.invalidate();
                 allocator.free(value.content);
             },
             .button => |*value| {
@@ -618,6 +737,7 @@ pub const Node = struct {
                 for (value.spans) |span| {
                     allocator.free(span.text);
                     if (span.link.len > 0) allocator.free(span.link);
+                    if (span.copy) |c| allocator.free(c);
                 }
                 value.deinitEmbeds();
                 allocator.free(value.spans);
@@ -635,6 +755,7 @@ pub const Node = struct {
             .toggle => true,
             .select => true,
             .rich_text => |*data| data.link_action != null and data.hasLinks(),
+            .container => |*data| data.pointer != null,
             else => false,
         };
     }

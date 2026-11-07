@@ -71,6 +71,17 @@ pub const Element = struct {
     memo_build: ?MemoBuild = null,
     /// Enter / exit and layout transitions (`ui.styled(.., .{ .motion = .. })`).
     motion: node_mod.MotionStyle = .{},
+    /// Pointer area handler (`ui.pointerArea`).
+    pointer: ?node_mod.PointerArea = null,
+    /// Key handler of a focused pointer area.
+    key_action: ?actions.KeyAction = null,
+    /// Cursor over a pointer area.
+    cursor: ?platform_mod.Cursor = null,
+    /// Container size changes (`BoxOptions.on_resize`).
+    on_resize: ?actions.Action = null,
+    /// Image already decoded in memory (`ui.image(.{ .image = .. })`).
+    image_handle: ?*anyopaque = null,
+    image_id: u64 = 0,
 };
 
 pub const MemoBuild = struct {
@@ -112,6 +123,18 @@ pub fn currentTheme() tokens.Theme {
 }
 
 threadlocal var frame_now_ms: i64 = 0;
+threadlocal var display_scale: f32 = 1;
+
+/// Pixels per logical px of the window's display (2 on Retina, 1.5 at 150%
+/// on Windows). Use it to pick the resolution of rendered images.
+pub fn displayScale() f32 {
+    return display_scale;
+}
+
+/// Set by the runtime before every build.
+pub fn setDisplayScale(scale: f32) void {
+    display_scale = if (scale > 0) scale else 1;
+}
 threadlocal var pending_wake_ms: ?u32 = null;
 threadlocal var pending_edited: ?bool = null;
 
@@ -159,7 +182,7 @@ pub fn takeDocumentEdited() ?bool {
     return v;
 }
 
-pub const CommandKind = enum { focus, scroll_into_view };
+pub const CommandKind = enum { focus, scroll_into_view, scroll_to_end };
 
 /// Imperative request queued by `focus` / `scrollIntoView`; the runtime
 /// runs it after the next layout.
@@ -197,12 +220,30 @@ pub fn scrollIntoView(node_key: []const u8) void {
     queueCommand(.scroll_into_view, node_key);
 }
 
+/// Scrolls the scroll container with `key` to its end (bottom) after the
+/// next layout, without animation: chat views call it while a reply streams
+/// in to keep the newest text visible.
+pub fn scrollToEnd(node_key: []const u8) void {
+    queueCommand(.scroll_to_end, node_key);
+}
+
 /// Moves the queued commands into `out` (runtime).
 pub fn takeCommands(out: *[max_commands]Command) []Command {
     const n = command_count;
     @memcpy(out[0..n], command_queue[0..n]);
     command_count = 0;
     return out[0..n];
+}
+
+/// Window of the running app, for `postWake` (set by the runtime).
+pub var wake_window: std.atomic.Value(?*platform_mod.Window) = .init(null);
+
+/// Thread-safe: asks the UI thread to rebuild soon. Background work (a
+/// worker thread decoding images, rendering PDF pages, finishing a request)
+/// calls it after publishing its results; the next `render` reads them.
+/// Bursts of calls coalesce into one rebuild.
+pub fn postWake() void {
+    platform_mod.postWake(wake_window.load(.acquire));
 }
 
 /// Requests a rebuild after `ms` milliseconds (call it from `render`; e.g.
@@ -318,6 +359,30 @@ pub fn inputKeyAction(ctx: anytype, comptime func: *const fn (@TypeOf(ctx), even
     const Adapter = struct {
         fn call(raw: *anyopaque, key: events.KeyEvent, value: []const u8, anchor: usize, cursor: usize) bool {
             return func(@ptrCast(@alignCast(raw)), key, value, anchor, cursor);
+        }
+    };
+    return .{ .ctx = @ptrCast(ctx), .func = Adapter.call };
+}
+
+pub const PointerInfo = actions.PointerInfo;
+pub const PointerPhase = actions.PointerPhase;
+pub const Cursor = platform_mod.Cursor;
+
+/// Wraps `fn (ctx, ui.PointerInfo) bool` for `ui.pointerArea`.
+pub fn pointerAction(ctx: anytype, comptime func: *const fn (@TypeOf(ctx), actions.PointerInfo) bool) actions.PointerAction {
+    const Adapter = struct {
+        fn call(raw: *anyopaque, info: actions.PointerInfo) bool {
+            return func(@ptrCast(@alignCast(raw)), info);
+        }
+    };
+    return .{ .ctx = @ptrCast(ctx), .func = Adapter.call };
+}
+
+/// Wraps `fn (ctx, events.KeyEvent) bool` for a focusable pointer area.
+pub fn keyAction(ctx: anytype, comptime func: *const fn (@TypeOf(ctx), events.KeyEvent) bool) actions.KeyAction {
+    const Adapter = struct {
+        fn call(raw: *anyopaque, key: events.KeyEvent) bool {
+            return func(@ptrCast(@alignCast(raw)), key);
         }
     };
     return .{ .ctx = @ptrCast(ctx), .func = Adapter.call };
@@ -476,6 +541,7 @@ fn make(element: Element) Node {
             spans[i] = span;
             spans[i].text = copyString(span.text);
             spans[i].link = copyString(span.link);
+            spans[i].copy = if (span.copy) |c| copyString(c) else null;
         }
         copy.rich_spans = spans;
     } else {
@@ -526,6 +592,8 @@ fn visualFrom(box: BoxOptions) node_mod.Visual {
         .radius = box.radius,
         .clip = box.clip or box.scroll,
         .block_pointer = box.block_pointer,
+        .selectable = box.selectable,
+        .unselectable = box.unselectable,
     };
 }
 
@@ -571,6 +639,17 @@ pub const BoxOptions = struct {
     scroll: bool = false,
     /// Swallow clicks on empty areas (modal backdrops, popover panels).
     block_pointer: bool = false,
+    /// Text inside (text, paragraphs, rich text) can be selected by dragging
+    /// across nodes — double click selects a word, triple click a block —
+    /// and copied with ⌘C / Ctrl+C. Interactive children keep their clicks.
+    selectable: bool = false,
+    /// Leave this subtree out of text selections (gutters, labels).
+    unselectable: bool = false,
+    /// Called after layout whenever this container's size changes (first
+    /// layout included), then the UI is rebuilt in the same frame. Read the
+    /// new size with `ui.keyBounds(key)`; use it for layouts that depend on
+    /// the available space (fit-to-width viewers, responsive columns).
+    on_resize: ?actions.Action = null,
     children: []const Node = &.{},
 };
 
@@ -581,6 +660,7 @@ pub fn column(options: BoxOptions) Node {
         .layout = layoutFrom(options, .column),
         .visual = visualFrom(options),
         .children = options.children,
+        .on_resize = options.on_resize,
     });
 }
 
@@ -591,7 +671,51 @@ pub fn row(options: BoxOptions) Node {
         .layout = layoutFrom(options, .row),
         .visual = visualFrom(options),
         .children = options.children,
+        .on_resize = options.on_resize,
     });
+}
+
+pub const PointerAreaOptions = struct {
+    /// Layout and look of the area (it is a column container).
+    box: BoxOptions = .{},
+    /// Receives down / drag / up (the area captures the pointer while a
+    /// button is held), hover / leave, and scroll when `capture_scroll`.
+    /// Return true when state changed and the UI must be rebuilt.
+    on_pointer: actions.PointerAction,
+    /// Wheel / trackpad scrolling goes to `on_pointer` (`.scroll`) instead
+    /// of enclosing scroll containers (canvases, document viewers).
+    capture_scroll: bool = false,
+    /// Cursor over the area (and while dragging it).
+    cursor: ?platform_mod.Cursor = null,
+    /// Take keyboard focus on click (Tab reaches it too); keys go to `on_key`.
+    focusable: bool = false,
+    on_key: ?actions.KeyAction = null,
+};
+
+/// A container that handles raw pointer input: drawing surfaces, splitters,
+/// drag handles, document viewers. Interactive children (buttons, inputs)
+/// keep their own clicks; everything else inside goes to `on_pointer`.
+///
+///     ui.pointerArea(.{
+///         .box = .{ .key = "split", .width = 6, .height_percent = 100 },
+///         .cursor = .resize_horizontal,
+///         .on_pointer = ui.pointerAction(self, State.dragSplit),
+///     })
+pub fn pointerArea(options: PointerAreaOptions) Node {
+    var element: Element = .{
+        .kind = .container,
+        .key = options.box.key,
+        .layout = layoutFrom(options.box, options.box.flex_direction orelse .column),
+        .visual = visualFrom(options.box),
+        .children = options.box.children,
+        .focusable = options.focusable,
+        .pointer = .{ .action = options.on_pointer, .capture_scroll = options.capture_scroll },
+        .key_action = options.on_key,
+        .cursor = options.cursor,
+        .on_resize = options.box.on_resize,
+    };
+    element.layout.direction = options.box.flex_direction orelse .column;
+    return make(element);
 }
 
 pub const SpaceOptions = struct {
@@ -987,7 +1111,10 @@ pub fn tooltip(options: TooltipOptions) Node {
 
 pub const ImageOptions = struct {
     key: ?[]const u8 = null,
+    /// Image file path (PNG, JPEG, GIF, BMP, ICO).
     src: []const u8 = "",
+    /// In-memory image (`zant.image.Image`); used instead of `src`.
+    image: ?@import("image.zig").Image = null,
     width: ?f32 = null,
     height: ?f32 = null,
     fit: node_mod.ImageFit = .cover,
@@ -999,7 +1126,9 @@ pub fn image(options: ImageOptions) Node {
     return make(.{
         .kind = .image,
         .key = options.key,
-        .content = options.src,
+        .content = if (options.image != null) "" else options.src,
+        .image_handle = if (options.image) |img| img.handle else null,
+        .image_id = if (options.image) |img| img.id else 0,
         .image_fit = options.fit,
         .layout = .{ .width = options.width, .height = options.height, .shrink = 0 },
         .visual = .{ .radius = options.radius, .clip = true },
@@ -1145,6 +1274,9 @@ pub const VectorOptions = struct {
     /// Fixed box width (default: the drawing's width). The drawing is
     /// left-aligned; wrap in a row to center it.
     width: ?f32 = null,
+    /// Text copied when the drawing is part of a text selection (e.g. a
+    /// formula's LaTeX); empty keeps it out of selections.
+    copy: []const u8 = "",
 };
 
 /// A retained vector drawing (math formulas, diagrams). Its size is the
@@ -1155,6 +1287,7 @@ pub fn vector(options: VectorOptions) Node {
     return make(.{
         .kind = .vector,
         .key = options.key,
+        .content = options.copy,
         .drawing = copy,
         .layout = .{ .width = options.width orelse options.drawing.width, .height = options.drawing.height(), .shrink = 0 },
     });

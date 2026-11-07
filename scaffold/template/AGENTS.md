@@ -72,7 +72,8 @@ AGENTS.md / CLAUDE.md        给 AI coding agent 的规范
 - 回调直接接收 `*AppState`，不要做 `*anyopaque` 转换。
 - 新增组件放在 `src/components/`，并在父组件或 `main.zig` 中使用。
 - 先用框架现成的通用组件（`ui.modal`、`ui.dropdownMenu`、`ui.segmented`、`ui.shortcutList`、
-  `ui.iconButton`、`ui.dismissLayer` …）；本应用的 `src/components/` 只放业务组件。
+  `ui.iconButton`、`ui.dismissLayer`、`ui.pointerArea`、`zant.pdf.view`、`markdown.streamdown` …）；
+  本应用的 `src/components/` 只放业务组件。可选择复制的文字用 `BoxOptions.selectable`。
   缺少通用组件时应补进 Zant UI 框架，而不是写在应用里。
 - 保持组件无隐藏全局状态；需要共享时把状态提升到父级或 Store。
 

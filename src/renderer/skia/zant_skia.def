@@ -20,12 +20,24 @@ EXPORTS
     zant_canvas_stroke_round_rect
     zant_canvas_translate
     zant_image_destroy
+    zant_image_from_encoded
+    zant_image_from_pixels
     zant_image_height
     zant_image_load_file
+    zant_image_retain
     zant_image_width
+    zant_pdf_close
+    zant_pdf_count
+    zant_pdf_glyphs
+    zant_pdf_links
+    zant_pdf_open
+    zant_pdf_outline
     zant_pdf_page_count
     zant_pdf_page_text
+    zant_pdf_render
     zant_pdf_render_page
+    zant_pdf_save_annotated
+    zant_pdf_size
     zant_renderer_backend_name
     zant_renderer_begin
     zant_renderer_capture_next_png

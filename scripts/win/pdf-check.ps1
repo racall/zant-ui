@@ -1,6 +1,8 @@
-﻿# ui.pdfPreview on Windows (PDFium): for every PDF in a folder, probe the page
-# count and text extraction (first and middle page), then render the first
-# and middle page in the zant-pdf example and snapshot them. Run in the
+﻿# zant.pdf.view on Windows (PDFium): for every PDF in a folder, probe the
+# page count, text, links and outline, then open the first and middle page
+# in the zant-pdf example and snapshot them; finally drive one viewer with
+# the mouse and keyboard (drag selection + Ctrl+C, double click, zoom,
+# search, page buttons). Run in the
 # logged-in desktop session:
 #   powershell -File scripts/win/run-desktop.ps1 -Exe powershell.exe `
 #     -Arguments "-NoProfile -ExecutionPolicy Bypass -File <repo>\scripts\win\pdf-check.ps1 -Folder <pdf folder>" -Wait 1200
@@ -37,8 +39,8 @@ $i = 0
 foreach ($file in (Get-ChildItem $Folder -Filter *.pdf | Where-Object { $_.Name -notlike "._*" } | Sort-Object Name)) {
     $i++
     $probe = Run $file.FullName @{ ZANT_PDF_PROBE = "1" } 60000
-    $pages = 0; $t0 = 0; $tm = 0
-    if ($probe.Text -match "pages=(\d+) text0=(\d+) text_mid=(\d+)") { $pages = [int]$Matches[1]; $t0 = [int]$Matches[2]; $tm = [int]$Matches[3] }
+    $pages = 0; $t0 = 0; $links = 0
+    if ($probe.Text -match "pages=(\d+) .*text0=(\d+) links=(\d+)") { $pages = [int]$Matches[1]; $t0 = [int]$Matches[2]; $links = [int]$Matches[3] }
     $problems = @()
     if (!$probe.Done) { $problems += "probe timeout" }
     elseif ($probe.Code -ne 0) { $problems += "probe exit $($probe.Code)" }
@@ -54,34 +56,60 @@ foreach ($file in (Get-ChildItem $Folder -Filter *.pdf | Where-Object { $_.Name 
         if ($r.Text -match "panic|error\(|leaked") { $problems += "$($view.Name): " + (($r.Text -split "`n" | Where-Object { $_ -match "panic|error\(|leaked" } | Select-Object -First 1).Trim()) }
     }
     $status = if ($problems.Count -eq 0) { "PASS" } else { "FAIL" }
-    Add-Content -Encoding UTF8 $report ("{0} {1:D2} pages={2} text_p1={3} text_mid={4} {5} {6}" -f $status, $i, $pages, $t0, $tm, $file.Name, ($problems -join "; "))
+    Add-Content -Encoding UTF8 $report ("{0} {1:D2} pages={2} text_p1={3} links={4} {5} {6}" -f $status, $i, $pages, $t0, $links, $file.Name, ($problems -join "; "))
 }
-# interactive: "复制文本" puts the page text on the clipboard, "›" turns the page
+# interactive: drag selection + Ctrl+C, double click, zoom, search, pages
 . (Join-Path $PSScriptRoot "ui-auto.ps1")
 $script:ResultFile = $report
-# the first PDF with a text layer of a few pages
+# report script errors and keep going (one broken step must not hide the rest)
+trap { Add-Content -Encoding UTF8 $report ("ERROR $_ at $($_.InvocationInfo.ScriptLineNumber): $($_.InvocationInfo.Line.Trim())"); continue }
+# the first PDF with a text layer on page 1 and a few pages
 $sample = Get-ChildItem $Folder -Filter *.pdf | Where-Object { $_.Name -notlike "._*" } | Sort-Object Length | Where-Object {
-    (Run $_.FullName @{ ZANT_PDF_PROBE = "1" } 60000).Text -match "pages=([3-9]|\d\d+) text0=[1-9]"
+    (Run $_.FullName @{ ZANT_PDF_PROBE = "1" } 60000).Text -match "pages=([3-9]|\d\d+) .*text0=[1-9]\d\d"
 } | Select-Object -First 1
 if ($sample) {
     Set-Clipboard -Value "before"
     $viewer = Start-ZantApp $App $Out -Arguments "`"$($sample.FullName)`""
-    Click-Key $viewer "pdf-copy" | Out-Null
-    Start-Sleep -Milliseconds 300
-    $clip = Get-Clipboard -Raw
-    Write-Result ($clip -ne $null -and $clip -ne "before" -and $clip.Length -gt 20 -and $clip.Contains("`r`n")) "interactive: 复制文本 copies page 1 of $($sample.Name) (CRLF on the clipboard)"
+    $page = Find-Key $viewer "pdf-p0"
+    Write-Result ($page -ne $null) "interactive: page 1 laid out ($($sample.Name))"
+    if ($page) {
+        # drag across the upper body of page 1, then copy
+        Drag-From-To $viewer ($page.X + $page.W * 0.12) ($page.Y + $page.H * 0.2) ($page.X + $page.W * 0.88) ($page.Y + $page.H * 0.4)
+        Shot $viewer "interactive-selection"
+        Send-Keys "^c"
+        $clip = Get-Clipboard -Raw
+        Write-Result ($clip -ne $null -and $clip -ne "before" -and $clip.Length -gt 10) "interactive: drag + Ctrl+C copies the selection ($(if ($clip) { $clip.Length } else { 0 }) chars)"
+        Set-Clipboard -Value "before"
+        Double-Click-At $viewer ($page.X + $page.W * 0.5) ($page.Y + $page.H * 0.3)
+        Send-Keys "^c"
+        $word = Get-Clipboard -Raw
+        Write-Result ($word -ne $null -and $word -ne "before" -and $word.Length -lt 40) "interactive: double click selects a word ('$word')"
+        Send-Keys "{ESC}"
+    }
+    $before = Find-Key $viewer "pdf-p0"
+    Click-Key $viewer "pdf-zin" | Out-Null
+    Click-Key $viewer "pdf-zin" | Out-Null
+    $after = Find-Key $viewer "pdf-p0"
+    Write-Result ($before -and $after -and $after.W -gt $before.W * 1.1) "interactive: zoom in enlarges the page"
+    Shot $viewer "interactive-zoom"
+    Click-Key $viewer "pdf-zoom" | Out-Null
+    $vp = Find-Key $viewer "pdf-vp"
+    if ($vp) {
+        Wheel-At $viewer ($vp.X + $vp.W / 2) ($vp.Y + $vp.H / 2) -3
+        Shot $viewer "interactive-scrolled"
+    }
+    Click-Key $viewer "pdf-search" | Out-Null
+    Send-Keys "the"
+    Start-Sleep -Milliseconds 800
+    Shot $viewer "interactive-search"
+    Send-Keys "{ENTER}"
+    Shot $viewer "interactive-search-next"
     Click-Key $viewer "pdf-next" | Out-Null
     Click-Key $viewer "pdf-next" | Out-Null
     Shot $viewer "interactive-page3"
-    Click-Key $viewer "pdf-copy" | Out-Null
-    Start-Sleep -Milliseconds 300
-    $clip3 = Get-Clipboard -Raw
-    Write-Result ($clip3 -ne $null -and $clip3 -ne $clip -and $clip3.Length -gt 100) "interactive: › twice, then 复制文本 copies page 3"
-    Click-Key $viewer "pdf-last" | Out-Null
-    Shot $viewer "interactive-last"
-    Click-Key $viewer "pdf-first" | Out-Null
-    Shot $viewer "interactive-first"
-    Write-Result (!$viewer.Process.HasExited) "interactive: navigation buttons keep the viewer running"
+    Write-Result (!$viewer.Process.HasExited) "interactive: the viewer keeps running"
+    $errors = Get-Content -ErrorAction SilentlyContinue $viewer.Stderr | Where-Object { $_ -match "panic|error\(|leaked" }
+    Write-Result ($errors.Count -eq 0) "interactive: no panics or leaks in stderr"
     Stop-ZantApp $viewer
 }
 Add-Content -Encoding UTF8 $report "done"

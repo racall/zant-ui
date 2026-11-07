@@ -119,6 +119,29 @@ Write-Result ((Find-Key $app "message") -ne $null) "message toast is on screen"
 Start-Sleep -Milliseconds 3200
 Write-Result ((Find-Key $app "message") -eq $null) "message toast goes away after 3 s"
 
+# pointer area: drag the knob, double click resets it (scroll the page
+# down first: the section is below the fold)
+Wheel-At $app 500 400 -10
+Start-Sleep -Milliseconds 300
+$track = Find-Key $app "track"
+if ($track) {
+    Drag-From-To $app ($track.X + 20) ($track.Y + $track.H / 2) ($track.X + $track.W - 10) ($track.Y + $track.H / 2)
+    Assert-Event $app "pointer up" "pointer area drag"
+    Double-Click-At $app ($track.X + $track.W / 2) ($track.Y + $track.H / 2)
+    Assert-Event $app "pointer double" "pointer area double click"
+} else { Write-Result $false "find 'track'" }
+# selectable text: drag across both paragraphs, Ctrl+C
+$sel = Find-Key $app "select-text"
+if ($sel) {
+    Set-Clipboard -Value "before"
+    Drag-From-To $app ($sel.X + 2) ($sel.Y + 8) ($sel.X + $sel.W - 4) ($sel.Y + $sel.H - 4)
+    Send-Keys "^c"
+    $clip = Get-Clipboard -Raw
+    Write-Result ($clip -ne $null -and $clip.Contains("selectable") -and $clip.Contains("双击")) "selectable text: drag + Ctrl+C copies both paragraphs"
+    Shot $app "09b-selection"
+} else { Write-Result $false "find 'select-text'" }
+Wheel-At $app 500 400 10
+
 # dark theme
 Click-Key $app "dark-btn" | Out-Null
 Assert-Event $app "dark true" "dark theme"

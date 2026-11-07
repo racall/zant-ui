@@ -9,6 +9,7 @@
 #include "src/renderer/skia/skia_bridge.h"
 
 #include <math.h>
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -440,9 +441,29 @@ static void zant_request_view_redraw(ZantView *view) {
     z.type = ZANT_EVENT_SCROLL;
     z.x = (float)p.x;
     z.y = (float)p.y;
-    z.scroll_x = (float)event.scrollingDeltaX;
-    z.scroll_y = (float)event.scrollingDeltaY;
+    /* mouse wheels report lines; trackpads and Magic Mouse report points */
+    const float line = event.hasPreciseScrollingDeltas ? 1.0f : 16.0f;
+    z.scroll_x = (float)event.scrollingDeltaX * line;
+    z.scroll_y = (float)event.scrollingDeltaY * line;
     z.modifiers = zant_event_modifiers(event.modifierFlags);
+    z.width = (int)lround(NSWidth(self.bounds));
+    z.height = (int)lround(NSHeight(self.bounds));
+    z.dpr = (float)self.window.backingScaleFactor;
+    if (self.macWindow->host.event(self.macWindow->host.userdata, &z)) zant_request_view_redraw(self);
+}
+
+/* Trackpad pinch: delivered like browsers do, as a Control + wheel scroll
+   (scroll_y = 250 × magnification), so zoomable views handle both alike. */
+- (void)magnifyWithEvent:(NSEvent *)event {
+    if (!self.macWindow || !self.macWindow->host.event) return;
+    ZantEvent z;
+    memset(&z, 0, sizeof(z));
+    NSPoint p = [self zant_mouse_point:event];
+    z.type = ZANT_EVENT_SCROLL;
+    z.x = (float)p.x;
+    z.y = (float)p.y;
+    z.scroll_y = (float)event.magnification * 250.0f;
+    z.modifiers = zant_event_modifiers(event.modifierFlags) | ZANT_MOD_CONTROL;
     z.width = (int)lround(NSWidth(self.bounds));
     z.height = (int)lround(NSHeight(self.bounds));
     z.dpr = (float)self.window.backingScaleFactor;
@@ -891,6 +912,20 @@ void zant_window_request_redraw(ZantWindow *window, int delay_ms) {
     zant_schedule_redraw(window, delay_ms);
 }
 
+static atomic_bool g_wake_pending = false;
+
+void zant_window_post_wake(ZantWindow *window) {
+    if (!window) return;
+    /* coalesce: one main-queue block per burst of wakes */
+    if (atomic_exchange(&g_wake_pending, true)) return;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        atomic_store(&g_wake_pending, false);
+        if (window->closing) return;
+        if (window->host.wake) window->host.wake(window->host.userdata);
+        zant_schedule_redraw(window, 0);
+    });
+}
+
 void zant_window_set_document_edited(ZantWindow *window, int edited) {
     if (!window || !window->window) return;
     window->window.documentEdited = edited ? YES : NO;
@@ -918,6 +953,24 @@ void zant_window_set_cursor(ZantWindow *window, int cursor) {
             break;
         case ZANT_CURSOR_IBEAM:
             [[NSCursor IBeamCursor] set];
+            break;
+        case ZANT_CURSOR_CROSSHAIR:
+            [[NSCursor crosshairCursor] set];
+            break;
+        case ZANT_CURSOR_RESIZE_HORIZONTAL:
+            [[NSCursor resizeLeftRightCursor] set];
+            break;
+        case ZANT_CURSOR_RESIZE_VERTICAL:
+            [[NSCursor resizeUpDownCursor] set];
+            break;
+        case ZANT_CURSOR_GRAB:
+            [[NSCursor openHandCursor] set];
+            break;
+        case ZANT_CURSOR_GRABBING:
+            [[NSCursor closedHandCursor] set];
+            break;
+        case ZANT_CURSOR_NOT_ALLOWED:
+            [[NSCursor operationNotAllowedCursor] set];
             break;
         default:
             [[NSCursor arrowCursor] set];

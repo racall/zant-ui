@@ -79,6 +79,38 @@ function Click-At($app, [double]$lx, [double]$ly) {
 }
 
 # click the centre of a keyed node (or a point inside it, fx/fy in 0..1)
+# press at (x0, y0), move in steps to (x1, y1), release (drag selection)
+function Drag-From-To($app, [double]$x0, [double]$y0, [double]$x1, [double]$y1, [int]$steps = 12) {
+    Move-To $app $x0 $y0
+    Start-Sleep -Milliseconds 150
+    [ZantAuto]::mouse_event(0x2, 0, 0, 0, [IntPtr]::Zero); Start-Sleep -Milliseconds 60
+    for ($i = 1; $i -le $steps; $i++) {
+        Move-To $app ($x0 + ($x1 - $x0) * $i / $steps) ($y0 + ($y1 - $y0) * $i / $steps)
+        Start-Sleep -Milliseconds 25
+    }
+    [ZantAuto]::mouse_event(0x4, 0, 0, 0, [IntPtr]::Zero); Start-Sleep -Milliseconds 300
+}
+
+function Double-Click-At($app, [double]$lx, [double]$ly) {
+    Move-To $app $lx $ly
+    Start-Sleep -Milliseconds 150
+    for ($i = 0; $i -lt 2; $i++) {
+        [ZantAuto]::mouse_event(0x2, 0, 0, 0, [IntPtr]::Zero); Start-Sleep -Milliseconds 30
+        [ZantAuto]::mouse_event(0x4, 0, 0, 0, [IntPtr]::Zero); Start-Sleep -Milliseconds 60
+    }
+    Start-Sleep -Milliseconds 300
+}
+
+# mouse wheel notches at the pointer (positive = away from the user)
+function Wheel-At($app, [double]$lx, [double]$ly, [int]$notches) {
+    Move-To $app $lx $ly
+    Start-Sleep -Milliseconds 100
+    # mouse_event takes the signed wheel delta in a DWORD
+    $delta = [BitConverter]::ToUInt32([BitConverter]::GetBytes([int32]($notches * 120)), 0)
+    [ZantAuto]::mouse_event(0x800, 0, 0, $delta, [IntPtr]::Zero)
+    Start-Sleep -Milliseconds 300
+}
+
 function Click-Key($app, [string]$key, [double]$fx = 0.5, [double]$fy = 0.5) {
     $b = Find-Key $app $key
     if (!$b) { Write-Result $false "find '$key'"; return $false }

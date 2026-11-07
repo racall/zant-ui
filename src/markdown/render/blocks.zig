@@ -12,6 +12,8 @@ const spans = @import("spans.zig");
 const code_block = @import("code_block.zig");
 const table = @import("table.zig");
 const diagram = @import("diagram.zig");
+const data_images = @import("data_images.zig");
+const image_mod = @import("../../image.zig");
 
 /// True when the block ends with inline text the caret can follow.
 fn takesCaret(block: ast.Block) bool {
@@ -44,7 +46,7 @@ pub fn render(ctx: Ctx, block: ast.Block) anyerror!ui.Node {
     return switch (block) {
         .heading => |h| heading(ctx, h),
         .paragraph => |p| spans.body(ctx, p, ctx.caret),
-        .code => |code| if (std.ascii.eqlIgnoreCase(code.lang, "mermaid")) diagram.render(ctx, code, ctx.caret) else code_block.render(ctx, code, ctx.caret),
+        .code => |code| customBlock(ctx, code) orelse if (std.ascii.eqlIgnoreCase(code.lang, "mermaid")) diagram.render(ctx, code, ctx.caret) else code_block.render(ctx, code, ctx.caret),
         .quote => |q| quote(ctx, q),
         .callout => |c| callout(ctx, c),
         .list => |l| list(ctx, l, 0),
@@ -54,6 +56,31 @@ pub fn render(ctx: Ctx, block: ast.Block) anyerror!ui.Node {
         .html => |raw| html(ctx, raw),
         .rule => ui.divider(.{ .key = ctx.key, .color = theme.border, .margin = .{ .top = ctx.size * 0.5, .bottom = ctx.size * 0.5 } }),
     };
+}
+
+/// A fenced block handed to an app renderer (`Options.block_renderers`).
+fn customBlock(ctx: Ctx, code: ast.Code) ?ui.Node {
+    for (ctx.options.block_renderers) |r| {
+        if (!std.ascii.eqlIgnoreCase(r.lang, code.lang)) continue;
+        const node = r.func(r.ctx, .{
+            .lang = code.lang,
+            .meta = code.meta,
+            .code = code.text,
+            .complete = code.closed,
+            .key = ctx.key,
+            .arena = ctx.arena,
+        }) orelse return null;
+        return ui.column(.{ .key = ctx.key, .width_percent = 100, .align_items = .stretch, .children = &.{node} });
+    }
+    return null;
+}
+
+/// Decoded image for a URL: `data:` URIs, or the app's loader for remote
+/// and custom URLs.
+pub fn loadImage(ctx: Ctx, url: []const u8) ?image_mod.Image {
+    if (std.mem.startsWith(u8, url, "data:")) return data_images.get(url);
+    const loader = ctx.options.image_loader orelse return null;
+    return loader.get(url);
 }
 
 fn heading(ctx: Ctx, h: ast.Heading) !ui.Node {
@@ -162,7 +189,8 @@ fn list(ctx: Ctx, l: ast.List, depth: usize) anyerror!ui.Node {
             // same line box as the item text, so the marker stays centred on it
             .line_height = if (square) theme.line_height * 2 else theme.line_height,
         });
-        const marker = ui.row(.{ .justify = if (l.ordered) .end else .start, .children = &.{marker_label} });
+        // markers are not copied (like list markers in a browser)
+        const marker = ui.row(.{ .justify = if (l.ordered) .end else .start, .unselectable = true, .children = &.{marker_label} });
         // nested lists render one level deeper
         var children: std.ArrayListUnmanaged(ui.Node) = .empty;
         for (item.blocks, 0..) |block, b| {
@@ -214,7 +242,7 @@ fn mathBlock(ctx: Ctx, m: ast.Math) !ui.Node {
         .max_width = ctx.options.content_width,
     });
     var children: std.ArrayListUnmanaged(ui.Node) = .empty;
-    try children.append(ctx.arena, ui.vector(.{ .drawing = drawing }));
+    try children.append(ctx.arena, ui.vector(.{ .drawing = drawing, .copy = try std.mem.concat(ctx.arena, u8, &.{ "$$\n", m.source, "\n$$" }) }));
     if (ctx.caret) try children.append(ctx.arena, ui.text(ctx.options.caret.glyph(), .{ .size = ctx.size * 0.9, .color = theme.caret }));
     return ui.row(.{
         .key = ctx.key,
@@ -237,10 +265,15 @@ fn image(ctx: Ctx, img: ast.Image) !ui.Node {
     const theme = &ctx.options.theme;
     const placeholder = std.mem.eql(u8, img.url, remend.incomplete_image);
     const has_scheme = std.mem.indexOf(u8, img.url, "://") != null or std.mem.startsWith(u8, img.url, "data:");
-    if (!placeholder and !has_scheme and safety.check(ctx.options.policy, .image, img.url)) {
-        const path = try resolveImagePath(ctx, img.url);
+    const allowed = !placeholder and safety.check(ctx.options.policy, .image, img.url);
+    const loaded: ?image_mod.Image = if (allowed and has_scheme) loadImage(ctx, img.url) else null;
+    if (allowed and (!has_scheme or loaded != null)) {
         var children: std.ArrayListUnmanaged(ui.Node) = .empty;
-        try children.append(ctx.arena, ui.styled(ui.image(.{ .key = ctx.subKey("img", .{}), .src = path, .fit = .contain, .radius = 8 }), .{ .max_width = ctx.options.content_width }));
+        const node = if (loaded) |decoded|
+            ui.image(.{ .key = ctx.subKey("img", .{}), .image = decoded, .fit = .contain, .radius = 8 })
+        else
+            ui.image(.{ .key = ctx.subKey("img", .{}), .src = try resolveImagePath(ctx, img.url), .fit = .contain, .radius = 8 });
+        try children.append(ctx.arena, ui.styled(node, .{ .max_width = ctx.options.content_width }));
         if (img.alt.len > 0) try children.append(ctx.arena, ui.text(img.alt, .{ .size = ctx.size * 0.8, .color = theme.muted_foreground }));
         return ui.column(.{ .key = ctx.key, .width_percent = 100, .gap = 6, .align_items = .center, .children = children.items });
     }

@@ -29,6 +29,9 @@ const State = struct {
     quiet: bool = false,
     autoplay_step: usize = 0,
     autoplay_at_ms: i64 = 0,
+    /// Pointer area demo: knob position (0..1) and the drag start.
+    knob: f32 = 0.3,
+    knob_drag: ?[2]f32 = null,
 
     /// One state change every 700 ms, so each enter / exit animation runs
     /// to the end before the next one starts.
@@ -60,6 +63,33 @@ const State = struct {
         const text = std.fmt.bufPrint(&self.last_event, fmt, args) catch return;
         self.last_len = text.len;
         if (!self.quiet) std.debug.print("[event] " ++ fmt ++ "\n", args);
+    }
+
+    /// ui.pointerArea: drag the knob along the track; double click resets it.
+    fn onTrack(self: *State, info: ui.PointerInfo) bool {
+        switch (info.phase) {
+            .down => {
+                if (info.click_count == 2) {
+                    self.knob = 0.5;
+                    self.event("pointer double", .{});
+                    return true;
+                }
+                self.knob = std.math.clamp(info.x / @max(1, info.width), 0, 1);
+                self.knob_drag = .{ info.window_x, self.knob };
+                self.event("pointer down", .{});
+            },
+            .drag => {
+                const start = self.knob_drag orelse return false;
+                self.knob = std.math.clamp(start[1] + (info.window_x - start[0]) / @max(1, info.width), 0, 1);
+            },
+            .up => {
+                if (self.knob_drag == null) return false;
+                self.knob_drag = null;
+                self.event("pointer up", .{});
+            },
+            else => return false,
+        }
+        return true;
     }
 
     fn clickPrimary(self: *State) void {
@@ -276,6 +306,25 @@ fn render(s: *State) ui.Node {
         } }),
     });
 
+    const track_w: f32 = 240;
+    const interaction = section("交互 PointerArea / 可选择文字", &.{
+        ui.row(.{ .gap = 12, .align_items = .center, .children = &.{
+            ui.pointerArea(.{
+                .box = .{ .key = "track", .width = track_w, .height = 28, .justify = .center, .children = &.{
+                    ui.styled(ui.column(.{}), .{ .height = 4, .width_percent = 100, .radius = 2, .background = theme.color_fill_secondary }),
+                    ui.styled(ui.column(.{}), .{ .absolute = true, .left = s.knob * (track_w - 16), .top = 6, .width = 16, .height = 16, .radius = 8, .background = theme.color_primary, .shadow_color = 0x33000000, .shadow_blur = 4 }),
+                } },
+                .cursor = if (s.knob_drag != null) .grabbing else .grab,
+                .on_pointer = ui.pointerAction(s, State.onTrack),
+            }),
+            ui.textFmt("{d}%", .{@as(u32, @intFromFloat(@round(s.knob * 100)))}, .{ .size = 12, .color = theme.color_text_secondary }),
+        } }),
+        ui.column(.{ .key = "select-text", .selectable = true, .gap = 4, .align_items = .stretch, .children = &.{
+            ui.paragraph("这段文字可以拖动选择：双击选词，三击选整段，⌘C / Ctrl+C 复制。", .{}),
+            ui.paragraph("Text in a selectable container can be dragged across nodes.", .{ .size = 13 }),
+        } }),
+    });
+
     var children: std.ArrayListUnmanaged(ui.Node) = .empty;
     children.append(arena, ui.column(.{
         .key = "page",
@@ -291,7 +340,7 @@ fn render(s: *State) ui.Node {
             } }),
             ui.row(.{ .gap = 16, .align_items = .start, .children = &.{
                 ui.column(.{ .grow = 1, .basis = 0, .gap = 16, .align_items = .stretch, .children = &.{ buttons, form, nav } }),
-                ui.column(.{ .grow = 1, .basis = 0, .gap = 16, .align_items = .stretch, .children = &.{ display, feedback } }),
+                ui.column(.{ .grow = 1, .basis = 0, .gap = 16, .align_items = .stretch, .children = &.{ display, feedback, interaction } }),
             } }),
         },
     })) catch {};

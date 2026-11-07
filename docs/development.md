@@ -50,8 +50,25 @@ Windows 上写 stderr 很贵（每行约 10 ms），不要在每帧都会执行�
 
 ## 测试
 
-`zig build test`（129 项，macOS 与 Windows 都要通过）覆盖 Flex 布局、组件、声明式 UI 与协调、
-节点生命周期、动效（假时钟）、文本、Store / SQLite、PDF、Markdown（含 remend 522 条上游用例）与数学排版。
+`zig build test`（143 项，macOS 与 Windows 都要通过）覆盖 Flex 布局、组件、声明式 UI 与协调、
+节点生命周期、动效（假时钟）、文本、Store / SQLite、指针区域、文字选择、PDF 阅读器（选择 / 搜索 /
+批注 / 导出）、Markdown（含 remend 522 条上游用例）与数学排版（含 mhchem 823 条用例全部可排版）。
+
+## 流式 Markdown 基准
+
+`zant-md-stream`（`examples/markdown_stream.zig`）模拟聊天：若干历史消息 + 一条流式回复，
+工作线程追加文本后 `ui.postWake()`。用 ReleaseFast 构建测：
+
+```bash
+zig build -Doptimize=ReleaseFast --prefix zig-out-release
+ZANT_FRAME_STATS=1 ZANT_STREAM_EXIT=1 ./zig-out-release/bin/zant-md-stream            # 内置回复
+ZANT_STREAM_HISTORY=30 ZANT_STREAM_CHARS=12 ZANT_STREAM_MS=8 ./zig-out-release/bin/zant-md-stream long.md
+curl -N … | ./zig-out-release/bin/zant-md-stream --sse                                  # 真实 SSE（text_delta）
+./zig-out-release/bin/zant-md-stream --sse-replay recorded.sse                          # 回放录制的 SSE
+```
+
+参考（Apple Silicon / i7-13700KF，4K 150%）：真实对话接口回放最慢一帧约 7 ms；30 条长历史 +
+29 KB 回复以约 1200 字节/秒输出时稳定 60 帧。首次打开超长对话会一次性排版全部历史（尚无虚拟列表）。
 测试不依赖真实窗口；时间相关测试注入假时钟（`runtime.clock`），不要 sleep。
 
 ## Windows 测试机
@@ -76,7 +93,7 @@ SSH 会话里的窗口不可见、也拿不到真实缩放，所以视觉检查�
 | `scripts/win/smoke-stillmd.ps1 -App <still. app.exe>` | 驱动 still.：输入、保存（CRLF）、剪贴板、对话框、拼音输入法、标题栏、拖动、关闭确认 |
 | `scripts/win/docs-check.ps1 -App <still. app.exe>` | 用 still. 打开 `docs/` 下每个 md（预览 / 编辑）并截图 |
 | `scripts/win/resize-check.ps1` | 真实鼠标 120 Hz 拖动窗口右下角缩放（含缩到最小），统计缩放帧率与延迟；先跑 `ZANT_AUTOPLAY` 测动画帧率；检查布局与最小尺寸 |
-| `scripts/win/pdf-check.ps1 -Folder <目录>` | 对目录里的 PDF 检查页数、文字提取、首页 / 中间页渲染，并点击复制与翻页 |
+| `scripts/win/pdf-check.ps1 -Folder <目录>` | 对目录里的 PDF 检查页数、文字、链接与目录、首页 / 中间页截图；真实鼠标拖选 + Ctrl+C、双击选词、缩放、滚轮、搜索、翻页 |
 
 用 `run-desktop.ps1 -Exe powershell.exe -Arguments "-NoProfile -ExecutionPolicy Bypass -File <脚本>"`
 在桌面会话运行；结果与截图在 `%TEMP%\zant-checks\` 下。含中文的 `.ps1` 要保存为带 BOM 的

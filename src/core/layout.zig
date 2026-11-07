@@ -107,17 +107,13 @@ pub fn intrinsicWidth(nodes: []*Node, node: *Node, max_avail: f32, theme: Theme)
             }
             break :blk (if (direction == .row) total else widest) + node.style.padding.horizontal();
         },
-        .text => |*data| blk: {
-            const max_width = if (data.style.wrap) avail else 1.0e6;
-            const layout = data.ensureLayout(max_width) catch break :blk 0;
-            break :blk layout.metrics.longest_line;
-        },
+        .text => |*data| data.measureWidth(if (data.style.wrap) avail else 1.0e6),
         .button => button.measureWidth(node, theme, avail),
         .input => input.measureWidth(node),
         .toggle => toggle.measureWidth(node, theme, avail),
         .image => image_mod.measureWidth(node),
         .select => select_mod.measureWidth(node),
-        .rich_text => |*data| if (data.ensureLayout(1.0e6)) |layout| layout.width else |_| 0,
+        .rich_text => |*data| data.naturalWidth(),
         .vector => |*data| data.drawing.width,
     };
     return clampDim(node, value, true);
@@ -600,8 +596,12 @@ fn layoutColumn(
         };
         child_width = clampDim(child, child_width, true);
         widths[i] = child_width;
-        const base_height = child.style.basis orelse
-            (if (child.style.height_percent) |percent| @max(0, inner_height orelse 0) * percent / 100.0 else child.style.height) orelse
+        // flex bases only matter with a definite height (grow / shrink);
+        // otherwise heights come from laying the children out below, and
+        // measuring here would lay out the whole subtree a second time at
+        // estimated widths (re-shaping every paragraph of a long chat)
+        const base_height: f32 = if (inner_height == null) 0 else child.style.basis orelse
+            (if (child.style.height_percent) |percent| @max(0, inner_height.?) * percent / 100.0 else child.style.height) orelse
             intrinsicHeight(nodes, child, child_width, theme);
         items[i] = .{
             .base = base_height,

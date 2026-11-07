@@ -56,6 +56,27 @@ zant.markdown.editor(.{
   `markdown.linkSafetyModal`；为 null 时直接用系统浏览器打开。
 - `policy`：URL 白名单（`allowed_link_prefixes` 等），`javascript:` 等危险协议总是拦截。
 - `labels`：界面文案，`Labels.zh` 为中文。
+- `selectable`（默认开）：可拖动选择文字（跨段落、列表、表格、代码块），双击选词、三击选整段，
+  ⌘C / Ctrl+C 复制，⌘A / Ctrl+A 全选；行内公式复制为 `$…$`，块级公式为 `$$…$$`，
+  列表符号、代码行号、代码块标题栏和按钮不进入复制内容。
+- `image_loader`：远程图片（`http(s)://…` 或应用自定义的 URL）。应用返回已解码的
+  `zant.image.Image`，尚未就绪时返回 null（显示占位卡片），在后台线程下载解码后调用
+  `ui.postWake()`，下一帧该图片所在的块自动重建。`data:image/…;base64` 图片总是直接解码显示。
+- `block_renderers`：按代码围栏语言渲染自定义界面（类似 Streamdown 的自定义 components），
+  例如 ` ```chart {"id":3} ` 渲染成应用自己的图表 / 卡片。回调收到 `lang`、`meta`、`code`、
+  `complete`（流式中为 false）、`key` 和 `arena`；返回 null 则按普通代码块显示。块是记忆化的，
+  回调上下文要用 `info.arena` 或比帧活得久的内存，不要用 `ui.frameAllocator()`。
+
+```zig
+const renderers = [_]md.BlockRenderer{.{ .lang = "chart", .ctx = state, .func = State.chartBlock }};
+md.streamdown(&cache, source, .{
+    .parse = .{ .latex_delimiters = true },
+    .render = .{
+        .block_renderers = &renderers,
+        .image_loader = .{ .ctx = state, .func = State.loadImage },
+    },
+});
+```
 
 ## 数学语法（与 Streamdown/remark-math 一致）
 
@@ -63,7 +84,9 @@ zant.markdown.editor(.{
   pandoc 规则以避免把金额当公式：开头 `$` 后不能是空白；结束 `$` 前不能是空白、后面不能紧跟数字；
   只尝试第一个候选结束符（`$20 and $10` 是普通文本，`$x$`、`$U=[u_1\ \cdots\ u_m]$` 是公式）。
 - 块级：独立成行的 `$$` 围栏；单行 `$$x$$` 属于段落中的行内公式。
-- 不支持 `\[ \]` / `\( \)`（与 Streamdown 相同）。
+- `\( \)` / `\[ \]`：Streamdown 默认不支持（`\[` 在 Markdown 里是转义的方括号）；
+  语言模型常用这种写法，可用 `ParseOptions.latex_delimiters = true` 开启（行内 `\(…\)`，
+  独立成行的 `\[ … \]` 为块级公式，可跨多行）。
 - 解析失败时与 KaTeX `throwOnError:false` 一样，以 `error_color` 显示源码；
   未知命令单独标色。
 
@@ -74,14 +97,31 @@ Bmatrix vmatrix Vmatrix smallmatrix cases dcases rcases aligned align gathered s
 `\hline` 与列竖线、重音（`\hat \bar \vec \dot \ddot \tilde \widehat \widetilde …`）、
 `\overline \underline \overbrace \underbrace \overrightarrow …`、字体（`\mathbb \mathcal \mathfrak
 \mathbf \boldsymbol \mathrm \mathit \mathsf \mathtt`）、`\text…`、颜色、间距、`\boxed \cancel \not`、
-`\overset \underset \stackrel`、`\phantom`、`\tag`、`\displaystyle` 等。
+`\overset \underset \stackrel`、`\phantom`、`\tag`、`\displaystyle` 等；
+带文字的箭头（`\xrightarrow[下]{上} \xleftarrow \xRightarrow \xleftrightarrow \xrightleftharpoons
+\xhookrightarrow \xmapsto \xlongequal …`，按 KaTeX 的最小宽度与留白）、`\substack`、
+`\displaylines`、`\colorbox \fcolorbox`、`\tiny … \Huge`、`\smash`、`\mathrlap \mathllap \mathclap`、
+`\mathchoice`、`\rule`、`\raisebox`、`\genfrac`、`\href`（显示内容）、`\unicode \char`、`\Set`。
+
+化学式与单位：`\ce{…}`、`\pu{…}`（`src/math/mhchem.zig`，KaTeX contrib/mhchem 的移植，
+823 条用例与原版逐字节一致，全部可排版）。例：`\ce{N2 + 3H2 <=>[催化剂][高温高压] 2NH3}`、
+`\ce{SO4^2- + Ba^2+ -> BaSO4 v}`、`\ce{^{227}_{90}Th}`、`\pu{123 kJ mol-1}`。
+
+## 流式渲染与性能
+
+流式回复（SSE 逐段追加）每次更新只重新解析变化的块；变化区间里的块按位置继承旧块的身份
+（UI key，同 Streamdown 按下标的 key），正在生长的段落 / 代码块 / 表格复用已有节点，未变化的
+行和单元格保留排好的文字。聊天视图跟随最新内容用 `ui.scrollToEnd("chat")`（滚动容器的 key）。
+基准与参考数据见 `docs/development.md`「流式 Markdown 基准」（`zig build run-md-stream`）。
 
 ## 框架能力（为本组件新增）
 
 - `ui.memo(.{ .key, .hash }, ctx, build)`：hash 不变时整棵子树跳过构建与协调。
 - `ui.vector(.{ .drawing })`：保留式矢量绘制（字形、矩形、线、路径），公式和图表使用。
 - `RichSpan.embed`：富文本内嵌绘制（行内公式与正文基线对齐）；`RichSpan.link` + `richText.on_link`。
-- `ui.column(.{ .scroll = true })`：纵向滚动容器。
+- `ui.column(.{ .scroll = true })`：纵向滚动容器；`ui.scrollToEnd(key)` 滚到末尾（聊天跟随）。
+- `BoxOptions.selectable`：容器内文字可选择复制；`unselectable` 排除行号、标题栏等；
+  `RichSpan.copy` / `ui.vector(.{ .copy })` 指定复制文本。
 - `InputOptions.selection / on_selection / on_key`：受控选区与按键钩子；`ButtonOptions.focusable`。
 - 运行时主题切换（State 声明 `pub fn theme`）与应用快捷键（`pub fn onKey`）；`tokens.antDark()`。
 - `dialogs.confirm / saveFileAs / openUrl / writeFile`。

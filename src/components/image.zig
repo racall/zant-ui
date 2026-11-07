@@ -29,6 +29,23 @@ pub fn load(data: *ImageData) void {
     }
 }
 
+extern fn zant_image_retain(image: ?*anyopaque) ?*anyopaque;
+
+/// Shows an in-memory image (keeps its own reference to the pixels).
+pub fn setSource(data: *ImageData, source: ?*anyopaque, id: u64) void {
+    if (data.handle) |old| zant_image_destroy(old);
+    data.handle = null;
+    data.intrinsic_width = 0;
+    data.intrinsic_height = 0;
+    data.source_id = id;
+    if (source == null) return;
+    data.handle = zant_image_retain(source);
+    if (data.handle != null) {
+        data.intrinsic_width = zant_image_width(data.handle);
+        data.intrinsic_height = zant_image_height(data.handle);
+    }
+}
+
 pub fn destroy(data: *ImageData) void {
     if (data.handle) |handle| {
         zant_image_destroy(handle);

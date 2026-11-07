@@ -91,6 +91,7 @@ pub const Cache = struct {
             self.options_hash = options_hash;
         }
 
+        self.splitter.setOptions(options.parse);
         const raw_blocks = try self.splitter.split(healed);
         const old = self.entries.items;
         // keep the common prefix and suffix; only the middle is re-parsed
@@ -107,8 +108,13 @@ pub const Cache = struct {
         try fresh.ensureTotalCapacity(self.allocator, middle.len);
         for (middle) |raw| fresh.appendAssumeCapacity(try self.createEntry(raw, options_hash, options.parse));
 
-        // splice: old[p .. old.len - s] → fresh
+        // changed blocks keep the identity (UI key) of the block they
+        // replace, position by position, like Streamdown's index keys: the
+        // block that grows while streaming keeps its nodes, so unchanged
+        // lines / cells keep their shaped text instead of being rebuilt
         const removed = old.len - s - p;
+        for (fresh.items[0..@min(removed, fresh.items.len)], old[p..][0..@min(removed, fresh.items.len)]) |e, prev| e.id = prev.id;
+        // splice: old[p .. old.len - s] → fresh
         for (old[p .. old.len - s]) |e| self.freeEntry(e);
         try self.entries.replaceRange(self.allocator, p, removed, fresh.items);
         fresh.clearRetainingCapacity();
@@ -159,6 +165,18 @@ test "streaming reparses only the tail" {
         bold = true;
     };
     try std.testing.expect(bold);
+}
+
+test "a block growing while streaming keeps its id" {
+    var cache = Cache.init(std.testing.allocator);
+    defer cache.deinit();
+    const a = try cache.update("# T\n\nPara one", .{ .mode = .streaming });
+    const id = a[1].id;
+    const b = try cache.update("# T\n\nPara one grows", .{ .mode = .streaming });
+    try std.testing.expectEqual(id, b[1].id);
+    const c = try cache.update("# T\n\nPara one grows\n\nNext", .{ .mode = .streaming });
+    try std.testing.expectEqual(id, c[1].id);
+    try std.testing.expect(c[2].id != id);
 }
 
 test "inserting a block in the middle parses only that block" {

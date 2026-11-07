@@ -382,6 +382,53 @@ pub const Engine = struct {
             .cancel => |c| self.cancel(c.body, c.kind, style),
             .stack => |s| self.stack(s, style),
             .tag => kern(0),
+            .xarrow => |x| self.xArrow(x, style),
+            .sized => |sz| blk: {
+                const saved = self.options.size;
+                self.options.size = saved * sz.factor;
+                defer self.options.size = saved;
+                break :blk try self.list(sz.body, style);
+            },
+            .colorbox => |cb| self.colorBox(cb, style),
+            .lap => |l| blk: {
+                const inner = try self.list(l.body, style);
+                var out: std.ArrayListUnmanaged(Command) = .empty;
+                const dx: f32 = switch (l.side) {
+                    .right => 0,
+                    .left => -inner.width,
+                    .center => -inner.width / 2,
+                };
+                try self.translated(inner, dx, 0, &out);
+                break :blk Box{ .width = 0, .height = inner.height, .depth = inner.depth, .cmds = try out.toOwnedSlice(self.arena) };
+            },
+            .raise => |r| blk: {
+                const inner = try self.list(r.body, style);
+                const dy = r.amount * self.em(style);
+                var out: std.ArrayListUnmanaged(Command) = .empty;
+                try self.translated(inner, 0, -dy, &out);
+                break :blk Box{ .width = inner.width, .height = @max(0, inner.height + dy), .depth = @max(0, inner.depth - dy), .cmds = try out.toOwnedSlice(self.arena) };
+            },
+            .choice => |c| self.list(c[
+                switch (style.size) {
+                    .display => @as(usize, 0),
+                    .text => 1,
+                    .script => 2,
+                    .scriptscript => 3,
+                }
+            ], style),
+            .smash => |body| blk: {
+                var inner = try self.list(body, style);
+                inner.height = 0;
+                inner.depth = 0;
+                break :blk inner;
+            },
+            .rule_box => |r| blk: {
+                var out: std.ArrayListUnmanaged(Command) = .empty;
+                const w = r.width * self.em(style);
+                const h = r.height * self.em(style);
+                try self.rect(0, -h, w, h, &out);
+                break :blk Box{ .width = w, .height = h, .depth = 0, .cmds = try out.toOwnedSlice(self.arena) };
+            },
             .unknown => |name| blk: {
                 const saved = self.color;
                 self.color = self.options.error_color;
@@ -879,6 +926,134 @@ pub const Engine = struct {
             },
         }
         return .{ .width = w, .height = height, .depth = depth, .cmds = try out.toOwnedSlice(self.arena), .class = .ord };
+    }
+
+    /// `\xrightarrow[below]{above}` (KaTeX functions/arrow.js + stretchy.js):
+    /// labels in script style padded 0.5em each side, the arrow at least
+    /// its minimum width and centred on the axis, labels 0.111em from it.
+    fn xArrow(self: *Engine, x: parser.XArrow, style: Style) !Box {
+        const size = self.em(style);
+        const theta = self.rule(style);
+        const above = try self.list(x.above, style.sup());
+        const below: ?Box = if (x.below) |b| try self.list(b, style.sub()) else null;
+        const pad_above = 0.5 * self.em(style.sup());
+        const pad_below = 0.5 * self.em(style.sub());
+        const min_w: f32 = switch (x.kind) {
+            .right, .left => 1.469,
+            .double_right, .double_left => 1.526,
+            .left_right, .double_left_right, .harpoons_rl, .harpoons_lr, .arrows_rl => 1.75,
+            .hook_right, .hook_left => 1.08,
+            .maps_to => 1.5,
+            .long_equal, .two_head_right, .two_head_left => 0.888,
+        };
+        var w = @max(min_w * size, above.width + 2 * pad_above);
+        if (below) |b| w = @max(w, b.width + 2 * pad_below);
+        // arrow body heights in em (stretchy.js): single 0.522, double 0.56,
+        // long equal 0.334, harpoon pairs 0.716
+        const body_h: f32 = size * switch (x.kind) {
+            .double_right, .double_left, .double_left_right => @as(f32, 0.56),
+            .long_equal, .two_head_right, .two_head_left => 0.334,
+            .harpoons_rl, .harpoons_lr, .arrows_rl => 0.716,
+            else => 0.522,
+        };
+        const axis = self.metric(style, .axis_height);
+        var out: std.ArrayListUnmanaged(Command) = .empty;
+        try self.drawXArrow(x.kind, w, -axis, theta, size, &out);
+        // labels: baseline shifts as in KaTeX's vlist (negative = up)
+        var upper_shift = -axis - 0.5 * body_h - 0.111 * size;
+        if (above.depth > 0.25 * size) upper_shift -= above.depth;
+        try self.translated(above, (w - above.width) / 2, upper_shift, &out);
+        var height = @max(-upper_shift + above.height, axis + body_h / 2);
+        var depth = @max(0, -axis + body_h / 2);
+        if (below) |b| {
+            const lower_shift = -axis + b.height + 0.5 * body_h + 0.111 * size;
+            try self.translated(b, (w - b.width) / 2, lower_shift, &out);
+            depth = @max(depth, lower_shift + b.depth);
+        }
+        height = @max(height, 0);
+        return .{ .width = w, .height = height, .depth = depth, .cmds = try out.toOwnedSlice(self.arena), .class = .rel };
+    }
+
+    fn drawXArrow(self: *Engine, kind: parser.XArrowKind, w: f32, y: f32, theta: f32, size: f32, out: *std.ArrayListUnmanaged(Command)) !void {
+        const head = 0.14 * size;
+        const hy = head * 0.65;
+        const gap = 0.09 * size; // between the lines of a double arrow
+        switch (kind) {
+            .right, .left, .left_right, .maps_to, .hook_right, .hook_left, .two_head_right, .two_head_left => {
+                try self.stroke(&.{ .{ 0, y }, .{ w, y } }, theta, out);
+                const right_head = kind == .right or kind == .left_right or kind == .maps_to or kind == .hook_right or kind == .two_head_right;
+                const left_head = kind == .left or kind == .left_right or kind == .hook_left or kind == .two_head_left;
+                if (right_head) try self.stroke(&.{ .{ w - head, y - hy }, .{ w, y }, .{ w - head, y + hy } }, theta, out);
+                if (left_head) try self.stroke(&.{ .{ head, y - hy }, .{ 0, y }, .{ head, y + hy } }, theta, out);
+                if (kind == .two_head_right) try self.stroke(&.{ .{ w - 2 * head, y - hy }, .{ w - head, y }, .{ w - 2 * head, y + hy } }, theta, out);
+                if (kind == .two_head_left) try self.stroke(&.{ .{ 2 * head, y - hy }, .{ head, y }, .{ 2 * head, y + hy } }, theta, out);
+                if (kind == .maps_to) try self.stroke(&.{ .{ 0, y - hy }, .{ 0, y + hy } }, theta, out);
+                if (kind == .hook_right or kind == .hook_left) {
+                    // ↪ / ↩: a half circle curling up from the tail
+                    const r = hy;
+                    var pts: [9]vector.Point = undefined;
+                    for (&pts, 0..) |*p, i| {
+                        const t = std.math.pi * @as(f32, @floatFromInt(i)) / 8.0;
+                        p.* = if (kind == .hook_right)
+                            .{ r - r * @sin(t), y - r + r * @cos(t) }
+                        else
+                            .{ w - r + r * @sin(t), y - r + r * @cos(t) };
+                    }
+                    try self.stroke(&pts, theta, out);
+                }
+            },
+            .double_right, .double_left, .double_left_right => {
+                const right = kind != .double_left;
+                const left = kind != .double_right;
+                const x0: f32 = if (left) head * 0.6 else 0;
+                const x1: f32 = if (right) w - head * 0.6 else w;
+                try self.stroke(&.{ .{ x0, y - gap / 2 }, .{ x1, y - gap / 2 } }, theta, out);
+                try self.stroke(&.{ .{ x0, y + gap / 2 }, .{ x1, y + gap / 2 } }, theta, out);
+                if (right) try self.stroke(&.{ .{ w - head * 1.1, y - hy * 1.4 }, .{ w, y }, .{ w - head * 1.1, y + hy * 1.4 } }, theta, out);
+                if (left) try self.stroke(&.{ .{ head * 1.1, y - hy * 1.4 }, .{ 0, y }, .{ head * 1.1, y + hy * 1.4 } }, theta, out);
+            },
+            .long_equal => {
+                try self.stroke(&.{ .{ 0, y - gap / 2 }, .{ w, y - gap / 2 } }, theta, out);
+                try self.stroke(&.{ .{ 0, y + gap / 2 }, .{ w, y + gap / 2 } }, theta, out);
+            },
+            .harpoons_rl, .harpoons_lr, .arrows_rl => {
+                // upper line points right, lower points left (⇌ / ⇄)
+                const top = y - gap * 1.1;
+                const bottom = y + gap * 1.1;
+                const upper_right = kind != .harpoons_lr;
+                try self.stroke(&.{ .{ 0, top }, .{ w, top } }, theta, out);
+                try self.stroke(&.{ .{ 0, bottom }, .{ w, bottom } }, theta, out);
+                if (kind == .arrows_rl) {
+                    try self.stroke(&.{ .{ w - head, top - hy }, .{ w, top }, .{ w - head, top + hy } }, theta, out);
+                    try self.stroke(&.{ .{ head, bottom - hy }, .{ 0, bottom }, .{ head, bottom + hy } }, theta, out);
+                } else if (upper_right) {
+                    try self.stroke(&.{ .{ w - head, top - hy * 1.2 }, .{ w, top } }, theta, out);
+                    try self.stroke(&.{ .{ head, bottom + hy * 1.2 }, .{ 0, bottom } }, theta, out);
+                } else {
+                    try self.stroke(&.{ .{ head, top - hy * 1.2 }, .{ 0, top } }, theta, out);
+                    try self.stroke(&.{ .{ w - head, bottom + hy * 1.2 }, .{ w, bottom } }, theta, out);
+                }
+            },
+        }
+    }
+
+    fn colorBox(self: *Engine, cb: anytype, style: Style) !Box {
+        const inner = try self.list(cb.body, style);
+        const pad = 0.3 * self.em(style);
+        const theta = self.rule(style);
+        var out: std.ArrayListUnmanaged(Command) = .empty;
+        const w = inner.width + 2 * pad;
+        const top = -(inner.height + pad);
+        const bottom = inner.depth + pad;
+        try out.append(self.arena, .{ .rect = .{ .x = 0, .y = top, .width = w, .height = bottom - top, .color = cb.background } });
+        if (cb.frame) |frame| {
+            const saved = self.color;
+            self.color = frame;
+            defer self.color = saved;
+            try self.stroke(&.{ .{ 0, top }, .{ w, top }, .{ w, bottom }, .{ 0, bottom }, .{ 0, top } }, theta, &out);
+        }
+        try self.translated(inner, pad, 0, &out);
+        return .{ .width = w, .height = -top, .depth = bottom, .cmds = try out.toOwnedSlice(self.arena) };
     }
 
     fn braceLabel(self: *Engine, ou: parser.OverUnder, s: parser.SupSub, style: Style) !Box {

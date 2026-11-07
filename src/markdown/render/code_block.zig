@@ -60,6 +60,7 @@ pub fn render(ctx: Ctx, code: ast.Code, caret: bool) !ui.Node {
         .align_items = .center,
         .justify = .space_between,
         .background = theme.code_header_bg,
+        .unselectable = true,
         .children = &.{
             lang_label,
             ui.row(.{ .gap = controls.gap, .align_items = .center, .children = buttons.items }),
@@ -89,14 +90,14 @@ pub fn render(ctx: Ctx, code: ast.Code, caret: bool) !ui.Node {
             try runs.append(a, run);
         }
         const last = count + 1 == total_lines;
-        if (caret and last) try runs.append(a, .{ .text = ctx.options.caret.glyph(), .font_size = size, .color = theme.caret });
+        if (caret and last) try runs.append(a, .{ .text = ctx.options.caret.glyph(), .font_size = size, .color = theme.caret, .copy = "" });
         if (runs.items.len == 0) try runs.append(a, .{ .text = " ", .font_size = size, .family = .mono, .color = theme.code.plain });
         if (ctx.options.line_numbers) {
             try line_nodes.append(a, ui.row(.{
                 .width_percent = 100,
                 .align_items = .start,
                 .children = &.{
-                    ui.row(.{ .width = gutter_w, .justify = .end, .children = &.{ui.text(try std.fmt.allocPrint(a, "{d}", .{count + 1}), .{ .size = size, .family = .mono, .color = theme.line_number, .line_height = line_height })} }),
+                    ui.row(.{ .width = gutter_w, .justify = .end, .unselectable = true, .children = &.{ui.text(try std.fmt.allocPrint(a, "{d}", .{count + 1}), .{ .size = size, .family = .mono, .color = theme.line_number, .line_height = line_height })} }),
                     ui.column(.{ .grow = 1, .shrink = 1, .basis = 0, .margin = .{ .left = 12 }, .children = &.{ui.richText(.{ .spans = runs.items, .line_height = line_height })} }),
                 },
             }));

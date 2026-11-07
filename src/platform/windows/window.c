@@ -51,6 +51,10 @@
 /* app-drawn title bar height when the app does not say (Windows 11) */
 #define ZANT_DEFAULT_CAPTION 32.0f
 
+/* zant_window_post_wake: hands background results to the UI thread. */
+#define ZANT_WM_WAKE (WM_APP + 7)
+static volatile LONG g_wake_pending = 0;
+
 struct ZantWindow {
     ZantHost host;
     ZantRenderer *renderer;
@@ -484,6 +488,12 @@ static HCURSOR zant_cursor_handle(int cursor) {
     switch (cursor) {
         case ZANT_CURSOR_POINTING_HAND: return LoadCursorW(NULL, IDC_HAND);
         case ZANT_CURSOR_IBEAM: return LoadCursorW(NULL, IDC_IBEAM);
+        case ZANT_CURSOR_CROSSHAIR: return LoadCursorW(NULL, IDC_CROSS);
+        case ZANT_CURSOR_RESIZE_HORIZONTAL: return LoadCursorW(NULL, IDC_SIZEWE);
+        case ZANT_CURSOR_RESIZE_VERTICAL: return LoadCursorW(NULL, IDC_SIZENS);
+        case ZANT_CURSOR_GRAB:
+        case ZANT_CURSOR_GRABBING: return LoadCursorW(NULL, IDC_SIZEALL);
+        case ZANT_CURSOR_NOT_ALLOWED: return LoadCursorW(NULL, IDC_NO);
         default: return LoadCursorW(NULL, IDC_ARROW);
     }
 }
@@ -559,6 +569,12 @@ static LRESULT CALLBACK zant_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) 
             EndPaint(hwnd, &ps);
             return 0;
         }
+
+        case ZANT_WM_WAKE:
+            InterlockedExchange(&g_wake_pending, 0);
+            if (!w->closing && w->host.wake) w->host.wake(w->host.userdata);
+            zant_request(w);
+            return 0;
 
         case WM_TIMER:
             if (wp == ZANT_TIMER_REDRAW) {
@@ -947,6 +963,14 @@ void zant_window_destroy(ZantWindow *window) {
     }
     if (g_window == window) g_window = NULL;
     free(window);
+}
+
+
+void zant_window_post_wake(ZantWindow *window) {
+    if (!window || !window->hwnd) return;
+    /* coalesce: one message per burst of wakes */
+    if (InterlockedExchange(&g_wake_pending, 1)) return;
+    if (!PostMessageW(window->hwnd, ZANT_WM_WAKE, 0, 0)) InterlockedExchange(&g_wake_pending, 0);
 }
 
 void zant_window_request_redraw(ZantWindow *window, int delay_ms) {

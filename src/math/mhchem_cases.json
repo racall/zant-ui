@@ -1,0 +1,4117 @@
+[
+ {
+  "input": "H2O",
+  "machine": "ce",
+  "expected": "{\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "Sb2O3",
+  "machine": "ce",
+  "expected": "{\\mathrm{Sb}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}{\\vphantom{X}}_{\\smash[t]{3}}}"
+ },
+ {
+  "input": "H+",
+  "machine": "ce",
+  "expected": "{\\mathrm{H}{\\vphantom{X}}^{+}}"
+ },
+ {
+  "input": "CrO4^2-",
+  "machine": "ce",
+  "expected": "{\\mathrm{CrO}{\\vphantom{X}}_{\\smash[t]{4}}{\\vphantom{X}}^{2-}}"
+ },
+ {
+  "input": "[AgCl2]-",
+  "machine": "ce",
+  "expected": "{[\\mathrm{AgCl}{\\vphantom{X}}_{\\smash[t]{2}}]{\\vphantom{X}}^{-}}"
+ },
+ {
+  "input": "Y^99+",
+  "machine": "ce",
+  "expected": "{\\mathrm{Y}{\\vphantom{X}}^{99+}}"
+ },
+ {
+  "input": "Y^{99+}",
+  "machine": "ce",
+  "expected": "{\\mathrm{Y}{\\vphantom{X}}^{99+}}"
+ },
+ {
+  "input": "H2_{(aq)}",
+  "machine": "ce",
+  "expected": "{\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}{\\vphantom{X}}_{\\smash[t]{\\mskip1mu (\\mathrm{aq})}}}"
+ },
+ {
+  "input": "NO3-",
+  "machine": "ce",
+  "expected": "{\\mathrm{NO}{\\vphantom{X}}_{\\smash[t]{3}}{\\vphantom{X}}^{-}}"
+ },
+ {
+  "input": "(NH4)2S",
+  "machine": "ce",
+  "expected": "{(\\mathrm{NH}{\\vphantom{X}}_{\\smash[t]{4}}){\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{S}}"
+ },
+ {
+  "input": "SO4^2-",
+  "machine": "ce",
+  "expected": "{\\mathrm{SO}{\\vphantom{X}}_{\\smash[t]{4}}{\\vphantom{X}}^{2-}}"
+ },
+ {
+  "input": "[Cu(NH3)4]^2+",
+  "machine": "ce",
+  "expected": "{[\\mathrm{Cu}(\\mathrm{NH}{\\vphantom{X}}_{\\smash[t]{3}}){\\vphantom{X}}_{\\smash[t]{4}}]{\\vphantom{X}}^{2+}}"
+ },
+ {
+  "input": "Fe(CN)6^3-",
+  "machine": "ce",
+  "expected": "{\\mathrm{Fe}(\\mathrm{CN}){\\vphantom{X}}_{\\smash[t]{6}}{\\vphantom{X}}^{3-}}"
+ },
+ {
+  "input": "[Fe(CN)6]^{3-}",
+  "machine": "ce",
+  "expected": "{[\\mathrm{Fe}(\\mathrm{CN}){\\vphantom{X}}_{\\smash[t]{6}}]{\\vphantom{X}}^{3-}}"
+ },
+ {
+  "input": "NH4+",
+  "machine": "ce",
+  "expected": "{\\mathrm{NH}{\\vphantom{X}}_{\\smash[t]{4}}{\\vphantom{X}}^{+}}"
+ },
+ {
+  "input": "OH-",
+  "machine": "ce",
+  "expected": "{\\mathrm{OH}{\\vphantom{X}}^{-}}"
+ },
+ {
+  "input": "e-",
+  "machine": "ce",
+  "expected": "{\\mathrm{e}{\\vphantom{X}}^{-}}"
+ },
+ {
+  "input": "e^-",
+  "machine": "ce",
+  "expected": "{\\mathrm{e}{\\vphantom{X}}^{-}}"
+ },
+ {
+  "input": "Cl^-",
+  "machine": "ce",
+  "expected": "{\\mathrm{Cl}{\\vphantom{X}}^{-}}"
+ },
+ {
+  "input": "Na+ + Cl- -> NaCl",
+  "machine": "ce",
+  "expected": "{\\mathrm{Na}{\\vphantom{X}}^{+} {}+{} \\mathrm{Cl}{\\vphantom{X}}^{-}\\xrightarrow{}\\mathrm{NaCl}}"
+ },
+ {
+  "input": "Ca^2+",
+  "machine": "ce",
+  "expected": "{\\mathrm{Ca}{\\vphantom{X}}^{2+}}"
+ },
+ {
+  "input": "Al^{3+}",
+  "machine": "ce",
+  "expected": "{\\mathrm{Al}{\\vphantom{X}}^{3+}}"
+ },
+ {
+  "input": "PO4^{3-}",
+  "machine": "ce",
+  "expected": "{\\mathrm{PO}{\\vphantom{X}}_{\\smash[t]{4}}{\\vphantom{X}}^{3-}}"
+ },
+ {
+  "input": "HPO4^2-",
+  "machine": "ce",
+  "expected": "{\\mathrm{HPO}{\\vphantom{X}}_{\\smash[t]{4}}{\\vphantom{X}}^{2-}}"
+ },
+ {
+  "input": "Mg^{2+} + 2OH^- -> Mg(OH)2 v",
+  "machine": "ce",
+  "expected": "{\\mathrm{Mg}{\\vphantom{X}}^{2+} {}+{} 2\\,\\mathrm{OH}{\\vphantom{X}}^{-}\\xrightarrow{}\\mathrm{Mg}(\\mathrm{OH}){\\vphantom{X}}_{\\smash[t]{2}} \\downarrow{} }"
+ },
+ {
+  "input": "Fe^3+",
+  "machine": "ce",
+  "expected": "{\\mathrm{Fe}{\\vphantom{X}}^{3+}}"
+ },
+ {
+  "input": "Fe^{3+}",
+  "machine": "ce",
+  "expected": "{\\mathrm{Fe}{\\vphantom{X}}^{3+}}"
+ },
+ {
+  "input": "Fe3+",
+  "machine": "ce",
+  "expected": "{\\mathrm{Fe}{\\vphantom{X}}_{\\smash[t]{3}}{\\vphantom{X}}^{+}}"
+ },
+ {
+  "input": "Fe^3",
+  "machine": "ce",
+  "expected": "{\\mathrm{Fe}{\\vphantom{X}}^{3}}"
+ },
+ {
+  "input": "Fe^III",
+  "machine": "ce",
+  "expected": "{\\mathrm{Fe}{\\vphantom{X}}^{\\mathrm{I}}\\mathrm{II}}"
+ },
+ {
+  "input": "2 H2O",
+  "machine": "ce",
+  "expected": "{2\\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "2H2O",
+  "machine": "ce",
+  "expected": "{2\\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "0.5 H2O",
+  "machine": "ce",
+  "expected": "{0.5\\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "1/2 H2O",
+  "machine": "ce",
+  "expected": "{\\mathchoice{\\textstyle\\frac{1}{2}}{\\frac{1}{2}}{\\frac{1}{2}}{\\frac{1}{2}}\\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "(1/2) H2O",
+  "machine": "ce",
+  "expected": "{(1/2)\\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "$n$ H2O",
+  "machine": "ce",
+  "expected": "{n \\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "3/2 O2",
+  "machine": "ce",
+  "expected": "{\\mathchoice{\\textstyle\\frac{3}{2}}{\\frac{3}{2}}{\\frac{3}{2}}{\\frac{3}{2}}\\,\\mathrm{O}{\\vphantom{X}}_{\\smash[t]{2}}}"
+ },
+ {
+  "input": "-1/2 H2O",
+  "machine": "ce",
+  "expected": "{{-\\mathchoice{\\textstyle\\frac{1}{2}}{\\frac{1}{2}}{\\frac{1}{2}}{\\frac{1}{2}}}\\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "+1/2 H2O",
+  "machine": "ce",
+  "expected": "{{+\\mathchoice{\\textstyle\\frac{1}{2}}{\\frac{1}{2}}{\\frac{1}{2}}{\\frac{1}{2}}}\\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "n/2 H2O",
+  "machine": "ce",
+  "expected": "{\\mathchoice{\\textstyle\\frac{n}{2}}{\\frac{n}{2}}{\\frac{n}{2}}{\\frac{n}{2}}\\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "1/2$n$ H2O",
+  "machine": "ce",
+  "expected": "{\\mathchoice{\\textstyle\\frac{1}{2}}{\\frac{1}{2}}{\\frac{1}{2}}{\\frac{1}{2}}n \\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": ".5 H2O",
+  "machine": "ce",
+  "expected": "{.5\\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "0,5 H2O",
+  "machine": "ce",
+  "expected": "{0{,}5\\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "2.5H2O",
+  "machine": "ce",
+  "expected": "{2.5\\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "$2n-1$ H2O",
+  "machine": "ce",
+  "expected": "{2n{-}1 \\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "$-$ H2O",
+  "machine": "ce",
+  "expected": "{{-} \\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "$+$ H2O",
+  "machine": "ce",
+  "expected": "{{+} \\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "$n+1$ O2",
+  "machine": "ce",
+  "expected": "{n{+}1 \\,\\mathrm{O}{\\vphantom{X}}_{\\smash[t]{2}}}"
+ },
+ {
+  "input": "x H2O",
+  "machine": "ce",
+  "expected": "{x\\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "2x H2O",
+  "machine": "ce",
+  "expected": "{2x\\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "2 x H2O",
+  "machine": "ce",
+  "expected": "{2\\,\\mathrm{x}~\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "1/2",
+  "machine": "ce",
+  "expected": "{\\mathchoice{\\textstyle\\frac{1}{2}}{\\frac{1}{2}}{\\frac{1}{2}}{\\frac{1}{2}}}"
+ },
+ {
+  "input": "3/4x",
+  "machine": "ce",
+  "expected": "{\\mathchoice{\\textstyle\\frac{3}{4}}{\\frac{3}{4}}{\\frac{3}{4}}{\\frac{3}{4}}\\,\\mathrm{x}}"
+ },
+ {
+  "input": "1/2$x$",
+  "machine": "ce",
+  "expected": "{\\mathchoice{\\textstyle\\frac{1}{2}}{\\frac{1}{2}}{\\frac{1}{2}}{\\frac{1}{2}}x }"
+ },
+ {
+  "input": "^{227}_{90}Th+",
+  "machine": "ce",
+  "expected": "{{\\vphantom{X}}^{\\hphantom{227}}_{\\hphantom{90}}{\\vphantom{X}}^{\\smash[t]{\\vphantom{2}}\\mathllap{227}}_{\\vphantom{2}\\mathllap{\\smash[t]{90}}}\\mathrm{Th}{\\vphantom{X}}^{+}}"
+ },
+ {
+  "input": "^227_90Th+",
+  "machine": "ce",
+  "expected": "{{\\vphantom{X}}^{\\hphantom{227}}_{\\hphantom{90}}{\\vphantom{X}}^{\\smash[t]{\\vphantom{2}}\\mathllap{227}}_{\\vphantom{2}\\mathllap{\\smash[t]{90}}}\\mathrm{Th}{\\vphantom{X}}^{+}}"
+ },
+ {
+  "input": "^{0}_{-1}n^{-}",
+  "machine": "ce",
+  "expected": "{{\\vphantom{X}}^{\\hphantom{0}}_{\\hphantom{-1}}{\\vphantom{X}}^{\\smash[t]{\\vphantom{2}}\\mathllap{0}}_{\\vphantom{2}\\mathllap{\\smash[t]{-1}}}\\mathrm{n}{\\vphantom{X}}^{-}}"
+ },
+ {
+  "input": "^0_-1n-",
+  "machine": "ce",
+  "expected": "{{\\vphantom{X}}^{\\hphantom{0}}_{\\hphantom{-1}}{\\vphantom{X}}^{\\smash[t]{\\vphantom{2}}\\mathllap{0}}_{\\vphantom{2}\\mathllap{\\smash[t]{-1}}}\\mathrm{n}{\\vphantom{X}}^{-}}"
+ },
+ {
+  "input": "H{}^{196}_{80}Hg",
+  "machine": "ce",
+  "expected": "{\\mathrm{H}{\\vphantom{X}}^{\\hphantom{196}}_{\\hphantom{80}}{\\vphantom{X}}^{\\smash[t]{\\vphantom{2}}\\mathllap{196}}_{\\vphantom{2}\\mathllap{\\smash[t]{80}}}\\mathrm{Hg}}"
+ },
+ {
+  "input": "^{14}_{6}C -> ^{14}_{7}N + ^{0}_{-1}e",
+  "machine": "ce",
+  "expected": "{{\\vphantom{X}}^{\\hphantom{14}}_{\\hphantom{6}}{\\vphantom{X}}^{\\smash[t]{\\vphantom{2}}\\mathllap{14}}_{\\vphantom{2}\\mathllap{\\smash[t]{6}}}\\mathrm{C}\\xrightarrow{}{\\vphantom{X}}^{\\hphantom{14}}_{\\hphantom{7}}{\\vphantom{X}}^{\\smash[t]{\\vphantom{2}}\\mathllap{14}}_{\\vphantom{2}\\mathllap{\\smash[t]{7}}}\\mathrm{N} {}+{} {\\vphantom{X}}^{\\hphantom{0}}_{\\hphantom{-1}}{\\vphantom{X}}^{\\smash[t]{\\vphantom{2}}\\mathllap{0}}_{\\vphantom{2}\\mathllap{\\smash[t]{-1}}}\\mathrm{e}}"
+ },
+ {
+  "input": "^{238}_{92}U -> ^{234}_{90}Th + ^{4}_{2}He",
+  "machine": "ce",
+  "expected": "{{\\vphantom{X}}^{\\hphantom{238}}_{\\hphantom{92}}{\\vphantom{X}}^{\\smash[t]{\\vphantom{2}}\\mathllap{238}}_{\\vphantom{2}\\mathllap{\\smash[t]{92}}}\\mathrm{U}\\xrightarrow{}{\\vphantom{X}}^{\\hphantom{234}}_{\\hphantom{90}}{\\vphantom{X}}^{\\smash[t]{\\vphantom{2}}\\mathllap{234}}_{\\vphantom{2}\\mathllap{\\smash[t]{90}}}\\mathrm{Th} {}+{} {\\vphantom{X}}^{\\hphantom{4}}_{\\hphantom{2}}{\\vphantom{X}}^{\\smash[t]{\\vphantom{2}}\\mathllap{4}}_{\\vphantom{2}\\mathllap{\\smash[t]{2}}}\\mathrm{He}}"
+ },
+ {
+  "input": "^{235}_{92}U + ^{1}_{0}n -> ^{141}_{56}Ba + ^{92}_{36}Kr + 3^{1}_{0}n",
+  "machine": "ce",
+  "expected": "{{\\vphantom{X}}^{\\hphantom{235}}_{\\hphantom{92}}{\\vphantom{X}}^{\\smash[t]{\\vphantom{2}}\\mathllap{235}}_{\\vphantom{2}\\mathllap{\\smash[t]{92}}}\\mathrm{U} {}+{} {\\vphantom{X}}^{\\hphantom{1}}_{\\hphantom{0}}{\\vphantom{X}}^{\\smash[t]{\\vphantom{2}}\\mathllap{1}}_{\\vphantom{2}\\mathllap{\\smash[t]{0}}}\\mathrm{n}\\xrightarrow{}{\\vphantom{X}}^{\\hphantom{141}}_{\\hphantom{56}}{\\vphantom{X}}^{\\smash[t]{\\vphantom{2}}\\mathllap{141}}_{\\vphantom{2}\\mathllap{\\smash[t]{56}}}\\mathrm{Ba} {}+{} {\\vphantom{X}}^{\\hphantom{92}}_{\\hphantom{36}}{\\vphantom{X}}^{\\smash[t]{\\vphantom{2}}\\mathllap{92}}_{\\vphantom{2}\\mathllap{\\smash[t]{36}}}\\mathrm{Kr} {}+{} 3{\\vphantom{X}}^{1}_{\\smash[t]{0}}\\mathrm{n}}"
+ },
+ {
+  "input": "^40_18Ar + \\gamma{} + \\nu_e",
+  "machine": "ce",
+  "expected": "{{\\vphantom{X}}^{\\hphantom{40}}_{\\hphantom{18}}{\\vphantom{X}}^{\\smash[t]{\\vphantom{2}}\\mathllap{40}}_{\\vphantom{2}\\mathllap{\\smash[t]{18}}}\\mathrm{Ar} {}+{} \\mathrm{\\gamma{}} {}+{} \\mathrm{\\nu}{\\vphantom{X}}_{\\smash[t]{e }}}"
+ },
+ {
+  "input": "^{12}C",
+  "machine": "ce",
+  "expected": "{{\\vphantom{X}}^{\\hphantom{12}}_{\\hphantom{}}{\\vphantom{X}}^{\\smash[t]{\\vphantom{2}}\\mathllap{12}}_{\\vphantom{2}\\mathllap{\\smash[t]{}}}\\mathrm{C}}"
+ },
+ {
+  "input": "^13C",
+  "machine": "ce",
+  "expected": "{{\\vphantom{X}}^{\\hphantom{13}}_{\\hphantom{}}{\\vphantom{X}}^{\\smash[t]{\\vphantom{2}}\\mathllap{13}}_{\\vphantom{2}\\mathllap{\\smash[t]{}}}\\mathrm{C}}"
+ },
+ {
+  "input": "_6C",
+  "machine": "ce",
+  "expected": "{{\\vphantom{X}}^{\\hphantom{}}_{\\hphantom{6}}{\\vphantom{X}}^{\\smash[t]{\\vphantom{2}}\\mathllap{}}_{\\vphantom{2}\\mathllap{\\smash[t]{6}}}\\mathrm{C}}"
+ },
+ {
+  "input": "^{18}O",
+  "machine": "ce",
+  "expected": "{{\\vphantom{X}}^{\\hphantom{18}}_{\\hphantom{}}{\\vphantom{X}}^{\\smash[t]{\\vphantom{2}}\\mathllap{18}}_{\\vphantom{2}\\mathllap{\\smash[t]{}}}\\mathrm{O}}"
+ },
+ {
+  "input": "^{2}H2O",
+  "machine": "ce",
+  "expected": "{{\\vphantom{X}}^{\\hphantom{2}}_{\\hphantom{}}{\\vphantom{X}}^{\\smash[t]{\\vphantom{2}}\\mathllap{2}}_{\\vphantom{2}\\mathllap{\\smash[t]{}}}\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "D2O",
+  "machine": "ce",
+  "expected": "{\\mathrm{D}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "^{3}_{1}H",
+  "machine": "ce",
+  "expected": "{{\\vphantom{X}}^{\\hphantom{3}}_{\\hphantom{1}}{\\vphantom{X}}^{\\smash[t]{\\vphantom{2}}\\mathllap{3}}_{\\vphantom{2}\\mathllap{\\smash[t]{1}}}\\mathrm{H}}"
+ },
+ {
+  "input": "Fe^{II}Fe^{III}2O4",
+  "machine": "ce",
+  "expected": "{\\mathrm{Fe}{\\vphantom{X}}^{\\mathrm{II}}\\mathrm{Fe}{\\vphantom{X}}^{\\mathrm{III}}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}{\\vphantom{X}}_{\\smash[t]{4}}}"
+ },
+ {
+  "input": "Fe^{II}Fe^{III}_2O4",
+  "machine": "ce",
+  "expected": "{\\mathrm{Fe}{\\vphantom{X}}^{\\mathrm{II}}\\mathrm{Fe}{\\vphantom{X}}^{\\mathrm{III}}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}{\\vphantom{X}}_{\\smash[t]{4}}}"
+ },
+ {
+  "input": "Fe^{II}",
+  "machine": "ce",
+  "expected": "{\\mathrm{Fe}{\\vphantom{X}}^{\\mathrm{II}}}"
+ },
+ {
+  "input": "Fe^{+III}",
+  "machine": "ce",
+  "expected": "{\\mathrm{Fe}{\\vphantom{X}}^{+\\mathrm{III}}}"
+ },
+ {
+  "input": "Fe^{-II}",
+  "machine": "ce",
+  "expected": "{\\mathrm{Fe}{\\vphantom{X}}^{-\\mathrm{II}}}"
+ },
+ {
+  "input": "Fe^{\\pm0}",
+  "machine": "ce",
+  "expected": "{\\mathrm{Fe}{\\vphantom{X}}^{\\pm0}}"
+ },
+ {
+  "input": "Fe^{$\\pm$0}",
+  "machine": "ce",
+  "expected": "{\\mathrm{Fe}{\\vphantom{X}}^{\\pm 0}}"
+ },
+ {
+  "input": "Mn^{VII}O4^-",
+  "machine": "ce",
+  "expected": "{\\mathrm{Mn}{\\vphantom{X}}^{\\mathrm{VII}}\\mathrm{O}{\\vphantom{X}}_{\\smash[t]{4}}{\\vphantom{X}}^{-}}"
+ },
+ {
+  "input": "Fe^{0}",
+  "machine": "ce",
+  "expected": "{\\mathrm{Fe}{\\vphantom{X}}^{0}}"
+ },
+ {
+  "input": "Fe^{IV}O",
+  "machine": "ce",
+  "expected": "{\\mathrm{Fe}{\\vphantom{X}}^{\\mathrm{IV}}\\mathrm{O}}"
+ },
+ {
+  "input": "Cr^{VI}",
+  "machine": "ce",
+  "expected": "{\\mathrm{Cr}{\\vphantom{X}}^{\\mathrm{VI}}}"
+ },
+ {
+  "input": "[Hg^{II}I4]^2-",
+  "machine": "ce",
+  "expected": "{[\\mathrm{Hg}{\\vphantom{X}}^{\\mathrm{II}}\\mathrm{I}{\\vphantom{X}}_{\\smash[t]{4}}]{\\vphantom{X}}^{2-}}"
+ },
+ {
+  "input": "+II",
+  "machine": "ce",
+  "expected": "{{+\\mathrm{II}}}"
+ },
+ {
+  "input": "-III",
+  "machine": "ce",
+  "expected": "{{-\\mathrm{III}}}"
+ },
+ {
+  "input": "\\pm 0",
+  "machine": "ce",
+  "expected": "{{\\pm 0}}"
+ },
+ {
+  "input": "$\\pm$ 0",
+  "machine": "ce",
+  "expected": "{{\\pm  0}}"
+ },
+ {
+  "input": "Fe^{I V}",
+  "machine": "ce",
+  "expected": "{\\mathrm{Fe}{\\vphantom{X}}^{\\mathrm{I} \\mathrm{V}}}"
+ },
+ {
+  "input": "Fe^{+ II}",
+  "machine": "ce",
+  "expected": "{\\mathrm{Fe}{\\vphantom{X}}^{+ \\mathrm{II}}}"
+ },
+ {
+  "input": "Fe^{x}",
+  "machine": "ce",
+  "expected": "{\\mathrm{Fe}{\\vphantom{X}}^{{\\times}}}"
+ },
+ {
+  "input": "H2(aq)",
+  "machine": "ce",
+  "expected": "{\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mskip2mu (\\mathrm{aq})}"
+ },
+ {
+  "input": "CO3^2-_{(aq)}",
+  "machine": "ce",
+  "expected": "{\\mathrm{CO}{\\vphantom{X}}_{\\smash[t]{3}}{\\vphantom{X}}^{2-}{\\vphantom{X}}_{\\smash[t]{\\mskip1mu (\\mathrm{aq})}}}"
+ },
+ {
+  "input": "NaOH(aq,$\\infty$)",
+  "machine": "ce",
+  "expected": "{\\mathrm{NaOH}\\mskip2mu (\\mathrm{aq},\\infty )}"
+ },
+ {
+  "input": "NaCl(s)",
+  "machine": "ce",
+  "expected": "{\\mathrm{NaCl}\\mskip2mu (\\mathrm{s})}"
+ },
+ {
+  "input": "H2O(l)",
+  "machine": "ce",
+  "expected": "{\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}\\mskip2mu (\\mathrm{l})}"
+ },
+ {
+  "input": "CO2(g)",
+  "machine": "ce",
+  "expected": "{\\mathrm{CO}{\\vphantom{X}}_{\\smash[t]{2}}\\mskip2mu (\\mathrm{g})}"
+ },
+ {
+  "input": "H2O (l)",
+  "machine": "ce",
+  "expected": "{\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}\\mskip2mu (\\mathrm{l})}"
+ },
+ {
+  "input": "NaCl (aq)",
+  "machine": "ce",
+  "expected": "{\\mathrm{NaCl}\\mskip2mu (\\mathrm{aq})}"
+ },
+ {
+  "input": "ZnS($c$)",
+  "machine": "ce",
+  "expected": "{\\mathrm{ZnS}\\mskip2mu (c )}"
+ },
+ {
+  "input": "ZnS(\\ca$c$)",
+  "machine": "ce",
+  "expected": "{\\mathrm{ZnS}\\mskip2mu ({\\sim}c )}"
+ },
+ {
+  "input": "Au(s)",
+  "machine": "ce",
+  "expected": "{\\mathrm{Au}\\mskip2mu (\\mathrm{s})}"
+ },
+ {
+  "input": "AgCl(s) v",
+  "machine": "ce",
+  "expected": "{\\mathrm{AgCl}\\mskip2mu (\\mathrm{s}) \\downarrow{} }"
+ },
+ {
+  "input": "H2O(l) -> H2O(g)",
+  "machine": "ce",
+  "expected": "{\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}\\mskip2mu (\\mathrm{l})\\xrightarrow{}\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}\\mskip2mu (\\mathrm{g})}"
+ },
+ {
+  "input": "NaCl(aq, sat)",
+  "machine": "ce",
+  "expected": "{\\mathrm{NaCl}\\mskip2mu (\\mathrm{aq}, \\mathrm{sat})}"
+ },
+ {
+  "input": "X(aq;sat)",
+  "machine": "ce",
+  "expected": "{\\mathrm{X}(\\mathrm{aq}{;}\\mkern3mu \\mathrm{sat})}"
+ },
+ {
+  "input": "Ca(OH)2(aq)",
+  "machine": "ce",
+  "expected": "{\\mathrm{Ca}(\\mathrm{OH}){\\vphantom{X}}_{\\smash[t]{2}}\\mskip2mu (\\mathrm{aq})}"
+ },
+ {
+  "input": "(aq)",
+  "machine": "ce",
+  "expected": "{\\mskip2mu (\\mathrm{aq})}"
+ },
+ {
+  "input": "A(cr)",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\mskip2mu (\\mathrm{cr})}"
+ },
+ {
+  "input": "A(aqua)",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}(\\mathrm{aqua})}"
+ },
+ {
+  "input": "A(aq)B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}(\\mathrm{aq})\\mathrm{B}}"
+ },
+ {
+  "input": "Cl2(g) + 2 e^- -> 2 Cl^-(aq)",
+  "machine": "ce",
+  "expected": "{\\mathrm{Cl}{\\vphantom{X}}_{\\smash[t]{2}}\\mskip2mu (\\mathrm{g}) {}+{} 2\\,\\mathrm{e}{\\vphantom{X}}^{-}\\xrightarrow{}2\\,\\mathrm{Cl}{\\vphantom{X}}^{-}\\mskip2mu (\\mathrm{aq})}"
+ },
+ {
+  "input": "H2O_{(l)}",
+  "machine": "ce",
+  "expected": "{\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}{\\vphantom{X}}_{\\smash[t]{\\mskip1mu (\\mathrm{l})}}}"
+ },
+ {
+  "input": "H2O_{(aqu)}",
+  "machine": "ce",
+  "expected": "{\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}{\\vphantom{X}}_{\\smash[t]{\\mskip1mu (\\mathrm{aqu})}}}"
+ },
+ {
+  "input": "A -> B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\xrightarrow{}\\mathrm{B}}"
+ },
+ {
+  "input": "A <- B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\xleftarrow{}\\mathrm{B}}"
+ },
+ {
+  "input": "A <-> B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\xleftrightarrow{}\\mathrm{B}}"
+ },
+ {
+  "input": "A <--> B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\xrightleftarrows{}\\mathrm{B}}"
+ },
+ {
+  "input": "A <=> B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\xrightleftharpoons{}\\mathrm{B}}"
+ },
+ {
+  "input": "A <=>> B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\xrightequilibrium{}\\mathrm{B}}"
+ },
+ {
+  "input": "A <<=> B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\xleftequilibrium{}\\mathrm{B}}"
+ },
+ {
+  "input": "A → B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\xrightarrow{}\\mathrm{B}}"
+ },
+ {
+  "input": "A ⟶ B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\xrightarrow{}\\mathrm{B}}"
+ },
+ {
+  "input": "A ⇌ B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\xrightleftharpoons{}\\mathrm{B}}"
+ },
+ {
+  "input": "A ->[H2O] B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\xrightarrow{\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}\\mathrm{B}}"
+ },
+ {
+  "input": "A ->[{text above}][{text below}] B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\xrightarrow[{{\\text{text below}}}]{{\\text{text above}}}\\mathrm{B}}"
+ },
+ {
+  "input": "A ->[$x$][$x_i$] B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\xrightarrow[{x_i }]{x }\\mathrm{B}}"
+ },
+ {
+  "input": "A ->[\\Delta] B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\xrightarrow{\\mathrm{\\Delta}}\\mathrm{B}}"
+ },
+ {
+  "input": "A ->[\\text{heat}] B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\xrightarrow{\\text{heat}}\\mathrm{B}}"
+ },
+ {
+  "input": "A ->[T][x] B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\xrightarrow[{\\mathrm{x}}]{\\mathrm{T}}\\mathrm{B}}"
+ },
+ {
+  "input": "A ->T[text]M[x^2] B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\xrightarrow[{x^2 }]{\\text{text}}\\mathrm{B}}"
+ },
+ {
+  "input": "A ->M[\\alpha]C[H2O] B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\xrightarrow[{\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}]{\\alpha }\\mathrm{B}}"
+ },
+ {
+  "input": "A ->[][below] B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\xrightarrow[{\\mathrm{below}}]{}\\mathrm{B}}"
+ },
+ {
+  "input": "A ->[above][] B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\xrightarrow{\\mathrm{above}}\\mathrm{B}}"
+ },
+ {
+  "input": "A ->[\\ce{+H2O}] B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\xrightarrow{{+}\\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}\\mathrm{B}}"
+ },
+ {
+  "input": "A ->[{\\text{加热}}] B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\xrightarrow{{\\text{加热}}}\\mathrm{B}}"
+ },
+ {
+  "input": "H2O ->[\\text{加热}] H2 + O2",
+  "machine": "ce",
+  "expected": "{\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}\\xrightarrow{\\text{加热}}\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}} {}+{} \\mathrm{O}{\\vphantom{X}}_{\\smash[t]{2}}}"
+ },
+ {
+  "input": "A ->[加热] B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\xrightarrow{加热}\\mathrm{B}}"
+ },
+ {
+  "input": "A ->[\\text{催化剂}][\\Delta] B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\xrightarrow[{\\mathrm{\\Delta}}]{\\text{催化剂}}\\mathrm{B}}"
+ },
+ {
+  "input": "A->B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\xrightarrow{}\\mathrm{B}}"
+ },
+ {
+  "input": "A->",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\xrightarrow{}}"
+ },
+ {
+  "input": "->B",
+  "machine": "ce",
+  "expected": "{\\xrightarrow{}\\mathrm{B}}"
+ },
+ {
+  "input": "->",
+  "machine": "ce",
+  "expected": "{\\xrightarrow{}}"
+ },
+ {
+  "input": "Hg^2+ ->[I-] HgI2 ->[I-] [Hg^{II}I4]^2-",
+  "machine": "ce",
+  "expected": "{\\mathrm{Hg}{\\vphantom{X}}^{2+}\\xrightarrow{\\mathrm{I}{\\vphantom{X}}^{-}}\\mathrm{HgI}{\\vphantom{X}}_{\\smash[t]{2}}\\xrightarrow{\\mathrm{I}{\\vphantom{X}}^{-}}[\\mathrm{Hg}{\\vphantom{X}}^{\\mathrm{II}}\\mathrm{I}{\\vphantom{X}}_{\\smash[t]{4}}]{\\vphantom{X}}^{2-}}"
+ },
+ {
+  "input": "A ->[H+][\\Delta] B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\xrightarrow[{\\mathrm{\\Delta}}]{\\mathrm{H}{\\vphantom{X}}^{+}}\\mathrm{B}}"
+ },
+ {
+  "input": "CH4 + 2O2 ->[点燃] CO2 + 2H2O",
+  "machine": "ce",
+  "expected": "{\\mathrm{CH}{\\vphantom{X}}_{\\smash[t]{4}} {}+{} 2\\,\\mathrm{O}{\\vphantom{X}}_{\\smash[t]{2}}\\xrightarrow{点燃}\\mathrm{CO}{\\vphantom{X}}_{\\smash[t]{2}} {}+{} 2\\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "N2 + 3H2 <=>[\\text{高温高压}][\\text{催化剂}] 2NH3",
+  "machine": "ce",
+  "expected": "{\\mathrm{N}{\\vphantom{X}}_{\\smash[t]{2}} {}+{} 3\\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\xrightleftharpoons[{\\text{催化剂}}]{\\text{高温高压}}2\\,\\mathrm{NH}{\\vphantom{X}}_{\\smash[t]{3}}}"
+ },
+ {
+  "input": "A <=>[x] B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\xrightleftharpoons{\\mathrm{x}}\\mathrm{B}}"
+ },
+ {
+  "input": "A <->[x][y] B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\xleftrightarrow[{\\mathrm{y}}]{\\mathrm{x}}\\mathrm{B}}"
+ },
+ {
+  "input": "A <-->[1][2] B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\xrightleftarrows[{2}]{1}\\mathrm{B}}"
+ },
+ {
+  "input": "A <=>>[K] B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\xrightequilibrium{\\mathrm{K}}\\mathrm{B}}"
+ },
+ {
+  "input": "A <<=>[K] B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\xleftequilibrium{\\mathrm{K}}\\mathrm{B}}"
+ },
+ {
+  "input": "A ->[ab][cd]",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\xrightarrow[{\\mathrm{cd}}]{\\mathrm{ab}}}"
+ },
+ {
+  "input": "A -> -> B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\xrightarrow{}\\xrightarrow{}\\mathrm{B}}"
+ },
+ {
+  "input": "A ->[x] ->[y] B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\xrightarrow{\\mathrm{x}}\\xrightarrow{\\mathrm{y}}\\mathrm{B}}"
+ },
+ {
+  "input": "SO4^2- + Ba^2+ -> BaSO4 v",
+  "machine": "ce",
+  "expected": "{\\mathrm{SO}{\\vphantom{X}}_{\\smash[t]{4}}{\\vphantom{X}}^{2-} {}+{} \\mathrm{Ba}{\\vphantom{X}}^{2+}\\xrightarrow{}\\mathrm{BaSO}{\\vphantom{X}}_{\\smash[t]{4}} \\downarrow{} }"
+ },
+ {
+  "input": "A v B (v) -> B ^ B (^)",
+  "machine": "ce",
+  "expected": "{\\mathrm{A} \\downarrow{} ~\\mathrm{B} \\downarrow{} \\xrightarrow{}\\mathrm{B} \\uparrow{} ~\\mathrm{B} \\uparrow{} }"
+ },
+ {
+  "input": "CO2 ^",
+  "machine": "ce",
+  "expected": "{\\mathrm{CO}{\\vphantom{X}}_{\\smash[t]{2}} \\uparrow{} }"
+ },
+ {
+  "input": "H2 ^",
+  "machine": "ce",
+  "expected": "{\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}} \\uparrow{} }"
+ },
+ {
+  "input": "AgCl v",
+  "machine": "ce",
+  "expected": "{\\mathrm{AgCl} \\downarrow{} }"
+ },
+ {
+  "input": "Zn + 2HCl -> ZnCl2 + H2 ^",
+  "machine": "ce",
+  "expected": "{\\mathrm{Zn} {}+{} 2\\,\\mathrm{HCl}\\xrightarrow{}\\mathrm{ZnCl}{\\vphantom{X}}_{\\smash[t]{2}} {}+{} \\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}} \\uparrow{} }"
+ },
+ {
+  "input": "v",
+  "machine": "ce",
+  "expected": "{ \\downarrow{} }"
+ },
+ {
+  "input": "^",
+  "machine": "ce",
+  "expected": "{ \\uparrow{} }"
+ },
+ {
+  "input": "A v",
+  "machine": "ce",
+  "expected": "{\\mathrm{A} \\downarrow{} }"
+ },
+ {
+  "input": "A^",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}}"
+ },
+ {
+  "input": "A\\bond{-}B\\bond{=}C\\bond{#}D",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{-}\\mathrm{B}{=}\\mathrm{C}{\\equiv}\\mathrm{D}}"
+ },
+ {
+  "input": "A\\bond{1}B\\bond{2}C\\bond{3}D",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{-}\\mathrm{B}{=}\\mathrm{C}{\\equiv}\\mathrm{D}}"
+ },
+ {
+  "input": "A\\bond{~}B\\bond{~-}C",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\tripledash}\\mathrm{B}{\\mathrlap{\\raisebox{-.1em}{$-$}}\\raisebox{.1em}{$\\tripledash$}}\\mathrm{C}}"
+ },
+ {
+  "input": "A\\bond{~--}B\\bond{~=}C\\bond{-~-}D",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\mathrlap{\\raisebox{-.2em}{$-$}}\\mathrlap{\\raisebox{.2em}{$\\tripledash$}}-}\\mathrm{B}{\\mathrlap{\\raisebox{-.2em}{$-$}}\\mathrlap{\\raisebox{.2em}{$\\tripledash$}}-}\\mathrm{C}{\\mathrlap{\\raisebox{-.2em}{$-$}}\\mathrlap{\\raisebox{.2em}{$-$}}\\tripledash}\\mathrm{D}}"
+ },
+ {
+  "input": "A\\bond{...}B\\bond{....}C",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{{\\cdot}{\\cdot}{\\cdot}}\\mathrm{B}{{\\cdot}{\\cdot}{\\cdot}{\\cdot}}\\mathrm{C}}"
+ },
+ {
+  "input": "A\\bond{->}B\\bond{<-}C",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\rightarrow}\\mathrm{B}{\\leftarrow}\\mathrm{C}}"
+ },
+ {
+  "input": "A\\bond{<}B\\bond{>}C",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{<}\\mathrm{B}{>}\\mathrm{C}}"
+ },
+ {
+  "input": "A-B=C#D",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{-}\\mathrm{B}{=}\\mathrm{C}{\\equiv}\\mathrm{D}}"
+ },
+ {
+  "input": "CH3-CH2-OH",
+  "machine": "ce",
+  "expected": "{\\mathrm{CH}{\\vphantom{X}}_{\\smash[t]{3}}{-}\\mathrm{CH}{\\vphantom{X}}_{\\smash[t]{2}}{-}\\mathrm{OH}}"
+ },
+ {
+  "input": "CH2=CH2",
+  "machine": "ce",
+  "expected": "{\\mathrm{CH}{\\vphantom{X}}_{\\smash[t]{2}}{=}\\mathrm{CH}{\\vphantom{X}}_{\\smash[t]{2}}}"
+ },
+ {
+  "input": "HC#CH",
+  "machine": "ce",
+  "expected": "{\\mathrm{HC}{\\equiv}\\mathrm{CH}}"
+ },
+ {
+  "input": "H-C#N",
+  "machine": "ce",
+  "expected": "{\\mathrm{H}{-}\\mathrm{C}{\\equiv}\\mathrm{N}}"
+ },
+ {
+  "input": "C6H5-CHO",
+  "machine": "ce",
+  "expected": "{\\mathrm{C}{\\vphantom{X}}_{\\smash[t]{6}}\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{5}}{-}\\mathrm{CHO}}"
+ },
+ {
+  "input": "-OH",
+  "machine": "ce",
+  "expected": "{{-}\\mathrm{OH}}"
+ },
+ {
+  "input": "-CH3",
+  "machine": "ce",
+  "expected": "{{-}\\mathrm{CH}{\\vphantom{X}}_{\\smash[t]{3}}}"
+ },
+ {
+  "input": "CH3-",
+  "machine": "ce",
+  "expected": "{\\mathrm{CH}{\\vphantom{X}}_{\\smash[t]{3}}{\\vphantom{X}}^{-}}"
+ },
+ {
+  "input": "H3C-CH3",
+  "machine": "ce",
+  "expected": "{\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{3}}\\mathrm{C}{-}\\mathrm{CH}{\\vphantom{X}}_{\\smash[t]{3}}}"
+ },
+ {
+  "input": "O=C=O",
+  "machine": "ce",
+  "expected": "{\\mathrm{O}{=}\\mathrm{C}{=}\\mathrm{O}}"
+ },
+ {
+  "input": "N#N",
+  "machine": "ce",
+  "expected": "{\\mathrm{N}{\\equiv}\\mathrm{N}}"
+ },
+ {
+  "input": "A-B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{-}\\mathrm{B}}"
+ },
+ {
+  "input": "A=B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{=}\\mathrm{B}}"
+ },
+ {
+  "input": "A#B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\equiv}\\mathrm{B}}"
+ },
+ {
+  "input": "A≡B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\equiv}\\mathrm{B}}"
+ },
+ {
+  "input": "A...B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{{\\cdot}{\\cdot}{\\cdot}}\\mathrm{B}}"
+ },
+ {
+  "input": "CH3CH2OH",
+  "machine": "ce",
+  "expected": "{\\mathrm{CH}{\\vphantom{X}}_{\\smash[t]{3}}\\mathrm{CH}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{OH}}"
+ },
+ {
+  "input": "CH3-CH(OH)-CH3",
+  "machine": "ce",
+  "expected": "{\\mathrm{CH}{\\vphantom{X}}_{\\smash[t]{3}}{-}\\mathrm{CH}(\\mathrm{OH}){-}\\mathrm{CH}{\\vphantom{X}}_{\\smash[t]{3}}}"
+ },
+ {
+  "input": "CH3-C(=O)-OH",
+  "machine": "ce",
+  "expected": "{\\mathrm{CH}{\\vphantom{X}}_{\\smash[t]{3}}{-}\\mathrm{C}({=}\\mathrm{O}){-}\\mathrm{OH}}"
+ },
+ {
+  "input": "R-COOH",
+  "machine": "ce",
+  "expected": "{\\mathrm{R}{-}\\mathrm{COOH}}"
+ },
+ {
+  "input": "R-NH2",
+  "machine": "ce",
+  "expected": "{\\mathrm{R}{-}\\mathrm{NH}{\\vphantom{X}}_{\\smash[t]{2}}}"
+ },
+ {
+  "input": "C=O",
+  "machine": "ce",
+  "expected": "{\\mathrm{C}{=}\\mathrm{O}}"
+ },
+ {
+  "input": "CH3COO- + H+ <=> CH3COOH",
+  "machine": "ce",
+  "expected": "{\\mathrm{CH}{\\vphantom{X}}_{\\smash[t]{3}}\\mathrm{COO}{\\vphantom{X}}^{-} {}+{} \\mathrm{H}{\\vphantom{X}}^{+}\\xrightleftharpoons{}\\mathrm{CH}{\\vphantom{X}}_{\\smash[t]{3}}\\mathrm{COOH}}"
+ },
+ {
+  "input": "(CH3)3C-OH",
+  "machine": "ce",
+  "expected": "{(\\mathrm{CH}{\\vphantom{X}}_{\\smash[t]{3}}){\\vphantom{X}}_{\\smash[t]{3}}\\mathrm{C}{-}\\mathrm{OH}}"
+ },
+ {
+  "input": "CH3-(CH2)4-CH3",
+  "machine": "ce",
+  "expected": "{\\mathrm{CH}{\\vphantom{X}}_{\\smash[t]{3}}{-}(\\mathrm{CH}{\\vphantom{X}}_{\\smash[t]{2}}){\\vphantom{X}}_{\\smash[t]{4}}{-}\\mathrm{CH}{\\vphantom{X}}_{\\smash[t]{3}}}"
+ },
+ {
+  "input": "KCr(SO4)2*12H2O",
+  "machine": "ce",
+  "expected": "{\\mathrm{KCr}(\\mathrm{SO}{\\vphantom{X}}_{\\smash[t]{4}}){\\vphantom{X}}_{\\smash[t]{2}}\\,{\\cdot}\\,12\\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "KCr(SO4)2.12H2O",
+  "machine": "ce",
+  "expected": "{\\mathrm{KCr}(\\mathrm{SO}{\\vphantom{X}}_{\\smash[t]{4}}){\\vphantom{X}}_{\\smash[t]{2}}\\,{\\cdot}\\,12\\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "KCr(SO4)2 * 12 H2O",
+  "machine": "ce",
+  "expected": "{\\mathrm{KCr}(\\mathrm{SO}{\\vphantom{X}}_{\\smash[t]{4}}){\\vphantom{X}}_{\\smash[t]{2}}\\,{\\cdot}\\,12\\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "CuSO4*5H2O",
+  "machine": "ce",
+  "expected": "{\\mathrm{CuSO}{\\vphantom{X}}_{\\smash[t]{4}}\\,{\\cdot}\\,5\\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "CuSO4.5H2O",
+  "machine": "ce",
+  "expected": "{\\mathrm{CuSO}{\\vphantom{X}}_{\\smash[t]{4}}\\,{\\cdot}\\,5\\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "CuSO4·5H2O",
+  "machine": "ce",
+  "expected": "{\\mathrm{CuSO}{\\vphantom{X}}_{\\smash[t]{4}}\\,{\\cdot}\\,5\\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "CuSO4 • 5H2O",
+  "machine": "ce",
+  "expected": "{\\mathrm{CuSO}{\\vphantom{X}}_{\\smash[t]{4}}\\,{\\cdot}\\,5\\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "CuSO4 ⋅ 5 H2O",
+  "machine": "ce",
+  "expected": "{\\mathrm{CuSO}{\\vphantom{X}}_{\\smash[t]{4}}\\,{\\cdot}\\,5\\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "OCO^{.-}",
+  "machine": "ce",
+  "expected": "{\\mathrm{OCO}{\\vphantom{X}}^{\\mkern1mu \\bullet\\mkern1mu -}}"
+ },
+ {
+  "input": "NO^{(2.)-}",
+  "machine": "ce",
+  "expected": "{\\mathrm{NO}{\\vphantom{X}}^{(2\\mkern1mu \\bullet\\mkern1mu )-}}"
+ },
+ {
+  "input": "A\\cdot B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\cdot \\mathrm{B}}"
+ },
+ {
+  "input": "\\cdot",
+  "machine": "ce",
+  "expected": "{\\cdot}"
+ },
+ {
+  "input": "A ... B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}~\\ldots ~\\mathrm{B}}"
+ },
+ {
+  "input": "A...",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{{\\cdot}{\\cdot}{\\cdot}}}"
+ },
+ {
+  "input": "...",
+  "machine": "ce",
+  "expected": "{\\ldots }"
+ },
+ {
+  "input": "CaCl2*6H2O",
+  "machine": "ce",
+  "expected": "{\\mathrm{CaCl}{\\vphantom{X}}_{\\smash[t]{2}}\\,{\\cdot}\\,6\\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "Na2CO3*10H2O",
+  "machine": "ce",
+  "expected": "{\\mathrm{Na}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{CO}{\\vphantom{X}}_{\\smash[t]{3}}\\,{\\cdot}\\,10\\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "OH^.",
+  "machine": "ce",
+  "expected": "{\\mathrm{OH}{\\vphantom{X}}^{\\mkern1mu \\bullet\\mkern1mu }}"
+ },
+ {
+  "input": "Cl^.",
+  "machine": "ce",
+  "expected": "{\\mathrm{Cl}{\\vphantom{X}}^{\\mkern1mu \\bullet\\mkern1mu }}"
+ },
+ {
+  "input": "NO^*",
+  "machine": "ce",
+  "expected": "{\\mathrm{NO}{\\vphantom{X}}^{*}}"
+ },
+ {
+  "input": "$x$",
+  "machine": "ce",
+  "expected": "{x }"
+ },
+ {
+  "input": "$\\alpha$ H2O",
+  "machine": "ce",
+  "expected": "{\\alpha ~\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "CH4 + 2 $\\left( \\ce{O2 + 79/21 N2} \\right)$",
+  "machine": "ce",
+  "expected": "{\\mathrm{CH}{\\vphantom{X}}_{\\smash[t]{4}} {}+{} 2\\,\\left(  \\mathrm{O}{\\vphantom{X}}_{\\smash[t]{2}} {}+{} \\mathchoice{\\textstyle\\frac{79}{21}}{\\frac{79}{21}}{\\frac{79}{21}}{\\frac{79}{21}}\\,\\mathrm{N}{\\vphantom{X}}_{\\smash[t]{2}} \\right) }"
+ },
+ {
+  "input": "$K = \\frac{[\\ce{Hg^2+}][\\ce{Hg}]}{[\\ce{Hg2^2+}]}$",
+  "machine": "ce",
+  "expected": "{K = \\frac{[\\ce{Hg^2+}][\\ce{Hg}]}{[\\ce{Hg2^2+}]} }"
+ },
+ {
+  "input": "$x A <=>> $x$ B",
+  "machine": "ce",
+  "expected": "{x A <=>>  \\mathrm{x}$~\\mathrm{B}}"
+ },
+ {
+  "input": "NO_x",
+  "machine": "ce",
+  "expected": "{\\mathrm{NO}{\\vphantom{X}}_{\\smash[t]{x }}}"
+ },
+ {
+  "input": "Fe^n+",
+  "machine": "ce",
+  "expected": "{\\mathrm{Fe}{\\vphantom{X}}^{n +}}"
+ },
+ {
+  "input": "x Na(NH4)HPO4 ->[\\Delta] (NaPO3)_x + x NH3 ^ + x H2O",
+  "machine": "ce",
+  "expected": "{x\\,\\mathrm{Na}(\\mathrm{NH}{\\vphantom{X}}_{\\smash[t]{4}})\\mathrm{HPO}{\\vphantom{X}}_{\\smash[t]{4}}\\xrightarrow{\\mathrm{\\Delta}}(\\mathrm{NaPO}{\\vphantom{X}}_{\\smash[t]{3}}){\\vphantom{X}}_{\\smash[t]{x }} {}+{} x\\,\\mathrm{NH}{\\vphantom{X}}_{\\smash[t]{3}} \\uparrow{}  {}+{} x\\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "A_{$x$}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{x }}}"
+ },
+ {
+  "input": "A^{$x$}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{x }}"
+ },
+ {
+  "input": "A_$x$",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{x }}}"
+ },
+ {
+  "input": "A^$x$",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{x }}"
+ },
+ {
+  "input": "${x}$",
+  "machine": "ce",
+  "expected": "{x }"
+ },
+ {
+  "input": "A${x}$",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}x }"
+ },
+ {
+  "input": "$\\ce{H2O}$",
+  "machine": "ce",
+  "expected": "{\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "$a$-b",
+  "machine": "ce",
+  "expected": "{a \\text{-}\\mathrm{b}}"
+ },
+ {
+  "input": "$x$-$y$",
+  "machine": "ce",
+  "expected": "{x \\text{-}y }"
+ },
+ {
+  "input": "H_{$n$}",
+  "machine": "ce",
+  "expected": "{\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{n }}}"
+ },
+ {
+  "input": "C_nH_{2n+2}",
+  "machine": "ce",
+  "expected": "{\\mathrm{C}{\\vphantom{X}}_{\\smash[t]{n }}\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2n +2}}}"
+ },
+ {
+  "input": "C_{n}H_{2n+2}",
+  "machine": "ce",
+  "expected": "{\\mathrm{C}{\\vphantom{X}}_{\\smash[t]{n }}\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2n +2}}}"
+ },
+ {
+  "input": "C_nH_2n+2",
+  "machine": "ce",
+  "expected": "{\\mathrm{C}{\\vphantom{X}}_{\\smash[t]{n }}\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{n}{\\vphantom{X}}^{+}_{\\smash[t]{2}}}"
+ },
+ {
+  "input": "Fe^{n+}",
+  "machine": "ce",
+  "expected": "{\\mathrm{Fe}{\\vphantom{X}}^{n +}}"
+ },
+ {
+  "input": "X^{2n+}",
+  "machine": "ce",
+  "expected": "{\\mathrm{X}{\\vphantom{X}}^{2n +}}"
+ },
+ {
+  "input": "\\alpha",
+  "machine": "ce",
+  "expected": "{\\mathrm{\\alpha}}"
+ },
+ {
+  "input": "\\mu-Cl",
+  "machine": "ce",
+  "expected": "{\\mathrm{\\mu}\\text{-}\\mathrm{Cl}}"
+ },
+ {
+  "input": "[Pt(\\eta^2-C2H4)Cl3]-",
+  "machine": "ce",
+  "expected": "{[\\mathrm{Pt}(\\mathrm{\\eta}{\\vphantom{X}}^{2}\\text{-}\\mathrm{C}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{4}})\\mathrm{Cl}{\\vphantom{X}}_{\\smash[t]{3}}]{\\vphantom{X}}^{-}}"
+ },
+ {
+  "input": "\\beta +",
+  "machine": "ce",
+  "expected": "{\\mathrm{\\beta }{\\vphantom{X}}^{+}}"
+ },
+ {
+  "input": "\\alpha-Fe",
+  "machine": "ce",
+  "expected": "{\\mathrm{\\alpha}\\text{-}\\mathrm{Fe}}"
+ },
+ {
+  "input": "\\gamma-Al2O3",
+  "machine": "ce",
+  "expected": "{\\mathrm{\\gamma}\\text{-}\\mathrm{Al}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}{\\vphantom{X}}_{\\smash[t]{3}}}"
+ },
+ {
+  "input": "\\Delta H",
+  "machine": "ce",
+  "expected": "{\\mathrm{\\Delta H}}"
+ },
+ {
+  "input": "α",
+  "machine": "ce",
+  "expected": "{\\mathrm{α}}"
+ },
+ {
+  "input": "α-Fe",
+  "machine": "ce",
+  "expected": "{\\mathrm{α}\\text{-}\\mathrm{Fe}}"
+ },
+ {
+  "input": "\\alpha H",
+  "machine": "ce",
+  "expected": "{\\mathrm{\\alpha H}}"
+ },
+ {
+  "input": "\\alpha{}H",
+  "machine": "ce",
+  "expected": "{\\mathrm{\\alpha{}H}}"
+ },
+ {
+  "input": "\\alphaH",
+  "machine": "ce",
+  "expected": "{\\alphaH}"
+ },
+ {
+  "input": "\\Omega",
+  "machine": "ce",
+  "expected": "{\\mathrm{\\Omega}}"
+ },
+ {
+  "input": "\\pi-bond",
+  "machine": "ce",
+  "expected": "{\\mathrm{\\pi}\\text{-}\\mathrm{bond}}"
+ },
+ {
+  "input": "\\sigma",
+  "machine": "ce",
+  "expected": "{\\mathrm{\\sigma}}"
+ },
+ {
+  "input": "\\nu_e",
+  "machine": "ce",
+  "expected": "{\\mathrm{\\nu}{\\vphantom{X}}_{\\smash[t]{e }}}"
+ },
+ {
+  "input": "\\mu",
+  "machine": "ce",
+  "expected": "{\\mathrm{\\mu}}"
+ },
+ {
+  "input": "\\mu{}",
+  "machine": "ce",
+  "expected": "{\\mathrm{\\mu{}}}"
+ },
+ {
+  "input": "\\alpha \\beta",
+  "machine": "ce",
+  "expected": "{\\mathrm{\\alpha \\beta}}"
+ },
+ {
+  "input": "$\\alpha$-Fe",
+  "machine": "ce",
+  "expected": "{\\alpha \\text{-}\\mathrm{Fe}}"
+ },
+ {
+  "input": "\\Lambda-",
+  "machine": "ce",
+  "expected": "{\\mathrm{\\Lambda}{\\vphantom{X}}^{-}}"
+ },
+ {
+  "input": "β-D-Glucose",
+  "machine": "ce",
+  "expected": "{\\mathrm{β}\\text{-}\\mathrm{D}{-}\\mathrm{Glucose}}"
+ },
+ {
+  "input": "{Gluconic Acid} + H2O2",
+  "machine": "ce",
+  "expected": "{{\\text{Gluconic Acid}} {}+{} \\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}{\\vphantom{X}}_{\\smash[t]{2}}}"
+ },
+ {
+  "input": "H2O {(water)}",
+  "machine": "ce",
+  "expected": "{\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}~{\\text{(water)}}}"
+ },
+ {
+  "input": "\\text{水} H2O",
+  "machine": "ce",
+  "expected": "{\\text{水}~\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "\\text{溶液}",
+  "machine": "ce",
+  "expected": "{\\text{溶液}}"
+ },
+ {
+  "input": "溶液",
+  "machine": "ce",
+  "expected": "{溶液}"
+ },
+ {
+  "input": "水 + 盐",
+  "machine": "ce",
+  "expected": "{水 {}+{} 盐}"
+ },
+ {
+  "input": "{水}",
+  "machine": "ce",
+  "expected": "{{\\text{水}}}"
+ },
+ {
+  "input": "A + {B C}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A} {}+{} {\\text{B C}}}"
+ },
+ {
+  "input": "{}",
+  "machine": "ce",
+  "expected": ""
+ },
+ {
+  "input": "A{}B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\mathrm{B}}"
+ },
+ {
+  "input": "{x}",
+  "machine": "ce",
+  "expected": "{{\\text{x}}}"
+ },
+ {
+  "input": "\\text{A B}",
+  "machine": "ce",
+  "expected": "{\\text{A B}}"
+ },
+ {
+  "input": "\\text{a^2}",
+  "machine": "ce",
+  "expected": "{\\text{a^2}}"
+ },
+ {
+  "input": "\\text{a_b c-d}",
+  "machine": "ce",
+  "expected": "{\\text{a_b c-d}}"
+ },
+ {
+  "input": "\\text{H2O -> aq}",
+  "machine": "ce",
+  "expected": "{\\text{H2O -> aq}}"
+ },
+ {
+  "input": "\\mathrm{X}",
+  "machine": "ce",
+  "expected": "{\\mathrm{X}}"
+ },
+ {
+  "input": "\\textbf{X}",
+  "machine": "ce",
+  "expected": "{\\textbf{X}}"
+ },
+ {
+  "input": "\\mathbf{H}2O",
+  "machine": "ce",
+  "expected": "{\\mathbf{H}2\\,\\mathrm{O}}"
+ },
+ {
+  "input": "\\textit{x}H2O",
+  "machine": "ce",
+  "expected": "{\\textit{x}\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "A + B = C",
+  "machine": "ce",
+  "expected": "{\\mathrm{A} {}+{} \\mathrm{B} {}={} \\mathrm{C}}"
+ },
+ {
+  "input": "A + B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A} {}+{} \\mathrm{B}}"
+ },
+ {
+  "input": "A+B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{+}\\mathrm{B}}"
+ },
+ {
+  "input": "A +B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A} {}+{} \\mathrm{B}}"
+ },
+ {
+  "input": "A+ B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{+}~\\mathrm{B}}"
+ },
+ {
+  "input": "A = B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A} {}={} \\mathrm{B}}"
+ },
+ {
+  "input": "A < B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A} {}<{} \\mathrm{B}}"
+ },
+ {
+  "input": "A > B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A} {}>{} \\mathrm{B}}"
+ },
+ {
+  "input": "A << B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A} {}\\ll{} \\mathrm{B}}"
+ },
+ {
+  "input": "A >> B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A} {}\\gg{} \\mathrm{B}}"
+ },
+ {
+  "input": "A \\approx B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A} {}\\approx{} \\mathrm{B}}"
+ },
+ {
+  "input": "A $\\approx$ B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A} {}\\approx{} \\mathrm{B}}"
+ },
+ {
+  "input": "A \\pm B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A} {}\\pm{} \\mathrm{B}}"
+ },
+ {
+  "input": "A $\\pm$ B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A} {}\\pm{} \\mathrm{B}}"
+ },
+ {
+  "input": "A +- B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A} {}\\pm{} \\mathrm{B}}"
+ },
+ {
+  "input": "A +/- B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A} {}\\pm{} \\mathrm{B}}"
+ },
+ {
+  "input": "+",
+  "machine": "ce",
+  "expected": "{{+}}"
+ },
+ {
+  "input": "-",
+  "machine": "ce",
+  "expected": "{ {}-{} }"
+ },
+ {
+  "input": "=",
+  "machine": "ce",
+  "expected": "{ {}={} }"
+ },
+ {
+  "input": "A + -B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A} {}+{} {-}\\mathrm{B}}"
+ },
+ {
+  "input": "A - B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A} {}-{} \\mathrm{B}}"
+ },
+ {
+  "input": "2A + 3B = 4C",
+  "machine": "ce",
+  "expected": "{2\\,\\mathrm{A} {}+{} 3\\,\\mathrm{B} {}={} 4\\,\\mathrm{C}}"
+ },
+ {
+  "input": "A=2",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{=}2}"
+ },
+ {
+  "input": "A = -2",
+  "machine": "ce",
+  "expected": "{\\mathrm{A} {}={} {-2}}"
+ },
+ {
+  "input": "x = 2",
+  "machine": "ce",
+  "expected": "{\\mathrm{x} {}={} 2}"
+ },
+ {
+  "input": "2H2 + O2 -> 2H2O",
+  "machine": "ce",
+  "expected": "{2\\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}} {}+{} \\mathrm{O}{\\vphantom{X}}_{\\smash[t]{2}}\\xrightarrow{}2\\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "CH4 + 2O2 -> CO2 + 2H2O",
+  "machine": "ce",
+  "expected": "{\\mathrm{CH}{\\vphantom{X}}_{\\smash[t]{4}} {}+{} 2\\,\\mathrm{O}{\\vphantom{X}}_{\\smash[t]{2}}\\xrightarrow{}\\mathrm{CO}{\\vphantom{X}}_{\\smash[t]{2}} {}+{} 2\\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "Zn + Cu^2+ -> Zn^2+ + Cu",
+  "machine": "ce",
+  "expected": "{\\mathrm{Zn} {}+{} \\mathrm{Cu}{\\vphantom{X}}^{2+}\\xrightarrow{}\\mathrm{Zn}{\\vphantom{X}}^{2+} {}+{} \\mathrm{Cu}}"
+ },
+ {
+  "input": "2Na + 2H2O -> 2NaOH + H2 ^",
+  "machine": "ce",
+  "expected": "{2\\,\\mathrm{Na} {}+{} 2\\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}\\xrightarrow{}2\\,\\mathrm{NaOH} {}+{} \\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}} \\uparrow{} }"
+ },
+ {
+  "input": "Fe2O3 + 3CO -> 2Fe + 3CO2",
+  "machine": "ce",
+  "expected": "{\\mathrm{Fe}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}{\\vphantom{X}}_{\\smash[t]{3}} {}+{} 3\\,\\mathrm{CO}\\xrightarrow{}2\\,\\mathrm{Fe} {}+{} 3\\,\\mathrm{CO}{\\vphantom{X}}_{\\smash[t]{2}}}"
+ },
+ {
+  "input": "A -> B -> C",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\xrightarrow{}\\mathrm{B}\\xrightarrow{}\\mathrm{C}}"
+ },
+ {
+  "input": "A <=> B <=> C",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\xrightleftharpoons{}\\mathrm{B}\\xrightleftharpoons{}\\mathrm{C}}"
+ },
+ {
+  "input": "Cu + 4HNO3 -> Cu(NO3)2 + 2NO2 ^ + 2H2O",
+  "machine": "ce",
+  "expected": "{\\mathrm{Cu} {}+{} 4\\,\\mathrm{HNO}{\\vphantom{X}}_{\\smash[t]{3}}\\xrightarrow{}\\mathrm{Cu}(\\mathrm{NO}{\\vphantom{X}}_{\\smash[t]{3}}){\\vphantom{X}}_{\\smash[t]{2}} {}+{} 2\\,\\mathrm{NO}{\\vphantom{X}}_{\\smash[t]{2}} \\uparrow{}  {}+{} 2\\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "MnO4^- + 8H+ + 5e- -> Mn^2+ + 4H2O",
+  "machine": "ce",
+  "expected": "{\\mathrm{MnO}{\\vphantom{X}}_{\\smash[t]{4}}{\\vphantom{X}}^{-} {}+{} 8\\,\\mathrm{H}{\\vphantom{X}}^{+} {}+{} 5\\,\\mathrm{e}{\\vphantom{X}}^{-}\\xrightarrow{}\\mathrm{Mn}{\\vphantom{X}}^{2+} {}+{} 4\\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "Cr2O7^2- + 14H+ + 6e- -> 2Cr^3+ + 7H2O",
+  "machine": "ce",
+  "expected": "{\\mathrm{Cr}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}{\\vphantom{X}}_{\\smash[t]{7}}{\\vphantom{X}}^{2-} {}+{} 14\\,\\mathrm{H}{\\vphantom{X}}^{+} {}+{} 6\\,\\mathrm{e}{\\vphantom{X}}^{-}\\xrightarrow{}2\\,\\mathrm{Cr}{\\vphantom{X}}^{3+} {}+{} 7\\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "H3O+ + OH- <=> 2H2O",
+  "machine": "ce",
+  "expected": "{\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{3}}\\mathrm{O}{\\vphantom{X}}^{+} {}+{} \\mathrm{OH}{\\vphantom{X}}^{-}\\xrightleftharpoons{}2\\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "CaCO3 ->[\\Delta] CaO + CO2 ^",
+  "machine": "ce",
+  "expected": "{\\mathrm{CaCO}{\\vphantom{X}}_{\\smash[t]{3}}\\xrightarrow{\\mathrm{\\Delta}}\\mathrm{CaO} {}+{} \\mathrm{CO}{\\vphantom{X}}_{\\smash[t]{2}} \\uparrow{} }"
+ },
+ {
+  "input": "C6H12O6 + 6O2 -> 6CO2 + 6H2O",
+  "machine": "ce",
+  "expected": "{\\mathrm{C}{\\vphantom{X}}_{\\smash[t]{6}}\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{12}}\\mathrm{O}{\\vphantom{X}}_{\\smash[t]{6}} {}+{} 6\\,\\mathrm{O}{\\vphantom{X}}_{\\smash[t]{2}}\\xrightarrow{}6\\,\\mathrm{CO}{\\vphantom{X}}_{\\smash[t]{2}} {}+{} 6\\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "Zn^2+ <=>[+ 2OH-][+ 2H+] $\\underset{\\text{amphoteres Hydroxid}}{\\ce{Zn(OH)2 v}}$ <=>[+ 2OH-][+ 2H+] $\\underset{\\text{Hydroxozikat}}{\\cf{[Zn(OH)4]^2-}}$",
+  "machine": "ce",
+  "expected": "{\\mathrm{Zn}{\\vphantom{X}}^{2+}\\xrightleftharpoons[{ {}+{} 2\\,\\mathrm{H}{\\vphantom{X}}^{+}}]{ {}+{} 2\\,\\mathrm{OH}{\\vphantom{X}}^{-}}\\underset{\\text{amphoteres Hydroxid}}{\\ce{Zn(OH)2 v}} \\xrightleftharpoons[{ {}+{} 2\\,\\mathrm{H}{\\vphantom{X}}^{+}}]{ {}+{} 2\\,\\mathrm{OH}{\\vphantom{X}}^{-}}\\underset{\\text{Hydroxozikat}}{\\cf{[Zn(OH)4]^2-}} }"
+ },
+ {
+  "input": "\\frac{1}{2}H2O",
+  "machine": "ce",
+  "expected": "{\\frac{1}{2}\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "\\frac{H2O}{2}",
+  "machine": "ce",
+  "expected": "{\\frac{\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}{2}}"
+ },
+ {
+  "input": "\\overset{a}{b}",
+  "machine": "ce",
+  "expected": "{\\overset{\\mathrm{a}}{\\mathrm{b}}}"
+ },
+ {
+  "input": "\\underset{a}{b}",
+  "machine": "ce",
+  "expected": "{\\underset{\\mathrm{a}}{\\mathrm{b}}}"
+ },
+ {
+  "input": "\\underbrace{H2O}_{water}",
+  "machine": "ce",
+  "expected": "{\\underbrace{\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}_{\\mathrm{water}}}"
+ },
+ {
+  "input": "\\color{red}{H2O}",
+  "machine": "ce",
+  "expected": "{{\\color{red}{\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}}}"
+ },
+ {
+  "input": "\\color\\red{H2O}",
+  "machine": "ce",
+  "expected": "{{\\color{\\red}{\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}}}"
+ },
+ {
+  "input": "\\color{red} H2O",
+  "machine": "ce",
+  "expected": "{\\color{r}\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "\\color{red}",
+  "machine": "ce",
+  "expected": "{\\color{r}}"
+ },
+ {
+  "input": "A\\ce{B}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\mathrm{B}}"
+ },
+ {
+  "input": "\\ce{H2O}",
+  "machine": "ce",
+  "expected": "{\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "A\\,B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\,\\mathrm{B}}"
+ },
+ {
+  "input": "A\\ B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\ \\mathrm{B}}"
+ },
+ {
+  "input": "A;B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{;}\\mkern3mu \\mathrm{B}}"
+ },
+ {
+  "input": "A\\:B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\:\\mathrm{B}}"
+ },
+ {
+  "input": "\\x{a}{b}",
+  "machine": "ce",
+  "expected": "{\\x{a}{b}}"
+ },
+ {
+  "input": "\\mathrm{a}{b}",
+  "machine": "ce",
+  "expected": "{\\mathrm{a}{b}}"
+ },
+ {
+  "input": "\\foo",
+  "machine": "ce",
+  "expected": "{\\foo}"
+ },
+ {
+  "input": "\\foo bar",
+  "machine": "ce",
+  "expected": "{\\foo \\mathrm{bar}}"
+ },
+ {
+  "input": "\\_",
+  "machine": "ce",
+  "expected": "{\\_}"
+ },
+ {
+  "input": "\\&",
+  "machine": "ce",
+  "expected": "{\\&}"
+ },
+ {
+  "input": "\\{",
+  "machine": "ce",
+  "expected": "{\\{}"
+ },
+ {
+  "input": "\\}",
+  "machine": "ce",
+  "expected": "{\\}}"
+ },
+ {
+  "input": "\\%",
+  "machine": "ce",
+  "expected": "{\\%}"
+ },
+ {
+  "input": "A\\{B\\}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\{\\mathrm{B}\\}}"
+ },
+ {
+  "input": "[\\{(X2)3\\}2]^3+",
+  "machine": "ce",
+  "expected": "{[\\{(\\mathrm{X}{\\vphantom{X}}_{\\smash[t]{2}}){\\vphantom{X}}_{\\smash[t]{3}}\\}{\\vphantom{X}}_{\\smash[t]{2}}]{\\vphantom{X}}^{3+}}"
+ },
+ {
+  "input": "\\overset{\\ce{H2O}}{->}",
+  "machine": "ce",
+  "expected": "{\\overset{\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}{\\xrightarrow{}}}"
+ },
+ {
+  "input": "\\cf{X}",
+  "machine": "ce",
+  "expected": "{\\cf{X}}"
+ },
+ {
+  "input": "\\ca",
+  "machine": "ce",
+  "expected": "{{\\sim}}"
+ },
+ {
+  "input": "\\ca 5",
+  "machine": "ce",
+  "expected": "{{\\sim}5}"
+ },
+ {
+  "input": "A & B",
+  "machine": "ce",
+  "expected": "\\mathrm{A}& \\mathrm{B}"
+ },
+ {
+  "input": "A \\\\ B",
+  "machine": "ce",
+  "expected": "\\mathrm{A}\\\\ \\mathrm{B}"
+ },
+ {
+  "input": "A \\hline B",
+  "machine": "ce",
+  "expected": "\\mathrm{A}\\hline \\mathrm{B}"
+ },
+ {
+  "input": "&",
+  "machine": "ce",
+  "expected": "& "
+ },
+ {
+  "input": "A&B\\\\C\\hline",
+  "machine": "ce",
+  "expected": "\\mathrm{A}& \\mathrm{B}\\\\ \\mathrm{C}\\hline "
+ },
+ {
+  "input": "A & B \\\\ C & D",
+  "machine": "ce",
+  "expected": "\\mathrm{A}& \\mathrm{B}\\\\ \\mathrm{C}& \\mathrm{D}"
+ },
+ {
+  "input": "1s",
+  "machine": "ce",
+  "expected": "{1\\mathrm{s}}"
+ },
+ {
+  "input": "2p",
+  "machine": "ce",
+  "expected": "{2\\mathrm{p}}"
+ },
+ {
+  "input": "1s^2 2s^2 2p^6",
+  "machine": "ce",
+  "expected": "{1\\mathrm{s}{\\vphantom{X}}^{2}~2\\mathrm{s}{\\vphantom{X}}^{2}~2\\mathrm{p}{\\vphantom{X}}^{6}}"
+ },
+ {
+  "input": "sp3",
+  "machine": "ce",
+  "expected": "{\\mathrm{sp}{\\vphantom{X}}_{\\smash[t]{3}}}"
+ },
+ {
+  "input": "sp^3",
+  "machine": "ce",
+  "expected": "{\\mathrm{sp}{\\vphantom{X}}^{3}}"
+ },
+ {
+  "input": "s-orbital",
+  "machine": "ce",
+  "expected": "{s \\text{-}\\mathrm{orbital}}"
+ },
+ {
+  "input": "p-xylene",
+  "machine": "ce",
+  "expected": "{p \\text{-}\\mathrm{xylene}}"
+ },
+ {
+  "input": "o-xylene",
+  "machine": "ce",
+  "expected": "{o \\text{-}\\mathrm{xylene}}"
+ },
+ {
+  "input": "n-Butyl",
+  "machine": "ce",
+  "expected": "{n \\text{-}\\mathrm{Butyl}}"
+ },
+ {
+  "input": "s-p",
+  "machine": "ce",
+  "expected": "{\\mathrm{s}\\text{-}\\mathrm{p}}"
+ },
+ {
+  "input": "\\pi-p",
+  "machine": "ce",
+  "expected": "{\\mathrm{\\pi}\\text{-}\\mathrm{p}}"
+ },
+ {
+  "input": "1s-2p",
+  "machine": "ce",
+  "expected": "{1\\mathrm{s}\\text{-}2\\mathrm{p}}"
+ },
+ {
+  "input": "d-d",
+  "machine": "ce",
+  "expected": "{\\mathrm{d}\\text{-}\\mathrm{d}}"
+ },
+ {
+  "input": "p-C6H4",
+  "machine": "ce",
+  "expected": "{p \\text{-}\\mathrm{C}{\\vphantom{X}}_{\\smash[t]{6}}\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{4}}}"
+ },
+ {
+  "input": "N-Methyl",
+  "machine": "ce",
+  "expected": "{\\mathrm{N}{-}\\mathrm{Methyl}}"
+ },
+ {
+  "input": "3-Methylpentane",
+  "machine": "ce",
+  "expected": "{3\\text{-}\\mathrm{Methylpentane}}"
+ },
+ {
+  "input": "2-Butene",
+  "machine": "ce",
+  "expected": "{2\\text{-}\\mathrm{Butene}}"
+ },
+ {
+  "input": "cis-2-Butene",
+  "machine": "ce",
+  "expected": "{\\mathrm{cis}\\text{-}2\\text{-}\\mathrm{Butene}}"
+ },
+ {
+  "input": "trans-But-2-ene",
+  "machine": "ce",
+  "expected": "{\\mathrm{trans}{-}\\mathrm{But}\\text{-}2\\text{-}\\mathrm{ene}}"
+ },
+ {
+  "input": "1,2-dichloroethane",
+  "machine": "ce",
+  "expected": "{1,2\\text{-}\\mathrm{dichloroethane}}"
+ },
+ {
+  "input": "1,3,5-trinitro",
+  "machine": "ce",
+  "expected": "{1,3{,}\\mkern3mu 5\\text{-}\\mathrm{trinitro}}"
+ },
+ {
+  "input": "pH",
+  "machine": "ce",
+  "expected": "{\\mathrm{pH}}"
+ },
+ {
+  "input": "pOH",
+  "machine": "ce",
+  "expected": "{\\mathrm{pOH}}"
+ },
+ {
+  "input": "pK",
+  "machine": "ce",
+  "expected": "{\\mathrm{pK}}"
+ },
+ {
+  "input": "pKa",
+  "machine": "ce",
+  "expected": "{p\\,\\mathrm{Ka}}"
+ },
+ {
+  "input": "iPr",
+  "machine": "ce",
+  "expected": "{\\mathrm{iPr}}"
+ },
+ {
+  "input": "iBu",
+  "machine": "ce",
+  "expected": "{\\mathrm{iBu}}"
+ },
+ {
+  "input": "iPr-OH",
+  "machine": "ce",
+  "expected": "{\\mathrm{iPr}{-}\\mathrm{OH}}"
+ },
+ {
+  "input": "Me",
+  "machine": "ce",
+  "expected": "{\\mathrm{Me}}"
+ },
+ {
+  "input": "A/B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}/\\mathrm{B}}"
+ },
+ {
+  "input": "A~B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}~\\mathrm{B}}"
+ },
+ {
+  "input": "A|B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}|\\mathrm{B}}"
+ },
+ {
+  "input": "H2O'",
+  "machine": "ce",
+  "expected": "{\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}{\\vphantom{X}}^{\\prime }}"
+ },
+ {
+  "input": "A'",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{\\prime }}"
+ },
+ {
+  "input": "A''",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{\\prime \\prime }}"
+ },
+ {
+  "input": "A^{'}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{\\prime }}"
+ },
+ {
+  "input": "",
+  "machine": "ce",
+  "expected": ""
+ },
+ {
+  "input": " ",
+  "machine": "ce",
+  "expected": ""
+ },
+ {
+  "input": "  A  ",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}}"
+ },
+ {
+  "input": "A  B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}~\\mathrm{B}}"
+ },
+ {
+  "input": "A\nB",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}~\\mathrm{B}}"
+ },
+ {
+  "input": "A−B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{-}\\mathrm{B}}"
+ },
+ {
+  "input": "A–B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{-}\\mathrm{B}}"
+ },
+ {
+  "input": "A—B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{-}\\mathrm{B}}"
+ },
+ {
+  "input": "A‐B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{-}\\mathrm{B}}"
+ },
+ {
+  "input": "A…",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{{\\cdot}{\\cdot}{\\cdot}}}"
+ },
+ {
+  "input": "A\tB",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}~\\mathrm{B}}"
+ },
+ {
+  "input": "2 ",
+  "machine": "ce",
+  "expected": "{2}"
+ },
+ {
+  "input": " 2",
+  "machine": "ce",
+  "expected": "{2}"
+ },
+ {
+  "input": "(",
+  "machine": "ce",
+  "expected": "{(}"
+ },
+ {
+  "input": ")",
+  "machine": "ce",
+  "expected": "{)}"
+ },
+ {
+  "input": "[",
+  "machine": "ce",
+  "expected": "{[}"
+ },
+ {
+  "input": "]",
+  "machine": "ce",
+  "expected": "{]}"
+ },
+ {
+  "input": "(A)",
+  "machine": "ce",
+  "expected": "{(\\mathrm{A})}"
+ },
+ {
+  "input": "[A]",
+  "machine": "ce",
+  "expected": "{[\\mathrm{A}]}"
+ },
+ {
+  "input": "A)",
+  "machine": "ce",
+  "expected": "{\\mathrm{A})}"
+ },
+ {
+  "input": "A]",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}]}"
+ },
+ {
+  "input": "A(",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}(}"
+ },
+ {
+  "input": "A[",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}[}"
+ },
+ {
+  "input": "A,B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{,}\\mkern3mu \\mathrm{B}}"
+ },
+ {
+  "input": "A, B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{,}\\mkern6mu \\mathrm{B}}"
+ },
+ {
+  "input": "A; B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{;}\\mkern6mu \\mathrm{B}}"
+ },
+ {
+  "input": "(A, B)",
+  "machine": "ce",
+  "expected": "{(\\mathrm{A}{,}\\mkern3mu \\mathrm{B})}"
+ },
+ {
+  "input": "A,B,C",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{,}\\mkern3mu \\mathrm{B}{,}\\mkern3mu \\mathrm{C}}"
+ },
+ {
+  "input": "NaCl, KCl",
+  "machine": "ce",
+  "expected": "{\\mathrm{NaCl}{,}\\mkern6mu \\mathrm{KCl}}"
+ },
+ {
+  "input": "Na,K",
+  "machine": "ce",
+  "expected": "{\\mathrm{Na}{,}\\mkern3mu \\mathrm{K}}"
+ },
+ {
+  "input": "A_2",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{2}}}"
+ },
+ {
+  "input": "A_{2}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{2}}}"
+ },
+ {
+  "input": "A_2^3",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{2}}{\\vphantom{X}}^{3}}"
+ },
+ {
+  "input": "A^3_2",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{3}_{\\smash[t]{2}}}"
+ },
+ {
+  "input": "A_{2}^{3}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{2}}{\\vphantom{X}}^{3}}"
+ },
+ {
+  "input": "_",
+  "machine": "ce",
+  "expected": ""
+ },
+ {
+  "input": "A^_",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}}"
+ },
+ {
+  "input": "A_^",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}}"
+ },
+ {
+  "input": "A_",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}}"
+ },
+ {
+  "input": "A__2",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{_}}2}"
+ },
+ {
+  "input": "A^^2",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{^}_{\\smash[t]{2}}}"
+ },
+ {
+  "input": "A_\\alpha",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{\\mathrm{\\alpha}}}}"
+ },
+ {
+  "input": "A^\\alpha",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{\\mathrm{\\alpha}}}"
+ },
+ {
+  "input": "A_\\text{x}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{\\text{x}}}}"
+ },
+ {
+  "input": "A^\\text{x}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{\\text{x}}}"
+ },
+ {
+  "input": "A_\\frac{1}{2}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{\\frac{1}{2}}}}"
+ },
+ {
+  "input": "A^\\frac{1}{2}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{\\frac{1}{2}}}"
+ },
+ {
+  "input": "A^{\\frac12}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{\\frac12}}"
+ },
+ {
+  "input": "A_{\\text{eq}}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{\\text{eq}}}}"
+ },
+ {
+  "input": "K_a",
+  "machine": "ce",
+  "expected": "{\\mathrm{K}{\\vphantom{X}}_{\\smash[t]{a }}}"
+ },
+ {
+  "input": "K_{a}",
+  "machine": "ce",
+  "expected": "{\\mathrm{K}{\\vphantom{X}}_{\\smash[t]{a }}}"
+ },
+ {
+  "input": "H_2O",
+  "machine": "ce",
+  "expected": "{\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "H^+",
+  "machine": "ce",
+  "expected": "{\\mathrm{H}{\\vphantom{X}}^{+}}"
+ },
+ {
+  "input": "A^{2}_{3}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{2}_{\\smash[t]{3}}}"
+ },
+ {
+  "input": "A^{+}_{-}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{+}_{\\smash[t]{-}}}"
+ },
+ {
+  "input": "A_{\\color{red}{x}}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{{\\color{red}{x }}}}}"
+ },
+ {
+  "input": "A^{\\color{red}{x}}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{{\\color{red}{{\\times}}}}}"
+ },
+ {
+  "input": "A_{\\color{red}x}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{\\color{r}\\mathrm{x}}}}"
+ },
+ {
+  "input": "A_{\\ce{x}}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{\\mathrm{x}}}}"
+ },
+ {
+  "input": "A_{(aq)}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{\\mskip1mu (\\mathrm{aq})}}}"
+ },
+ {
+  "input": "A^{x'}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{{\\times}\\prime }}"
+ },
+ {
+  "input": "A^{.}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{\\mkern1mu \\bullet\\mkern1mu }}"
+ },
+ {
+  "input": "A^{2.}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{2\\mkern1mu \\bullet\\mkern1mu }}"
+ },
+ {
+  "input": "A^{1,5}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{1{,}5}}"
+ },
+ {
+  "input": "A_{1,5}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{1{,}5}}}"
+ },
+ {
+  "input": "A_{1.5}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{1.5}}}"
+ },
+ {
+  "input": "A_{.5}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{.5}}}"
+ },
+ {
+  "input": "A_{-1.5}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{-1.5}}}"
+ },
+ {
+  "input": "A_{i,j}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{\\mathrm{i}{,}\\mkern1mu j }}}"
+ },
+ {
+  "input": "A_{i}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{\\mathrm{i}}}}"
+ },
+ {
+  "input": "A_i",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{\\mathrm{i}}}}"
+ },
+ {
+  "input": "A_x",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{x }}}"
+ },
+ {
+  "input": "A_{x}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{x }}}"
+ },
+ {
+  "input": "A_{2x}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{2x }}}"
+ },
+ {
+  "input": "A_{Na,K}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{\\mathrm{Na}{,}\\mkern1mu \\mathrm{K}}}}"
+ },
+ {
+  "input": "A_{x,y}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{x {,}\\mkern1mu y }}}"
+ },
+ {
+  "input": "A^{xy}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{{\\times}\\mathrm{y}}}"
+ },
+ {
+  "input": "A^{x2}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{x 2}}"
+ },
+ {
+  "input": "A^{2x}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{2x }}"
+ },
+ {
+  "input": "A^{ab}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{\\mathrm{ab}}}"
+ },
+ {
+  "input": "A_{ab}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{\\mathrm{ab}}}}"
+ },
+ {
+  "input": "A_{a b}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{a  b }}}"
+ },
+ {
+  "input": "A_{1 2}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{1 2}}}"
+ },
+ {
+  "input": "A^{1 2}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{1 2}}"
+ },
+ {
+  "input": "Fe^{II}_{2}",
+  "machine": "ce",
+  "expected": "{\\mathrm{Fe}{\\vphantom{X}}^{\\mathrm{II}}{\\vphantom{X}}_{\\smash[t]{2}}}"
+ },
+ {
+  "input": "A^{(2)}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{(2)}}"
+ },
+ {
+  "input": "A^-",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{-}}"
+ },
+ {
+  "input": "A^+",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{+}}"
+ },
+ {
+  "input": "A-",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{-}}"
+ },
+ {
+  "input": "A+",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{+}}"
+ },
+ {
+  "input": "A--",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{-} {}-{} }"
+ },
+ {
+  "input": "A++",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{++}}"
+ },
+ {
+  "input": "A2-",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{2}}{\\vphantom{X}}^{-}}"
+ },
+ {
+  "input": "A2+",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{2}}{\\vphantom{X}}^{+}}"
+ },
+ {
+  "input": "A^2--",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{2-} {}-{} }"
+ },
+ {
+  "input": "A^{-}-",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{-}{-}}"
+ },
+ {
+  "input": "A-2",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\text{-}2}"
+ },
+ {
+  "input": "A^-2",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{-}_{\\smash[t]{2}}}"
+ },
+ {
+  "input": "A^{-2}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{-2}}"
+ },
+ {
+  "input": "A^-_2",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{-}_{\\smash[t]{2}}}"
+ },
+ {
+  "input": "A-_2",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{-}{\\vphantom{X}}_{\\smash[t]{2}}}"
+ },
+ {
+  "input": "A_2-",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{2}}{\\vphantom{X}}^{-}}"
+ },
+ {
+  "input": "A_2^-",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{2}}{\\vphantom{X}}^{-}}"
+ },
+ {
+  "input": "A^2-_3",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{2-}_{\\smash[t]{3}}}"
+ },
+ {
+  "input": "H2O-",
+  "machine": "ce",
+  "expected": "{\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}{\\vphantom{X}}^{-}}"
+ },
+ {
+  "input": "-A",
+  "machine": "ce",
+  "expected": "{{-}\\mathrm{A}}"
+ },
+ {
+  "input": "--A",
+  "machine": "ce",
+  "expected": "{{-}{-}\\mathrm{A}}"
+ },
+ {
+  "input": "- A",
+  "machine": "ce",
+  "expected": "{ {}-{} \\mathrm{A}}"
+ },
+ {
+  "input": "-2",
+  "machine": "ce",
+  "expected": "{{-2}}"
+ },
+ {
+  "input": "A -2",
+  "machine": "ce",
+  "expected": "{\\mathrm{A} {}-{} 2}"
+ },
+ {
+  "input": "2-",
+  "machine": "ce",
+  "expected": "{2 {}-{} }"
+ },
+ {
+  "input": "A- B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{-}~\\mathrm{B}}"
+ },
+ {
+  "input": "A -B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}~{-}\\mathrm{B}}"
+ },
+ {
+  "input": "A2-B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{2}}{-}\\mathrm{B}}"
+ },
+ {
+  "input": "A2 -B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{2}}~{-}\\mathrm{B}}"
+ },
+ {
+  "input": "A2- B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{2}}{\\vphantom{X}}^{-}~\\mathrm{B}}"
+ },
+ {
+  "input": "A^2- -B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{2-}~{-}\\mathrm{B}}"
+ },
+ {
+  "input": "A(-)",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}({-})}"
+ },
+ {
+  "input": "A(+)",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}({+})}"
+ },
+ {
+  "input": "A{-}B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\text{-}}\\mathrm{B}}"
+ },
+ {
+  "input": "A-{}B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{-}\\mathrm{B}}"
+ },
+ {
+  "input": "A^{-}B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{-}\\mathrm{B}}"
+ },
+ {
+  "input": "A^-B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{-}\\mathrm{B}}"
+ },
+ {
+  "input": "A-$B$",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{-}B }"
+ },
+ {
+  "input": "A$-$B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}- \\mathrm{B}}"
+ },
+ {
+  "input": "A $-$ B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}~{-} \\,\\mathrm{B}}"
+ },
+ {
+  "input": "$-$",
+  "machine": "ce",
+  "expected": "{{- }}"
+ },
+ {
+  "input": "$+$",
+  "machine": "ce",
+  "expected": "{{+ }}"
+ },
+ {
+  "input": "$x$H2O",
+  "machine": "ce",
+  "expected": "{x \\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "2$x$H2O",
+  "machine": "ce",
+  "expected": "{2x \\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "$2x$",
+  "machine": "ce",
+  "expected": "{2x }"
+ },
+ {
+  "input": "$a$ $b$",
+  "machine": "ce",
+  "expected": "{a \\,b }"
+ },
+ {
+  "input": "a",
+  "machine": "ce",
+  "expected": "{\\mathrm{a}}"
+ },
+ {
+  "input": "b",
+  "machine": "ce",
+  "expected": "{\\mathrm{b}}"
+ },
+ {
+  "input": "ab",
+  "machine": "ce",
+  "expected": "{\\mathrm{ab}}"
+ },
+ {
+  "input": "abc",
+  "machine": "ce",
+  "expected": "{\\mathrm{abc}}"
+ },
+ {
+  "input": "aB",
+  "machine": "ce",
+  "expected": "{a\\,\\mathrm{B}}"
+ },
+ {
+  "input": "a B",
+  "machine": "ce",
+  "expected": "{a\\,\\mathrm{B}}"
+ },
+ {
+  "input": "A b",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}~\\mathrm{b}}"
+ },
+ {
+  "input": "A.B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\,{\\cdot}\\,\\mathrm{B}}"
+ },
+ {
+  "input": "A. B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\,{\\cdot}\\,\\mathrm{B}}"
+ },
+ {
+  "input": "A .B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\,{\\cdot}\\,\\mathrm{B}}"
+ },
+ {
+  "input": "A * B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\,{\\cdot}\\,\\mathrm{B}}"
+ },
+ {
+  "input": "*",
+  "machine": "ce",
+  "expected": "{\\,{\\cdot}\\,}"
+ },
+ {
+  "input": ".",
+  "machine": "ce",
+  "expected": "{\\,{\\cdot}\\,}"
+ },
+ {
+  "input": "A*",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\,{\\cdot}\\,}"
+ },
+ {
+  "input": "A.",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\,{\\cdot}\\,}"
+ },
+ {
+  "input": "A•",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\,{\\cdot}\\,}"
+ },
+ {
+  "input": "A·B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\,{\\cdot}\\,\\mathrm{B}}"
+ },
+ {
+  "input": "A ·B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\,{\\cdot}\\,\\mathrm{B}}"
+ },
+ {
+  "input": "2.5",
+  "machine": "ce",
+  "expected": "{2.5}"
+ },
+ {
+  "input": "2,5",
+  "machine": "ce",
+  "expected": "{2,5}"
+ },
+ {
+  "input": "1.5 H2O",
+  "machine": "ce",
+  "expected": "{1.5\\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "1,5 H2O",
+  "machine": "ce",
+  "expected": "{1{,}5\\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "12.345",
+  "machine": "ce",
+  "expected": "{12.345}"
+ },
+ {
+  "input": "1e5",
+  "machine": "ce",
+  "expected": "{1\\,\\mathrm{e}{\\vphantom{X}}_{\\smash[t]{5}}}"
+ },
+ {
+  "input": "A 2 B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}~2\\,\\mathrm{B}}"
+ },
+ {
+  "input": "A2 B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{2}}~\\mathrm{B}}"
+ },
+ {
+  "input": "2A",
+  "machine": "ce",
+  "expected": "{2\\,\\mathrm{A}}"
+ },
+ {
+  "input": "2a",
+  "machine": "ce",
+  "expected": "{2\\,\\mathrm{a}}"
+ },
+ {
+  "input": "2aB",
+  "machine": "ce",
+  "expected": "{2a\\,\\mathrm{B}}"
+ },
+ {
+  "input": "2 aB",
+  "machine": "ce",
+  "expected": "{2\\,\\mathrm{aB}}"
+ },
+ {
+  "input": "a2",
+  "machine": "ce",
+  "expected": "{\\mathrm{a}{\\vphantom{X}}_{\\smash[t]{2}}}"
+ },
+ {
+  "input": "a2B",
+  "machine": "ce",
+  "expected": "{\\mathrm{a}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{B}}"
+ },
+ {
+  "input": "x2",
+  "machine": "ce",
+  "expected": "{\\mathrm{x}{\\vphantom{X}}_{\\smash[t]{2}}}"
+ },
+ {
+  "input": "2x",
+  "machine": "ce",
+  "expected": "{2\\,\\mathrm{x}}"
+ },
+ {
+  "input": "n H2O",
+  "machine": "ce",
+  "expected": "{n\\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "nH2O",
+  "machine": "ce",
+  "expected": "{n\\,\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}}"
+ },
+ {
+  "input": "nA",
+  "machine": "ce",
+  "expected": "{n\\,\\mathrm{A}}"
+ },
+ {
+  "input": "n A",
+  "machine": "ce",
+  "expected": "{n\\,\\mathrm{A}}"
+ },
+ {
+  "input": "-nA",
+  "machine": "ce",
+  "expected": "{{-n}\\,\\mathrm{A}}"
+ },
+ {
+  "input": "+nA",
+  "machine": "ce",
+  "expected": "{{+n}\\,\\mathrm{A}}"
+ },
+ {
+  "input": "+ nA",
+  "machine": "ce",
+  "expected": "{ {}+{} n\\,\\mathrm{A}}"
+ },
+ {
+  "input": "+A",
+  "machine": "ce",
+  "expected": "{{+}\\,\\mathrm{A}}"
+ },
+ {
+  "input": "+ A",
+  "machine": "ce",
+  "expected": "{ {}+{} \\mathrm{A}}"
+ },
+ {
+  "input": "+2",
+  "machine": "ce",
+  "expected": "{{+2}}"
+ },
+ {
+  "input": "+2A",
+  "machine": "ce",
+  "expected": "{{+2}\\,\\mathrm{A}}"
+ },
+ {
+  "input": "-2A",
+  "machine": "ce",
+  "expected": "{{-2}\\,\\mathrm{A}}"
+ },
+ {
+  "input": "(2)A",
+  "machine": "ce",
+  "expected": "{(2)\\mathrm{A}}"
+ },
+ {
+  "input": "(1/2)",
+  "machine": "ce",
+  "expected": "{(1/2)}"
+ },
+ {
+  "input": "(1/2)A",
+  "machine": "ce",
+  "expected": "{(1/2)\\,\\mathrm{A}}"
+ },
+ {
+  "input": "(+1/2) A",
+  "machine": "ce",
+  "expected": "{(+1/2)\\,\\mathrm{A}}"
+ },
+ {
+  "input": "(-1/2)A",
+  "machine": "ce",
+  "expected": "{(-1/2)\\,\\mathrm{A}}"
+ },
+ {
+  "input": "1/2A",
+  "machine": "ce",
+  "expected": "{\\mathchoice{\\textstyle\\frac{1}{2}}{\\frac{1}{2}}{\\frac{1}{2}}{\\frac{1}{2}}\\,\\mathrm{A}}"
+ },
+ {
+  "input": "1/2 A",
+  "machine": "ce",
+  "expected": "{\\mathchoice{\\textstyle\\frac{1}{2}}{\\frac{1}{2}}{\\frac{1}{2}}{\\frac{1}{2}}\\,\\mathrm{A}}"
+ },
+ {
+  "input": "a/2 A",
+  "machine": "ce",
+  "expected": "{\\mathchoice{\\textstyle\\frac{a}{2}}{\\frac{a}{2}}{\\frac{a}{2}}{\\frac{a}{2}}\\,\\mathrm{A}}"
+ },
+ {
+  "input": "$a$/2 A",
+  "machine": "ce",
+  "expected": "{\\mathchoice{\\textstyle\\frac{a}{2}}{\\frac{a}{2}}{\\frac{a}{2}}{\\frac{a}{2}}\\,\\mathrm{A}}"
+ },
+ {
+  "input": "1/2a",
+  "machine": "ce",
+  "expected": "{\\mathchoice{\\textstyle\\frac{1}{2}}{\\frac{1}{2}}{\\frac{1}{2}}{\\frac{1}{2}}\\,\\mathrm{a}}"
+ },
+ {
+  "input": "1/2aB",
+  "machine": "ce",
+  "expected": "{\\mathchoice{\\textstyle\\frac{1}{2}}{\\frac{1}{2}}{\\frac{1}{2}}{\\frac{1}{2}}a \\,\\mathrm{B}}"
+ },
+ {
+  "input": "A & & B",
+  "machine": "ce",
+  "expected": "\\mathrm{A}& & \\mathrm{B}"
+ },
+ {
+  "input": "\\ce{A} \\ce{B}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}~\\mathrm{B}}"
+ },
+ {
+  "input": "A \\ce{-> B}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}~\\xrightarrow{}\\mathrm{B}}"
+ },
+ {
+  "input": "\\ce{A}B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\mathrm{B}}"
+ },
+ {
+  "input": "A\\bond{x}B",
+  "machine": "ce",
+  "expected": null
+ },
+ {
+  "input": "$a}$",
+  "machine": "ce",
+  "expected": null
+ },
+ {
+  "input": "\\bond{~}",
+  "machine": "ce",
+  "expected": "{{\\tripledash}}"
+ },
+ {
+  "input": "A\\bond{}B",
+  "machine": "ce",
+  "expected": null
+ },
+ {
+  "input": "A\\bond{=}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{=}}"
+ },
+ {
+  "input": "\\bond{-}B",
+  "machine": "ce",
+  "expected": "{{-}\\mathrm{B}}"
+ },
+ {
+  "input": "A{_2}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\mathrm{_2}}}"
+ },
+ {
+  "input": "{_2}A",
+  "machine": "ce",
+  "expected": "{{\\mathrm{_2}}\\mathrm{A}}"
+ },
+ {
+  "input": "{^2}A",
+  "machine": "ce",
+  "expected": "{{\\mathrm{^2}}\\mathrm{A}}"
+ },
+ {
+  "input": "^2A",
+  "machine": "ce",
+  "expected": "{{\\vphantom{X}}^{\\hphantom{2}}_{\\hphantom{}}{\\vphantom{X}}^{\\smash[t]{\\vphantom{2}}\\mathllap{2}}_{\\vphantom{2}\\mathllap{\\smash[t]{}}}\\mathrm{A}}"
+ },
+ {
+  "input": "_2A",
+  "machine": "ce",
+  "expected": "{{\\vphantom{X}}^{\\hphantom{}}_{\\hphantom{2}}{\\vphantom{X}}^{\\smash[t]{\\vphantom{2}}\\mathllap{}}_{\\vphantom{2}\\mathllap{\\smash[t]{2}}}\\mathrm{A}}"
+ },
+ {
+  "input": "^{2}_{1}A",
+  "machine": "ce",
+  "expected": "{{\\vphantom{X}}^{\\hphantom{2}}_{\\hphantom{1}}{\\vphantom{X}}^{\\smash[t]{\\vphantom{2}}\\mathllap{2}}_{\\vphantom{2}\\mathllap{\\smash[t]{1}}}\\mathrm{A}}"
+ },
+ {
+  "input": "^2_1A",
+  "machine": "ce",
+  "expected": "{{\\vphantom{X}}^{\\hphantom{2}}_{\\hphantom{1}}{\\vphantom{X}}^{\\smash[t]{\\vphantom{2}}\\mathllap{2}}_{\\vphantom{2}\\mathllap{\\smash[t]{1}}}\\mathrm{A}}"
+ },
+ {
+  "input": "^{a}_{b}A",
+  "machine": "ce",
+  "expected": "{{\\vphantom{X}}^{\\hphantom{a }}_{\\hphantom{b }}{\\vphantom{X}}^{\\smash[t]{\\vphantom{2}}\\mathllap{a }}_{\\vphantom{2}\\mathllap{\\smash[t]{b }}}\\mathrm{A}}"
+ },
+ {
+  "input": "^{x}A",
+  "machine": "ce",
+  "expected": "{{\\vphantom{X}}^{\\hphantom{{\\times}}}_{\\hphantom{}}{\\vphantom{X}}^{\\smash[t]{\\vphantom{2}}\\mathllap{{\\times}}}_{\\vphantom{2}\\mathllap{\\smash[t]{}}}\\mathrm{A}}"
+ },
+ {
+  "input": "_{x}A",
+  "machine": "ce",
+  "expected": "{{\\vphantom{X}}^{\\hphantom{}}_{\\hphantom{x }}{\\vphantom{X}}^{\\smash[t]{\\vphantom{2}}\\mathllap{}}_{\\vphantom{2}\\mathllap{\\smash[t]{x }}}\\mathrm{A}}"
+ },
+ {
+  "input": "^\\alpha A",
+  "machine": "ce",
+  "expected": "{{\\vphantom{X}}^{\\hphantom{\\mathrm{\\alpha}}}_{\\hphantom{}}{\\vphantom{X}}^{\\smash[t]{\\vphantom{2}}\\mathllap{\\mathrm{\\alpha}}}_{\\vphantom{2}\\mathllap{\\smash[t]{}}}\\mathrm{A}}"
+ },
+ {
+  "input": "^{\\alpha}A",
+  "machine": "ce",
+  "expected": "{{\\vphantom{X}}^{\\hphantom{\\mathrm{\\alpha}}}_{\\hphantom{}}{\\vphantom{X}}^{\\smash[t]{\\vphantom{2}}\\mathllap{\\mathrm{\\alpha}}}_{\\vphantom{2}\\mathllap{\\smash[t]{}}}\\mathrm{A}}"
+ },
+ {
+  "input": "^$x$A",
+  "machine": "ce",
+  "expected": "{{\\vphantom{X}}^{\\hphantom{x }}_{\\hphantom{}}{\\vphantom{X}}^{\\smash[t]{\\vphantom{2}}\\mathllap{x }}_{\\vphantom{2}\\mathllap{\\smash[t]{}}}\\mathrm{A}}"
+ },
+ {
+  "input": "_$x$A",
+  "machine": "ce",
+  "expected": "{{\\vphantom{X}}^{\\hphantom{}}_{\\hphantom{x }}{\\vphantom{X}}^{\\smash[t]{\\vphantom{2}}\\mathllap{}}_{\\vphantom{2}\\mathllap{\\smash[t]{x }}}\\mathrm{A}}"
+ },
+ {
+  "input": "A^{\\circ}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{\\circ}}"
+ },
+ {
+  "input": "\\Delta H^\\circ",
+  "machine": "ce",
+  "expected": "{\\mathrm{\\Delta H}{\\vphantom{X}}^{\\circ}}"
+ },
+ {
+  "input": "\\Delta_r H^{\\circ}",
+  "machine": "ce",
+  "expected": "{\\mathrm{\\Delta}{\\vphantom{X}}_{\\smash[t]{r }}~\\mathrm{H}{\\vphantom{X}}^{\\circ}}"
+ },
+ {
+  "input": "H^{\\ominus}",
+  "machine": "ce",
+  "expected": "{\\mathrm{H}{\\vphantom{X}}^{\\ominus}}"
+ },
+ {
+  "input": "E^0",
+  "machine": "ce",
+  "expected": "{\\mathrm{E}{\\vphantom{X}}^{0}}"
+ },
+ {
+  "input": "E^{\\circ}_{cell}",
+  "machine": "ce",
+  "expected": "{\\mathrm{E}{\\vphantom{X}}^{\\circ}_{\\smash[t]{\\mathrm{cell}}}}"
+ },
+ {
+  "input": "K_{sp}",
+  "machine": "ce",
+  "expected": "{\\mathrm{K}{\\vphantom{X}}_{\\smash[t]{\\mathrm{sp}}}}"
+ },
+ {
+  "input": "K_{\\mathrm{sp}}",
+  "machine": "ce",
+  "expected": "{\\mathrm{K}{\\vphantom{X}}_{\\smash[t]{\\mathrm{sp}}}}"
+ },
+ {
+  "input": "\\underset{\\text{a}}{\\ce{Zn}}",
+  "machine": "ce",
+  "expected": "{\\underset{\\text{a}}{\\mathrm{Zn}}}"
+ },
+ {
+  "input": "$\\underset{\\text{a}}{\\ce{Zn}}$",
+  "machine": "ce",
+  "expected": "{\\underset{\\text{a}}{\\ce{Zn}} }"
+ },
+ {
+  "input": "\\overset{\\text{x}}{\\ce{->}}",
+  "machine": "ce",
+  "expected": "{\\overset{\\text{x}}{\\xrightarrow{}}}"
+ },
+ {
+  "input": "x",
+  "machine": "ce",
+  "expected": "{\\mathrm{x}}"
+ },
+ {
+  "input": "x$",
+  "machine": "ce",
+  "expected": "{\\mathrm{x}$}"
+ },
+ {
+  "input": "i",
+  "machine": "ce",
+  "expected": "{\\mathrm{i}}"
+ },
+ {
+  "input": "A_{x$y$}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{\\mathrm{x}y }}}"
+ },
+ {
+  "input": "A_{(s)}B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{\\mskip1mu (\\mathrm{s})}}\\mathrm{B}}"
+ },
+ {
+  "input": "H2O(aq)(s)",
+  "machine": "ce",
+  "expected": "{\\mathrm{H}{\\vphantom{X}}_{\\smash[t]{2}}\\mathrm{O}(\\mathrm{aq})\\mskip2mu (\\mathrm{s})}"
+ },
+ {
+  "input": "A (aq) + B (s)",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\mskip2mu (\\mathrm{aq}) {}+{} \\mathrm{B}\\mskip2mu (\\mathrm{s})}"
+ },
+ {
+  "input": "A(aq)+B(s)",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}(\\mathrm{aq}){\\vphantom{X}}^{+}\\mathrm{B}\\mskip2mu (\\mathrm{s})}"
+ },
+ {
+  "input": "A(aq) B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\mskip2mu (\\mathrm{aq})~\\mathrm{B}}"
+ },
+ {
+  "input": "(s)",
+  "machine": "ce",
+  "expected": "{\\mskip2mu (\\mathrm{s})}"
+ },
+ {
+  "input": "A(s,c)",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}\\mskip2mu (\\mathrm{s},\\mathrm{c})}"
+ },
+ {
+  "input": "A(abcd)",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}(\\mathrm{abcd})}"
+ },
+ {
+  "input": "A(1)",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}(1)}"
+ },
+ {
+  "input": "A(aq",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}(\\mathrm{aq}}"
+ },
+ {
+  "input": "A{(aq)}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\text{(aq)}}}"
+ },
+ {
+  "input": "A_{(aq)}^2",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{\\mskip1mu (\\mathrm{aq})}}{\\vphantom{X}}^{2}}"
+ },
+ {
+  "input": "A^2_{(aq)}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{2}{\\vphantom{X}}_{\\smash[t]{\\mskip1mu (\\mathrm{aq})}}}"
+ },
+ {
+  "input": "A^{2+}_{(aq)}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{2+}{\\vphantom{X}}_{\\smash[t]{\\mskip1mu (\\mathrm{aq})}}}"
+ },
+ {
+  "input": "A2_{(aq)}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{2}}{\\vphantom{X}}_{\\smash[t]{\\mskip1mu (\\mathrm{aq})}}}"
+ },
+ {
+  "input": "A_{2}_{(aq)}",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}_{\\smash[t]{2}}{\\vphantom{X}}_{\\smash[t]{\\mskip1mu (\\mathrm{aq})}}}"
+ },
+ {
+  "input": "\\alpha-\\beta",
+  "machine": "ce",
+  "expected": "{\\mathrm{\\alpha}\\text{-}\\mathrm{\\beta}}"
+ },
+ {
+  "input": "\\alpha - \\beta",
+  "machine": "ce",
+  "expected": "{\\mathrm{\\alpha }{\\vphantom{X}}^{-}~\\mathrm{\\beta}}"
+ },
+ {
+  "input": "A^{\\alpha}-B",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}{\\vphantom{X}}^{\\mathrm{\\alpha}}{-}\\mathrm{B}}"
+ },
+ {
+  "input": "Si^{-}-",
+  "machine": "ce",
+  "expected": "{\\mathrm{Si}{\\vphantom{X}}^{-}{-}}"
+ },
+ {
+  "input": "O^{2-}-H",
+  "machine": "ce",
+  "expected": "{\\mathrm{O}{\\vphantom{X}}^{2-}{-}\\mathrm{H}}"
+ },
+ {
+  "input": "x-A",
+  "machine": "ce",
+  "expected": "{x \\text{-}\\mathrm{A}}"
+ },
+ {
+  "input": "$x$-A",
+  "machine": "ce",
+  "expected": "{x \\text{-}\\mathrm{A}}"
+ },
+ {
+  "input": "$x,$-A",
+  "machine": "ce",
+  "expected": "{x, \\text{-}\\mathrm{A}}"
+ },
+ {
+  "input": "$x$$-A",
+  "machine": "ce",
+  "expected": "{x ${-}\\mathrm{A}}"
+ },
+ {
+  "input": "\\alpha$-A",
+  "machine": "ce",
+  "expected": "{\\mathrm{\\alpha}${-}\\mathrm{A}}"
+ },
+ {
+  "input": "Cu(NH3)4^2+",
+  "machine": "ce",
+  "expected": "{\\mathrm{Cu}(\\mathrm{NH}{\\vphantom{X}}_{\\smash[t]{3}}){\\vphantom{X}}_{\\smash[t]{4}}{\\vphantom{X}}^{2+}}"
+ },
+ {
+  "input": "[Co(NH3)6]Cl3",
+  "machine": "ce",
+  "expected": "{[\\mathrm{Co}(\\mathrm{NH}{\\vphantom{X}}_{\\smash[t]{3}}){\\vphantom{X}}_{\\smash[t]{6}}]\\mathrm{Cl}{\\vphantom{X}}_{\\smash[t]{3}}}"
+ },
+ {
+  "input": "K4[Fe(CN)6]",
+  "machine": "ce",
+  "expected": "{\\mathrm{K}{\\vphantom{X}}_{\\smash[t]{4}}[\\mathrm{Fe}(\\mathrm{CN}){\\vphantom{X}}_{\\smash[t]{6}}]}"
+ },
+ {
+  "input": "[Ni(CO)4]",
+  "machine": "ce",
+  "expected": "{[\\mathrm{Ni}(\\mathrm{CO}){\\vphantom{X}}_{\\smash[t]{4}}]}"
+ },
+ {
+  "input": "Na2[Zn(OH)4]",
+  "machine": "ce",
+  "expected": "{\\mathrm{Na}{\\vphantom{X}}_{\\smash[t]{2}}[\\mathrm{Zn}(\\mathrm{OH}){\\vphantom{X}}_{\\smash[t]{4}}]}"
+ },
+ {
+  "input": "[{(X)}]",
+  "machine": "ce",
+  "expected": "{[{\\text{(X)}}]}"
+ },
+ {
+  "input": "(A)(B)",
+  "machine": "ce",
+  "expected": "{(\\mathrm{A})(\\mathrm{B})}"
+ },
+ {
+  "input": "((A))",
+  "machine": "ce",
+  "expected": "{((\\mathrm{A}))}"
+ },
+ {
+  "input": "A(B(C))",
+  "machine": "ce",
+  "expected": "{\\mathrm{A}(\\mathrm{B}(\\mathrm{C}))}"
+ },
+ {
+  "input": "(A)2",
+  "machine": "ce",
+  "expected": "{(\\mathrm{A}){\\vphantom{X}}_{\\smash[t]{2}}}"
+ },
+ {
+  "input": "(A)^2+",
+  "machine": "ce",
+  "expected": "{(\\mathrm{A}){\\vphantom{X}}^{2+}}"
+ },
+ {
+  "input": "(A)_2^-",
+  "machine": "ce",
+  "expected": "{(\\mathrm{A}){\\vphantom{X}}_{\\smash[t]{2}}{\\vphantom{X}}^{-}}"
+ },
+ {
+  "input": "[A]2",
+  "machine": "ce",
+  "expected": "{[\\mathrm{A}]{\\vphantom{X}}_{\\smash[t]{2}}}"
+ },
+ {
+  "input": "\\{A\\}2",
+  "machine": "ce",
+  "expected": "{\\{\\mathrm{A}\\}{\\vphantom{X}}_{\\smash[t]{2}}}"
+ },
+ {
+  "input": "\\{A\\}",
+  "machine": "ce",
+  "expected": "{\\{\\mathrm{A}\\}}"
+ },
+ {
+  "input": "123 kJ",
+  "machine": "pu",
+  "expected": "{123~\\mathrm{kJ}}"
+ },
+ {
+  "input": "123 mm2",
+  "machine": "pu",
+  "expected": "{123~\\mathrm{mm^{2}}}"
+ },
+ {
+  "input": "123 J s",
+  "machine": "pu",
+  "expected": "{123~\\mathrm{J}\\mkern3mu \\mathrm{s}}"
+ },
+ {
+  "input": "123 J*s",
+  "machine": "pu",
+  "expected": "{123~\\mathrm{J}\\mkern1mu{\\cdot}\\mkern1mu \\mathrm{s}}"
+ },
+ {
+  "input": "123 kJ/mol",
+  "machine": "pu",
+  "expected": "{123~\\mathrm{kJ}/\\mathrm{mol}}"
+ },
+ {
+  "input": "123 kJ//mol",
+  "machine": "pu",
+  "expected": "{123~\\mathchoice{\\textstyle\\frac{\\mathrm{kJ}}{\\mathrm{mol}}}{\\frac{\\mathrm{kJ}}{\\mathrm{mol}}}{\\frac{\\mathrm{kJ}}{\\mathrm{mol}}}{\\frac{\\mathrm{kJ}}{\\mathrm{mol}}}}"
+ },
+ {
+  "input": "123 kJ mol-1",
+  "machine": "pu",
+  "expected": "{123~\\mathrm{kJ}\\mkern3mu \\mathrm{mol^{-1}}}"
+ },
+ {
+  "input": "123 kJ*mol-1",
+  "machine": "pu",
+  "expected": "{123~\\mathrm{kJ}\\mkern1mu{\\cdot}\\mkern1mu \\mathrm{mol^{-1}}}"
+ },
+ {
+  "input": "1.2e3 kJ",
+  "machine": "pu",
+  "expected": "{1.2\\cdot 10^{3}~\\mathrm{kJ}}"
+ },
+ {
+  "input": "1,2e3 kJ",
+  "machine": "pu",
+  "expected": "{1{,}2\\cdot 10^{3}~\\mathrm{kJ}}"
+ },
+ {
+  "input": "1.2E3 kJ",
+  "machine": "pu",
+  "expected": "{1.2\\times 10^{3}~\\mathrm{kJ}}"
+ },
+ {
+  "input": "1,2E3 kJ",
+  "machine": "pu",
+  "expected": "{1{,}2\\times 10^{3}~\\mathrm{kJ}}"
+ },
+ {
+  "input": "1.2x10^3 kJ",
+  "machine": "pu",
+  "expected": "{1.2\\times 10^{3}~\\mathrm{kJ}}"
+ },
+ {
+  "input": "1.2*10^3 kJ",
+  "machine": "pu",
+  "expected": "{1.2\\cdot 10^{3}~\\mathrm{kJ}}"
+ },
+ {
+  "input": "1.2\\times10^3 kJ",
+  "machine": "pu",
+  "expected": "{1.2\\times 10^{3}~\\mathrm{kJ}}"
+ },
+ {
+  "input": "1.2 x 10^3 kJ",
+  "machine": "pu",
+  "expected": "{1.2\\times 10^{3}~\\mathrm{kJ}}"
+ },
+ {
+  "input": "1.2×10^3 kJ",
+  "machine": "pu",
+  "expected": "{1.2\\times 10^{3}~\\mathrm{kJ}}"
+ },
+ {
+  "input": "1234 kJ",
+  "machine": "pu",
+  "expected": "{1234~\\mathrm{kJ}}"
+ },
+ {
+  "input": "12345 kJ",
+  "machine": "pu",
+  "expected": "{12\\mkern2mu 345~\\mathrm{kJ}}"
+ },
+ {
+  "input": "123456 kJ",
+  "machine": "pu",
+  "expected": "{123\\mkern2mu 456~\\mathrm{kJ}}"
+ },
+ {
+  "input": "1234567",
+  "machine": "pu",
+  "expected": "{1\\mkern2mu 234\\mkern2mu 567}"
+ },
+ {
+  "input": "1.2345 kJ",
+  "machine": "pu",
+  "expected": "{1.2345~\\mathrm{kJ}}"
+ },
+ {
+  "input": "1.23456 kJ",
+  "machine": "pu",
+  "expected": "{1.234\\mkern2mu 56~\\mathrm{kJ}}"
+ },
+ {
+  "input": "0.123456",
+  "machine": "pu",
+  "expected": "{0.123\\mkern2mu 456}"
+ },
+ {
+  "input": "12345.67891",
+  "machine": "pu",
+  "expected": "{12\\mkern2mu 345.678\\mkern2mu 91}"
+ },
+ {
+  "input": "-5.6 K",
+  "machine": "pu",
+  "expected": "{-5.6~\\mathrm{K}}"
+ },
+ {
+  "input": "+-5.6",
+  "machine": "pu",
+  "expected": "{\\pm 5.6}"
+ },
+ {
+  "input": "5.6+-0.1",
+  "machine": "pu",
+  "expected": "{5.6 {}\\pm{} 0.1}"
+ },
+ {
+  "input": "5.6 +- 0.1",
+  "machine": "pu",
+  "expected": "{5.6 {}\\pm{} 0.1}"
+ },
+ {
+  "input": "+/-5",
+  "machine": "pu",
+  "expected": "{\\pm 5}"
+ },
+ {
+  "input": "\\pm 5",
+  "machine": "pu",
+  "expected": "{\\pm 5}"
+ },
+ {
+  "input": "1.2(3) kg",
+  "machine": "pu",
+  "expected": "{1.2(3)~\\mathrm{kg}}"
+ },
+ {
+  "input": "1.2(3)e4 kg",
+  "machine": "pu",
+  "expected": "{1.2(3)\\cdot 10^{4}~\\mathrm{kg}}"
+ },
+ {
+  "input": "0.01 mol/L",
+  "machine": "pu",
+  "expected": "{0.01~\\mathrm{mol}/\\mathrm{L}}"
+ },
+ {
+  "input": "25 °C",
+  "machine": "pu",
+  "expected": "{25~\\mathrm{{}^{\\circ}C}}"
+ },
+ {
+  "input": "25 ^oC",
+  "machine": "pu",
+  "expected": "{25~\\mathrm{{}^{\\circ}C}}"
+ },
+ {
+  "input": "25 ^{o}C",
+  "machine": "pu",
+  "expected": "{25~\\mathrm{{}^{\\circ}C}}"
+ },
+ {
+  "input": "25°C",
+  "machine": "pu",
+  "expected": "{25~\\mathrm{{}^{\\circ}C}}"
+ },
+ {
+  "input": "77 °F",
+  "machine": "pu",
+  "expected": "{77~\\mathrm{{}^{\\circ}F}}"
+ },
+ {
+  "input": "1.2e3 kg m/s^2",
+  "machine": "pu",
+  "expected": "{1.2\\cdot 10^{3}~\\mathrm{kg}\\mkern3mu \\mathrm{m}\\,/\\,\\mathrm{s^{2}}}"
+ },
+ {
+  "input": "kJ mol-1",
+  "machine": "pu",
+  "expected": "{\\mathrm{kJ}\\mkern3mu \\mathrm{mol^{-1}}}"
+ },
+ {
+  "input": "x^2",
+  "machine": "pu",
+  "expected": "{\\mathrm{x^{2}}}"
+ },
+ {
+  "input": "mm^2",
+  "machine": "pu",
+  "expected": "{\\mathrm{mm^{2}}}"
+ },
+ {
+  "input": "m^2",
+  "machine": "pu",
+  "expected": "{\\mathrm{m^{2}}}"
+ },
+ {
+  "input": "\\mu m",
+  "machine": "pu",
+  "expected": "{\\mathrm{\\mu m}}"
+ },
+ {
+  "input": "\\ohm",
+  "machine": "pu",
+  "expected": "{\\mathrm{\\ohm}}"
+ },
+ {
+  "input": "1.2e-3 m",
+  "machine": "pu",
+  "expected": "{1.2\\cdot 10^{-3}~\\mathrm{m}}"
+ },
+ {
+  "input": "1.2e{-3} m",
+  "machine": "pu",
+  "expected": "{1.2\\cdot 10^{{-3}}~\\mathrm{m}}"
+ },
+ {
+  "input": "1.2e+3",
+  "machine": "pu",
+  "expected": "{1.2\\cdot 10^{+3}}"
+ },
+ {
+  "input": "1e5",
+  "machine": "pu",
+  "expected": "{1\\cdot 10^{5}}"
+ },
+ {
+  "input": "e5",
+  "machine": "pu",
+  "expected": "{10^{5}}"
+ },
+ {
+  "input": "5",
+  "machine": "pu",
+  "expected": "{5}"
+ },
+ {
+  "input": "5.",
+  "machine": "pu",
+  "expected": "{5~\\mkern1mu{\\cdot}\\mkern1mu }"
+ },
+ {
+  "input": ".5",
+  "machine": "pu",
+  "expected": "{.5}"
+ },
+ {
+  "input": ",5",
+  "machine": "pu",
+  "expected": "{\\mathrm{,^{5}}}"
+ },
+ {
+  "input": "5,6",
+  "machine": "pu",
+  "expected": "{5{,}6}"
+ },
+ {
+  "input": "5.6",
+  "machine": "pu",
+  "expected": "{5.6}"
+ },
+ {
+  "input": "10^3",
+  "machine": "pu",
+  "expected": "{10^{3}}"
+ },
+ {
+  "input": "10^{3}",
+  "machine": "pu",
+  "expected": "{10^{{3}}}"
+ },
+ {
+  "input": "-10^3",
+  "machine": "pu",
+  "expected": "{-10^{3}}"
+ },
+ {
+  "input": "+-10^3",
+  "machine": "pu",
+  "expected": "{\\pm 10^{3}}"
+ },
+ {
+  "input": "2^10",
+  "machine": "pu",
+  "expected": "{2^{10}}"
+ },
+ {
+  "input": "1.5^2",
+  "machine": "pu",
+  "expected": "{1.5^{2}}"
+ },
+ {
+  "input": "10^-3 m",
+  "machine": "pu",
+  "expected": "{10^{-3}~\\mathrm{m}}"
+ },
+ {
+  "input": "123 kJ mol^{-1}",
+  "machine": "pu",
+  "expected": "{123~\\mathrm{kJ}\\mkern3mu \\mathrm{mol^{-1}}}"
+ },
+ {
+  "input": "123 kJ mol^-1",
+  "machine": "pu",
+  "expected": "{123~\\mathrm{kJ}\\mkern3mu \\mathrm{mol^{-1}}}"
+ },
+ {
+  "input": "123 kJ.mol-1",
+  "machine": "pu",
+  "expected": "{123~\\mathrm{kJ}\\mkern1mu{\\cdot}\\mkern1mu \\mathrm{mol^{-1}}}"
+ },
+ {
+  "input": "9.81 m/s2",
+  "machine": "pu",
+  "expected": "{9.81~\\mathrm{m}/\\mathrm{s^{2}}}"
+ },
+ {
+  "input": "9.81 m//s2",
+  "machine": "pu",
+  "expected": "{9.81~\\mathchoice{\\textstyle\\frac{\\mathrm{m}}{\\mathrm{s^{2}}}}{\\frac{\\mathrm{m}}{\\mathrm{s^{2}}}}{\\frac{\\mathrm{m}}{\\mathrm{s^{2}}}}{\\frac{\\mathrm{m}}{\\mathrm{s^{2}}}}}"
+ },
+ {
+  "input": "6.022e23 mol-1",
+  "machine": "pu",
+  "expected": "{6.022\\cdot 10^{23}~\\mathrm{mol^{-1}}}"
+ },
+ {
+  "input": "6.022\\times10^{23} mol^{-1}",
+  "machine": "pu",
+  "expected": "{6.022\\times 10^{{23}}~\\mathrm{mol^{-1}}}"
+ },
+ {
+  "input": "1 kg m s-2",
+  "machine": "pu",
+  "expected": "{1~\\mathrm{kg}\\mkern3mu \\mathrm{m}\\mkern3mu \\mathrm{s^{-2}}}"
+ },
+ {
+  "input": "1 kg*m*s-2",
+  "machine": "pu",
+  "expected": "{1~\\mathrm{kg}\\mkern1mu{\\cdot}\\mkern1mu \\mathrm{m}\\mkern1mu{\\cdot}\\mkern1mu \\mathrm{s^{-2}}}"
+ },
+ {
+  "input": "1 N m",
+  "machine": "pu",
+  "expected": "{1~\\mathrm{N}\\mkern3mu \\mathrm{m}}"
+ },
+ {
+  "input": "1.0 L",
+  "machine": "pu",
+  "expected": "{1.0~\\mathrm{L}}"
+ },
+ {
+  "input": "100 %",
+  "machine": "pu",
+  "expected": "{100~\\mathrm{%}}"
+ },
+ {
+  "input": "50 \\%",
+  "machine": "pu",
+  "expected": "{50~\\mathrm{\\%}}"
+ },
+ {
+  "input": "3 mL",
+  "machine": "pu",
+  "expected": "{3~\\mathrm{mL}}"
+ },
+ {
+  "input": "1.5 mmol L-1",
+  "machine": "pu",
+  "expected": "{1.5~\\mathrm{mmol}\\mkern3mu \\mathrm{L^{-1}}}"
+ },
+ {
+  "input": "8.314 J K-1 mol-1",
+  "machine": "pu",
+  "expected": "{8.314~\\mathrm{J}\\mkern3mu \\mathrm{K^{-1}}\\mkern3mu \\mathrm{mol^{-1}}}"
+ },
+ {
+  "input": "8.314 J/(K mol)",
+  "machine": "pu",
+  "expected": "{8.314~\\mathrm{J}\\,/\\,(\\mathrm{K}\\mkern3mu \\mathrm{mol)}}"
+ },
+ {
+  "input": "1 atm",
+  "machine": "pu",
+  "expected": "{1~\\mathrm{atm}}"
+ },
+ {
+  "input": "101.325 kPa",
+  "machine": "pu",
+  "expected": "{101.325~\\mathrm{kPa}}"
+ },
+ {
+  "input": "760 mmHg",
+  "machine": "pu",
+  "expected": "{760~\\mathrm{mmHg}}"
+ },
+ {
+  "input": "1 \\AA",
+  "machine": "pu",
+  "expected": "{1~\\mathrm{\\AA}}"
+ },
+ {
+  "input": "1 \\mu g",
+  "machine": "pu",
+  "expected": "{1~\\mathrm{\\mu g}}"
+ },
+ {
+  "input": "2 μm",
+  "machine": "pu",
+  "expected": "{2~\\mathrm{μm}}"
+ },
+ {
+  "input": "37 °C",
+  "machine": "pu",
+  "expected": "{37~\\mathrm{{}^{\\circ}C}}"
+ },
+ {
+  "input": "300 K",
+  "machine": "pu",
+  "expected": "{300~\\mathrm{K}}"
+ },
+ {
+  "input": "1 h",
+  "machine": "pu",
+  "expected": "{1~\\mathrm{h}}"
+ },
+ {
+  "input": "1 {kJ}",
+  "machine": "pu",
+  "expected": "{1~\\mathrm{kJ}}"
+ },
+ {
+  "input": "{1} kJ",
+  "machine": "pu",
+  "expected": "{1\\mkern3mu \\mathrm{kJ}}"
+ },
+ {
+  "input": "1 {kJ/mol}",
+  "machine": "pu",
+  "expected": "{1~\\mathrm{kJ/mol}}"
+ },
+ {
+  "input": "1 kJ/{mol}",
+  "machine": "pu",
+  "expected": "{1~\\mathrm{kJ}/\\mathrm{mol}}"
+ },
+ {
+  "input": "1 {}kJ",
+  "machine": "pu",
+  "expected": "{1~\\mathrm{{}kJ}}"
+ },
+ {
+  "input": "1 kJ {mol}",
+  "machine": "pu",
+  "expected": "{1~\\mathrm{kJ}\\mkern3mu \\mathrm{mol}}"
+ },
+ {
+  "input": "kJ",
+  "machine": "pu",
+  "expected": "{\\mathrm{kJ}}"
+ },
+ {
+  "input": "mol",
+  "machine": "pu",
+  "expected": "{\\mathrm{mol}}"
+ },
+ {
+  "input": "m/s",
+  "machine": "pu",
+  "expected": "{\\mathrm{m}/\\mathrm{s}}"
+ },
+ {
+  "input": "m//s",
+  "machine": "pu",
+  "expected": "{\\mathchoice{\\textstyle\\frac{\\mathrm{m}}{\\mathrm{s}}}{\\frac{\\mathrm{m}}{\\mathrm{s}}}{\\frac{\\mathrm{m}}{\\mathrm{s}}}{\\frac{\\mathrm{m}}{\\mathrm{s}}}}"
+ },
+ {
+  "input": "/",
+  "machine": "pu",
+  "expected": "{\\mathrm{/}}"
+ },
+ {
+  "input": "//",
+  "machine": "pu",
+  "expected": "{\\mathrm{/}}"
+ },
+ {
+  "input": "",
+  "machine": "pu",
+  "expected": ""
+ },
+ {
+  "input": " ",
+  "machine": "pu",
+  "expected": "{~}"
+ },
+ {
+  "input": "1 ",
+  "machine": "pu",
+  "expected": "{1~}"
+ },
+ {
+  "input": " 1",
+  "machine": "pu",
+  "expected": "{1}"
+ },
+ {
+  "input": "1  kJ",
+  "machine": "pu",
+  "expected": "{1~\\mathrm{kJ}}"
+ },
+ {
+  "input": "1 kJ ",
+  "machine": "pu",
+  "expected": "{1~\\mathrm{kJ}~}"
+ },
+ {
+  "input": "A",
+  "machine": "pu",
+  "expected": "{\\mathrm{A}}"
+ },
+ {
+  "input": "1 A/B/C",
+  "machine": "pu",
+  "expected": "{1~\\mathrm{A}\\,/\\,\\mathrm{B}/\\mathrm{C}}"
+ },
+ {
+  "input": "1 A//B//C",
+  "machine": "pu",
+  "expected": "{1~\\mathchoice{\\textstyle\\frac{\\mathrm{A}}{\\mathchoice{\\textstyle\\frac{\\mathrm{B}}{\\mathrm{C}}}{\\frac{\\mathrm{B}}{\\mathrm{C}}}{\\frac{\\mathrm{B}}{\\mathrm{C}}}{\\frac{\\mathrm{B}}{\\mathrm{C}}}}}{\\frac{\\mathrm{A}}{\\mathchoice{\\textstyle\\frac{\\mathrm{B}}{\\mathrm{C}}}{\\frac{\\mathrm{B}}{\\mathrm{C}}}{\\frac{\\mathrm{B}}{\\mathrm{C}}}{\\frac{\\mathrm{B}}{\\mathrm{C}}}}}{\\frac{\\mathrm{A}}{\\mathchoice{\\textstyle\\frac{\\mathrm{B}}{\\mathrm{C}}}{\\frac{\\mathrm{B}}{\\mathrm{C}}}{\\frac{\\mathrm{B}}{\\mathrm{C}}}{\\frac{\\mathrm{B}}{\\mathrm{C}}}}}{\\frac{\\mathrm{A}}{\\mathchoice{\\textstyle\\frac{\\mathrm{B}}{\\mathrm{C}}}{\\frac{\\mathrm{B}}{\\mathrm{C}}}{\\frac{\\mathrm{B}}{\\mathrm{C}}}{\\frac{\\mathrm{B}}{\\mathrm{C}}}}}}"
+ },
+ {
+  "input": "1 kg/m^3",
+  "machine": "pu",
+  "expected": "{1~\\mathrm{kg}/\\mathrm{m^{3}}}"
+ },
+ {
+  "input": "1 g/cm3",
+  "machine": "pu",
+  "expected": "{1~\\mathrm{g}/\\mathrm{cm^{3}}}"
+ },
+ {
+  "input": "1 g cm-3",
+  "machine": "pu",
+  "expected": "{1~\\mathrm{g}\\mkern3mu \\mathrm{cm^{-3}}}"
+ },
+ {
+  "input": "1 dm^3",
+  "machine": "pu",
+  "expected": "{1~\\mathrm{dm^{3}}}"
+ },
+ {
+  "input": "2 cm^{-1}",
+  "machine": "pu",
+  "expected": "{2~\\mathrm{cm^{-1}}}"
+ },
+ {
+  "input": "1.2(3)",
+  "machine": "pu",
+  "expected": "{1.2(3)}"
+ },
+ {
+  "input": "(1)",
+  "machine": "pu",
+  "expected": "{(1)}"
+ },
+ {
+  "input": "(1.2)",
+  "machine": "pu",
+  "expected": "{(1.2)}"
+ },
+ {
+  "input": "[1]",
+  "machine": "pu",
+  "expected": "{[1]}"
+ },
+ {
+  "input": "1 [kJ]",
+  "machine": "pu",
+  "expected": "{1[~\\mathrm{kJ]}}"
+ },
+ {
+  "input": "1 (kJ)",
+  "machine": "pu",
+  "expected": "{1(~\\mathrm{kJ)}}"
+ },
+ {
+  "input": "1 = 2",
+  "machine": "pu",
+  "expected": "{1=2}"
+ },
+ {
+  "input": "1 < 2",
+  "machine": "pu",
+  "expected": "{1<2}"
+ },
+ {
+  "input": "1 > 2",
+  "machine": "pu",
+  "expected": "{1>2}"
+ },
+ {
+  "input": "1 + 2",
+  "machine": "pu",
+  "expected": "{1+2}"
+ },
+ {
+  "input": "a = b",
+  "machine": "pu",
+  "expected": "{\\mathrm{a}\\mkern3mu \\mathrm{=}\\mkern3mu \\mathrm{b}}"
+ },
+ {
+  "input": "1 \\approx 2",
+  "machine": "pu",
+  "expected": "{1\\approx2}"
+ },
+ {
+  "input": "-",
+  "machine": "pu",
+  "expected": "{-}"
+ },
+ {
+  "input": "+",
+  "machine": "pu",
+  "expected": "{+}"
+ },
+ {
+  "input": "+-",
+  "machine": "pu",
+  "expected": "{\\pm }"
+ },
+ {
+  "input": "1+-2",
+  "machine": "pu",
+  "expected": "{1 {}\\pm{} 2}"
+ },
+ {
+  "input": "1.2E-3",
+  "machine": "pu",
+  "expected": "{1.2\\times 10^{-3}}"
+ },
+ {
+  "input": "1.2e3",
+  "machine": "pu",
+  "expected": "{1.2\\cdot 10^{3}}"
+ },
+ {
+  "input": "1,234,567",
+  "machine": "pu",
+  "expected": "{1{,}234~\\mathrm{,^{567}}}"
+ },
+ {
+  "input": "1 234",
+  "machine": "pu",
+  "expected": "{1~\\mathrm{234}}"
+ },
+ {
+  "input": "12 345 kJ",
+  "machine": "pu",
+  "expected": "{12~\\mathrm{345}\\mkern3mu \\mathrm{kJ}}"
+ },
+ {
+  "input": "1.2 \\cdot 10^3",
+  "machine": "pu",
+  "expected": "{1.2~\\mathrm{\\cdot 10^^{3}}}"
+ },
+ {
+  "input": "1.2*10^{-3} m",
+  "machine": "pu",
+  "expected": "{1.2\\cdot 10^{{-3}}~\\mathrm{m}}"
+ },
+ {
+  "input": "1.2x10^{+3}",
+  "machine": "pu",
+  "expected": "{1.2\\times 10^{{+3}}}"
+ },
+ {
+  "input": "1.2 *10^3",
+  "machine": "pu",
+  "expected": "{1.2\\cdot 10^{3}}"
+ },
+ {
+  "input": "5 \\text{米}",
+  "machine": "pu",
+  "expected": "{5~\\mathrm{\\text{米}}}"
+ },
+ {
+  "input": "5 \\text{m}",
+  "machine": "pu",
+  "expected": "{5~\\mathrm{\\text{m}}}"
+ },
+ {
+  "input": "5 \\mathrm{m}",
+  "machine": "pu",
+  "expected": "{5~\\mathrm{\\mathrm{m}}}"
+ },
+ {
+  "input": "5 m\\,s",
+  "machine": "pu",
+  "expected": "{5~\\mathrm{m\\,s}}"
+ },
+ {
+  "input": "3 m^{2}",
+  "machine": "pu",
+  "expected": "{3~\\mathrm{m^{2}}}"
+ },
+ {
+  "input": "3 m^{-2}",
+  "machine": "pu",
+  "expected": "{3~\\mathrm{m^{-2}}}"
+ },
+ {
+  "input": "3 m2",
+  "machine": "pu",
+  "expected": "{3~\\mathrm{m^{2}}}"
+ },
+ {
+  "input": "3 m-2",
+  "machine": "pu",
+  "expected": "{3~\\mathrm{m^{-2}}}"
+ },
+ {
+  "input": "3 m^-2",
+  "machine": "pu",
+  "expected": "{3~\\mathrm{m^{-2}}}"
+ },
+ {
+  "input": "3 s^{-1}",
+  "machine": "pu",
+  "expected": "{3~\\mathrm{s^{-1}}}"
+ },
+ {
+  "input": "3 s-1",
+  "machine": "pu",
+  "expected": "{3~\\mathrm{s^{-1}}}"
+ },
+ {
+  "input": "273.15 K",
+  "machine": "pu",
+  "expected": "{273.15~\\mathrm{K}}"
+ },
+ {
+  "input": "0 °C",
+  "machine": "pu",
+  "expected": "{0~\\mathrm{{}^{\\circ}C}}"
+ },
+ {
+  "input": "-40 °F",
+  "machine": "pu",
+  "expected": "{-40~\\mathrm{{}^{\\circ}F}}"
+ },
+ {
+  "input": "1e-10",
+  "machine": "pu",
+  "expected": "{1\\cdot 10^{-10}}"
+ },
+ {
+  "input": "1.5e10 Hz",
+  "machine": "pu",
+  "expected": "{1.5\\cdot 10^{10}~\\mathrm{Hz}}"
+ },
+ {
+  "input": "2.998\\times 10^8 m/s",
+  "machine": "pu",
+  "expected": "{2.998\\times 10^{8}~\\mathrm{m}/\\mathrm{s}}"
+ },
+ {
+  "input": "4.2 kJ/(kg K)",
+  "machine": "pu",
+  "expected": "{4.2~\\mathrm{kJ}\\,/\\,(\\mathrm{kg}\\mkern3mu \\mathrm{K)}}"
+ },
+ {
+  "input": "1 \\Omega",
+  "machine": "pu",
+  "expected": "{1~\\mathrm{\\Omega}}"
+ },
+ {
+  "input": "5 V",
+  "machine": "pu",
+  "expected": "{5~\\mathrm{V}}"
+ },
+ {
+  "input": "2 A",
+  "machine": "pu",
+  "expected": "{2~\\mathrm{A}}"
+ },
+ {
+  "input": "1.2 mA",
+  "machine": "pu",
+  "expected": "{1.2~\\mathrm{mA}}"
+ }
+]

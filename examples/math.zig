@@ -18,6 +18,10 @@ const formulas = [_][]const u8{
     "\\underbrace{1 + 2 + \\cdots + n}_{n \\text{ terms}} \\quad \\overbrace{a + b}^{2} \\quad e^{i\\pi} + 1 = 0",
     "f(x) = \\frac{1}{\\sigma\\sqrt{2\\pi}} e^{-\\frac{(x-\\mu)^2}{2\\sigma^2}}",
     "\\frac{1}{1 + \\frac{1}{1 + \\frac{1}{x}}} \\quad \\frac{\\partial^2 u}{\\partial t^2} = c^2 \\nabla^2 u",
+    "\\mathrm{2H_2 + O_2} \\xrightarrow[\\Delta]{\\text{Pt}} \\mathrm{2H_2O} \\quad \\mathrm{N_2 + 3H_2} \\xrightleftharpoons[\\text{high } T]{\\text{cat.}} \\mathrm{2NH_3} \\quad A \\xRightarrow{f} B",
+    "\\sum_{\\substack{0<i<m \\\\ 0<j<n}} P(i,j) \\quad \\colorbox{#ffe58f}{$x^2$} \\quad \\fcolorbox{red}{white}{key} \\quad {\\large L}{\\small s} \\quad X \\xhookrightarrow{f} Y \\xmapsto{g} Z \\xlongequal{\\text{def}} W",
+    "\\ce{2H2 + O2 ->[\\text{点燃}] 2H2O} \\quad \\ce{N2 + 3H2 <=>[\\text{催化剂}][\\text{高温高压}] 2NH3} \\quad \\ce{CaCO3 ->[\\Delta] CaO + CO2 ^}",
+    "\\ce{SO4^2- + Ba^2+ -> BaSO4 v} \\quad \\ce{[Cu(NH3)4]^2+} \\quad \\ce{CuSO4*5H2O} \\quad \\ce{^{227}_{90}Th} \\quad \\ce{Fe^{III}} \\quad \\pu{123 kJ mol-1} \\quad \\pu{1.2e3 kg m/s^2}",
 };
 
 const State = struct { dummy: u8 = 0 };

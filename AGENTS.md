@@ -17,7 +17,7 @@
 - 文本：Skia Paragraph，支持中英文、换行、字体回退
 - 状态：父组件持有状态 + 回调；可选 Zustand 风格 `zant.store.Store(T)`
 - 脚手架：编译后的 `zant` CLI，不使用 shell 脚手架
-- PDF：预览组件（macOS PDFKit，Windows PDFium）
+- PDF：阅读器 `zant.pdf.view` 与单页预览（macOS PDFKit，Windows PDFium）
 - 平台：macOS、Windows 10/11 x64 均已完成（见下文「跨平台规范」）
 
 这个仓库既包含框架，也包含生成项目的模板和 CLI。
@@ -50,7 +50,7 @@ zant update                   # 重新编译框架并更新全局二进制
 
 ```text
 src/
-  ui.zig                声明式 ui.* builders、ui.styled、PDF 组件
+  ui.zig                声明式 ui.* builders、ui.styled、pointerArea、单页 PDF 预览
   ui_runtime.zig        协调器、事件、焦点、IME、帧调度
   launch.zig            最小启动入口
   store.zig             Zustand 风格 Store
@@ -62,7 +62,11 @@ src/
   platform/windows/     Win32 窗口、IMM32、自绘标题栏、对话框、PDFium、manifest
   motion/               动效：缓动曲线（antd）、Animated、presence 预设
   markdown/             Streamdown 移植：remend/ parser/ render/ blocks cache editor html
-  math/                 LaTeX 公式（KaTeX 排版算法，STIX Two Math）
+  math/                 LaTeX 公式（KaTeX 排版算法，STIX Two Math）、mhchem.zig（\ce / \pu）
+  pdf/                  PDF 阅读器：document text renderer annotations viewer native
+  image.zig             内存图片（zant.image.Image）
+  core/sync.zig         工作线程用的 Mutex / Condition
+  core/text_select.zig  selectable 容器的文字选择（命中、复制文本）
 tools/zant/main.zig     编译后的脚手架 CLI
 scaffold/template/      生成项目模板（含组件、状态、AGENTS/CLAUDE）
 tests/                  布局/组件/UI/文本/Store 测试
@@ -199,16 +203,25 @@ ui.styled(node, .{
 - `ui.memo` 子树内的回调上下文必须比帧活得久（用缓存条目的 arena），不要用
   `ui.frameAllocator()`。
 - 数学排版改动参照 KaTeX 源码与字体参数，并用 `zig build run-math` 截图检查。
+- 预览默认可选择复制（`Options.selectable`，框架能力 `BoxOptions.selectable`）：新增渲染内容时，
+  非正文（行号、标题栏、标记符号）用 `unselectable = true` 排除，嵌入绘制用 `RichSpan.copy` /
+  `ui.vector(.{ .copy })` 提供复制文本（公式为 LaTeX 源码）。
+- 扩展点：`Options.block_renderers`（按围栏语言渲染自定义块）、`Options.image_loader`（远程图片，
+  加载完成后 `ui.postWake()`，图片 id 进入块的 memo hash）；`ParseOptions.latex_delimiters`。
+- 数学新命令先对照 KaTeX 源码（`functions/*.js`、`stretchy.js`）的尺寸与间距再实现。
 - Streamdown 为 Apache-2.0、KaTeX 为 MIT，署名见 `THIRD_PARTY_NOTICES.md`。
 
 ## PDF 组件
 
-- `ui.pdfPreview` 用 PDFKit（macOS）/ PDFium（Windows）渲染到 PNG，再走 Skia 图片管线。
-- 基本功能：首页/上一页/下一页/末页、页码、复制本页文本。
-- 页面图片缓存在系统临时目录；不要每帧重复渲染。Windows 需要 `pdfium.dll`
-  （`configureApp` / `zant package` 会放到 exe 旁边，缺失时显示“无法预览 PDF”）。
-- 扫描版 PDF 没有文本层时，复制无内容。
-- 当前不支持拖拽选区、搜索、缩略图、连续滚动和缩放控件。
+- 阅读器 `zant.pdf.view`（`src/pdf/`）：`Viewer` 由应用持有；连续滚动、缩放（适合宽度 / 页面、
+  ⌘/Ctrl+滚轮、捏合）、文字选择复制、搜索、链接、批注（高亮 / 下划线 / 删除线 / 波浪线 /
+  画笔 / 便签，撤销重做）与 `saveAnnotated` 导出标准 PDF 批注。见 `docs/components/pdf.md`。
+- 改阅读器前先对照 EmbedPDF 对应插件（选区、缩放、分块渲染、批注）的实现，避免自创行为。
+- 页面在后台线程分块渲染到内存（`zant.image.Image`），完成后 `ui.postWake()`；不要在 render
+  里同步渲染页面。原生 PDF 调用都线程安全（PDFium 全局锁、PDFKit 每文档锁）。
+- 单页预览 `ui.pdfPreview` 仍用 PNG 临时文件。Windows 需要 `pdfium.dll`
+  （`configureApp` / `zant package` 会放到 exe 旁边，缺失时显示“无法打开”）。
+- 扫描版 PDF 没有文本层时，无法选择 / 搜索。
 - 交互参考 EmbedPDF，但不嵌入 WebView/JS。
 
 ## 热更新
@@ -226,14 +239,19 @@ ui.styled(node, .{
 - 事件驱动重绘：静态窗口不要持续刷新。
 - 文本布局按节点和宽度缓存；避免每帧重新 shaping。
 - 图片按路径加载并缓存；避免每帧解码。
-- PDF 页面按文件/页码/尺寸缓存 PNG；不要每帧渲染 PDF。
+- PDF 页面由阅读器后台线程渲染并按页 / 缩放 / 分块缓存；不要每帧渲染 PDF。
 - 避免在 render 内做文件 I/O、网络、睡眠或大分配。
 - 新增分配必须跟随节点/帧生命周期释放。
 - 修改热点路径后运行 `zig build test`，并检查内存/时间回归：Release 构建下用 `ZANT_FRAME_STATS=1`
   （`zant-components` 配合 `ZANT_AUTOPLAY=quiet`）看每帧耗时，单帧应远低于 16.7 ms；
   Windows 上用 `scripts/win/resize-check.ps1` 测拖动缩放帧率（应跟满刷新率）。
 - 每帧路径里不要写 stderr（Windows 上每行约 10 ms）。
-- 当前测试 129/129（`tests/` + 框架模块内单元测试），macOS 与 Windows 都要通过；新增行为应补测试。
+- 当前测试 143/143（`tests/` + 框架模块内单元测试），macOS 与 Windows 都要通过；新增行为应补测试。
+- 文字排版缓存：`TextData` / `RichTextData` 保留当前与上一个宽度的排版，测量自然宽度走独立缓存
+  （`measureWidth` / `naturalWidth`）；不要在测量路径里调 `ensureLayout` 换宽度，否则每帧会重排所有文字。
+- 无确定高度的 column 不计算子节点的 flex 基准高度（不会用到），避免整棵子树按估计宽度多排一遍。
+- 流式 Markdown：变化区间里的块按位置继承旧块的 id（UI key），正在生长的块复用节点；
+  改 `cache.zig` / `blocks.zig` 后用 `zant-md-stream` 复测帧率。
 
 ## 代码质量
 

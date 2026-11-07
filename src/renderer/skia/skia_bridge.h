@@ -117,6 +117,13 @@ void zant_canvas_draw_line(ZantCanvas *canvas, float x0, float y0, float x1, flo
 void zant_canvas_draw_text_layout(ZantCanvas *canvas, ZantTextLayout *layout, float x, float y);
 
 ZantImage *zant_image_load_file(const char *path);
+/* Copies premultiplied 32-bit pixels in the native byte order (RGBA on
+ * macOS, BGRA on Windows). Thread-safe. */
+ZantImage *zant_image_from_pixels(const void *pixels, int width, int height, int stride);
+/* Decodes an encoded image (PNG, JPEG, GIF, BMP, ICO) from memory. Thread-safe. */
+ZantImage *zant_image_from_encoded(const void *data, size_t size);
+/* A second handle to the same pixels; destroy each handle separately. */
+ZantImage *zant_image_retain(ZantImage *image);
 void zant_image_destroy(ZantImage *image);
 int zant_image_width(ZantImage *image);
 int zant_image_height(ZantImage *image);

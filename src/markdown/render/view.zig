@@ -12,8 +12,10 @@ pub fn document(doc: *const ast.Document, options: Options) ui.Node {
     const arena = ui.frameAllocator();
     const opts = arena.create(Options) catch @panic("Zant UI: out of memory");
     opts.* = options;
-    return buildDocument(arena, doc, opts, options.caret != .none and options.is_animating, options.key_prefix) catch
-        ui.text("Markdown render failed", .{ .color = options.theme.muted_foreground });
+    const built = buildDocument(arena, doc, opts, options.caret != .none and options.is_animating, options.key_prefix) catch
+        return ui.text("Markdown render failed", .{ .color = options.theme.muted_foreground });
+    if (!options.selectable) return built;
+    return ui.column(.{ .width_percent = 100, .align_items = .stretch, .selectable = true, .children = &.{built} });
 }
 
 fn buildDocument(arena: std.mem.Allocator, doc: *const ast.Document, options: *const Options, caret: bool, key: []const u8) !ui.Node {
@@ -49,6 +51,19 @@ const Slot = struct {
             ui.column(.{ .key = self.key });
     }
 };
+
+fn hashImages(h: *std.hash.Wyhash, opts: *const Options, list: []const ast.Block) void {
+    for (list) |block| switch (block) {
+        .image => |img| {
+            const id: u64 = if (opts.image_loader.?.get(img.url)) |decoded| decoded.id else 0;
+            h.update(std.mem.asBytes(&id));
+        },
+        .quote => |q| hashImages(h, opts, q),
+        .callout => |c| hashImages(h, opts, c.blocks),
+        .list => |l| for (l.items) |item| hashImages(h, opts, item.blocks),
+        else => {},
+    };
+}
 
 /// UI key of a block (stable while its cache entry lives).
 pub fn blockKey(buf: []u8, key_prefix: []const u8, entry: *const cache_mod.Entry) ?[]const u8 {
@@ -104,6 +119,8 @@ pub fn streamdown(cache: *cache_mod.Cache, source: []const u8, props: Props) ui.
         var h = std.hash.Wyhash.init(entry.hash);
         h.update(std.mem.asBytes(&options_hash));
         h.update(&.{@intFromBool(caret)});
+        // rebuild a block when one of its images finishes loading
+        if (opts.image_loader != null) hashImages(&h, &opts, entry.doc.blocks);
         children[i] = ui.memo(.{ .key = key, .hash = h.final() }, slot, Slot.build);
     }
     if (entries.len == 0 and animating) {
@@ -118,6 +135,7 @@ pub fn streamdown(cache: *cache_mod.Cache, source: []const u8, props: Props) ui.
         .width_percent = 100,
         .gap = opts.theme.block_gap * opts.font_size,
         .align_items = .stretch,
+        .selectable = opts.selectable,
         .children = children,
     });
 }

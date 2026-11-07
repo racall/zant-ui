@@ -127,8 +127,16 @@ fn classify(raw: []const u8) Kind {
 /// Streamdown's merge rules. Each block keeps its trailing blank lines, so
 /// the blocks concatenate back to `input`.
 pub fn splitRaw(arena: std.mem.Allocator, input: []const u8) ![]const []const u8 {
+    return splitRawWith(arena, input, .{});
+}
+
+/// `splitRaw` with the document's parse options: block boundaries depend on
+/// them (with `latex_delimiters`, a multi-line `\[ … \]` formula is one
+/// block even when a line inside it looks like a heading underline `=` or a
+/// list item `+`).
+pub fn splitRawWith(arena: std.mem.Allocator, input: []const u8, options: parser.Options) ![]const []const u8 {
     if (input.len == 0) return &.{};
-    const ranges = try parser.topLevelRanges(arena, input, .{});
+    const ranges = try parser.topLevelRanges(arena, input, options);
     const starts = try block_parser.lineStarts(arena, input);
     var tokens: std.ArrayListUnmanaged([]const u8) = .empty;
     for (ranges, 0..) |range, k| {
@@ -202,6 +210,8 @@ pub const Splitter = struct {
     blocks: std.ArrayListUnmanaged([]u8) = .empty,
     /// Statistics for tests/profiling: blocks reused by the last split.
     reused: usize = 0,
+    /// Parse options the blocks were split with (`setOptions`).
+    options: parser.Options = .{},
 
     pub fn init(allocator: std.mem.Allocator) Splitter {
         return .{ .allocator = allocator };
@@ -211,6 +221,14 @@ pub const Splitter = struct {
         self.clearBlocks(0);
         self.blocks.deinit(self.allocator);
         self.input.deinit(self.allocator);
+    }
+
+    /// Parse options for the following splits; a change drops the cache.
+    pub fn setOptions(self: *Splitter, options: parser.Options) void {
+        if (std.meta.eql(self.options, options)) return;
+        self.options = options;
+        self.clearBlocks(0);
+        self.input.clearRetainingCapacity();
     }
 
     fn clearBlocks(self: *Splitter, keep: usize) void {
@@ -243,7 +261,7 @@ pub const Splitter = struct {
             stable = countStableBlocks(@ptrCast(self.blocks.items));
             for (self.blocks.items[0..stable]) |b| stable_len += b.len;
         }
-        const tail = try splitRaw(arena, input[stable_len..]);
+        const tail = try splitRawWith(arena, input[stable_len..], self.options);
         self.clearBlocks(stable);
         for (tail) |b| try self.blocks.append(self.allocator, try self.allocator.dupe(u8, b));
         self.input.clearRetainingCapacity();

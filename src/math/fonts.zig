@@ -30,7 +30,8 @@ pub fn fromCommand(name: []const u8) ?Variant {
         .{ "rm", Variant.roman },               .{ "mathup", Variant.roman },
         .{ "mathnormal", Variant.normal },      .{ "mathsf", Variant.sans_serif },
         .{ "sf", Variant.sans_serif },          .{ "mathtt", Variant.monospace },
-        .{ "tt", Variant.monospace },
+        .{ "tt", Variant.monospace },           .{ "bold", Variant.bold },
+        .{ "Bbb", Variant.double_struck },      .{ "cal", Variant.script },
     };
     inline for (map) |entry| if (std.mem.eql(u8, name, entry[0])) return entry[1];
     return null;

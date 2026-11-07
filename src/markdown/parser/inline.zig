@@ -26,6 +26,8 @@ pub const Context = struct {
     /// closer preceded by a non-space and not followed by a digit
     /// (`$20 and $10` is text, `$x$` is math).
     single_dollar_math: bool = true,
+    /// `\(…\)` and `\[…\]` math (see block.Options.latex_delimiters).
+    latex_delimiters: bool = false,
 };
 
 const Builder = struct {
@@ -436,6 +438,20 @@ fn parseInto(b: *Builder, text: []const u8, base: Style, url: []const u8) anyerr
         const c = text[i];
         switch (c) {
             '\\' => {
+                if (ctx.latex_delimiters and i + 1 < text.len and (text[i + 1] == '(' or text[i + 1] == '[')) {
+                    const close: []const u8 = if (text[i + 1] == '(') "\\)" else "\\]";
+                    if (std.mem.indexOfPos(u8, text, i + 2, close)) |end| {
+                        if (std.mem.trim(u8, text[i + 2 .. end], " \n").len > 0) {
+                            try b.pushText(text[plain..i], base, url);
+                            var style = base;
+                            style.math = true;
+                            try b.push(try collapseNewlines(ctx.arena, std.mem.trim(u8, text[i + 2 .. end], " \n")), style, url);
+                            i = end + 2;
+                            plain = i;
+                            continue;
+                        }
+                    }
+                }
                 if (i + 1 < text.len and isAsciiPunct(text[i + 1])) {
                     try b.pushText(text[plain..i], base, url);
                     try b.push(text[i + 1 .. i + 2], base, url);

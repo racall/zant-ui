@@ -42,6 +42,7 @@ pub fn toRich(ctx: Ctx, spans: []const ast.Span, base: Base, with_caret: bool) !
             run.color = theme.inline_code_fg;
             // pad the code chip with thin spaces
             run.text = try std.mem.concat(ctx.arena, u8, &.{ "\u{2009}", span.text, "\u{2009}" });
+            run.copy = span.text;
         }
         if (st.math) {
             const drawing = try math.inlineDrawing(ctx.arena, span.text, .{
@@ -51,6 +52,7 @@ pub fn toRich(ctx: Ctx, spans: []const ast.Span, base: Base, with_caret: bool) !
             });
             run.embed = drawing;
             run.text = "\u{FFFC}";
+            run.copy = try std.mem.concat(ctx.arena, u8, &.{ "$", span.text, "$" });
         }
         if (st.footnote_ref) {
             run.color = theme.link;
@@ -78,6 +80,7 @@ pub fn toRich(ctx: Ctx, spans: []const ast.Span, base: Base, with_caret: bool) !
             .font_size = base.size * 0.9,
             .color = theme.caret,
             .family = .sans,
+            .copy = "",
         });
     }
     return out.toOwnedSlice(ctx.arena);

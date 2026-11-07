@@ -33,7 +33,11 @@ Metal / Direct3D 12 GPU 渲染，以及一个编译后的项目脚手架。不�
 | antd 组件：Button、Input、Checkbox / Switch / Radio、Select、Tabs、Tooltip、Card、Tag、Alert、Avatar、Progress、Dropdown 菜单、Segmented、Modal、Message、Icon | ✅ |
 | 浅色 / 深色主题（运行时切换） | ✅ |
 | 动效：antd 缓动与时长、进场 / 退场、FLIP 布局过渡、按刷新率出帧（CADisplayLink / D3D12 垂直同步）、减少动态效果 | ✅ |
-| Markdown（Streamdown 移植）+ LaTeX 公式（KaTeX 算法）+ Mermaid + HTML 导出 | ✅ |
+| Markdown（Streamdown 移植）+ LaTeX 公式（KaTeX 算法）+ 化学式 `\ce`（mhchem 移植）+ Mermaid + HTML 导出 | ✅ |
+| 流式渲染（块缓存、生长中的块保留节点、文字排版双宽度缓存），真实 SSE 实测稳定 60 帧 | ✅ |
+| 文字选择与复制（`selectable` 容器，跨节点拖选、双击 / 三击，公式复制为 LaTeX） | ✅ |
+| PDF 阅读器（连续滚动、缩放、选择复制、搜索、链接、批注与带批注导出，参照 EmbedPDF） | ✅ |
+| 指针区域（拖动捕获、多击、滚轮）、内存图片、后台线程唤醒 UI | ✅ |
 | 编译后脚手架 `zant`、app.config.json、App Sandbox + Developer ID 签名（macOS） | ✅ |
 | 平台快捷键（`zant.keys`：⌘ / Ctrl 与按键文字）、应用数据目录（`zant.paths`） | ✅ |
 
@@ -59,8 +63,9 @@ zig build run-gallery     # 命令式组件画廊
 zig build run-markdown    # Markdown 渲染画廊（ZANT_DARK=1 深色）
 zig build run-math        # 公式画廊
 zig build run-components  # 全部组件总览（ZANT_DARK=1 深色）
-zig build run-pdf -- a.pdf  # PDF 预览
-zig build test            # 测试（129 项，含 remend 522 条上游用例）
+zig build run-pdf -- a.pdf  # PDF 阅读器（滚动、缩放、选择复制、搜索、批注）
+zig build run-md-stream   # 流式 Markdown 基准（聊天 + 模拟 / 真实 SSE，帧统计）
+zig build test            # 测试（143 项，含 remend 522 条上游用例、mhchem 823 条用例）
 ```
 
 ## 全局 CLI 与脚手架
@@ -144,7 +149,8 @@ Zig 没有闭包；回调统一用 `ui.action` / `ui.textAction` / `ui.boolActio
 Text / Heading / Paragraph、Button / Link、Input（单行、多行编辑器）、Checkbox、Switch、
 Radio Group、Select、Tabs、Tooltip、Image、Row / Column / Space / Divider、Card、Tag、
 Alert、Avatar、Progress、Icon / IconButton、Dropdown 菜单、Segmented、Modal、Message、
-ShortcutList、DismissLayer、PDF 预览、Markdown 编辑器 / 预览。
+ShortcutList、DismissLayer、PointerArea（拖动 / 画布 / 分隔条）、PDF 阅读器（`zant.pdf.view`）与单页预览、
+Markdown 编辑器 / 预览。
 
 每个组件一份文档：[组件文档](docs/components/README.md)。统一样式覆盖使用 `ui.styled`，
 见 [样式覆盖](docs/components/style.md)。通用组件一律放在框架里，应用只写业务组件。
@@ -164,7 +170,20 @@ md.editor(.{ .value = source, .mode = .split, .cache = &state.md_cache, .on_chan
 zant.math.block("\\int_0^1 x^2\\,dx = \\frac{1}{3}", .{ .size = 18 })
 ```
 
+预览默认可拖选复制；`block_renderers` 按围栏语言渲染自定义块，`image_loader` 加载远程图片，
+`ParseOptions.latex_delimiters` 支持模型常用的 `\( \)` / `\[ \]`；公式支持 `\ce{…}` / `\pu{…}`。
 见 [Markdown 与数学](docs/markdown.md)。
+
+## PDF
+
+```zig
+var viewer = zant.pdf.Viewer.init(gpa);
+try viewer.open("manual.pdf");
+zant.pdf.view(&viewer, .{ .key = "pdf", .labels = .zh, .annotation_tools = true }) // render 里
+try viewer.saveAnnotated("out.pdf");
+```
+
+见 [PDF 阅读器](docs/components/pdf.md)。
 
 ## 动效
 
@@ -199,7 +218,9 @@ const id = try notes.add(.{ .body = "hello" });
 - 节点被移除后释放并复用槽位；运行时对已释放节点的引用会被清理。
 - 只在状态变化时重绘；动画由“正在动画的节点列表”驱动，按屏幕刷新出帧（macOS CADisplayLink，
   Windows 交换链 / DwmFlush 垂直同步）。
-- 文本用 Skia Paragraph 与系统字体回退；公式与图表是保留式矢量绘制。
+- 文本用 Skia Paragraph 与系统字体回退；排版按宽度缓存（保留最近两个宽度），测量自然宽度不丢弃已排好的版。
+  公式与图表是保留式矢量绘制。
+- 后台线程（PDF 页面渲染、下载解码）通过 `ui.postWake()` 唤醒 UI；`zant.sync` 提供互斥锁与条件变量。
 
 见 [架构](docs/architecture.md) 和 [开发](docs/development.md)。
 
@@ -230,7 +251,7 @@ scripts/win/               Windows 构建（MSVC 桥接 DLL）、测试机同步
 src/store.zig, src/db/     Zustand 风格状态、SQLite 持久化
 tools/zant/                编译后的脚手架 CLI
 scaffold/template/         生成项目模板（含 DESIGN.md / AGENTS.md / CLAUDE.md）
-examples/                  示例：declarative、gallery、components（全部组件）、markdown、math、pdf
+examples/                  示例：declarative、gallery、components（全部组件）、markdown、markdown_stream、math、pdf
 tests/                     布局 / 组件 / 运行时 / 动效 / Markdown / 数学测试
 docs/                      文档、截图与 showcase.md
 ```
@@ -238,4 +259,5 @@ docs/                      文档、截图与 showcase.md
 ## License
 
 MIT。Skia（BSD-3-Clause，含 HarfBuzz / ICU / libpng 等）、Windows 上的 PDFium、
+mhchem（Apache-2.0）、EmbedPDF（MIT）、
 数学字体 STIX Two Math（OFL）与 Streamdown / KaTeX 相关说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

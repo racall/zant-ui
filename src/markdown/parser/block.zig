@@ -18,6 +18,10 @@ pub const Options = struct {
     single_dollar_math: bool = true,
     /// Recognise YAML front matter at the very start of the document.
     front_matter: bool = true,
+    /// Also recognise LaTeX's `\(…\)` (inline) and `\[…\]` (display) math
+    /// delimiters, as many language models write them. Off by default
+    /// (remark-math does not; `\[` is otherwise an escaped bracket).
+    latex_delimiters: bool = false,
 };
 
 pub const LineRange = struct { start: usize, end: usize };
@@ -45,6 +49,7 @@ pub const Parser = struct {
             .refs = &self.refs,
             .footnote_order = &self.footnote_order,
             .single_dollar_math = self.options.single_dollar_math,
+            .latex_delimiters = self.options.latex_delimiters,
         };
         return &self.inline_ctx;
     }
@@ -217,6 +222,7 @@ pub const Parser = struct {
         if (indent >= 4) return self.indentedCode(lines, i, out);
         if (scan.fenceOpen(line)) |fence| return self.fencedCode(lines, i, fence, out);
         if (mathStart(line)) |fence| return self.mathBlock(lines, i, fence, out);
+        if (self.options.latex_delimiters and bracketMathStart(line)) return self.bracketMathBlock(lines, i, out);
         if (scan.atxHeading(line)) |h| {
             const spans = try self.inlines(h.text);
             try out.append(self.arena, .{ .heading = .{ .level = h.level, .spans = spans, .id = try self.slugFor(spans) } });
@@ -295,6 +301,39 @@ pub const Parser = struct {
         return .{ .len = n, .indent = indent };
     }
 
+    /// `\[` opening a display formula (up to 3 spaces of indent).
+    fn bracketMathStart(line: []const u8) bool {
+        const indent = scan.indentOf(line);
+        if (indent > 3) return false;
+        return std.mem.startsWith(u8, line[indent..], "\\[");
+    }
+
+    /// `\[ … \]` display math: on one line or up to the line ending in `\]`.
+    fn bracketMathBlock(self: *Parser, lines: []const []const u8, start: usize, out: *std.ArrayListUnmanaged(Block)) !usize {
+        var source: std.ArrayListUnmanaged(u8) = .empty;
+        const first = std.mem.trimStart(u8, lines[start], " ")[2..];
+        var i = start;
+        var closed = false;
+        var rest = first;
+        while (true) {
+            const t = std.mem.trimEnd(u8, rest, " \t");
+            if (std.mem.endsWith(u8, t, "\\]")) {
+                try source.appendSlice(self.arena, t[0 .. t.len - 2]);
+                closed = true;
+                i += 1;
+                break;
+            }
+            try source.appendSlice(self.arena, rest);
+            i += 1;
+            if (i >= lines.len) break;
+            try source.append(self.arena, '\n');
+            rest = lines[i];
+        }
+        const trimmed = std.mem.trim(u8, source.items, " \n");
+        try out.append(self.arena, .{ .math = .{ .source = trimmed, .closed = closed } });
+        return i;
+    }
+
     fn isMathClose(line: []const u8, fence: MathFence) bool {
         const indent = scan.indentOf(line);
         if (indent > 3) return false;
@@ -346,7 +385,7 @@ pub const Parser = struct {
                 continue;
             }
             // lazy continuation of a paragraph inside the quote
-            if (lazy_ok and !scan.isBlank(line) and !interruptsParagraph(line)) {
+            if (lazy_ok and !scan.isBlank(line) and !self.interruptsParagraph(line)) {
                 try inner.append(self.arena, line);
                 continue;
             }
@@ -426,7 +465,7 @@ pub const Parser = struct {
                     continue;
                 }
                 // lazy paragraph continuation
-                if (!saw_blank and in_fence == null and !interruptsParagraph(line) and scan.listMarker(line) == null) {
+                if (!saw_blank and in_fence == null and !self.interruptsParagraph(line) and scan.listMarker(line) == null) {
                     const prev = item_lines.items[item_lines.items.len - 1];
                     if (!scan.isBlank(prev)) {
                         try item_lines.append(self.arena, std.mem.trimStart(u8, line, " "));
@@ -498,7 +537,7 @@ pub const Parser = struct {
                 saw_blank = false;
                 continue;
             }
-            if (!saw_blank and !interruptsParagraph(line) and footnoteDefStart(line) == null) {
+            if (!saw_blank and !self.interruptsParagraph(line) and footnoteDefStart(line) == null) {
                 try body.append(self.arena, line);
                 continue;
             }
@@ -547,7 +586,7 @@ pub const Parser = struct {
         var i = start + 2;
         while (i < lines.len) : (i += 1) {
             const line = lines[i];
-            if (scan.isBlank(line) or interruptsParagraph(line)) break;
+            if (scan.isBlank(line) or self.interruptsParagraph(line)) break;
             const cells = try scan.splitTableRow(self.arena, line);
             var row = try self.arena.alloc([]const ast.Span, cols);
             var raw_row = try self.arena.alloc([]const u8, cols);
@@ -569,8 +608,9 @@ pub const Parser = struct {
         return i;
     }
 
-    fn interruptsParagraph(line: []const u8) bool {
+    fn interruptsParagraph(self: *const Parser, line: []const u8) bool {
         if (scan.indentOf(line) > 3) return false;
+        if (self.options.latex_delimiters and bracketMathStart(line)) return true;
         if (scan.atxHeading(line) != null or scan.fenceOpen(line) != null or scan.isThematicBreak(line)) return true;
         const t = std.mem.trimStart(u8, line, " ");
         if (t.len > 0 and t[0] == '>') return true;
@@ -611,7 +651,7 @@ pub const Parser = struct {
                     try out.append(self.arena, .{ .heading = .{ .level = level, .spans = spans, .id = try self.slugFor(spans) } });
                     return i + 1;
                 }
-                if (interruptsParagraph(line)) break;
+                if (self.interruptsParagraph(line)) break;
                 // a table can start right after paragraph text
                 if (std.mem.indexOfScalar(u8, line, '|') != null and i + 1 < lines.len) {
                     if (try scan.tableDelimiter(self.arena, lines[i + 1])) |aligns| {

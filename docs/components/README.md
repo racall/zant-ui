@@ -23,7 +23,8 @@ macOS 与 Windows 共用同一套 API；快捷键文字一律用 `zant.keys.labe
 | 警告 | [alert.md](alert.md) |
 | 头像 | [avatar.md](avatar.md) |
 | 进度条 | [progress.md](progress.md) |
-| PDF 预览 | [pdf.md](pdf.md) |
+| PDF 阅读器（`zant.pdf.view`）/ 单页预览 | [pdf.md](pdf.md) |
+| 指针区域（`ui.pointerArea`）/ 内存图片 | [pointer-area.md](pointer-area.md) |
 | 图标、图标按钮 | [icon.md](icon.md) |
 | 下拉菜单 | [dropdown-menu.md](dropdown-menu.md) |
 | 分段控制器 | [segmented.md](segmented.md) |

@@ -73,6 +73,16 @@ pub const Cursor = enum(c_int) {
     arrow = 0,
     pointing_hand = 1,
     ibeam = 2,
+    crosshair = 3,
+    /// Splitters that drag left / right.
+    resize_horizontal = 4,
+    /// Splitters that drag up / down.
+    resize_vertical = 5,
+    /// Pannable content (open hand).
+    grab = 6,
+    /// Panning (closed hand).
+    grabbing = 7,
+    not_allowed = 8,
 };
 
 pub const Event = extern struct {
@@ -119,6 +129,8 @@ pub const Host = extern struct {
     next_frame_delay: *const fn (?*anyopaque) callconv(.c) c_int,
     /// `Hit` for a point in logical window coordinates (app-drawn title bars).
     titlebar_hit: ?*const fn (?*anyopaque, f32, f32) callconv(.c) c_int = null,
+    /// UI-thread callback after `postWake` (any thread).
+    wake: ?*const fn (?*anyopaque) callconv(.c) void = null,
 };
 
 /// Answers of `Host.titlebar_hit`.
@@ -167,6 +179,7 @@ extern fn zant_window_create(title: [*:0]const u8, options: *const NativeWindowO
 extern fn zant_window_run(window: *Window) void;
 extern fn zant_window_destroy(window: *Window) void;
 extern fn zant_window_request_redraw(window: *Window, delay_ms: c_int) void;
+extern fn zant_window_post_wake(window: *Window) void;
 extern fn zant_window_set_cursor(window: *Window, cursor: c_int) void;
 extern fn zant_window_set_background(window: *Window, argb: u32) void;
 extern fn zant_window_reduce_motion() c_int;
@@ -210,6 +223,11 @@ pub fn destroy(window: *Window) void {
 
 pub fn requestRedraw(window: ?*Window, delay_ms: c_int) void {
     if (window) |w| zant_window_request_redraw(w, delay_ms);
+}
+
+/// Thread-safe: asks the UI thread to run `Host.wake` and redraw.
+pub fn postWake(window: ?*Window) void {
+    if (window) |w| zant_window_post_wake(w);
 }
 
 pub fn setCursor(window: ?*Window, cursor: Cursor) void {

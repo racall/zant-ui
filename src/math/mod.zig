@@ -13,6 +13,8 @@ pub const parser = @import("parser.zig");
 pub const layout_engine = @import("layout.zig");
 pub const symbols = @import("symbols.zig");
 pub const fonts = @import("fonts.zig");
+/// `\ce{..}` / `\pu{..}` (mhchem, ported from KaTeX's contrib).
+pub const mhchem = @import("mhchem.zig");
 
 pub const Drawing = vector.Drawing;
 

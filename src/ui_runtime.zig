@@ -14,6 +14,7 @@ const tokens = @import("theme/tokens.zig");
 const geometry = @import("core/geometry.zig");
 const text_mod = @import("renderer/text.zig");
 const select_mod = @import("components/select.zig");
+const text_select = @import("core/text_select.zig");
 
 const Tree = tree_mod.Tree;
 const Node = node_mod.Node;
@@ -88,6 +89,25 @@ pub const Runtime = struct {
     document_edited: bool = false,
     open_select: ?NodeId = null,
     pressed_link: ?NodeId = null,
+    /// Pointer area holding the pointer between `down` and `up`.
+    pointer_capture: ?NodeId = null,
+    /// Pointer area last sent `hover` (gets `leave` when the pointer goes).
+    pointer_hover_area: ?NodeId = null,
+    /// Multi-click detection (double / triple click).
+    last_click_ms: i64 = 0,
+    last_click_x: f32 = 0,
+    last_click_y: f32 = 0,
+    click_count: u8 = 0,
+    /// Text selection in a `selectable` container.
+    sel_root: ?NodeId = null,
+    sel_anchor: ?text_select.Point = null,
+    sel_focus: ?text_select.Point = null,
+    sel_dragging: bool = false,
+    sel_mode: enum { char, word, block } = .char,
+    /// Word / block under the pointer when a multi-click drag started.
+    sel_unit: [2]text_select.Point = undefined,
+    /// Nodes whose `text_sel` is set (cleared on the next change).
+    sel_marked: std.ArrayListUnmanaged(NodeId) = .empty,
     /// Window clear colour; follows the root background (dark mode).
     clear_color: u32 = 0,
 
@@ -107,6 +127,7 @@ pub const Runtime = struct {
         root.style.direction = .column;
         root.style.align_items = .stretch;
         root.visual.background = config.window.background;
+        tree.selection_color = tokens.withAlpha(config.theme.color_primary, 0x4d);
         self.* = .{
             .allocator = allocator,
             .theme = config.theme,
@@ -121,6 +142,7 @@ pub const Runtime = struct {
 
     pub fn deinit(self: *Runtime) void {
         if (self.tooltip_layout) |*layout| layout.deinit();
+        self.sel_marked.deinit(self.allocator);
         self.tree.deinit();
         self.allocator.destroy(self.tree);
         self.allocator.destroy(self);
@@ -144,7 +166,9 @@ pub const Runtime = struct {
         const host = makeHost(self);
         const window = try platform.createWindow(self.config.title, self.config.window, &host);
         self.window = window;
+        ui.wake_window.store(window, .release);
         defer {
+            ui.wake_window.store(null, .release);
             platform.destroy(window);
             self.window = null;
         }
@@ -448,6 +472,10 @@ pub const Runtime = struct {
         if (self.pressed_toggle == id) self.pressed_toggle = null;
         if (self.drag_input == id) self.drag_input = null;
         if (self.pressed_link == id) self.pressed_link = null;
+        if (self.pointer_capture == id) self.pointer_capture = null;
+        if (self.pointer_hover_area == id) self.pointer_hover_area = null;
+        if (self.sel_root == id or (self.sel_anchor != null and self.sel_anchor.?.node == id) or
+            (self.sel_focus != null and self.sel_focus.?.node == id)) self.clearTextSelection();
         if (self.open_select == id) self.open_select = null;
         if (self.tooltip_target == id) self.clearTooltip();
         if (self.popup_select == id) self.popup_select = null;
@@ -484,6 +512,7 @@ pub const Runtime = struct {
         if (std.meta.eql(self.theme, theme)) return;
         self.theme = theme;
         self.tree.theme = theme;
+        self.tree.selection_color = tokens.withAlpha(theme.color_primary, 0x4d);
         for (self.tree.nodes.items) |node| {
             switch (node.data) {
                 .text => |*data| data.invalidate(),
@@ -584,7 +613,15 @@ pub const Runtime = struct {
         var paint_changed = layout_changed;
 
         switch (node.data) {
-            .container => {},
+            .container => |*data| {
+                // a pointer area appearing / disappearing changes hit testing
+                if ((data.pointer == null) != (element.pointer == null)) paint_changed = true;
+                data.pointer = element.pointer;
+                data.key_action = element.key_action;
+                data.cursor = element.cursor;
+                data.resize_action = element.on_resize;
+                if (element.pointer == null and self.pointer_capture == id) self.pointer_capture = null;
+            },
             .text => |*data| {
                 if (!std.mem.eql(u8, data.content, element.content)) {
                     try self.tree.setText(id, element.content);
@@ -677,6 +714,9 @@ pub const Runtime = struct {
                 node.focusable = true;
             },
             .vector => {
+                if (!std.mem.eql(u8, node.data.vector.copy, element.content)) {
+                    node.data.vector.copy = try node.data.vector.arena.allocator().dupe(u8, element.content);
+                }
                 if (element.drawing) |drawing| {
                     const before = node.data.vector.hash;
                     try self.tree.vectorSet(id, drawing);
@@ -720,10 +760,19 @@ pub const Runtime = struct {
                 node.focusable = true;
             },
             .image => |*data| {
-                if (!std.mem.eql(u8, data.path, element.content)) {
+                if (element.image_id != 0) {
+                    if (data.source_id != element.image_id) {
+                        const old_w = data.intrinsic_width;
+                        const old_h = data.intrinsic_height;
+                        @import("components/image.zig").setSource(data, element.image_handle, element.image_id);
+                        if (old_w != data.intrinsic_width or old_h != data.intrinsic_height) layout_changed = true;
+                        paint_changed = true;
+                    }
+                } else if (data.source_id != 0 or !std.mem.eql(u8, data.path, element.content)) {
                     const owned = try self.tree.allocator.dupe(u8, element.content);
                     self.tree.allocator.free(data.path);
                     data.path = owned;
+                    data.source_id = 0;
                     @import("components/image.zig").load(data);
                     layout_changed = true;
                     paint_changed = true;
@@ -794,6 +843,12 @@ pub const Runtime = struct {
         _ = self.applyCommon(id, element);
         const node = self.tree.get(id);
         switch (node.data) {
+            .container => |*data| {
+                data.pointer = element.pointer;
+                data.key_action = element.key_action;
+                data.cursor = element.cursor;
+                data.resize_action = element.on_resize;
+            },
             .button => |*data| {
                 data.action = element.on_click;
                 data.index_action = element.index_action;
@@ -839,8 +894,12 @@ pub const Runtime = struct {
                 data.check_t = v;
                 data.mark_t = v;
             },
+            .vector => |*data| {
+                data.copy = data.arena.allocator().dupe(u8, element.content) catch "";
+            },
             .image => |*data| {
                 data.fit = element.image_fit;
+                if (element.image_id != 0) @import("components/image.zig").setSource(data, element.image_handle, element.image_id);
             },
             .select => |*data| {
                 data.action = element.index_action;
@@ -900,6 +959,8 @@ pub const Runtime = struct {
                 x.italic != y.italic or x.family != y.family or x.background != y.background or
                 x.underline != y.underline or x.strike != y.strike or
                 !std.mem.eql(u8, x.text, y.text) or !std.mem.eql(u8, x.link, y.link)) return false;
+            if ((x.copy == null) != (y.copy == null)) return false;
+            if (x.copy) |c| if (!std.mem.eql(u8, c, y.copy.?)) return false;
             if ((x.embed == null) != (y.embed == null)) return false;
             if (x.embed) |e| if (e.contentHash() != y.embed.?.contentHash()) return false;
         }
@@ -1046,6 +1107,16 @@ pub const Runtime = struct {
                     if (node.focusable and node.enabled and node.inFlow()) self.focusNode(id);
                 },
                 .scroll_into_view => self.scrollIntoView(id),
+                .scroll_to_end => {
+                    const node = self.tree.get(id);
+                    switch (node.data) {
+                        .container => |*data| if (node.style.scroll) {
+                            data.scroll_animating = false;
+                            _ = self.tree.scrollBy(id, data.maxScroll(node.bounds.height) - data.scroll_offset);
+                        },
+                        else => {},
+                    }
+                },
             }
         }
     }
@@ -1108,8 +1179,32 @@ pub const Runtime = struct {
         self.next_delay_ms = delay;
     }
 
+    /// Calls `on_resize` of containers whose size changed in the last
+    /// layout; true when any was called.
+    fn notifyResizes(self: *Runtime) bool {
+        // callbacks may read the new boxes with ui.keyBounds
+        ui.setBuildTree(self.tree);
+        defer ui.setBuildTree(null);
+        var any = false;
+        for (self.tree.nodes.items) |node| {
+            if (!node.alive or !node.inFlow()) continue;
+            const data = switch (node.data) {
+                .container => |*d| d,
+                else => continue,
+            };
+            const action = data.resize_action orelse continue;
+            const b = node.bounds;
+            if (@abs(b.width - data.reported_width) < 0.5 and @abs(b.height - data.reported_height) < 0.5) continue;
+            data.reported_width = b.width;
+            data.reported_height = b.height;
+            action.func(action.ctx);
+            any = true;
+        }
+        return any;
+    }
+
     pub fn renderFrame(self: *Runtime, canvas: Canvas, width: f32, height: f32, dpr: f32) void {
-        _ = dpr;
+        ui.setDisplayScale(dpr);
         const stats_start = if (self.frame_stats != null) platform.monotonicUs() else 0;
         defer if (self.frame_stats) |*stats| stats.frame(stats_start, platform.monotonicUs(), width, height);
         self.sampleClock();
@@ -1141,6 +1236,13 @@ pub const Runtime = struct {
             self.tree.flip_enabled = !resized;
             const t = self.statsClock();
             self.tree.layout(self.viewport);
+            // size-dependent UI (on_resize): rebuild and lay out again now,
+            // so the new size never shows a frame of the old layout
+            if (!nested and self.notifyResizes()) {
+                self.rebuild();
+                if (self.tree.needsLayout()) self.tree.layout(self.viewport);
+                _ = self.notifyResizes();
+            }
             if (self.frame_stats) |*stats| stats.phase(.layout, t);
             self.tree.flip_enabled = true;
         }
@@ -1207,7 +1309,11 @@ pub const Runtime = struct {
                 self.needs_build = true;
                 return 1;
             },
-            .pointer_leave => {
+            .pointer_leave => |p| {
+                if (self.pointer_hover_area) |prev| {
+                    self.pointer_hover_area = null;
+                    self.sendPointer(prev, .leave, p, 0, 0);
+                }
                 self.setHover(null);
                 self.drag_input = null;
                 self.clearPressed();
@@ -1238,6 +1344,8 @@ pub const Runtime = struct {
             },
             .window_blur => {
                 self.active = false;
+                self.sel_dragging = false;
+                self.releasePointerCapture(.{ .x = self.last_click_x, .y = self.last_click_y });
                 if (self.drawsCaptionButtons()) self.needs_build = true;
                 self.cancelFocusedComposition();
                 self.closeSelect();
@@ -1265,6 +1373,12 @@ pub const Runtime = struct {
                 return @intFromBool(!close_fn(self.userdata));
             },
             .scroll => |scroll_event| {
+                if (self.tree.wheelTargetAt(scroll_event.x, scroll_event.y)) |wid| {
+                    if (self.pointerAreaNode(wid)) |area| if (area.capture_scroll) {
+                        self.sendPointer(wid, .scroll, .{ .x = scroll_event.x, .y = scroll_event.y, .modifiers = scroll_event.modifiers }, scroll_event.dx, scroll_event.dy);
+                        return 1;
+                    };
+                }
                 const target = self.tree.hitTest(scroll_event.x, scroll_event.y);
                 if (target) |id| {
                     const node = self.tree.get(id);
@@ -1327,7 +1441,244 @@ pub const Runtime = struct {
         self.pressed_toggle = null;
     }
 
+    // ---- text selection (BoxOptions.selectable) -----------------------
+
+    pub fn clearTextSelection(self: *Runtime) void {
+        for (self.sel_marked.items) |id| {
+            if (id < self.tree.nodes.items.len) self.tree.get(id).text_sel = null;
+        }
+        if (self.sel_marked.items.len > 0) self.tree.markPaintDirty();
+        self.sel_marked.clearRetainingCapacity();
+        self.sel_root = null;
+        self.sel_anchor = null;
+        self.sel_focus = null;
+        self.sel_dragging = false;
+    }
+
+    /// The selected text (empty when nothing is selected); caller frees.
+    pub fn selectedText(self: *Runtime, allocator: std.mem.Allocator) ![]u8 {
+        const root = self.sel_root orelse return allocator.dupe(u8, "");
+        var nodes: std.ArrayListUnmanaged(NodeId) = .empty;
+        defer nodes.deinit(self.allocator);
+        try text_select.collect(self.tree, root, self.allocator, &nodes);
+        return text_select.copyText(self.tree, nodes.items, self.sel_anchor orelse return allocator.dupe(u8, ""), self.sel_focus.?, allocator);
+    }
+
+    /// Marks the selected range on each text node (painted behind the text).
+    fn applyTextSelection(self: *Runtime) void {
+        for (self.sel_marked.items) |id| {
+            if (id < self.tree.nodes.items.len) self.tree.get(id).text_sel = null;
+        }
+        self.sel_marked.clearRetainingCapacity();
+        self.tree.markPaintDirty();
+        const root = self.sel_root orelse return;
+        const a = self.sel_anchor orelse return;
+        const f = self.sel_focus orelse return;
+        var nodes: std.ArrayListUnmanaged(NodeId) = .empty;
+        defer nodes.deinit(self.allocator);
+        text_select.collect(self.tree, root, self.allocator, &nodes) catch return;
+        const range = text_select.ordered(nodes.items, a, f) orelse return;
+        var i = range.si;
+        while (i <= range.ei) : (i += 1) {
+            const node = self.tree.get(nodes.items[i]);
+            const from = if (i == range.si) range.start.byte else 0;
+            const to = if (i == range.ei) range.end.byte else text_select.textLen(node);
+            if (from >= to) continue;
+            node.text_sel = .{ @intCast(from), @intCast(to) };
+            self.sel_marked.append(self.allocator, node.id) catch return;
+        }
+    }
+
+    fn unitAt(self: *Runtime, point: text_select.Point) [2]text_select.Point {
+        const node = self.tree.get(point.node);
+        return switch (self.sel_mode) {
+            .char => .{ point, point },
+            .word => blk: {
+                const w = text_select.wordAt(node, point.byte, self.allocator);
+                break :blk .{ .{ .node = point.node, .byte = w[0] }, .{ .node = point.node, .byte = w[1] } };
+            },
+            .block => .{ .{ .node = point.node, .byte = 0 }, .{ .node = point.node, .byte = text_select.textLen(node) } },
+        };
+    }
+
+    /// Starts a text selection when the press lands in a `selectable`
+    /// container on something that does not take clicks itself.
+    fn beginTextSelection(self: *Runtime, target: ?NodeId, p: events.PointerEvent) bool {
+        if (p.button != .left) return false;
+        if (target) |id| {
+            const node = self.tree.get(id);
+            switch (node.data) {
+                .rich_text => if (self.linkAt(id, p.x, p.y) != null) return false,
+                .container => |*d| if (d.pointer != null) return false,
+                else => return false,
+            }
+        }
+        const root = text_select.rootAt(self.tree, p.x, p.y) orelse {
+            if (target == null) self.clearTextSelection();
+            return false;
+        };
+        // a blocking panel (modal, popover) over selectable text: only text
+        // inside the panel itself starts a selection
+        if (target) |id| if (!self.isAncestor(root, id) and !self.isAncestor(id, root)) return false;
+        var nodes: std.ArrayListUnmanaged(NodeId) = .empty;
+        defer nodes.deinit(self.allocator);
+        text_select.collect(self.tree, root, self.allocator, &nodes) catch return false;
+        const point = text_select.pointAt(self.tree, nodes.items, p.x, p.y) orelse return false;
+        self.focusNode(null);
+        self.countClick(p);
+        if (p.modifiers.shift and self.sel_root == root and self.sel_anchor != null) {
+            self.sel_focus = point;
+        } else {
+            self.sel_root = root;
+            self.sel_mode = switch (self.click_count) {
+                0, 1 => .char,
+                2 => .word,
+                else => .block,
+            };
+            self.sel_unit = self.unitAt(point);
+            self.sel_anchor = self.sel_unit[0];
+            self.sel_focus = self.sel_unit[1];
+        }
+        self.sel_dragging = true;
+        self.applyTextSelection();
+        return true;
+    }
+
+    fn isAncestor(self: *Runtime, ancestor: NodeId, id: NodeId) bool {
+        var cur: ?NodeId = id;
+        while (cur) |c| : (cur = self.tree.get(c).parent) if (c == ancestor) return true;
+        return false;
+    }
+
+    fn dragTextSelection(self: *Runtime, p: events.PointerEvent) void {
+        const root = self.sel_root orelse return;
+        var nodes: std.ArrayListUnmanaged(NodeId) = .empty;
+        defer nodes.deinit(self.allocator);
+        text_select.collect(self.tree, root, self.allocator, &nodes) catch return;
+        // auto-scroll the enclosing scroll container past its edges
+        var cur = self.tree.get(root).parent;
+        while (cur) |pid| : (cur = self.tree.get(pid).parent) {
+            const c = self.tree.get(pid);
+            if (!c.style.scroll) continue;
+            if (p.y < c.bounds.y) _ = self.tree.scrollBy(pid, (p.y - c.bounds.y) * 0.5) else if (p.y > c.bounds.bottom()) _ = self.tree.scrollBy(pid, (p.y - c.bounds.bottom()) * 0.5);
+            break;
+        }
+        const point = text_select.pointAt(self.tree, nodes.items, p.x, p.y) orelse return;
+        if (self.sel_mode == .char) {
+            self.sel_focus = point;
+        } else {
+            const unit = self.unitAt(point);
+            const first = text_select.ordered(nodes.items, unit[0], self.sel_unit[0]) orelse return;
+            if (first.start.node == unit[0].node and first.start.byte == unit[0].byte and
+                !(unit[0].node == self.sel_unit[0].node and unit[0].byte == self.sel_unit[0].byte))
+            {
+                // dragging backwards: from the end of the first unit
+                self.sel_anchor = self.sel_unit[1];
+                self.sel_focus = unit[0];
+            } else {
+                self.sel_anchor = self.sel_unit[0];
+                self.sel_focus = unit[1];
+            }
+        }
+        self.applyTextSelection();
+    }
+
+    fn selectAllText(self: *Runtime, root: NodeId) void {
+        var nodes: std.ArrayListUnmanaged(NodeId) = .empty;
+        defer nodes.deinit(self.allocator);
+        text_select.collect(self.tree, root, self.allocator, &nodes) catch return;
+        if (nodes.items.len == 0) return;
+        const last = nodes.items[nodes.items.len - 1];
+        self.sel_root = root;
+        self.sel_anchor = .{ .node = nodes.items[0], .byte = 0 };
+        self.sel_focus = .{ .node = last, .byte = text_select.textLen(self.tree.get(last)) };
+        self.applyTextSelection();
+    }
+
+    fn copyTextSelection(self: *Runtime) bool {
+        const value = self.selectedText(self.allocator) catch return false;
+        defer self.allocator.free(value);
+        if (value.len == 0) return false;
+        return platform.setClipboard(value);
+    }
+
+    /// A text node of a selectable container under (x, y) (I-beam cursor).
+    fn selectableTextAt(self: *Runtime, x: f32, y: f32) bool {
+        const root = text_select.rootAt(self.tree, x, y) orelse return false;
+        return self.textNodeUnder(self.tree.get(root), x, y);
+    }
+
+    fn textNodeUnder(self: *Runtime, node: *Node, x: f32, y: f32) bool {
+        if (!node.inFlow() or !node.bounds.contains(x, y)) return false;
+        if (text_select.isText(node)) return true;
+        for (node.children.items) |child| if (self.textNodeUnder(self.tree.get(child), x, y)) return true;
+        return false;
+    }
+
+    fn pointerAreaNode(self: *Runtime, id: NodeId) ?node_mod.PointerArea {
+        const node = self.tree.get(id);
+        if (!node.alive) return null;
+        return switch (node.data) {
+            .container => |data| data.pointer,
+            else => null,
+        };
+    }
+
+    /// Calls a pointer area's handler with coordinates relative to it.
+    fn sendPointer(self: *Runtime, id: NodeId, phase: actions.PointerPhase, p: events.PointerEvent, dx: f32, dy: f32) void {
+        const area = self.pointerAreaNode(id) orelse return;
+        const b = self.tree.get(id).bounds;
+        const info: actions.PointerInfo = .{
+            .phase = phase,
+            .x = p.x - b.x,
+            .y = p.y - b.y,
+            .window_x = p.x,
+            .window_y = p.y,
+            .width = b.width,
+            .height = b.height,
+            .button = p.button,
+            .modifiers = p.modifiers,
+            .click_count = if (phase == .down or phase == .up) @max(1, self.click_count) else 1,
+            .dx = dx,
+            .dy = dy,
+        };
+        if (area.action.func(area.action.ctx, info)) self.needs_build = true;
+    }
+
+    /// Hover / leave for pointer areas under the pointer (no button held).
+    fn updatePointerHover(self: *Runtime, target: ?NodeId, p: events.PointerEvent) void {
+        const area: ?NodeId = if (target) |id| (if (self.pointerAreaNode(id) != null) id else null) else null;
+        if (self.pointer_hover_area) |prev| {
+            if (area == null or area.? != prev) {
+                self.pointer_hover_area = null;
+                self.sendPointer(prev, .leave, p, 0, 0);
+            }
+        }
+        if (area) |id| {
+            self.pointer_hover_area = id;
+            self.sendPointer(id, .hover, p, 0, 0);
+        }
+    }
+
+    /// Ends a drag that lost its pointer (window deactivated, area removed).
+    fn releasePointerCapture(self: *Runtime, p: events.PointerEvent) void {
+        const id = self.pointer_capture orelse return;
+        self.pointer_capture = null;
+        self.sendPointer(id, .up, p, 0, 0);
+    }
+
     fn handlePointerMove(self: *Runtime, p: events.PointerEvent) void {
+        if (self.sel_dragging) {
+            self.dragTextSelection(p);
+            platform.setCursor(self.window, .ibeam);
+            return;
+        }
+        if (self.pointer_capture) |id| {
+            // dragging: the capturing area gets every move, even outside it
+            self.sendPointer(id, .drag, p, 0, 0);
+            self.updateCursor(id);
+            return;
+        }
         if (self.open_select) |sid| {
             const snode = self.tree.get(sid);
             if (std.meta.activeTag(snode.data) == .select) {
@@ -1342,6 +1693,7 @@ pub const Runtime = struct {
         }
         const target = self.tree.hitTest(p.x, p.y);
         self.setHover(target);
+        self.updatePointerHover(target, p);
         if (self.pressed_button) |id| {
             const node = self.tree.get(id);
             const inside = node.bounds.contains(p.x, p.y);
@@ -1479,9 +1831,10 @@ pub const Runtime = struct {
                 else => .pointing_hand,
             },
             .toggle => .pointing_hand,
+            .container => |data| data.cursor orelse .arrow,
             .rich_text => if (point) |p| (if (self.linkAt(id, p[0], p[1]) != null) .pointing_hand else .arrow) else .arrow,
             else => .arrow,
-        } else .arrow;
+        } else if (point) |p| (if (self.selectableTextAt(p[0], p[1])) .ibeam else .arrow) else .arrow;
         platform.setCursor(self.window, cursor);
     }
 
@@ -1507,6 +1860,7 @@ pub const Runtime = struct {
         }
         const target = self.tree.hitTest(p.x, p.y);
         self.setHover(target);
+        if (self.beginTextSelection(target, p)) return;
         if (target) |id| {
             const node = self.tree.get(id);
             switch (node.data) {
@@ -1543,6 +1897,15 @@ pub const Runtime = struct {
                     self.open_select = id;
                     self.tree.poke(id);
                 },
+                .container => |*data| if (data.pointer != null and node.enabled) {
+                    self.focusNode(if (node.focusable) id else null);
+                    self.countClick(p);
+                    self.pointer_capture = id;
+                    self.sendPointer(id, .down, p, 0, 0);
+                } else {
+                    // blocking panels (block_pointer) still blur inputs
+                    self.focusNode(null);
+                },
                 else => {},
             }
             self.updateCursor(target);
@@ -1551,8 +1914,33 @@ pub const Runtime = struct {
         }
     }
 
+    fn countClick(self: *Runtime, p: events.PointerEvent) void {
+        const near = @abs(p.x - self.last_click_x) <= 4 and @abs(p.y - self.last_click_y) <= 4;
+        if (near and self.now_ms - self.last_click_ms <= 500 and self.click_count > 0) {
+            self.click_count = if (self.click_count >= 3) 1 else self.click_count + 1;
+        } else {
+            self.click_count = 1;
+        }
+        self.last_click_ms = self.now_ms;
+        self.last_click_x = p.x;
+        self.last_click_y = p.y;
+    }
+
     fn handlePointerUp(self: *Runtime, p: events.PointerEvent) void {
         self.drag_input = null;
+        if (self.sel_dragging) {
+            self.sel_dragging = false;
+            // a plain click selects nothing
+            if (self.sel_mode == .char) if (self.sel_anchor) |a| if (self.sel_focus) |f| {
+                if (a.node == f.node and a.byte == f.byte) self.clearTextSelection();
+            };
+        }
+        // a drag is not a click: the next press starts a new click count
+        if (@abs(p.x - self.last_click_x) > 4 or @abs(p.y - self.last_click_y) > 4) self.click_count = 0;
+        if (self.pointer_capture) |id| {
+            self.pointer_capture = null;
+            self.sendPointer(id, .up, p, 0, 0);
+        }
         if (self.pressed_button) |id| {
             self.pressed_button = null;
             const node = self.tree.get(id);
@@ -1648,6 +2036,39 @@ pub const Runtime = struct {
 
     fn handleKeyDown(self: *Runtime, k: events.KeyEvent) c_int {
         const shift = k.modifiers.shift;
+        // focused pointer areas (canvases, viewers) see keys first
+        if (self.tree.focused) |fid| {
+            switch (self.tree.get(fid).data) {
+                .container => |*data| if (data.key_action) |hook| {
+                    if (hook.func(hook.ctx, k)) {
+                        self.needs_build = true;
+                        return 1;
+                    }
+                },
+                else => {},
+            }
+        }
+        // selected text: copy / clear / select all (unless an input is focused)
+        const input_focused = if (self.tree.focused) |fid| std.meta.activeTag(self.tree.get(fid).data) == .input else false;
+        if (!input_focused) {
+            const primary = @import("core/keys.zig").primary(k.modifiers);
+            if (self.sel_anchor != null) {
+                if (primary and events.characterEquals(k.key, 'c')) {
+                    _ = self.copyTextSelection();
+                    return 1;
+                }
+                if (k.key == .escape) {
+                    self.clearTextSelection();
+                    return 1;
+                }
+            }
+            if (primary and events.characterEquals(k.key, 'a')) {
+                if (self.sel_root) |root| {
+                    self.selectAllText(root);
+                    return 1;
+                }
+            }
+        }
         // input key hooks see every key first (Tab, Enter, shortcuts)
         if (self.tree.focused) |fid| {
             const fnode = self.tree.get(fid);
@@ -2050,8 +2471,14 @@ fn titlebarHitCallback(userdata: ?*anyopaque, x: f32, y: f32) callconv(.c) c_int
     return self.titlebarHit(x, y);
 }
 
+fn wakeCallback(userdata: ?*anyopaque) callconv(.c) void {
+    const self: *Runtime = @ptrCast(@alignCast(userdata orelse return));
+    self.needs_build = true;
+}
+
 fn makeHost(runtime: *Runtime) platform.Host {
     return .{
+        .wake = wakeCallback,
         .userdata = runtime,
         .draw = drawCallback,
         .event = eventCallback,

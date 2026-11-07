@@ -531,6 +531,36 @@ ZantImage *zant_image_load_file(const char *path) {
     return result;
 }
 
+static ZantImage *wrap_image(sk_sp<SkImage> image) {
+    if (!image) return nullptr;
+    auto *result = new (std::nothrow) ZantImage();
+    if (!result) return nullptr;
+    result->width = image->width();
+    result->height = image->height();
+    result->image = std::move(image);
+    return result;
+}
+
+ZantImage *zant_image_from_pixels(const void *pixels, int width, int height, int stride) {
+    if (!pixels || width <= 0 || height <= 0 || stride < width * 4) return nullptr;
+    const SkImageInfo info = SkImageInfo::MakeN32Premul(width, height);
+    return wrap_image(SkImages::RasterFromPixmapCopy(SkPixmap(info, pixels, static_cast<size_t>(stride))));
+}
+
+ZantImage *zant_image_from_encoded(const void *data, size_t size) {
+    if (!data || size == 0) return nullptr;
+    auto encoded = SkData::MakeWithCopy(data, size);
+    auto image = SkImages::DeferredFromEncodedData(std::move(encoded));
+    // decode now (on the calling thread) so drawing never stalls
+    if (image) image = image->makeRasterImage(nullptr);
+    return wrap_image(std::move(image));
+}
+
+ZantImage *zant_image_retain(ZantImage *image) {
+    if (!image) return nullptr;
+    return wrap_image(image->image);
+}
+
 void zant_image_destroy(ZantImage *image) {
     delete image;
 }

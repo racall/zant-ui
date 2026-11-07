@@ -16,7 +16,7 @@
 - 声明式 API：`src/ui.zig`；协调器：`src/ui_runtime.zig`。
 - 组件：`src/components/`；样式统一入口：`ui.styled`。
 - 脚手架：`tools/zant/main.zig`；模板：`scaffold/template/`。
-- 测试：`zig build test`（当前 129/129，含 remend 522 条上游用例；macOS 与 Windows 都要过）。
+- 测试：`zig build test`（当前 143/143，含 remend 522 条、mhchem 823 条上游用例；macOS 与 Windows 都要过）。
 - Windows：测试机见 `AGENTS.md`「跨平台规范」；`scripts/win/` 同步、远程构建、桌面冒烟测试。
 - 动效：`src/motion/`，规范见 `docs/motion.md` 与 `AGENTS.md`「动效规范」；
   `ZANT_NO_MOTION=1` 关闭动效。
@@ -24,9 +24,15 @@
 - 热更新：`zant run --watch`（重启式，非沙盒，监视 `src/` 下所有 .zig）。
 - macOS 上 `zant run` 会隐藏输入法框架的无害日志（IMKCFRunLoopWakeUpReliable 等），
   需要原始输出时设 `ZANT_RAW_LOGS=1`。
-- PDF：`ui.pdfPreview`（macOS PDFKit，Windows PDFium）。
-- Markdown：`src/markdown/`（Streamdown 移植，模块化），数学：`src/math/`（KaTeX 算法）。
-  详见 `docs/markdown.md`；示例 `zig build run-markdown` / `run-math`。
+- PDF：阅读器 `zant.pdf.view`（`src/pdf/`：连续滚动、缩放、选择复制、搜索、批注与导出；
+  算法参照 EmbedPDF），单页预览 `ui.pdfPreview`；macOS PDFKit，Windows PDFium。
+- 原始指针输入：`ui.pointerArea`（拖动捕获、多击、滚轮、按键）；尺寸变化 `BoxOptions.on_resize`；
+  内存图片 `zant.image.Image` + `ui.image(.{ .image = .. })`；后台线程唤醒 UI `ui.postWake()`。
+- Markdown：`src/markdown/`（Streamdown 移植，模块化），数学：`src/math/`（KaTeX 算法，
+  `mhchem.zig` 为 KaTeX contrib/mhchem 的逐字节对齐移植）。详见 `docs/markdown.md`；
+  示例 `zig build run-markdown` / `run-math` / `run-md-stream`（流式帧率基准，可读真实 SSE）。
+- 流式性能：改 Markdown / 布局 / 文本后，用 ReleaseFast 的 `zant-md-stream` 配 `ZANT_FRAME_STATS=1`
+  复测（长回复 + 多条历史），单帧应远低于 16.7 ms，`[slow-frame]` 的 text_layouts 不应随内容增长。
 - 视觉检查：`ZANT_SNAPSHOT=out.png ZANT_SNAPSHOT_EXIT=1 ./zig-out/bin/<app>`；Windows 的窗口要在
   已登录桌面里看（`scripts/win/run-desktop.ps1`），SSH 会话里不可见。
 - 自动化与性能：`ZANT_LAYOUT_FILE`（按 key 定位控件）、`ZANT_FRAME_STATS=1`（每秒帧统计，
