@@ -65,7 +65,9 @@ Zig 实现的 CSS 风格 Flex：方向、换行、justify / align、grow / shrin
 ## 文本与矢量
 
 Skia Paragraph 负责 shaping、换行、字体回退、装饰线和单行省略号；布局结果按宽度缓存，
-保留当前与上一个宽度（Flex 先按试探宽度、再按最终宽度排版时不互相驱逐），自然宽度另行缓存。
+保留当前与上一个宽度（Flex 先按试探宽度、再按最终宽度排版时不互相驱逐）；宽度再变化时把
+较旧的那份重新断行（复用整形结果，不重建段落），自然宽度另行缓存。长列表由 `ui.list` 虚拟化：
+只为视口附近的条目建节点，高度测量后记住，滚动位置按“条目 + 偏移”保存。
 `selectable` 容器内的文字（含多个节点）可拖选，选区画在文字后面，复制时嵌入绘制取其 `copy` 文本。
 富文本支持多段样式、链接与内嵌绘制（行内公式与正文基线对齐）。公式（`math/`）与
 Mermaid 图表输出保留式矢量绘制（字形、矩形、线、路径），可整体缩放适配内容列。
@@ -87,7 +89,9 @@ Windows Segoe UI / Microsoft YaHei UI / Cascadia Mono（回退 Consolas）/ SimS
 
 指针事件先给交互控件（按钮、输入框…），其余给 `ui.pointerArea`：按下后捕获指针直到松开，
 带区域内坐标、多击次数与修饰键；`capture_scroll` 的区域接收滚轮（触控板捏合以 Control + 滚轮送达）。
-`BoxOptions.on_resize` 在布局后尺寸变化时回调，并在同一帧内重建、重新布局。
+`BoxOptions.on_resize` 在布局后尺寸变化时回调，并在同一帧内重建、重新布局（最多三轮，虚拟列表借此
+测量并补齐条目）。容器的悬停样式（`hover_background`）由运行时在绘制时过渡，不重建；
+Tab 焦点在最上层 `focus_scope` 内循环。按 key 查找节点（`ui.keyBounds`、`ui.focus`）走哈希索引。
 
 ## 平台范围
 

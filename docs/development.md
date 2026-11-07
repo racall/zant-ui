@@ -50,9 +50,22 @@ Windows 上写 stderr 很贵（每行约 10 ms），不要在每帧都会执行�
 
 ## 测试
 
-`zig build test`（143 项，macOS 与 Windows 都要通过）覆盖 Flex 布局、组件、声明式 UI 与协调、
+`zig build test`（149 项，macOS 与 Windows 都要通过）覆盖 Flex 布局、组件、声明式 UI 与协调、
 节点生命周期、动效（假时钟）、文本、Store / SQLite、指针区域、文字选择、PDF 阅读器（选择 / 搜索 /
 批注 / 导出）、Markdown（含 remend 522 条上游用例）与数学排版（含 mhchem 823 条用例全部可排版）。
+
+## 帧基准 `zant-bench`
+
+无窗口（光栅画布）驱动运行时，按场景统计整帧耗时（rebuild + layout + paint）：`open`（打开 30 条
+约 5 KB 的长对话的首帧）、`stream`（流式回复）、`typing`（长文档上方输入）、`caret`（光标闪烁帧）、
+`hover`（指针扫过长列表）、`resize`（窗口宽度变化）、`scroll`（滚轮）。`ZANT_BENCH_LIST=1` 用虚拟列表，
+`ZANT_BENCH_MESSAGES` 改对话长度。结果确定、可复现，适合改动前后、两个平台对比：
+
+```bash
+git stash; zig build -Doptimize=ReleaseFast --prefix zig-out-baseline; git stash pop   # 基线
+zig build -Doptimize=ReleaseFast --prefix zig-out-release
+./zig-out-baseline/bin/zant-bench && ZANT_BENCH_LIST=1 ./zig-out-release/bin/zant-bench
+```
 
 ## 流式 Markdown 基准
 
@@ -68,7 +81,7 @@ curl -N … | ./zig-out-release/bin/zant-md-stream --sse                        
 ```
 
 参考（Apple Silicon / i7-13700KF，4K 150%）：真实对话接口回放最慢一帧约 7 ms；30 条长历史 +
-29 KB 回复以约 1200 字节/秒输出时稳定 60 帧。首次打开超长对话会一次性排版全部历史（尚无虚拟列表）。
+29 KB 回复以约 1200 字节/秒输出时稳定 60 帧。示例用虚拟列表渲染聊天，打开长对话只排版可见的消息。
 测试不依赖真实窗口；时间相关测试注入假时钟（`runtime.clock`），不要 sleep。
 
 ## Windows 测试机
