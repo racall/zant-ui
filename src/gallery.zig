@@ -127,7 +127,7 @@ pub const GalleryState = struct {
 
     fn buildFlexCard(self: *GalleryState, parent: NodeId) !void {
         const card = try self.addCard(parent, "Flex Layout");
-        try self.addDescription(card, "Single-line flex with nested rows, gaps, padding and grow.");
+        try self.addDescription(card, "Flex rows and columns with gaps, padding, grow and wrap.");
 
         const row = try self.tree.addContainer(card, .{
             .direction = .row,
