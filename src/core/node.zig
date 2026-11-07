@@ -200,7 +200,12 @@ pub const TextData = struct {
         if (!self.layout_dirty and self.layout != null and @abs(self.layout_width - max_width) < 0.25) {
             return &self.layout.?;
         }
-        if (!self.layout_dirty and self.alt_layout != null and @abs(self.alt_width - max_width) < 0.25) {
+        if (!self.layout_dirty and self.alt_layout != null) {
+            // the other cached width, or re-wrap it to this one (no shaping)
+            if (@abs(self.alt_width - max_width) >= 0.25) {
+                self.alt_layout.?.relayout(max_width);
+                self.alt_width = max_width;
+            }
             std.mem.swap(?text.TextLayout, &self.layout, &self.alt_layout);
             std.mem.swap(f32, &self.layout_width, &self.alt_width);
             return &self.layout.?;
@@ -290,7 +295,12 @@ pub const RichTextData = struct {
         if (!self.layout_dirty and self.layout != null and @abs(self.layout_width - max_width) < 0.25) {
             return &self.layout.?;
         }
-        if (!self.layout_dirty and self.alt_layout != null and @abs(self.alt_width - max_width) < 0.25) {
+        if (!self.layout_dirty and self.alt_layout != null) {
+            // the other cached width, or re-wrap it to this one (no shaping)
+            if (@abs(self.alt_width - max_width) >= 0.25) {
+                self.alt_layout.?.relayout(max_width);
+                self.alt_width = max_width;
+            }
             std.mem.swap(?rich_text.Layout, &self.layout, &self.alt_layout);
             std.mem.swap(f32, &self.layout_width, &self.alt_width);
             return &self.layout.?;

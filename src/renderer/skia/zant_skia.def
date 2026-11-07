@@ -61,5 +61,6 @@ EXPORTS
     zant_text_layout_metrics
     zant_text_layout_placeholder_rects
     zant_text_layout_range_rects
+    zant_text_layout_relayout
     zant_text_measure_ink
     zant_write_file
