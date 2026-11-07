@@ -69,7 +69,7 @@ if ((Test-Path (Join-Path $Headers ".git")) -and ((git -C $Headers rev-parse HEA
 }
 if (!(Test-Path (Join-Path $Headers "include/core/SkCanvas.h"))) {
     if (Test-Path $Headers) { Remove-Item -Recurse -Force $Headers }
-    git clone --depth 1 --branch $HeadersRef --filter=blob:none --sparse https://github.com/rust-skia/skia.git $Headers
+    git -c advice.detachedHead=false clone --quiet --depth 1 --branch $HeadersRef --filter=blob:none --sparse https://github.com/rust-skia/skia.git $Headers
     if ($LASTEXITCODE -ne 0) { throw "git clone failed" }
     git -C $Headers sparse-checkout set include modules/skparagraph/include modules/skshaper/include modules/skunicode/include modules/skcms src/core src/utils
     if ($LASTEXITCODE -ne 0) { throw "sparse checkout failed" }

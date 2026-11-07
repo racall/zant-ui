@@ -49,7 +49,7 @@ fi
 if [[ ! -f "third_party/skia-headers/include/core/SkSurface.h" ]]; then
   echo "Fetching Skia ${HEADERS_REF} public headers..."
   rm -rf third_party/skia-headers
-  git clone --depth 1 --branch "$HEADERS_REF" --filter=blob:none --sparse \
+  git -c advice.detachedHead=false clone --quiet --depth 1 --branch "$HEADERS_REF" --filter=blob:none --sparse \
     https://github.com/rust-skia/skia.git third_party/skia-headers
   (
     cd third_party/skia-headers
