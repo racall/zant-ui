@@ -1,7 +1,8 @@
 # 窗口配置
 
 应用的窗口默认值来自项目根目录的 `app.config.json`。`zant run` / `zant build` /
-`zant package` / `zant sync` 会读取它，并生成 `src/app_config.zig`（以及 `Info.plist`）。
+`zant package` / `zant sync` 会读取它，并生成 `src/app_config.zig`（macOS 上还有 `Info.plist`）。
+通用设置由 `zant create` 写入；平台专属的段（目前只有 `macos`）在该平台首次运行 / 打包时补充。
 
 ## app.config.json
 
@@ -10,8 +11,6 @@
   "title": "My App",
   "bundle_id": "com.acme.myapp",
   "version": "0.1.0",
-  "sandbox": true,
-  "signing_identity": "Developer ID Application: Example (TEAMID)",
   "window": {
     "style": "hidden-titlebar",
     "width": 560,
@@ -23,6 +22,10 @@
     "always_on_top": false,
     "movable_by_background": false,
     "center": true
+  },
+  "macos": {
+    "sandbox": true,
+    "signing_identity": "Developer ID Application: Example (TEAMID)"
   }
 }
 ```
@@ -30,10 +33,10 @@
 | 字段 | 说明 |
 |---|---|
 | `title` | 窗口标题、应用显示名 |
-| `bundle_id` | Apple Bundle ID；Windows 上只作应用标识（如 `zant.paths.appDataDir` 的目录名） |
-| `version` | `CFBundleShortVersionString`（macOS） |
-| `sandbox` | 是否写入 App Sandbox entitlement 并用沙盒方式运行（macOS；Windows 忽略） |
-| `signing_identity` | `codesign` 身份；`none` 表示 ad-hoc（macOS；Windows 不签名） |
+| `bundle_id` | 应用标识（如 `com.xx.test`）：macOS 的 Bundle ID，Windows 上 `zant.paths.appDataDir` 的目录名 |
+| `version` | 版本号（macOS 写入 `CFBundleShortVersionString`） |
+| `macos.sandbox` | 是否写入 App Sandbox entitlement 并用沙盒方式运行（仅 macOS） |
+| `macos.signing_identity` | `codesign` 身份；`none` 表示 ad-hoc（仅 macOS） |
 | `window.style` | `native` / `hidden-titlebar` / `borderless` |
 | `window.width` / `height` | 初始窗口尺寸（逻辑像素，Windows 按显示器缩放） |
 | `window.min_width` / `min_height` | 最小尺寸 |
@@ -43,6 +46,7 @@
 | `window.movable_by_background` | 是否允许拖拽空白背景移动窗口 |
 
 省略的字段取默认值：`native`、560 × 420、最小 480 × 320、`#f5f5f5`、可缩放、居中、沙盒关、`none`。
+旧项目写在顶层的 `sandbox` / `signing_identity` 仍然有效；补充 `macos` 段时会移到段里。
 | `window.center` | 首次显示是否居中 |
 
 ## 代码优先

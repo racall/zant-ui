@@ -27,6 +27,13 @@ const WindowConfig = struct {
     center: bool = true,
 };
 
+/// app.config.json. `title`, `bundle_id` (the app identifier: the macOS
+/// bundle id, the data folder name on Windows), `version` and `window` are
+/// shared by both platforms and written by `zant create`. Platform-only
+/// settings live in their own section, added by `zant run` / `build` /
+/// `package` on that platform the first time they are needed:
+///   "macos": { "sandbox": false, "signing_identity": "none" }
+/// (older projects keep `sandbox` / `signing_identity` at the top level).
 const AppConfig = struct {
     title: []const u8 = "Zant App",
     bundle_id: []const u8 = "dev.zant.app",
@@ -34,6 +41,9 @@ const AppConfig = struct {
     sandbox: bool = false,
     signing_identity: []const u8 = "none",
     window: WindowConfig = .{},
+    /// set in the file (`macos` section or legacy top-level keys)
+    has_sandbox: bool = false,
+    has_signing: bool = false,
 };
 
 const RawWindow = struct {
@@ -49,6 +59,11 @@ const RawWindow = struct {
     center: ?bool = null,
 };
 
+const RawMacos = struct {
+    sandbox: ?bool = null,
+    signing_identity: ?[]const u8 = null,
+};
+
 const RawConfig = struct {
     title: ?[]const u8 = null,
     bundle_id: ?[]const u8 = null,
@@ -56,6 +71,7 @@ const RawConfig = struct {
     sandbox: ?bool = null,
     signing_identity: ?[]const u8 = null,
     window: ?RawWindow = null,
+    macos: ?RawMacos = null,
 };
 
 fn step(comptime fmt: []const u8, args: anytype) void {
@@ -284,8 +300,24 @@ fn loadConfig(allocator: std.mem.Allocator, io: Io, root: []const u8) !AppConfig
     if (parsed.title) |v| cfg.title = v;
     if (parsed.bundle_id) |v| cfg.bundle_id = v;
     if (parsed.version) |v| cfg.version = v;
-    if (parsed.sandbox) |v| cfg.sandbox = v;
-    if (parsed.signing_identity) |v| cfg.signing_identity = v;
+    if (parsed.sandbox) |v| {
+        cfg.sandbox = v;
+        cfg.has_sandbox = true;
+    }
+    if (parsed.signing_identity) |v| {
+        cfg.signing_identity = v;
+        cfg.has_signing = true;
+    }
+    if (parsed.macos) |m| {
+        if (m.sandbox) |v| {
+            cfg.sandbox = v;
+            cfg.has_sandbox = true;
+        }
+        if (m.signing_identity) |v| {
+            cfg.signing_identity = v;
+            cfg.has_signing = true;
+        }
+    }
     if (parsed.window) |w| {
         if (w.style) |v| cfg.window.style = v;
         if (w.width) |v| cfg.window.width = v;
@@ -381,12 +413,20 @@ fn generateInfoPlist(allocator: std.mem.Allocator, cfg: *const AppConfig) ![]u8 
     , .{ title, bundle, title, cfg.version });
 }
 
-fn syncProject(allocator: std.mem.Allocator, io: Io, root: []const u8, cfg: *const AppConfig) !void {
+/// src/app_config.zig (both platforms).
+fn writeConfigSource(allocator: std.mem.Allocator, io: Io, root: []const u8, cfg: *const AppConfig) !void {
     const config_source = try generateConfigSource(allocator, cfg);
     defer allocator.free(config_source);
     const config_path = try std.fs.path.join(allocator, &.{ root, "src", "app_config.zig" });
     defer allocator.free(config_path);
     try writeFile(allocator, io, config_path, config_source);
+}
+
+/// Generated files for building on this platform: src/app_config.zig, plus
+/// Info.plist and app.entitlements on macOS.
+fn syncProject(allocator: std.mem.Allocator, io: Io, root: []const u8, cfg: *const AppConfig) !void {
+    try writeConfigSource(allocator, io, root, cfg);
+    if (is_windows) return; // Info.plist and entitlements are macOS bundle files
 
     const plist = try generateInfoPlist(allocator, cfg);
     defer allocator.free(plist);
@@ -406,6 +446,87 @@ fn syncProject(allocator: std.mem.Allocator, io: Io, root: []const u8, cfg: *con
             \\
         );
     }
+}
+
+const Need = enum { run, package };
+
+/// Adds this platform's settings to app.config.json when they are missing
+/// (projects are created with the shared settings only). On macOS: `sandbox`
+/// when running or building, the signing identity when packaging (asked in
+/// an interactive terminal, ad-hoc otherwise). Windows needs nothing yet.
+fn completePlatformConfig(allocator: std.mem.Allocator, io: Io, root: []const u8, cfg: *AppConfig, need: Need) !void {
+    if (is_windows) return;
+    const want_signing = need == .package and !cfg.has_signing;
+    if (cfg.has_sandbox and !want_signing) return;
+    if (want_signing) {
+        cfg.signing_identity = if (try std.Io.File.stdin().isTty(io)) try askSigningIdentity(allocator, io) else "none";
+        cfg.has_signing = true;
+    }
+    cfg.has_sandbox = true;
+    try writeMacosSection(allocator, io, root, cfg);
+    if (want_signing) {
+        ok("已在 app.config.json 补充 macOS 打包账号：{s}", .{if (std.mem.eql(u8, cfg.signing_identity, "none")) "Ad-hoc" else cfg.signing_identity});
+    } else {
+        ok("已在 app.config.json 补充 macOS 设置（macos.sandbox = {}，打包时再选择签名账号）", .{cfg.sandbox});
+    }
+}
+
+fn askSigningIdentity(allocator: std.mem.Allocator, io: Io) ![]const u8 {
+    const identities = try listIdentities(allocator, io);
+    std.debug.print("\n打包开发者账号（macOS）:\n  0) Ad-hoc（无开发者账号）\n", .{});
+    for (identities, 0..) |id, idx| std.debug.print("  {d}) {s}\n", .{ idx + 1, id });
+    const value = try prompt(allocator, "选择", "0");
+    if (std.mem.eql(u8, value, "0") or value.len == 0) return "none";
+    if (std.fmt.parseInt(usize, value, 10)) |idx| {
+        if (idx >= 1 and idx <= identities.len) return identities[idx - 1];
+        return "none";
+    } else |_| return value;
+}
+
+/// Writes the `macos` section (replacing it, or appending it before the
+/// closing brace), and drops the legacy top-level keys it supersedes.
+fn writeMacosSection(allocator: std.mem.Allocator, io: Io, root: []const u8, cfg: *const AppConfig) !void {
+    const path = try std.fs.path.join(allocator, &.{ root, "app.config.json" });
+    const text = try readFile(allocator, io, path);
+    const identity = try escapeJson(allocator, cfg.signing_identity);
+    const section = if (cfg.has_signing)
+        try std.fmt.allocPrint(allocator, "\"macos\": {{\n    \"sandbox\": {},\n    \"signing_identity\": \"{s}\"\n  }}", .{ cfg.sandbox, identity })
+    else
+        try std.fmt.allocPrint(allocator, "\"macos\": {{\n    \"sandbox\": {}\n  }}", .{cfg.sandbox});
+    var out: []u8 = undefined;
+    if (std.mem.indexOf(u8, text, "\"macos\"")) |start| {
+        const open = std.mem.indexOfScalarPos(u8, text, start, '{') orelse fail("app.config.json 的 macos 段格式不对", .{});
+        const close = std.mem.indexOfScalarPos(u8, text, open, '}') orelse fail("app.config.json 的 macos 段格式不对", .{});
+        out = try std.mem.concat(allocator, u8, &.{ text[0..start], section, text[close + 1 ..] });
+    } else {
+        const end = std.mem.lastIndexOfScalar(u8, text, '}') orelse fail("app.config.json 格式不对", .{});
+        const body = std.mem.trimEnd(u8, text[0..end], " \t\r\n");
+        out = try std.mem.concat(allocator, u8, &.{ body, ",\n  ", section, "\n}\n" });
+    }
+    out = try dropTopLevelKey(allocator, out, "sandbox");
+    out = try dropTopLevelKey(allocator, out, "signing_identity");
+    try writeFile(allocator, io, path, out);
+}
+
+/// Removes a `"key": value,` line written by older `zant create` (the value
+/// is a literal on one line); leaves the text unchanged if it is not there.
+fn dropTopLevelKey(allocator: std.mem.Allocator, text: []u8, key: []const u8) ![]u8 {
+    const needle = try std.fmt.allocPrint(allocator, "\n  \"{s}\":", .{key});
+    const start = std.mem.indexOf(u8, text, needle) orelse return text;
+    const line_end = std.mem.indexOfScalarPos(u8, text, start + 1, '\n') orelse return text;
+    const line = std.mem.trim(u8, text[start..line_end], " \t\r\n");
+    if (line.len == 0 or line[line.len - 1] != ',') return text;
+    return std.mem.concat(allocator, u8, &.{ text[0..start], text[line_end..] });
+}
+
+fn escapeJson(allocator: std.mem.Allocator, text: []const u8) ![]u8 {
+    var out: std.ArrayListUnmanaged(u8) = .empty;
+    for (text) |c| switch (c) {
+        '"' => try out.appendSlice(allocator, "\\\""),
+        '\\' => try out.appendSlice(allocator, "\\\\"),
+        else => try out.append(allocator, c),
+    };
+    return out.toOwnedSlice(allocator);
 }
 
 fn packageApp(allocator: std.mem.Allocator, io: Io, root: []const u8, cfg: *const AppConfig, release: bool) ![]u8 {
@@ -520,6 +641,9 @@ fn validBundle(bundle: []const u8) bool {
     for (bundle) |ch| {
         if (!(std.ascii.isAlphanumeric(ch) or ch == '-' or ch == '.')) return false;
     }
+    // reverse-DNS: at least two parts, none empty ("com.xx.test")
+    if (std.mem.indexOfScalar(u8, bundle, '.') == null) return false;
+    if (bundle[bundle.len - 1] == '.' or std.mem.indexOf(u8, bundle, "..") != null) return false;
     return true;
 }
 
@@ -581,9 +705,10 @@ fn cmdCreate(allocator: std.mem.Allocator, io: Io, args: []const [:0]const u8) !
 
     var title: []const u8 = title_arg orelse default_title;
     var style: []const u8 = style_arg orelse "native";
+    // app identifier (bundle_id): the macOS bundle id and the Windows data
+    // folder name. macOS-only settings (sandbox, signing) are added by
+    // `zant run` / `zant package` on a Mac, see completePlatformConfig.
     var bundle: []const u8 = bundle_arg orelse default_bundle;
-    var sandbox = sandbox_arg orelse false;
-    var identity: []const u8 = sign_arg orelse "none";
 
     if (!assume_yes) {
         std.debug.print("\nZant UI 项目生成器\n\n", .{});
@@ -592,10 +717,7 @@ fn cmdCreate(allocator: std.mem.Allocator, io: Io, args: []const [:0]const u8) !
             title = value;
         }
         if (style_arg == null) {
-            std.debug.print("\n窗口风格:\n  1) 原生标题栏\n  2) 隐藏标题栏（全尺寸内容 + {s}）\n  3) 无边框（movable_by_background 时可拖动背景移动，{s} 退出）\n", .{
-                if (is_windows) "右上角最小化 / 最大化 / 关闭按钮" else "红黄绿按钮",
-                if (is_windows) "Alt+F4" else "Cmd+Q",
-            });
+            std.debug.print("\n窗口风格:\n  1) 原生标题栏\n  2) 隐藏标题栏（全尺寸内容 + 系统窗口按钮：macOS 左上角红黄绿，Windows 右上角最小化 / 最大化 / 关闭）\n  3) 无边框（movable_by_background 时可拖动背景移动；macOS Cmd+Q、Windows Alt+F4 退出）\n", .{});
             while (true) {
                 const value = try prompt(allocator, "选择", "1");
                 if (std.mem.eql(u8, value, "1") or std.mem.eql(u8, value, "native")) {
@@ -613,31 +735,23 @@ fn cmdCreate(allocator: std.mem.Allocator, io: Io, args: []const [:0]const u8) !
             }
         }
         if (bundle_arg == null) {
-            const value = try prompt(allocator, "Apple Bundle ID", bundle);
-            bundle = value;
-        }
-        if (sandbox_arg == null) sandbox = try promptYesNo(allocator, "是否启用 App Sandbox", false);
-        if (sign_arg == null) {
-            const identities = try listIdentities(allocator, io);
-            std.debug.print("\n打包开发者账号:\n  0) Ad-hoc（无开发者账号）\n", .{});
-            for (identities, 0..) |id, idx| std.debug.print("  {d}) {s}\n", .{ idx + 1, id });
-            const value = try prompt(allocator, "选择", "0");
-            if (!std.mem.eql(u8, value, "0") and value.len > 0) {
-                if (std.fmt.parseInt(usize, value, 10)) |idx| {
-                    if (idx >= 1 and idx <= identities.len) identity = identities[idx - 1];
-                } else |_| {
-                    identity = value;
+            while (true) {
+                std.debug.print("\n", .{});
+                const value = try prompt(allocator, "应用标识（反向域名，如 com.xx.test）", bundle);
+                if (validBundle(value)) {
+                    bundle = value;
+                    break;
                 }
+                std.debug.print("  只能包含字母、数字、-、.，且至少有一个 .（如 com.xx.test）\n", .{});
             }
         }
     }
-
     if (std.mem.eql(u8, style, "2")) style = "hidden-titlebar";
     if (std.mem.eql(u8, style, "3")) style = "borderless";
     if (!std.mem.eql(u8, style, "native") and !std.mem.eql(u8, style, "hidden-titlebar") and !std.mem.eql(u8, style, "borderless"))
         fail("窗口风格必须是 native、hidden-titlebar 或 borderless", .{});
     if (title.len == 0) fail("应用标题不能为空", .{});
-    if (!validBundle(bundle)) fail("Apple Bundle ID 无效: {s}", .{bundle});
+    if (!validBundle(bundle)) fail("应用标识（bundle_id）无效: {s}", .{bundle});
 
     step("创建 {s}", .{target});
     try Dir.cwd().createDirPath(io, target);
@@ -722,27 +836,29 @@ fn cmdCreate(allocator: std.mem.Allocator, io: Io, args: []const [:0]const u8) !
     defer allocator.free(design_path);
     try writeFile(allocator, io, design_path, design);
 
-    const sandbox_text = if (sandbox) "true" else "false";
-    const sign_display = if (std.mem.eql(u8, identity, "none")) "Ad-hoc（无开发者账号）" else identity;
     const readme_text = try std.fmt.allocPrint(allocator, "{s}", .{readme});
     defer allocator.free(readme_text);
     var readme_owned = try allocator.dupe(u8, readme_text);
     defer allocator.free(readme_owned);
     readme_owned = try replace(allocator, readme_owned, "__APP_TITLE__", title);
     readme_owned = try replace(allocator, readme_owned, "__BUNDLE_ID__", bundle);
-    readme_owned = try replace(allocator, readme_owned, "__SANDBOX__", sandbox_text);
-    readme_owned = try replace(allocator, readme_owned, "__SIGN_IDENTITY__", sign_display);
     const readme_path = try std.fs.path.join(allocator, &.{ target, "README.md" });
     defer allocator.free(readme_path);
     try writeFile(allocator, io, readme_path, readme_owned);
 
+    // optional macOS section when --sandbox / --sign were given
+    const macos_section = if (sandbox_arg != null or sign_arg != null)
+        try std.fmt.allocPrint(allocator, ",\n  \"macos\": {{\n    \"sandbox\": {}{s}\n  }}", .{
+            sandbox_arg orelse false,
+            if (sign_arg) |id| try std.fmt.allocPrint(allocator, ",\n    \"signing_identity\": \"{s}\"", .{try escapeJson(allocator, id)}) else "",
+        })
+    else
+        "";
     const config_json = try std.fmt.allocPrint(allocator,
         \\{{
         \\  "title": "{s}",
         \\  "bundle_id": "{s}",
         \\  "version": "0.1.0",
-        \\  "sandbox": {},
-        \\  "signing_identity": "{s}",
         \\  "window": {{
         \\    "style": "{s}",
         \\    "width": 680,
@@ -754,26 +870,21 @@ fn cmdCreate(allocator: std.mem.Allocator, io: Io, args: []const [:0]const u8) !
         \\    "always_on_top": false,
         \\    "movable_by_background": false,
         \\    "center": true
-        \\  }}
+        \\  }}{s}
         \\}}
         \\
-    , .{ title, bundle, sandbox, identity, style });
+    , .{ try escapeJson(allocator, title), bundle, style, macos_section });
     defer allocator.free(config_json);
     const config_path = try std.fs.path.join(allocator, &.{ target, "app.config.json" });
     defer allocator.free(config_path);
     try writeFile(allocator, io, config_path, config_json);
 
-    var cfg = AppConfig{
-        .title = title,
-        .bundle_id = bundle,
-        .version = "0.1.0",
-        .sandbox = sandbox,
-        .signing_identity = identity,
-        .window = .{ .style = style },
-    };
-    try syncProject(allocator, io, target, &cfg);
-    ok("app.config.json / app_config.zig / Info.plist 已生成", .{});
+    // platform files (Info.plist, entitlements) are generated by `zant run`
+    const cfg = try loadConfig(allocator, io, target);
+    try writeConfigSource(allocator, io, target, &cfg);
+    ok("app.config.json / src/app_config.zig 已生成", .{});
     ok("项目已生成: {s}", .{target});
+    std.debug.print("  " ++ Color.dim ++ "macOS 专属设置（沙盒、签名）在 Mac 上首次 zant run / zant package 时补充到 app.config.json" ++ Color.reset ++ "\n", .{});
     const sep = if (is_windows) "\\" else "/";
     std.debug.print("\n下一步：\n  cd {s}\n  {s}{s}zig-out{s}bin{s}zant run\n\n", .{ name, zroot, sep, sep, sep });
 }
@@ -832,7 +943,8 @@ fn zigNameFromName(allocator: std.mem.Allocator, name: []const u8) ![]u8 {
 }
 
 fn cmdSync(allocator: std.mem.Allocator, io: Io, root: []const u8) !void {
-    const config = try loadConfig(allocator, io, root);
+    var config = try loadConfig(allocator, io, root);
+    try completePlatformConfig(allocator, io, root, &config, .run);
     try syncProject(allocator, io, root, &config);
 }
 
@@ -847,7 +959,8 @@ fn cmdBuild(allocator: std.mem.Allocator, io: Io, release: bool) !void {
 fn cmdRun(allocator: std.mem.Allocator, io: Io, release: bool) !void {
     const root = try std.process.currentPathAlloc(io, allocator);
     defer allocator.free(root);
-    const config = try loadConfig(allocator, io, root);
+    var config = try loadConfig(allocator, io, root);
+    try completePlatformConfig(allocator, io, root, &config, .run);
     try syncProject(allocator, io, root, &config);
     if (config.sandbox and !is_windows) {
         const app_path = try packageApp(allocator, io, root, &config, true);
@@ -962,7 +1075,8 @@ fn spawnApp(io: Io, exe: []const u8, root: []const u8) !std.process.Child {
 fn cmdWatch(allocator: std.mem.Allocator, io: Io, release: bool) !void {
     const root = try std.process.currentPathAlloc(io, allocator);
     defer allocator.free(root);
-    const config = try loadConfig(allocator, io, root);
+    var config = try loadConfig(allocator, io, root);
+    try completePlatformConfig(allocator, io, root, &config, .run);
     if (config.sandbox and !is_windows) fail("App Sandbox 下暂不支持热更新；请使用 zant run", .{});
     try syncProject(allocator, io, root, &config);
     step("首次编译", .{});
@@ -1006,7 +1120,8 @@ fn cmdWatch(allocator: std.mem.Allocator, io: Io, release: bool) !void {
 fn cmdPackage(allocator: std.mem.Allocator, io: Io) !void {
     const root = try std.process.currentPathAlloc(io, allocator);
     defer allocator.free(root);
-    const config = try loadConfig(allocator, io, root);
+    var config = try loadConfig(allocator, io, root);
+    try completePlatformConfig(allocator, io, root, &config, .package);
     try syncProject(allocator, io, root, &config);
     const app_path = try packageApp(allocator, io, root, &config, true);
     defer allocator.free(app_path);

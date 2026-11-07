@@ -1,7 +1,8 @@
-﻿# Scaffold check in a real console window (classic conhost, OEM code page
-# 936 like a Chinese Windows default): runs `zant create`, types a Chinese
-# title with Unicode key events, accepts the other defaults, screenshots the
-# console, and checks the generated app.config.json. Run in the logged-in
+﻿# Scaffold check in a real console window (OEM code page 936 like a Chinese
+# Windows default): runs `zant create`, types a Chinese title, a window style
+# and an app identifier (an invalid one first) with Unicode key events,
+# screenshots the console, and checks the generated app.config.json has the
+# shared settings only. Run in the logged-in
 # session:
 #   powershell -File scripts/win/run-desktop.ps1 -Exe powershell.exe `
 #     -Arguments "-NoProfile -ExecutionPolicy Bypass -File <repo>\scripts\win\scaffold-check.ps1" -Wait 120
@@ -70,6 +71,7 @@ function Shot($h, [string]$name) {
 $work = Join-Path $Out "work"
 New-Item -ItemType Directory -Force $work | Out-Null
 $title = "剪贴板测试"
+$bundle = "com.xx.test"
 $p = Start-Process cmd.exe -ArgumentList "/k title zant-scaffold-check & chcp 936 >nul & cd /d `"$work`" & `"$Zant`" create demo-app" -WindowStyle Normal -PassThru
 # a new console window (conhost, or Windows Terminal when it is the default
 # terminal, whose window belongs to another process): found by its title
@@ -86,14 +88,21 @@ Shot $h "01-prompt"
 [ZantKeys]::Type($title); Start-Sleep -Milliseconds 300
 Shot $h "02-typed"
 [ZantKeys]::Enter()
-# accept the remaining defaults
-for ($i = 0; $i -lt 6; $i++) { Start-Sleep -Milliseconds 800; [ZantKeys]::Enter() }
+# window style: hidden title bar
+Start-Sleep -Milliseconds 800; [ZantKeys]::Type("2"); [ZantKeys]::Enter()
+# app identifier: an invalid one first (asked again), then a valid one
+Start-Sleep -Milliseconds 800; [ZantKeys]::Type("bad"); [ZantKeys]::Enter()
+Start-Sleep -Milliseconds 800; [ZantKeys]::Type($bundle); [ZantKeys]::Enter()
 $config = Join-Path $work "demo-app\app.config.json"
 for ($i = 0; $i -lt 60 -and !(Test-Path $config); $i++) { Start-Sleep -Milliseconds 500 }
 Start-Sleep -Seconds 2
 Shot $h "03-done"
-$got = if (Test-Path $config) { (Get-Content -Raw -Encoding UTF8 $config | ConvertFrom-Json).title } else { "" }
-Result ($got -eq $title) ("app.config.json title: '{0}'" -f $got)
+$cfg = if (Test-Path $config) { Get-Content -Raw -Encoding UTF8 $config | ConvertFrom-Json } else { $null }
+Result ($cfg -and $cfg.title -eq $title) ("app.config.json title: '{0}'" -f $cfg.title)
+Result ($cfg -and $cfg.bundle_id -eq $bundle) ("app.config.json bundle_id: '{0}'" -f $cfg.bundle_id)
+Result ($cfg -and $cfg.window.style -eq "hidden-titlebar") ("window style: '{0}'" -f $cfg.window.style)
+# only shared settings on Windows: no macOS section or bundle files
+Result ($cfg -and !$cfg.macos -and !(Test-Path (Join-Path $work "demo-app\Info.plist"))) "no macOS-only settings or files"
 & cmd.exe /c "chcp" | Out-File -Encoding UTF8 (Join-Path $Out "chcp.txt")
 Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
 Get-Process cmd -ErrorAction SilentlyContinue | Where-Object { $_.Parent.Id -eq $p.Id } | Stop-Process -Force -ErrorAction SilentlyContinue

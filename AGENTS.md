@@ -176,11 +176,14 @@ ui.styled(node, .{
 ## 窗口与配置
 
 - 项目配置：`app.config.json`。
-- 生成文件：`src/app_config.zig`、`Info.plist`、`app.entitlements`（后两者只在 macOS 打包时用），
-  不要手改。Windows 上 Bundle ID 用作 `%APPDATA%` 下的数据目录名（`zant.paths.appDataDir`）。
-- 配置字段：标题、Bundle ID、版本、`sandbox`、`signing_identity`，以及
-  `window` 下的 style/width/height/min/background/resizable/always_on_top/
-  movable_by_background/center。
+- 脚手架两端通用：`zant create` 只问通用设置（标题、窗口风格、应用标识 `bundle_id`）；
+  平台专属的设置与文件由 `zant run` / `build` / `package` 在该平台补充（macOS：`macos` 段的
+  `sandbox` / `signing_identity`，Info.plist、entitlements）。不要再让 create 问单个平台的问题。
+- 生成文件：`src/app_config.zig`（两端）、`Info.plist`、`app.entitlements`（仅 macOS），
+  不要手改。Windows 上 `bundle_id` 用作 `%APPDATA%` 下的数据目录名（`zant.paths.appDataDir`）。
+- 配置字段：标题、`bundle_id`、版本，`window` 下的 style/width/height/min/background/
+  resizable/always_on_top/movable_by_background/center，以及 `macos.sandbox`、
+  `macos.signing_identity`。
 - 代码中的 `WindowOptions` 优先级高于 JSON。
 - 修改 JSON 后执行 `zant run` / `zant build` / `zant package`。
 

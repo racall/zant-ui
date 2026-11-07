@@ -2,9 +2,9 @@
 
 由 Zant UI 生成的原生桌面应用（macOS 与 Windows）。
 
-- Bundle ID：`__BUNDLE_ID__`
-- 沙盒：`__SANDBOX__`（仅 macOS）
-- 打包账号：`__SIGN_IDENTITY__`（仅 macOS）
+- 应用标识（bundle_id）：`__BUNDLE_ID__`（macOS 的 Bundle ID，Windows 的数据目录名）
+- macOS 专属设置（沙盒、签名账号）在 Mac 上首次 `zant run` / `zant package` 时自动补充到
+  `app.config.json` 的 `macos` 段
 
 ## 运行
 

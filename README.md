@@ -84,7 +84,7 @@ Windows 上 `zant package` 生成 `zig-out/<标题>/` 目录（exe、`zant_skia.
 与 MSVC 运行库），可直接压缩分发；签名、沙盒等是 macOS 专有选项，在 Windows 上忽略。
 
 ```bash
-zant create my-app        # 交互式：标题、窗口风格、Bundle ID、沙盒、签名身份
+zant create my-app        # 交互式：标题、窗口风格、应用标识（两端通用）
 cd my-app
 zant run                  # 生成配置代码、编译并运行
 zant run --watch          # 重启式热更新

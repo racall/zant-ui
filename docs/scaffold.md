@@ -14,8 +14,9 @@ zig build
 macOS 与 Windows 用法相同。Windows 上先运行一次
 `powershell -ExecutionPolicy Bypass -File scripts/fetch_skia_windows.ps1`，并把 Zig 和
 `<zant-ui>\zig-out\bin` 加入 PATH；需要 Visual Studio 2022+ / Build Tools 的 C++ 工作负载。
-沙盒、签名、Info.plist 只对 macOS 有效；Bundle ID 在 Windows 上只作应用标识（例如传给
-`zant.paths.appDataDir` 得到 `%APPDATA%\<id>`）。
+`zant create` 只问两端通用的设置，生成的项目在两端都能直接 `zant run`。平台专属的设置和文件
+由 `zant run` / `build` / `package` 在当前平台按需补充：macOS 上补 `app.config.json` 的
+`macos` 段（沙盒、签名账号）并生成 Info.plist、entitlements；Windows 暂无专属设置。
 
 ## 创建项目
 
@@ -24,13 +25,17 @@ cd /path/to/work
 /path/to/zant-ui/zig-out/bin/zant create my-app
 ```
 
-会询问：
+会询问（都是两端通用的）：
 
 1. 应用标题
 2. 窗口风格：原生标题栏 / 隐藏标题栏 / 无边框
-3. Apple Bundle ID
-4. 是否启用 App Sandbox
-5. 打包开发者账号（自动列出本机 codesign 身份；0 = ad-hoc；Windows 上没有可选身份，直接回车）
+3. 应用标识（反向域名，如 `com.xx.test`）：macOS 的 Bundle ID，也是 Windows 上
+   `zant.paths.appDataDir` 的数据目录名（`%APPDATA%\<id>`）
+
+macOS 专属设置不在创建时询问：在 Mac 上第一次 `zant run` / `zant build` 时写入
+`"macos": { "sandbox": false }`；第一次 `zant package` 时列出本机 codesign 身份让你选择
+（0 = ad-hoc；非交互终端直接用 ad-hoc），写入 `macos.signing_identity`。
+Windows 的命令行窗口（包括代码页 936 的中文系统）中文显示与输入正常。
 
 生成过程会逐步输出状态。目标目录已存在时加 `--force` 覆盖。
 
@@ -45,6 +50,8 @@ cd /path/to/work
   --sandbox true \
   --sign "Developer ID Application: Your Name (TEAMID)"
 ```
+
+`--sandbox`、`--sign` 可选：给出时直接写入 `macos` 段。
 
 ## 运行
 
@@ -104,7 +111,7 @@ MSVC 运行库 `vcruntime140*.dll` / `msvcp140.dll`），GUI 子系统，压缩�
 
 macOS：生成 `zig-out/<应用标题>.app`：
 
-- 读取 Bundle ID、版本、窗口配置
+- 读取应用标识（Bundle ID）、版本、窗口配置；缺少签名账号时先询问
 - 生成 Info.plist
 - 沙盒开启时写入 entitlements
 - 使用配置中的 Developer ID 签名

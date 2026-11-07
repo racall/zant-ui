@@ -36,7 +36,8 @@ zig build test         # 测试
 ```
 
 不要手动编辑 `src/app_config.zig`、`Info.plist`、`app.entitlements`，它们由
-`zant` 根据 `app.config.json` 生成（`zant sync` 只重新生成它们）。
+`zant` 根据 `app.config.json` 在当前平台生成（`zant sync` 只重新生成它们；Info.plist 与
+entitlements 只在 macOS 上生成）。
 Windows 上 Debug 构建是控制台程序，Release（`--release`、`zant package`）为 GUI 子系统。
 
 ## 目录结构
@@ -79,19 +80,21 @@ AGENTS.md / CLAUDE.md        给 AI coding agent 的规范
 
 ## 窗口配置
 
-`app.config.json` 支持：
+`app.config.json` 分两部分：
 
-`title`、`bundle_id`、`version`、`sandbox`、`signing_identity`，
-以及 `window` 下的 `style`、`width`、`height`、`min_width`、`min_height`、
-`background`、`resizable`、`always_on_top`、`movable_by_background`、`center`。
+- 两端通用（`zant create` 写入）：`title`、`bundle_id`（应用标识，如 `com.xx.test`）、`version`，
+  以及 `window` 下的 `style`、`width`、`height`、`min_width`、`min_height`、
+  `background`、`resizable`、`always_on_top`、`movable_by_background`、`center`。
+- 平台专属：`macos` 段的 `sandbox`、`signing_identity`，在 Mac 上首次 `zant run` / `build`
+  时补充 `sandbox`（默认 false），首次 `zant package` 时询问签名账号。Windows 暂无专属设置。
 
 代码中的 `WindowOptions` 优先级高于配置文件。修改 JSON 后重新执行
 `zant run` / `zant build`。
 
 ## 沙盒与签名（仅 macOS）
 
-- `sandbox: true` 时 `zant package` 写入 `com.apple.security.app-sandbox`。
-- 签名使用 `signing_identity`；`none` 表示 ad-hoc。
+- `macos.sandbox: true` 时 `zant package` 写入 `com.apple.security.app-sandbox`。
+- 签名使用 `macos.signing_identity`；`none` 表示 ad-hoc。
 - 沙盒应用运行必须通过 LaunchServices；`zant run` 已处理。
 - Windows 上不签名、不沙盒，`zant package` 只生成可分发目录。
 - 不要提交私钥、证书或密码。
