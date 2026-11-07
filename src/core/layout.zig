@@ -315,6 +315,17 @@ fn layoutContainer(nodes: []*Node, node: *Node, width: f32, definite_height: ?f3
         else
             null;
         const w = inset_w orelse resolveWidth(child, box_w) orelse intrinsicWidth(nodes, child, box_w, theme);
+        // content-sized and placed from the top: lay it out at its natural
+        // height directly (measuring it first would lay out the subtree twice)
+        if (child.style.height == null and child.style.height_percent == null and child.style.anchor == null and
+            (child.style.top != null or child.style.bottom == null))
+        {
+            var cx = box_x;
+            if (child.style.left) |left| cx = box_x + left else if (child.style.right) |right| cx = box_x + box_w - w - right;
+            const cy = box_y + (child.style.top orelse 0);
+            _ = layoutNode(nodes, child, cx, cy, w, null, w, box_h, theme, false);
+            continue;
+        }
         // a percentage wins over a builder's fixed height (as in flow layout),
         // so `ui.styled(button, .{ .height_percent = 100 })` fills the parent
         const h = if (child.style.height_percent) |percent|
