@@ -1503,15 +1503,22 @@ fn cmdUpdate(allocator: std.mem.Allocator, io: Io) !void {
 fn updateRelease(allocator: std.mem.Allocator, io: Io, home: []const u8) !void {
     const base = (if (child_environ) |env| env.get("ZANT_DOWNLOAD") else null) orelse release_download;
     try child_environ.?.put("ZANT_HOME", home);
-    const script = if (is_windows)
-        try std.fmt.allocPrint(allocator, "irm '{s}/install.ps1' | iex", .{base})
-    else
-        try std.fmt.allocPrint(allocator, "curl -fsSL '{s}/install.sh' | bash", .{base});
-    const argv: []const []const u8 = if (is_windows)
-        &.{ "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script }
-    else
-        &.{ "/bin/bash", "-c", script };
-    if (!runOk(io, argv, home)) fail("更新没有完成（见上面的说明）", .{});
+    if (!is_windows) {
+        const script = try std.fmt.allocPrint(allocator, "curl -fsSL '{s}/install.sh' | bash", .{base});
+        if (!runOk(io, &.{ "/bin/bash", "-c", script }, home)) fail("更新没有完成（见上面的说明）", .{});
+        return;
+    }
+    // Windows: download the script and run it as a file with a UTF-8 BOM
+    // (release assets come as application/octet-stream, which `irm` would
+    // decode as Latin-1, and Windows PowerShell reads BOM-less files as ANSI)
+    const dir = try std.fs.path.join(allocator, &.{ home, "cache" });
+    try Dir.cwd().createDirPath(io, dir);
+    const script = try std.fs.path.join(allocator, &.{ dir, "install.ps1" });
+    const url = try std.fmt.allocPrint(allocator, "{s}/install.ps1", .{base});
+    if (!runOk(io, &.{ "curl.exe", "-fsSL", "--retry", "3", "-o", script, url }, home)) fail("下载更新脚本失败：{s}", .{url});
+    const text = try readFile(allocator, io, script);
+    if (!std.mem.startsWith(u8, text, "\xEF\xBB\xBF")) try writeFile(allocator, io, script, try std.mem.concat(allocator, u8, &.{ "\xEF\xBB\xBF", text }));
+    if (!runOk(io, &.{ "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script }, home)) fail("更新没有完成（见上面的说明）", .{});
 }
 
 /// Where release archives and the install scripts are published.
@@ -1575,6 +1582,11 @@ pub fn main(init: std.process.Init) !void {
     console.init();
     defer console.deinit();
     child_environ = init.environ_map;
+    // PowerShell 7 puts its own module folders in PSModulePath; a Windows
+    // PowerShell 5.1 started from here would then load PowerShell 7's
+    // Microsoft.PowerShell.Utility and miss Get-FileHash. Without the
+    // variable each PowerShell uses its own default.
+    if (is_windows) _ = init.environ_map.swapRemove("PSModulePath");
     if (init.environ_map.get("ZIG_GLOBAL_CACHE_DIR") == null) {
         const cache = if (release_home) |home|
             try std.fs.path.join(allocator, &.{ home, "cache" })
