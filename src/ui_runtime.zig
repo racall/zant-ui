@@ -1122,11 +1122,7 @@ pub const Runtime = struct {
     }
 
     fn findKey(self: *Runtime, key: []const u8) ?NodeId {
-        for (self.tree.nodes.items) |node| {
-            if (!node.alive or node.exiting) continue;
-            if (node.key) |k| if (std.mem.eql(u8, k, key)) return node.id;
-        }
-        return null;
+        return self.tree.idOfKey(key);
     }
 
     fn scrollIntoView(self: *Runtime, id: NodeId) void {
