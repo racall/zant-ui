@@ -125,6 +125,9 @@ pub const Visual = struct {
     /// Tab / Shift+Tab stay inside the topmost focus scope (modals,
     /// popover panels).
     focus_scope: bool = false,
+    /// Shown only while the nearest ancestor with a hover look is hovered,
+    /// fading with it (row actions: CSS `.row:hover .actions`).
+    show_on_hover: bool = false,
 };
 
 /// Look of a container while the pointer is over it (`BoxOptions.hover_*`),

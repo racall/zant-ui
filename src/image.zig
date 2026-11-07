@@ -10,6 +10,9 @@ const std = @import("std");
 extern fn zant_image_from_pixels(pixels: [*]const u8, width: c_int, height: c_int, stride: c_int) ?*anyopaque;
 extern fn zant_image_from_encoded(data: [*]const u8, size: usize) ?*anyopaque;
 extern fn zant_image_retain(image: ?*anyopaque) ?*anyopaque;
+extern fn zant_image_thumbnail(data: [*]const u8, size: usize, max_dim: c_int) ?*anyopaque;
+extern fn zant_image_encode_png(image: ?*anyopaque, out_size: *usize) ?*anyopaque;
+extern fn zant_bytes_free(bytes: ?*anyopaque) void;
 extern fn zant_image_destroy(image: ?*anyopaque) void;
 extern fn zant_image_width(image: ?*anyopaque) c_int;
 extern fn zant_image_height(image: ?*anyopaque) c_int;
@@ -44,6 +47,21 @@ pub const Image = struct {
     pub fn fromEncoded(bytes: []const u8) ?Image {
         if (bytes.len == 0) return null;
         return wrap(zant_image_from_encoded(bytes.ptr, bytes.len));
+    }
+
+    /// Decodes `bytes` scaled down so the larger side is at most `max_dim`
+    /// pixels (list thumbnails without keeping full-size pixels).
+    pub fn thumbnail(bytes: []const u8, max_dim: u32) ?Image {
+        if (bytes.len == 0 or max_dim == 0) return null;
+        return wrap(zant_image_thumbnail(bytes.ptr, bytes.len, @intCast(max_dim)));
+    }
+
+    /// PNG bytes of the image (allocated with `allocator`).
+    pub fn encodePng(self: Image, allocator: std.mem.Allocator) ![]u8 {
+        var len: usize = 0;
+        const bytes = zant_image_encode_png(self.handle, &len) orelse return error.EncodeFailed;
+        defer zant_bytes_free(bytes);
+        return allocator.dupe(u8, @as([*]const u8, @ptrCast(bytes))[0..len]);
     }
 
     /// Another reference to the same pixels (released with its own `deinit`).

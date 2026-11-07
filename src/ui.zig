@@ -659,6 +659,7 @@ fn visualFrom(box: BoxOptions) node_mod.Visual {
         .selectable = box.selectable,
         .unselectable = box.unselectable,
         .focus_scope = box.focus_scope,
+        .show_on_hover = box.show_on_hover,
     };
 }
 
@@ -718,6 +719,10 @@ pub const BoxOptions = struct {
     /// Keyboard focus moves (Tab / Shift+Tab) stay inside this container
     /// while it is the topmost scope shown (dialogs, popover panels).
     focus_scope: bool = false,
+    /// Painted only while the nearest ancestor with `hover_background` /
+    /// `hover_border_color` is hovered, fading in with it: secondary row
+    /// actions (delete, more) that would clutter every row otherwise.
+    show_on_hover: bool = false,
     /// Called after layout whenever this container's size changes (first
     /// layout included), then the UI is rebuilt in the same frame. Read the
     /// new size with `ui.keyBounds(key)`; use it for layouts that depend on

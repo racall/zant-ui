@@ -237,6 +237,9 @@ extern fn zant_system_dark_mode() c_int;
 extern fn zant_device_name(out: ?[*]u8, capacity: usize) usize;
 extern fn zant_clipboard_watch(enable: c_int) void;
 extern fn zant_clipboard_set_text(text: [*]const u8, length: usize) c_int;
+extern fn zant_clipboard_get_image_png(out_len: *usize) ?[*]u8;
+extern fn zant_clipboard_set_image_png(png: [*]const u8, len: usize) c_int;
+extern fn zant_clipboard_free(bytes: ?*anyopaque) void;
 extern fn zant_clipboard_get_text(out: ?[*]u8, capacity: usize) usize;
 
 pub fn createWindow(title: [:0]const u8, options: WindowOptions, host: *const Host) !*Window {
@@ -474,6 +477,20 @@ pub fn getenv(name: [*:0]const u8) ?[:0]const u8 {
 
 pub fn setClipboard(text: []const u8) bool {
     return zant_clipboard_set_text(text.ptr, text.len) != 0;
+}
+
+/// PNG of the image on the clipboard (copied into `allocator`), or null.
+pub fn clipboardImagePng(allocator: std.mem.Allocator) !?[]u8 {
+    if (!supported) return null;
+    var len: usize = 0;
+    const bytes = zant_clipboard_get_image_png(&len) orelse return null;
+    defer zant_clipboard_free(bytes);
+    return try allocator.dupe(u8, bytes[0..len]);
+}
+
+pub fn setClipboardImagePng(png: []const u8) bool {
+    if (!supported or png.len == 0) return false;
+    return zant_clipboard_set_image_png(png.ptr, png.len) != 0;
 }
 
 pub fn clipboardAlloc(allocator: std.mem.Allocator) ![]u8 {

@@ -219,6 +219,18 @@ pub fn clipboardText(allocator: std.mem.Allocator) ![]u8 {
     return platform.clipboardAlloc(allocator);
 }
 
+/// The image on the clipboard as PNG bytes (caller frees), or null when it
+/// holds no image. Read the text first: copied text often comes with an
+/// image too (a rendering of it).
+pub fn clipboardImage(allocator: std.mem.Allocator) !?[]u8 {
+    return platform.clipboardImagePng(allocator);
+}
+
+/// Puts a PNG image on the clipboard in the formats other apps paste.
+pub fn setClipboardImage(png_bytes: []const u8) bool {
+    return platform.setClipboardImagePng(png_bytes);
+}
+
 /// Puts `text` on the clipboard (plain text).
 pub fn setClipboardText(text: []const u8) bool {
     return platform.setClipboard(text);

@@ -24,7 +24,11 @@ trap 'rm -rf "$TMP"' EXIT
 pack() { # <source dir> <archive>
   local src="$1" out="$2"
   if git -C "$src" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    (cd "$src" && git ls-files -co --exclude-standard -z | xargs -0 tar --no-xattrs -cf "$out")
+    # tracked + untracked files that exist: a file deleted but not yet
+    # committed is skipped instead of failing the archive
+    (cd "$src" && git ls-files -co --exclude-standard -z |
+      while IFS= read -r -d '' f; do [ -e "$f" ] && printf '%s\0' "$f"; done |
+      xargs -0 tar --no-xattrs -cf "$out")
   else
     tar --no-xattrs -cf "$out" -C "$src" --exclude .zig-cache --exclude zig-out --exclude .git --exclude '._*' .
   fi

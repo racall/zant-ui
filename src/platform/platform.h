@@ -270,6 +270,15 @@ size_t zant_device_name(char *out, size_t capacity);
 int zant_system_dark_mode(void);
 
 int zant_clipboard_set_text(const char *text, size_t length);
+/* The image on the clipboard as PNG bytes (malloc'd; free with
+   zant_clipboard_free), or NULL when it holds no image. macOS: PNG or TIFF;
+   Windows: the "PNG" format or a bitmap (CF_DIBV5 / CF_DIB). */
+uint8_t *zant_clipboard_get_image_png(size_t *out_len);
+/* Puts a PNG image on the clipboard, in the formats other apps read
+   (macOS: PNG + TIFF; Windows: "PNG" + CF_DIBV5). */
+int zant_clipboard_set_image_png(const uint8_t *png, size_t len);
+void zant_clipboard_free(void *bytes);
+
 /* Changes each time anything (any app) writes to the clipboard. */
 uint64_t zant_clipboard_change_count(void);
 /* Sends ZANT_APP_EVENT_CLIPBOARD after each clipboard change, including

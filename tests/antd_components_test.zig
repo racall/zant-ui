@@ -277,3 +277,22 @@ test "a switch after a growing wrapped-text column stays inside the row" {
     // the text column takes the rest of the row
     try std.testing.expectApproxEqAbs(row.width - 32 - 16 - 40, col.width, 0.5);
 }
+
+test "image thumbnail and PNG round trip" {
+    // 40×20 opaque red, encoded through Skia, thumbnailed to 8 px wide
+    var px: [40 * 20 * 4]u8 = undefined;
+    for (0..40 * 20) |i| px[i * 4 ..][0..4].* = if (zant.image.native_order == .rgba) .{ 255, 0, 0, 255 } else .{ 0, 0, 255, 255 };
+    const img = zant.image.Image.fromPixels(&px, 40, 20, 40 * 4).?;
+    defer img.deinit();
+    const png_bytes = try img.encodePng(std.testing.allocator);
+    defer std.testing.allocator.free(png_bytes);
+    try std.testing.expect(std.mem.startsWith(u8, png_bytes, "\x89PNG"));
+    const thumb = zant.image.Image.thumbnail(png_bytes, 8).?;
+    defer thumb.deinit();
+    try std.testing.expectEqual(@as(u32, 8), thumb.width);
+    try std.testing.expectEqual(@as(u32, 4), thumb.height);
+    // never enlarged
+    const same = zant.image.Image.thumbnail(png_bytes, 100).?;
+    defer same.deinit();
+    try std.testing.expectEqual(@as(u32, 40), same.width);
+}

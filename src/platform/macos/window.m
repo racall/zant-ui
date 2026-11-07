@@ -1389,6 +1389,44 @@ int zant_system_dark_mode(void) {
     return [name isEqualToString:NSAppearanceNameDarkAqua] ? 1 : 0;
 }
 
+uint8_t *zant_clipboard_get_image_png(size_t *out_len) {
+    @autoreleasepool {
+        if (out_len) *out_len = 0;
+        NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
+        NSData *png = [pasteboard dataForType:NSPasteboardTypePNG];
+        if (!png) {
+            NSData *tiff = [pasteboard dataForType:NSPasteboardTypeTIFF];
+            NSBitmapImageRep *rep = tiff ? [NSBitmapImageRep imageRepWithData:tiff] : nil;
+            png = rep ? [rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}] : nil;
+        }
+        if (!png || png.length == 0) return NULL;
+        uint8_t *bytes = malloc(png.length);
+        if (!bytes) return NULL;
+        memcpy(bytes, png.bytes, png.length);
+        if (out_len) *out_len = png.length;
+        return bytes;
+    }
+}
+
+int zant_clipboard_set_image_png(const uint8_t *png, size_t len) {
+    @autoreleasepool {
+        if (!png || len == 0) return 0;
+        NSData *data = [NSData dataWithBytes:png length:len];
+        NSBitmapImageRep *rep = [NSBitmapImageRep imageRepWithData:data];
+        NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
+        [pasteboard clearContents];
+        BOOL ok = [pasteboard setData:data forType:NSPasteboardTypePNG];
+        /* many apps only read TIFF */
+        NSData *tiff = rep ? [rep TIFFRepresentation] : nil;
+        if (tiff) [pasteboard setData:tiff forType:NSPasteboardTypeTIFF];
+        return ok ? 1 : 0;
+    }
+}
+
+void zant_clipboard_free(void *bytes) {
+    free(bytes);
+}
+
 uint64_t zant_clipboard_change_count(void) {
     return (uint64_t)[NSPasteboard generalPasteboard].changeCount;
 }

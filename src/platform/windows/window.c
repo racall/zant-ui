@@ -1499,6 +1499,166 @@ int zant_system_dark_mode(void) {
     return light == 0 ? 1 : 0;
 }
 
+/* The clipboard can be held briefly by the app that just wrote to it. */
+static bool zant_open_clipboard(HWND owner) {
+    for (int i = 0; i < 10; i++) {
+        if (OpenClipboard(owner)) return true;
+        Sleep(20);
+    }
+    return false;
+}
+
+/* A bitmap (BITMAPINFOHEADER / BITMAPV5HEADER + pixels) as PNG, through Skia. */
+static uint8_t *zant_dib_to_png(const uint8_t *dib, size_t size, size_t *out_len) {
+    if (size < sizeof(BITMAPINFOHEADER)) return NULL;
+    const BITMAPINFOHEADER *bi = (const BITMAPINFOHEADER *)dib;
+    const int width = bi->biWidth;
+    const int height = bi->biHeight < 0 ? -bi->biHeight : bi->biHeight;
+    const bool top_down = bi->biHeight < 0;
+    const int bpp = bi->biBitCount;
+    if (width <= 0 || height <= 0 || (bpp != 24 && bpp != 32) || width > 16384 || height > 16384) return NULL;
+    if (bi->biCompression != BI_RGB && bi->biCompression != BI_BITFIELDS) return NULL;
+    size_t offset = bi->biSize;
+    if (bi->biCompression == BI_BITFIELDS && bi->biSize == sizeof(BITMAPINFOHEADER)) offset += 12; /* masks */
+    offset += (size_t)bi->biClrUsed * 4;
+    const size_t stride = (((size_t)width * (size_t)bpp + 31) / 32) * 4;
+    if (offset + stride * (size_t)height > size) return NULL;
+    uint8_t *pixels = (uint8_t *)malloc((size_t)width * (size_t)height * 4);
+    if (!pixels) return NULL;
+    /* 32-bit bitmaps often leave alpha at 0: then the image is opaque */
+    bool any_alpha = false;
+    if (bpp == 32) {
+        for (int y = 0; y < height && !any_alpha; y++) {
+            const uint8_t *row = dib + offset + stride * (size_t)y;
+            for (int x = 0; x < width; x++) if (row[x * 4 + 3]) { any_alpha = true; break; }
+        }
+    }
+    for (int y = 0; y < height; y++) {
+        const uint8_t *src = dib + offset + stride * (size_t)(top_down ? y : height - 1 - y);
+        uint8_t *dst = pixels + (size_t)y * (size_t)width * 4;
+        for (int x = 0; x < width; x++) {
+            const uint8_t b = src[x * (bpp / 8)], g = src[x * (bpp / 8) + 1], r = src[x * (bpp / 8) + 2];
+            const uint8_t a = (bpp == 32 && any_alpha) ? src[x * 4 + 3] : 255;
+            /* Skia N32 premultiplied: BGRA on Windows */
+            dst[x * 4 + 0] = (uint8_t)(b * a / 255);
+            dst[x * 4 + 1] = (uint8_t)(g * a / 255);
+            dst[x * 4 + 2] = (uint8_t)(r * a / 255);
+            dst[x * 4 + 3] = a;
+        }
+    }
+    ZantImage *image = zant_image_from_pixels(pixels, width, height, width * 4);
+    free(pixels);
+    if (!image) return NULL;
+    size_t png_len = 0;
+    void *png = zant_image_encode_png(image, &png_len);
+    zant_image_destroy(image);
+    if (!png) return NULL;
+    uint8_t *copy = (uint8_t *)malloc(png_len);
+    if (copy) memcpy(copy, png, png_len);
+    zant_bytes_free(png);
+    if (copy && out_len) *out_len = png_len;
+    return copy;
+}
+
+uint8_t *zant_clipboard_get_image_png(size_t *out_len) {
+    if (out_len) *out_len = 0;
+    const UINT png_format = RegisterClipboardFormatW(L"PNG");
+    if (!IsClipboardFormatAvailable(png_format) && !IsClipboardFormatAvailable(CF_DIBV5) &&
+        !IsClipboardFormatAvailable(CF_DIB))
+        return NULL;
+    if (!zant_open_clipboard(zant_app_window())) return NULL;
+    uint8_t *result = NULL;
+    HANDLE handle = GetClipboardData(png_format);
+    if (handle) {
+        const SIZE_T size = GlobalSize(handle);
+        const void *data = GlobalLock(handle);
+        if (data && size > 8) {
+            result = (uint8_t *)malloc(size);
+            if (result) {
+                memcpy(result, data, size);
+                if (out_len) *out_len = size;
+            }
+        }
+        if (data) GlobalUnlock(handle);
+    }
+    if (!result) {
+        handle = GetClipboardData(CF_DIBV5);
+        if (!handle) handle = GetClipboardData(CF_DIB);
+        if (handle) {
+            const SIZE_T size = GlobalSize(handle);
+            const uint8_t *data = (const uint8_t *)GlobalLock(handle);
+            if (data) result = zant_dib_to_png(data, size, out_len);
+            if (data) GlobalUnlock(handle);
+        }
+    }
+    CloseClipboard();
+    return result;
+}
+
+int zant_clipboard_set_image_png(const uint8_t *png, size_t len) {
+    if (!png || len == 0) return 0;
+    ZantImage *image = zant_image_from_encoded(png, len);
+    if (!image) return 0;
+    const int width = zant_image_width(image), height = zant_image_height(image);
+    const size_t pixel_bytes = (size_t)width * (size_t)height * 4;
+    uint8_t *rgba = (uint8_t *)malloc(pixel_bytes);
+    const bool read = rgba && zant_image_read_rgba(image, rgba, pixel_bytes);
+    zant_image_destroy(image);
+    /* "PNG" keeps transparency for apps that read it; CF_DIBV5 is what every
+       app pastes (the system derives CF_DIB / CF_BITMAP from it) */
+    HGLOBAL png_mem = GlobalAlloc(GMEM_MOVEABLE, len);
+    HGLOBAL dib_mem = read ? GlobalAlloc(GMEM_MOVEABLE, sizeof(BITMAPV5HEADER) + pixel_bytes) : NULL;
+    if (png_mem) {
+        void *p = GlobalLock(png_mem);
+        memcpy(p, png, len);
+        GlobalUnlock(png_mem);
+    }
+    if (dib_mem) {
+        uint8_t *p = (uint8_t *)GlobalLock(dib_mem);
+        BITMAPV5HEADER *h = (BITMAPV5HEADER *)p;
+        memset(h, 0, sizeof(*h));
+        h->bV5Size = sizeof(*h);
+        h->bV5Width = width;
+        h->bV5Height = height; /* bottom-up, as most readers expect */
+        h->bV5Planes = 1;
+        h->bV5BitCount = 32;
+        h->bV5Compression = BI_BITFIELDS;
+        h->bV5RedMask = 0x00FF0000;
+        h->bV5GreenMask = 0x0000FF00;
+        h->bV5BlueMask = 0x000000FF;
+        h->bV5AlphaMask = 0xFF000000;
+        h->bV5CSType = LCS_sRGB;
+        h->bV5Intent = LCS_GM_IMAGES;
+        uint8_t *dst = p + sizeof(*h);
+        for (int y = 0; y < height; y++) {
+            const uint8_t *src = rgba + (size_t)(height - 1 - y) * (size_t)width * 4;
+            uint8_t *row = dst + (size_t)y * (size_t)width * 4;
+            for (int x = 0; x < width; x++) {
+                row[x * 4 + 0] = src[x * 4 + 2];
+                row[x * 4 + 1] = src[x * 4 + 1];
+                row[x * 4 + 2] = src[x * 4 + 0];
+                row[x * 4 + 3] = src[x * 4 + 3];
+            }
+        }
+        GlobalUnlock(dib_mem);
+    }
+    free(rgba);
+    int ok = 0;
+    if ((png_mem || dib_mem) && zant_open_clipboard(zant_app_window())) {
+        EmptyClipboard();
+        if (png_mem && SetClipboardData(RegisterClipboardFormatW(L"PNG"), png_mem)) { png_mem = NULL; ok = 1; }
+        if (dib_mem && SetClipboardData(CF_DIBV5, dib_mem)) { dib_mem = NULL; ok = 1; }
+        CloseClipboard();
+    }
+    if (png_mem) GlobalFree(png_mem);
+    if (dib_mem) GlobalFree(dib_mem);
+    return ok;
+}
+
+void zant_clipboard_free(void *bytes) {
+    free(bytes);
+}
+
 uint64_t zant_clipboard_change_count(void) {
     return (uint64_t)GetClipboardSequenceNumber();
 }

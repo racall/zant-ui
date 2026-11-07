@@ -34,6 +34,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <cstdio>
 #include <limits>
@@ -556,6 +557,53 @@ ZantImage *zant_image_from_encoded(const void *data, size_t size) {
     // decode now (on the calling thread) so drawing never stalls
     if (image) image = image->makeRasterImage(nullptr);
     return wrap_image(std::move(image));
+}
+
+ZantImage *zant_image_thumbnail(const void *data, size_t size, int max_dim) {
+    if (!data || size == 0 || max_dim <= 0) return nullptr;
+    auto image = SkImages::DeferredFromEncodedData(SkData::MakeWithCopy(data, size));
+    if (!image) return nullptr;
+    const int w = image->width(), h = image->height();
+    if (w <= 0 || h <= 0) return nullptr;
+    const float scale = std::min(1.0f, static_cast<float>(max_dim) / static_cast<float>(std::max(w, h)));
+    const int tw = std::max(1, static_cast<int>(std::lround(w * scale)));
+    const int th = std::max(1, static_cast<int>(std::lround(h * scale)));
+    SkBitmap bitmap;
+    if (!bitmap.tryAllocPixels(SkImageInfo::MakeN32Premul(tw, th))) return nullptr;
+    // mipmapped linear filtering: a smooth downscale from any size
+    if (!image->scalePixels(bitmap.pixmap(), SkSamplingOptions(SkFilterMode::kLinear, SkMipmapMode::kLinear))) return nullptr;
+    bitmap.setImmutable();
+    return wrap_image(SkImages::RasterFromBitmap(bitmap));
+}
+
+void *zant_image_encode_png(ZantImage *image, size_t *out_size) {
+    if (out_size) *out_size = 0;
+    if (!image || !image->image) return nullptr;
+    SkBitmap bitmap;
+    if (!bitmap.tryAllocPixels(SkImageInfo::MakeN32Premul(image->width, image->height))) return nullptr;
+    if (!image->image->readPixels(nullptr, bitmap.pixmap(), 0, 0)) return nullptr;
+    SkDynamicMemoryWStream stream;
+    SkPngEncoder::Options opts;
+    opts.fZLibLevel = 4; // clipboard images: speed over the last few percent
+    if (!SkPngEncoder::Encode(&stream, bitmap.pixmap(), opts)) return nullptr;
+    auto encoded = stream.detachAsData();
+    void *bytes = std::malloc(encoded->size());
+    if (!bytes) return nullptr;
+    std::memcpy(bytes, encoded->data(), encoded->size());
+    if (out_size) *out_size = encoded->size();
+    return bytes;
+}
+
+int zant_image_read_rgba(ZantImage *image, void *dst, size_t dst_size) {
+    if (!image || !image->image || !dst) return 0;
+    const size_t row = static_cast<size_t>(image->width) * 4;
+    if (dst_size < row * static_cast<size_t>(image->height)) return 0;
+    const SkImageInfo info = SkImageInfo::Make(image->width, image->height, kRGBA_8888_SkColorType, kUnpremul_SkAlphaType);
+    return image->image->readPixels(nullptr, info, dst, row, 0, 0) ? 1 : 0;
+}
+
+void zant_bytes_free(void *bytes) {
+    std::free(bytes);
 }
 
 ZantImage *zant_image_retain(ZantImage *image) {
