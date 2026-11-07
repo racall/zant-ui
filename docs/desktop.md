@@ -67,6 +67,7 @@ try zant.desktop.setTray(.{
   只有普通窗口开着（或最小化）时才显示程序坞图标和菜单栏（系统标准做法：在 regular / accessory 两种
   activation policy 之间切换，并修正切回时菜单栏不更新的已知问题）；Windows 上隐藏的窗口本来就没有
   任务栏按钮。应用不需要自己处理。“是否在托盘里”用 `!w.isVisible() and !w.isMinimized()` 判断。
+- `zant.desktop.removeTray()` 去掉托盘 / 状态栏图标。
 - `zant.desktop.quit()` 直接退出（不再询问 `onCloseRequest`）。
 
 ## 开机启动
@@ -78,8 +79,9 @@ if (zant.desktop.launchedAtLogin()) { ... }                    // 这次是登�
 ```
 
 - 用系统自己的机制：macOS 13+ 的 `SMAppService`（出现在“系统设置 › 通用 › 登录项”，系统会提示
-  “已添加登录项”；只有打包后的 .app 可以，`zant run` 运行时返回 `error.Unsupported`）；Windows 是当前
-  用户的 `Run` 注册表项（名字为应用标识，启动参数 `--zant-login`）。
+  “已添加登录项”；只有打包后的 .app 可以（`zant package` / `zant build`），`zant run` 运行时返回
+  `error.Unsupported`）；Windows 是当前用户的 `Run` 注册表项（名字为应用标识，启动参数 `--zant-login`），
+  `zant build` 生成的安装包卸载时会删除它。
 - 状态每次从系统读取（用户也可以在系统设置 / 任务管理器里关掉）；默认关闭，由用户在设置里打开。
 - `needs_approval`：macOS 需要用户在“登录项”里允许。
 - 登录时打开：主窗口设 `.hidden_at_login = true`，应用只出现在托盘 / 菜单栏。macOS 通过启动时的

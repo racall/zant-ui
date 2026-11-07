@@ -20,7 +20,7 @@
 - 跨平台：快捷键用 `key.modifiers.primary()` 与 `zant.keys.label("mod+s")`（⌘S / Ctrl+S），
   自绘标题栏用 `ui.titlebarInsets()` 留出系统控件位置，数据目录用 `zant.paths.appDataDir`
 - 配置：项目根目录 `app.config.json`
-- 脚手架：编译后的 `zant` CLI，不使用 shell 脚本
+- 脚手架：编译后的 `zant` CLI（发布构建的平台步骤由 Zant UI 自带的打包脚本完成）
 
 ## 常用命令
 
@@ -110,4 +110,4 @@ AGENTS.md / CLAUDE.md        给 AI coding agent 的规范
 - 修改后运行 `zig fmt` 和 `zig build test`。
 - 优先保持示例简短、可读，不要为了“架构”增加不必要的抽象。
 - 注释解释“为什么”，不要重复代码表面含义。
-- 不要新增 shell 脚本；脚手架功能放进 `zant` CLI。
+- 不要在项目里另写构建、打包脚本：缺的功能补进 Zant UI 的 `zant` CLI 或它的打包脚本。

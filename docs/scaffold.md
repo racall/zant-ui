@@ -2,7 +2,8 @@
 
 ![生成项目](assets/scaffold.png)
 
-脚手架是一个编译后的 `zant` 工具，不使用 shell 脚本。
+脚手架是一个编译后的 `zant` 工具。发布构建（`zant build`）的平台步骤调用 Zant UI 自带的打包脚本
+（`tools/zant/package/`），项目里不需要自己写脚本。
 
 先构建框架：
 

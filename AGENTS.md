@@ -192,7 +192,7 @@ ui.styled(node, .{
   平台专属的设置与文件由 `zant run` / `build` / `package` 在该平台补充（macOS：`macos` 段的
   `sandbox` / `signing_identity`，Info.plist、entitlements）。不要再让 create 问单个平台的问题。
 - 图标：`zant create` 带 `assets/icons/` 默认图标（两端规范见 `docs/scaffold.md`「图标」）；
-  `configureApp` 把它们加为 `@embedFile` 名字（`icon_tray` 等），Windows 编译时生成 .ico 资源，
+  `configureApp` 把它们加为 `@embedFile` 名字（`icon_tray_dark` 等，assets/icons 里每个 PNG 都是 `icon_<文件名>`），Windows 编译时生成 .ico 资源，
   `zant package` 在 macOS 生成 .icns；PNG 读写与缩放在 `src/core/png.zig`（CLI 与 `zant-icon` 工具共用）。
 - 生成文件：`src/app_config.zig`（两端）、`Info.plist`、`app.entitlements`（仅 macOS），
   不要手改。Windows 上 `bundle_id` 用作 `%APPDATA%` 下的数据目录名（`zant.paths.appDataDir`）。
