@@ -47,7 +47,7 @@ function Find-SdkTool($name) {
     }
     $cmd = Get-Command $name -ErrorAction SilentlyContinue
     if ($cmd) { return $cmd.Source }
-    Die "找不到 $name：在 Visual Studio Installer 里安装「Windows 11 SDK」组件，或设置 ZANT_$((($name -replace '\.exe$', '').ToUpper()))"
+    Die "找不到 ${name}：在 Visual Studio Installer 里安装「Windows 11 SDK」组件，或设置 ZANT_$((($name -replace '\.exe$', '').ToUpper()))"
 }
 
 function Find-Iscc {

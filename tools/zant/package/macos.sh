@@ -61,7 +61,7 @@ notarize() {
     die "公证没有通过（${status:-提交失败}）"
   fi
   rm -f "$err"
-  ok "公证通过（$id）"
+  ok "公证通过（${id}）"
 }
 
 staple() {
@@ -86,7 +86,7 @@ assess() {
 dmg_with_layout() {
   local stage="$1" name="$2" dmg="$3" work rw attach dev mnt w h bg2x x1 x2 y
   if [ -e "/Volumes/$ZANT_TITLE" ]; then
-    die "已经挂载了名为「$ZANT_TITLE」的磁盘：先在访达里推出它再打包"
+    die "已经挂载了名为「${ZANT_TITLE}」的磁盘：先在访达里推出它再打包"
   fi
   work=$(mktemp -d)
   rw="$work/rw.dmg"
@@ -197,7 +197,7 @@ app_store() {
   local pkg="$ZANT_OUT/$ZANT_TITLE-$ZANT_VERSION.pkg"
   mkdir -p "$ZANT_OUT"
   rm -f "$pkg"
-  step "制作安装包 .pkg（$ZANT_INSTALLER_IDENTITY）"
+  step "制作安装包 .pkg（${ZANT_INSTALLER_IDENTITY}）"
   productbuild --component "$ZANT_APP" /Applications --sign "$ZANT_INSTALLER_IDENTITY" ${keychain_args[@]+"${keychain_args[@]}"} "$pkg" >/dev/null
   ok "已生成 $pkg"
   if [ "${ZANT_UPLOAD:-0}" = 1 ]; then
