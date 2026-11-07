@@ -44,7 +44,7 @@ zant run --watch              # 重启式热更新，非沙盒
 zant compile --release        # 只编译
 zant package                  # 本机测试：macOS 生成 .app 并 codesign，Windows 生成 zig-out/<标题>/ 目录
 zant build                    # 发布：签名、DMG / 公证 / App Store，或 Windows 安装包 / MSIX（docs/build.md）
-zant update                   # 重新编译框架并更新全局二进制
+zant update                   # 安装版：更新到最新发布包；源码版：git pull + 依赖 + 重新编译 CLI
 ```
 
 ## 目录结构
@@ -254,7 +254,11 @@ ui.styled(node, .{
 - App Sandbox 模式下不支持自动重启。
 - macOS：编译失败时保留旧窗口并等待下一次改动。Windows 不能覆盖正在运行的 exe，
   所以先结束应用再编译，编译失败时重新打开上一次的版本。
-- 修改框架本身后执行 `zant update` 更新全局二进制。
+- 修改框架本身后执行 `zant update` 更新全局二进制（工作区有未提交修改时只重新编译，不拉取）。
+- 一键安装：`install.sh` / `install.ps1` 下载 GitHub Release 的发布包（`scripts/release/package.sh` /
+  `package.ps1` 打包，`.github/workflows/release.yml` 在推送 `v*` 标签时构建并发布）。发布包布局：
+  `<安装目录>/bin/zant` + `<安装目录>/zant-ui/`（含 third_party 和 Windows 预编译桥接库
+  `third_party/zant-skia-prebuilt/`），zant 运行时据此找到框架（`main.zig` 的 `findRoot`）。
 
 ## 性能规则
 
@@ -268,7 +272,7 @@ ui.styled(node, .{
   （`zant-components` 配合 `ZANT_AUTOPLAY=quiet`）看每帧耗时，单帧应远低于 16.7 ms；
   Windows 上用 `scripts/win/resize-check.ps1` 测拖动缩放帧率（应跟满刷新率）。
 - 每帧路径里不要写 stderr（Windows 上每行约 10 ms）。
-- 当前测试 160/160（`tests/` + 框架模块内单元测试），macOS 与 Windows 都要通过；新增行为应补测试。
+- 当前测试 164/164（`tests/` + 框架模块内单元测试），macOS 与 Windows 都要通过；新增行为应补测试。
 - 文字排版缓存：`TextData` / `RichTextData` 保留当前与上一个宽度的排版，测量自然宽度走独立缓存
   （`measureWidth` / `naturalWidth`）；不要在测量路径里调 `ensureLayout` 换宽度，否则每帧会重排所有文字。
 - 无确定高度的 column 不计算子节点的 flex 基准高度（不会用到），避免整棵子树按估计宽度多排一遍。

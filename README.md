@@ -50,9 +50,40 @@ Metal / Direct3D 12 GPU 渲染，以及一个编译后的项目脚手架。不�
 Ant Design 5 为准。脚手架生成的每个项目都自带同一份 `DESIGN.md`，并在 `AGENTS.md` /
 `CLAUDE.md` 中声明其优先级。
 
-## 快速开始
+## 安装 zant
 
-要求：Zig 0.17.1，以及
+一条命令装好 `zant` 和 Zant UI（下载发布包，不用克隆源码、不用编译）：
+
+```bash
+# macOS（Apple 芯片，macOS 13+）
+curl -fsSL https://raw.githubusercontent.com/racall/zant-ui/main/install.sh | bash
+```
+
+```powershell
+# Windows 10/11 x64（PowerShell）
+irm https://raw.githubusercontent.com/racall/zant-ui/main/install.ps1 | iex
+```
+
+安装脚本先检查 Zig：已经装了 Zig 0.17.1 就直接用，没有（或版本不同）就下载官方的 Zig 0.17.1 放进
+安装目录（不影响已有的 Zig）。然后下载对应平台的发布包，校验后放到 `~/.zant`（Windows 是
+`%LOCALAPPDATA%\zant`），并把 `zant` 加到 PATH。macOS 还需要 Xcode 命令行工具（编译应用要用
+macOS SDK，没装时脚本会打开安装窗口）；Windows 的发布包自带编译好的 Skia 桥接库和 VC 运行库，
+**不需要 Visual Studio**。
+
+```bash
+zant create my-app        # 交互式：标题、窗口风格、应用标识
+cd my-app && zant run
+zant update               # 更新到最新版本
+```
+
+可选的环境变量（运行安装命令前设置）：`ZANT_HOME`（安装目录）、`ZANT_VERSION`（指定版本，如
+`v0.1.0`）、`ZANT_BIN_DIR`（macOS 放 `zant` 链接的目录，默认 `~/.local/bin`）、
+`ZANT_NO_MODIFY_PATH=1`（macOS 不改 shell 配置文件）。卸载：删除安装目录和 `~/.local/bin/zant`，
+并去掉 PATH 里对应的一项。
+
+## 从源码构建
+
+开发 Zant UI 本身时用源码。要求：Zig 0.17.1，以及
 
 - macOS 13+、Xcode 命令行工具；或
 - Windows 10/11 x64、Visual Studio 2022+（或 Build Tools）的「使用 C++ 的桌面开发」工作负载。
@@ -69,17 +100,17 @@ zig build run-components  # 全部组件总览（ZANT_DARK=1 深色）
 zig build run-pdf -- a.pdf  # PDF 阅读器（滚动、缩放、选择复制、搜索、批注）
 zig build run-md-stream   # 流式 Markdown 基准（聊天 + 模拟 / 真实 SSE，帧统计）
 zig build bench           # 无窗口帧基准：打开长对话、流式、打字、光标、悬停、缩放、滚动
-zig build test            # 测试（160 项，含 remend 522 条上游用例、mhchem 823 条用例）
+zig build test            # 测试（164 项，含 remend 522 条上游用例、mhchem 823 条用例）
 ```
 
 ## 全局 CLI 与脚手架
 
-构建后把 `zant` 放到 PATH，之后在任意目录都可以 `zant create`：
+普通使用见上面的「安装 zant」。用源码开发框架时，构建后把这份 `zant` 放到 PATH：
 
 ```bash
 ln -sfn "$PWD/zig-out/bin/zant" ~/.local/bin/zant     # macOS
 # Windows：把 <XyUI>\zig-out\bin 加到用户 PATH（zig 也需要在 PATH 上）
-zant update               # 框架代码更新后重新编译 CLI
+zant update               # 源码版：拉取新代码（工作区干净时）、检查依赖并重新编译 CLI
 ```
 
 Windows 上 `zant package` 生成 `zig-out/<标题>/` 目录（exe、`zant_skia.dll`、`pdfium.dll`

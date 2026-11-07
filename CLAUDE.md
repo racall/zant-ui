@@ -16,11 +16,12 @@
 - 声明式 API：`src/ui.zig`；协调器：`src/ui_runtime.zig`。
 - 组件：`src/components/`；样式统一入口：`ui.styled`。
 - 脚手架：`tools/zant/main.zig`；模板：`scaffold/template/`。
-- 测试：`zig build test`（当前 160/160，含 remend 522 条、mhchem 823 条上游用例；macOS 与 Windows 都要过）。
+- 测试：`zig build test`（当前 164/164，含 remend 522 条、mhchem 823 条上游用例；macOS 与 Windows 都要过）。
 - Windows：测试机见 `AGENTS.md`「跨平台规范」；`scripts/win/` 同步、远程构建、桌面冒烟测试。
 - 动效：`src/motion/`，规范见 `docs/motion.md` 与 `AGENTS.md`「动效规范」；
   `ZANT_NO_MOTION=1` 关闭动效。
-- 全局 CLI：`zant`；框架更新后执行 `zant update`。
+- 全局 CLI：`zant`；框架更新后执行 `zant update`。一键安装 `install.sh` / `install.ps1`（发布包，
+  `scripts/release/`，推送 `v*` 标签由 `.github/workflows/release.yml` 发布，见 `docs/development.md`「发布」）。
 - 发布构建：`zant build [配置文件]`（`build.config.json`，`docs/build.md`）：zant 读配置、提问、编译签名，
   平台步骤在 `tools/zant/package/` 脚本（macOS DMG / 公证 / App Store，Windows Inno Setup 安装包 / MSIX）。
 - 热更新：`zant run --watch`（重启式，非沙盒，监视 `src/` 下所有 .zig）。

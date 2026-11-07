@@ -5,17 +5,28 @@
 脚手架是一个编译后的 `zant` 工具。发布构建（`zant build`）的平台步骤调用 Zant UI 自带的打包脚本
 （`tools/zant/package/`），项目里不需要自己写脚本。
 
-先构建框架：
+## 安装
 
 ```bash
-cd /path/to/zant-ui
-zig build
+# macOS（Apple 芯片）
+curl -fsSL https://raw.githubusercontent.com/racall/zant-ui/main/install.sh | bash
 ```
 
-macOS 与 Windows 用法相同。Windows 上先运行一次
-`powershell -ExecutionPolicy Bypass -File scripts/fetch_skia_windows.ps1`，并把 Zig 和
-`<zant-ui>\zig-out\bin` 加入 PATH；需要 Visual Studio 2022+ / Build Tools 的 C++ 工作负载。
-`zant create` 只问两端通用的设置，生成的项目在两端都能直接 `zant run`。平台专属的设置和文件
+```powershell
+# Windows x64（PowerShell）
+irm https://raw.githubusercontent.com/racall/zant-ui/main/install.ps1 | iex
+```
+
+安装脚本第一步检查 Zig（没有 Zig 0.17.1 就下载官方版本到安装目录），然后下载最新的发布包：
+编译好的 `zant`、Zant UI 框架和预编译依赖（Skia；Windows 还有 PDFium 和编译好的 Skia 桥接库），
+放到 `~/.zant`（Windows `%LOCALAPPDATA%\zant`）并加到 PATH。不需要克隆源码，也不需要编译；
+Windows 不需要 Visual Studio，macOS 需要 Xcode 命令行工具。详细说明和环境变量见 README「安装 zant」。
+
+用源码开发 Zant UI 本身时，在源码目录运行 `scripts/fetch_skia.sh`（Windows
+`scripts/fetch_skia_windows.ps1`，并需要 Visual Studio 2022+ / Build Tools 的 C++ 工作负载）和
+`zig build`，再把 `zig-out/bin` 里的 `zant` 放到 PATH。
+
+macOS 与 Windows 用法相同。`zant create` 只问两端通用的设置，生成的项目在两端都能直接 `zant run`。平台专属的设置和文件
 由 `zant run` / `build` / `package` 在当前平台按需补充：macOS 上补 `app.config.json` 的
 `macos` 段（沙盒、签名账号）并生成 Info.plist、entitlements；Windows 暂无专属设置。
 
@@ -23,7 +34,7 @@ macOS 与 Windows 用法相同。Windows 上先运行一次
 
 ```bash
 cd /path/to/work
-/path/to/zant-ui/zig-out/bin/zant create my-app
+zant create my-app
 ```
 
 会询问（都是两端通用的）：
@@ -86,7 +97,8 @@ zant compile          # 只编译（--release 用 ReleaseFast）
 zant package          # 本机测试用的 .app / 程序目录
 zant build            # 发布构建：签名、DMG、公证、安装包或提交商店，见「发布构建」
 zant sync             # 只重新生成 src/app_config.zig、Info.plist（沙盒或设了 macos.entitlements 时还有 app.entitlements）
-zant update           # 框架更新后重编译全局 zant CLI（Windows 上先把运行中的 zant.exe 改名为 zant.old.exe）
+zant update           # 安装版：更新到最新发布包；源码版：git pull（工作区干净且有远程分支时）、
+                      # 检查依赖和 Zig 版本、重新编译 zant（Windows 上先把运行中的 zant.exe 改名为 zant.old.exe）
 ```
 
 `zant run` / `zant compile` 默认 Debug 构建（Windows 上是控制台程序）；`--release`、`zant package` 与 `zant build`

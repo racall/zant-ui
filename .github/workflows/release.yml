@@ -81,6 +81,8 @@ jobs:
             --title "zant ${{ github.ref_name }}" \
             --notes "安装 / Install:
 
-          macOS (Apple silicon): \`curl -fsSL https://github.com/${{ github.repository }}/releases/latest/download/install.sh | bash\`
+          macOS (Apple silicon): \`curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/install.sh | bash\`
 
-          Windows (PowerShell): \`irm https://github.com/${{ github.repository }}/releases/latest/download/install.ps1 | iex\`"
+          Windows (PowerShell): \`irm https://raw.githubusercontent.com/${{ github.repository }}/main/install.ps1 | iex\`
+
+          已安装的用 \`zant update\` 更新 / Update an existing install with \`zant update\`."

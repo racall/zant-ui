@@ -1,6 +1,9 @@
 # Installs the zant CLI and Zant UI on Windows 10/11 x64, ready to use:
 #
-#   irm https://github.com/racall/zant-ui/releases/latest/download/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/racall/zant-ui/main/install.ps1 | iex
+#
+# (raw.githubusercontent.com serves it as UTF-8; release assets come as
+# application/octet-stream, which `irm` would decode as Latin-1)
 #
 # 1. Zig: uses `zig` from PATH when it is the version Zant UI needs,
 #    otherwise downloads the official build into $ZANT_HOME\zig.

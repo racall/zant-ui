@@ -51,7 +51,7 @@ Windows 上写 stderr 很贵（每行约 10 ms），不要在每帧都会执行�
 
 ## 测试
 
-`zig build test`（160 项，macOS 与 Windows 都要通过）覆盖 Flex 布局、组件、声明式 UI 与协调、
+`zig build test`（164 项，macOS 与 Windows 都要通过）覆盖 Flex 布局、组件、声明式 UI 与协调、
 节点生命周期、动效（假时钟）、文本、Store / SQLite、指针区域、文字选择、PDF 阅读器（选择 / 搜索 /
 批注 / 导出）、Markdown（含 remend 522 条上游用例）与数学排版（含 mhchem 823 条用例全部可排版）。
 
@@ -129,6 +129,24 @@ zig build
 生成项目的 `build.zig` 通过 `zant_ui` 依赖导入框架，并调用 `configureApp`（Windows 上嵌入 manifest、
 Release 用 GUI 子系统、把 `zant_skia.dll` / `pdfium.dll` 装到 exe 旁；macOS 上无操作）；模板位于
 `scaffold/template/`，由 CLI 写入目标目录。框架更新后执行 `zant update` 重编译全局 CLI。详见 [脚手架](scaffold.md)。
+
+## 发布
+
+开发者用一行命令安装（`install.sh` / `install.ps1`，见 README「安装 zant」），装的是 GitHub Release 上的发布包：
+
+1. 改 `build.zig.zon` 的 `version`（以及需要的话 `minimum_zig_version`，同时更新两个安装脚本和
+   `.github/workflows/release.yml` 里固定的 Zig 版本与校验值），提交到 main；
+2. 打标签并推送：`git tag v0.2.0 && git push origin v0.2.0`；
+3. GitHub Actions（`.github/workflows/release.yml`）在 macOS 和 Windows 上下载 Skia 等依赖、
+   编译 zant（ReleaseSafe），用 `scripts/release/package.sh` / `package.ps1` 打包，Windows 还用 MSVC
+   编译 `zant_skia.dll` 放进 `third_party/zant-skia-prebuilt/`（带 VC 运行库）；最后发布 Release，附件为
+   `zant-macos-arm64.tar.gz`、`zant-windows-x64.zip`、各自的 `.sha256`、`version.txt` 和两个安装脚本。
+
+手动运行这个工作流（Actions → release → Run workflow）只构建发布包作为 artifact，不发布。
+
+本地试打包：`./scripts/release/package.sh v0.0.0-test /tmp/rel`，再用
+`ZANT_HOME=/tmp/zh ZANT_DOWNLOAD=file:///tmp/rel bash install.sh` 安装测试（需要先把 `version.txt` 和
+`install.sh` 放进那个目录）。
 
 ## 目录
 

@@ -1,7 +1,7 @@
 #!/bin/bash
 # Installs the zant CLI and Zant UI on macOS (Apple silicon), ready to use:
 #
-#   curl -fsSL https://github.com/racall/zant-ui/releases/latest/download/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/racall/zant-ui/main/install.sh | bash
 #
 # 1. Zig: uses `zig` from PATH when it is the version Zant UI needs,
 #    otherwise downloads the official build into $ZANT_HOME/zig.
