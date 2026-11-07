@@ -1367,6 +1367,21 @@ int zant_hotkey_register(int id, int key, int modifiers) {
     return 1;
 }
 
+size_t zant_device_name(char *out, size_t capacity) {
+    @autoreleasepool {
+        NSString *name = [[NSHost currentHost] localizedName];
+        if (name.length == 0) name = [[NSProcessInfo processInfo] hostName];
+        const char *utf8 = name.UTF8String ? name.UTF8String : "";
+        const size_t needed = strlen(utf8) + 1;
+        if (out && capacity > 0) {
+            const size_t n = needed < capacity ? needed : capacity;
+            memcpy(out, utf8, n - 1);
+            out[n - 1] = '\0';
+        }
+        return needed;
+    }
+}
+
 int zant_system_dark_mode(void) {
     NSAppearance *appearance = NSApp ? NSApp.effectiveAppearance : [NSAppearance currentDrawingAppearance];
     NSAppearanceName name =

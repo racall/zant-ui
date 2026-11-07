@@ -234,6 +234,7 @@ extern fn zant_hotkey_register(id: c_int, key: c_int, modifiers: c_int) c_int;
 extern fn zant_hotkey_unregister(id: c_int) void;
 extern fn zant_clipboard_change_count() u64;
 extern fn zant_system_dark_mode() c_int;
+extern fn zant_device_name(out: ?[*]u8, capacity: usize) usize;
 extern fn zant_clipboard_watch(enable: c_int) void;
 extern fn zant_clipboard_set_text(text: [*]const u8, length: usize) c_int;
 extern fn zant_clipboard_get_text(out: ?[*]u8, capacity: usize) usize;
@@ -407,6 +408,13 @@ pub fn unregisterHotkey(id: c_int) void {
 /// Sends `AppEventType.clipboard` after each clipboard change.
 pub fn watchClipboard(enable: bool) void {
     if (supported) zant_clipboard_watch(@intFromBool(enable));
+}
+
+/// The computer's name as the user sees it, in `buf` (truncated to fit).
+pub fn deviceName(buf: []u8) []const u8 {
+    if (!supported or buf.len == 0) return "";
+    _ = zant_device_name(buf.ptr, buf.len);
+    return std.mem.sliceTo(buf, 0);
 }
 
 /// The system uses the dark appearance.

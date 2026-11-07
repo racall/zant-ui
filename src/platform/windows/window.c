@@ -1385,8 +1385,20 @@ int zant_window_is_visible(ZantWindow *window) {
 void zant_window_activate(ZantWindow *window) {
     if (!window || !window->hwnd || window->closing) return;
     ShowWindow(window->hwnd, IsIconic(window->hwnd) ? SW_RESTORE : SW_SHOW);
-    /* allowed: the call follows a hotkey, a tray click or our own input */
-    SetForegroundWindow(window->hwnd);
+    /* usually allowed (the call follows a hotkey, a tray click or our own
+       input), but the foreground lock can still refuse it, e.g. right after
+       another app took the foreground: then share input with the foreground
+       thread for the switch, the common way launchers bring their popup up */
+    if (!SetForegroundWindow(window->hwnd) || GetForegroundWindow() != window->hwnd) {
+        HWND fg = GetForegroundWindow();
+        const DWORD fg_thread = fg ? GetWindowThreadProcessId(fg, NULL) : 0;
+        const DWORD self = GetCurrentThreadId();
+        if (fg_thread && fg_thread != self && AttachThreadInput(fg_thread, self, TRUE)) {
+            BringWindowToTop(window->hwnd);
+            SetForegroundWindow(window->hwnd);
+            AttachThreadInput(fg_thread, self, FALSE);
+        }
+    }
     SetFocus(window->hwnd);
     zant_request(window);
 }
@@ -1462,6 +1474,21 @@ void zant_app_quit(void) {
 
 void zant_app_set_dock_visible(int visible) {
     (void)visible; /* the taskbar shows visible windows */
+}
+
+size_t zant_device_name(char *out, size_t capacity) {
+    wchar_t name[256];
+    DWORD len = 256;
+    if (!GetComputerNameExW(ComputerNamePhysicalDnsHostname, name, &len)) {
+        len = 256;
+        if (!GetComputerNameW(name, &len)) len = 0;
+    }
+    name[len] = 0;
+    const int needed = WideCharToMultiByte(CP_UTF8, 0, name, -1, NULL, 0, NULL, NULL);
+    if (out && capacity > 0) {
+        if (WideCharToMultiByte(CP_UTF8, 0, name, -1, out, (int)capacity, NULL, NULL) == 0) out[capacity - 1] = 0;
+    }
+    return needed > 0 ? (size_t)needed : 1;
 }
 
 int zant_system_dark_mode(void) {

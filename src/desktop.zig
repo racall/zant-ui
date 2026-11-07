@@ -191,6 +191,12 @@ pub fn setDockVisible(visible: bool) void {
     platform.setDockVisible(visible);
 }
 
+/// The computer's name as the user sees it ("Brian's MacBook Pro" on
+/// macOS, the computer name on Windows), written into `buf`.
+pub fn deviceName(buf: []u8) []const u8 {
+    return platform.deviceName(buf);
+}
+
 /// The system uses the dark appearance (macOS Dark Mode, Windows app mode
 /// Dark). Windows rebuild when it changes, so a theme hook can follow it:
 ///

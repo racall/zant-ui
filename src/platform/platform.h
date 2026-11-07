@@ -260,6 +260,11 @@ int zant_tray_icon_pixels(void);
 int zant_hotkey_register(int id, int key, int modifiers);
 void zant_hotkey_unregister(int id);
 
+/* The computer's name as the user sees it (macOS: "Brian's MacBook Pro",
+   Windows: the computer name), UTF-8, NUL-terminated; returns the bytes
+   needed including the NUL (copies at most `capacity`). */
+size_t zant_device_name(char *out, size_t capacity);
+
 /* 1 when the system uses the dark appearance (macOS Dark Mode, Windows
    "Choose your app mode: Dark"). */
 int zant_system_dark_mode(void);
