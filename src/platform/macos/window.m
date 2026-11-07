@@ -395,6 +395,14 @@ static void zant_request_view_redraw(ZantView *view) {
     zant_request_view_redraw(self);
 }
 
+- (void)viewDidChangeEffectiveAppearance {
+    [super viewDidChangeEffectiveAppearance];
+    if (self.macWindow) {
+        zant_send_window_event(self.macWindow, ZANT_EVENT_APPEARANCE_CHANGE);
+        zant_request_view_redraw(self);
+    }
+}
+
 - (void)viewDidChangeBackingProperties {
     [super viewDidChangeBackingProperties];
     zant_request_view_redraw(self);
@@ -1312,8 +1320,37 @@ int zant_hotkey_register(int id, int key, int modifiers) {
     return 1;
 }
 
+int zant_system_dark_mode(void) {
+    NSAppearance *appearance = NSApp ? NSApp.effectiveAppearance : [NSAppearance currentDrawingAppearance];
+    NSAppearanceName name =
+        [appearance bestMatchFromAppearancesWithNames:@[ NSAppearanceNameAqua, NSAppearanceNameDarkAqua ]];
+    return [name isEqualToString:NSAppearanceNameDarkAqua] ? 1 : 0;
+}
+
 uint64_t zant_clipboard_change_count(void) {
     return (uint64_t)[NSPasteboard generalPasteboard].changeCount;
+}
+
+static NSTimer *g_clipboard_timer = nil;
+static NSInteger g_clipboard_count = 0;
+
+void zant_clipboard_watch(int enable) {
+    [g_clipboard_timer invalidate];
+    g_clipboard_timer = nil;
+    if (!enable) return;
+    /* macOS has no clipboard notification; the change count is a cheap read */
+    g_clipboard_count = [NSPasteboard generalPasteboard].changeCount;
+    g_clipboard_timer = [NSTimer timerWithTimeInterval:0.3
+                                               repeats:YES
+                                                 block:^(NSTimer *timer) {
+        (void)timer;
+        const NSInteger count = [NSPasteboard generalPasteboard].changeCount;
+        if (count == g_clipboard_count) return;
+        g_clipboard_count = count;
+        zant_app_emit(ZANT_APP_EVENT_CLIPBOARD, 0);
+    }];
+    g_clipboard_timer.tolerance = 0.1;
+    [[NSRunLoop mainRunLoop] addTimer:g_clipboard_timer forMode:NSRunLoopCommonModes];
 }
 
 void zant_window_set_document_edited(ZantWindow *window, int edited) {

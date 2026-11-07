@@ -77,6 +77,8 @@ pub const Event = union(enum) {
     /// The user asked to quit the app (⌘Q, the Dock menu, logout); sent to
     /// the main window, the app may veto it.
     app_quit_request,
+    /// The system switched between light and dark appearance.
+    appearance_change,
     scroll: struct { x: f32, y: f32, dx: f32, dy: f32, modifiers: Modifiers },
 };
 
@@ -151,6 +153,7 @@ pub fn translate(raw: *const platform.Event) Event {
         platform.EventType.window_focus => .window_focus,
         platform.EventType.window_blur => .window_blur,
         platform.EventType.window_close => .window_close,
+        platform.EventType.appearance_change => .appearance_change,
         platform.EventType.window_close_request => if (raw.button == 1) .app_quit_request else .window_close_request,
         platform.EventType.scroll => .{ .scroll = .{
             .x = raw.x,

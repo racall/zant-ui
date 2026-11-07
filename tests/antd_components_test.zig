@@ -166,3 +166,80 @@ test "modal is a focus scope: Tab cycles inside the dialog only" {
     _ = runtime.dispatch(.{ .key_down = .{ .key = .tab, .modifiers = .{ .shift = true } } });
     try std.testing.expect(!std.mem.startsWith(u8, runtime.tree.get(runtime.tree.focused.?).key orelse "-", "behind"));
 }
+
+test "clickable rows and the hotkey recorder" {
+    const Rows = struct {
+        picked: ?usize = null,
+        deleted: usize = 0,
+        recording: bool = false,
+        hotkey: ?zant.desktop.Shortcut = null,
+
+        fn pick(self: *@This(), i: usize) void {
+            self.picked = i;
+        }
+        fn delete(self: *@This()) void {
+            self.deleted += 1;
+        }
+        fn start(self: *@This()) void {
+            self.recording = true;
+        }
+        fn record(self: *@This(), s: zant.desktop.Shortcut) void {
+            self.hotkey = s;
+            self.recording = false;
+        }
+        fn render(ctx: *anyopaque) ui.Node {
+            const self: *@This() = @ptrCast(@alignCast(ctx));
+            var rows: [2]ui.Node = undefined;
+            for (&rows, 0..) |*row, i| row.* = ui.clickable(.{
+                .box = .{ .key = if (i == 0) "row-0" else "row-1", .height = 40, .flex_direction = .row, .children = ui.frameAllocator().dupe(ui.Node, &.{
+                    ui.row(.{ .grow = 1 }),
+                    ui.iconButton(.{ .key = if (i == 0) "del-0" else "del-1", .icon = .trash, .on_click = ui.action(self, delete) }),
+                }) catch unreachable },
+                .index_action = ui.indexAction(self, pick),
+                .index = i,
+            });
+            return ui.column(.{ .align_items = .stretch, .children = ui.frameAllocator().dupe(ui.Node, &.{
+                rows[0],
+                rows[1],
+                ui.hotkeyInput(.{ .key = "hk", .value = self.hotkey, .recording = self.recording, .on_start = ui.action(self, start), .on_record = ui.hotkeyAction(self, record) }),
+            }) catch unreachable });
+        }
+    };
+    zant.motion.enabled = false;
+    defer zant.motion.enabled = true;
+    var state = Rows{};
+    const runtime = try zant.ui_runtime.Runtime.init(std.testing.allocator, &state, Rows.render, .{ .window = .{ .width = 300, .height = 200 } });
+    defer runtime.deinit();
+    var renderer = try zant.renderer.Renderer.createRaster(300, 200);
+    defer renderer.deinit();
+    const frame = struct {
+        fn f(r: *zant.ui_runtime.Runtime, ren: *zant.renderer.Renderer) void {
+            const canvas = ren.begin(1.0).?;
+            r.renderFrame(canvas, 300, 200, 1.0);
+            ren.end();
+        }
+    }.f;
+    frame(runtime, &renderer);
+    const row1 = runtime.tree.boundsOfKey("row-1").?;
+    _ = runtime.dispatch(.{ .pointer_down = .{ .x = row1.x + 10, .y = row1.y + 10 } });
+    _ = runtime.dispatch(.{ .pointer_up = .{ .x = row1.x + 10, .y = row1.y + 10 } });
+    try std.testing.expectEqual(@as(?usize, 1), state.picked);
+    // a button inside the row takes its own click
+    frame(runtime, &renderer);
+    const del = runtime.tree.boundsOfKey("del-0").?;
+    _ = runtime.dispatch(.{ .pointer_down = .{ .x = del.x + 5, .y = del.y + 5 } });
+    _ = runtime.dispatch(.{ .pointer_up = .{ .x = del.x + 5, .y = del.y + 5 } });
+    try std.testing.expectEqual(@as(usize, 1), state.deleted);
+    try std.testing.expectEqual(@as(?usize, 1), state.picked);
+    // click the recorder, press ⌃⌥K
+    frame(runtime, &renderer);
+    const hk = runtime.tree.boundsOfKey("hk").?;
+    _ = runtime.dispatch(.{ .pointer_down = .{ .x = hk.x + 5, .y = hk.y + 5 } });
+    _ = runtime.dispatch(.{ .pointer_up = .{ .x = hk.x + 5, .y = hk.y + 5 } });
+    try std.testing.expect(state.recording);
+    frame(runtime, &renderer);
+    _ = runtime.dispatch(.{ .key_down = .{ .key = .{ .character = 'k' }, .modifiers = .{ .control = true, .alt = true } } });
+    try std.testing.expect(!state.recording);
+    try std.testing.expect(state.hotkey.?.eql(.{ .key = .{ .character = 'k' }, .modifiers = .{ .control = true, .alt = true } }));
+    frame(runtime, &renderer);
+}

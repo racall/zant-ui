@@ -34,6 +34,9 @@ pub const Options = struct {
 /// - `pub fn onAppEvent(self: *State, event: zant.desktop.AppEvent) bool` —
 ///   tray / status bar clicks and menu items, global hotkeys, Dock clicks
 ///   (`zant.desktop`). Return true when state changed.
+/// - `pub fn onWake(self: *State) void` — on the UI thread after
+///   `ui.postWake()` from a background thread: take the results it
+///   published (then all windows rebuild).
 /// - `pub fn onStart(self: *State) void` — once, after the main window
 ///   exists and before the first frame: open panels, set the tray icon,
 ///   register hotkeys, start background work.
@@ -75,6 +78,10 @@ pub fn run(
             const value: *State = @ptrCast(@alignCast(ctx));
             value.onStart();
         }
+        fn wake(ctx: *anyopaque) void {
+            const value: *State = @ptrCast(@alignCast(ctx));
+            value.onWake();
+        }
     };
 
     const runtime = try Runtime.init(allocator, state, Adapter.render, .{
@@ -86,6 +93,7 @@ pub fn run(
         .close_fn = if (@hasDecl(State, "onCloseRequest")) Adapter.close else null,
         .quit_fn = if (@hasDecl(State, "onQuitRequest")) Adapter.quit else null,
         .start_fn = if (@hasDecl(State, "onStart")) Adapter.start else null,
+        .wake_fn = if (@hasDecl(State, "onWake")) Adapter.wake else null,
     });
     defer runtime.deinit();
     desktop.setMainRuntime(runtime);

@@ -36,6 +36,8 @@ enum {
        ZantEvent.button is 1 when the whole app is asked to quit (⌘Q, the
        Dock menu, logout) rather than this window closed. */
     ZANT_EVENT_WINDOW_CLOSE_REQUEST = 15,
+    /* the system switched between light and dark appearance */
+    ZANT_EVENT_APPEARANCE_CHANGE = 16,
 };
 
 enum {
@@ -216,6 +218,7 @@ enum {
     ZANT_APP_EVENT_TRAY_MENU = 2,  /* a tray / status bar menu item: id */
     ZANT_APP_EVENT_HOTKEY = 3,     /* a global hotkey: id */
     ZANT_APP_EVENT_REOPEN = 4,     /* macOS: Dock icon clicked (or app reopened) */
+    ZANT_APP_EVENT_CLIPBOARD = 5,  /* the clipboard changed (zant_clipboard_watch) */
 };
 typedef struct ZantAppEvent {
     int type;
@@ -250,9 +253,17 @@ int zant_tray_icon_pixels(void);
 int zant_hotkey_register(int id, int key, int modifiers);
 void zant_hotkey_unregister(int id);
 
+/* 1 when the system uses the dark appearance (macOS Dark Mode, Windows
+   "Choose your app mode: Dark"). */
+int zant_system_dark_mode(void);
+
 int zant_clipboard_set_text(const char *text, size_t length);
 /* Changes each time anything (any app) writes to the clipboard. */
 uint64_t zant_clipboard_change_count(void);
+/* Sends ZANT_APP_EVENT_CLIPBOARD after each clipboard change, including
+   this app's own writes (Windows: clipboard listener; macOS: the change
+   count checked on the UI thread every 0.3 s). */
+void zant_clipboard_watch(int enable);
 /* Returns the number of UTF-8 bytes required, including the trailing NUL. When
  * out is non-NULL, copies up to capacity bytes including the NUL. */
 size_t zant_clipboard_get_text(char *out, size_t capacity);

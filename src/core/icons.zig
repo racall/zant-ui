@@ -73,6 +73,13 @@ pub const Icon = enum {
     info,
     alert,
     lightbulb,
+    // devices and system
+    clipboard,
+    monitor,
+    wifi,
+    wifi_off,
+    clock,
+    power,
 };
 
 /// Receives one stroked polyline in 24×24 icon space.
@@ -422,6 +429,30 @@ pub fn trace(icon: Icon, sink: Sink) void {
             p.arc(12, 9.5, 6, 140, 400);
             p.line(&.{ .{ 7.4, 13.3 }, .{ 9, 16 }, .{ 15, 16 }, .{ 16.6, 13.3 } });
             p.line(&.{ .{ 9.5, 19.5 }, .{ 14.5, 19.5 } });
+        },
+        .clipboard => {
+            p.rect(5, 4.5, 14, 17, 2);
+            p.rect(8.5, 2.5, 7, 4, 1.2);
+        },
+        .monitor => {
+            p.rect(3, 4, 18, 12.5, 2);
+            p.line(&.{ .{ 12, 16.5 }, .{ 12, 20.5 } });
+            p.line(&.{ .{ 8, 20.5 }, .{ 16, 20.5 } });
+        },
+        .wifi, .wifi_off => {
+            p.dot(12, 19, 1.3);
+            p.arc(12, 19.5, 4.5, 225, 315);
+            p.arc(12, 19.5, 9, 225, 315);
+            p.arc(12, 19.5, 13.5, 228, 312);
+            if (icon == .wifi_off) p.line(&.{ .{ 3.5, 3.5 }, .{ 20.5, 20.5 } });
+        },
+        .clock => {
+            p.circle(12, 12, 9);
+            p.line(&.{ .{ 12, 7 }, .{ 12, 12 }, .{ 15.5, 14 } });
+        },
+        .power => {
+            p.arc(12, 13, 8, 305, 595);
+            p.line(&.{ .{ 12, 3 }, .{ 12, 11.5 } });
         },
         // 24 units = the 10px glyph box of Windows 11 caption buttons
         .window_minimize => p.line(&.{ .{ 0, 12 }, .{ 24, 12 } }),

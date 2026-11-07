@@ -70,7 +70,7 @@ fn configureWindows(b: *std.Build, target: std.Build.ResolvedTarget, mod: *std.B
     };
     mod.addObjectFile(importLibrary(b, "src/renderer/skia/zant_skia.def", "zant_skia.lib", machine));
     mod.addObjectFile(importLibrary(b, "src/platform/windows/winsqlite3.def", "winsqlite3.lib", machine));
-    const system_libs = [_][]const u8{ "user32", "gdi32", "imm32", "dwmapi", "shell32", "ole32", "comctl32", "uuid", "kernel32" };
+    const system_libs = [_][]const u8{ "user32", "gdi32", "imm32", "dwmapi", "shell32", "ole32", "comctl32", "uuid", "kernel32", "advapi32" };
     for (system_libs) |lib| mod.linkSystemLibrary(lib, .{ .use_pkg_config = .no });
 
     // the DLL itself can only be built on Windows (MSVC)

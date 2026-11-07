@@ -42,6 +42,9 @@ pub const Config = struct {
     focus_fn: ?*const fn (userdata: *anyopaque, focused: bool) bool = null,
     /// Once, after the window exists and before the event loop starts.
     start_fn: ?*const fn (userdata: *anyopaque) void = null,
+    /// On the UI thread after `ui.postWake` (any thread): take results that
+    /// background work published. Main window only.
+    wake_fn: ?*const fn (userdata: *anyopaque) void = null,
 };
 
 pub const Runtime = struct {
@@ -119,6 +122,8 @@ pub const Runtime = struct {
     sel_marked: std.ArrayListUnmanaged(NodeId) = .empty,
     /// Window clear colour; follows the root background (dark mode).
     clear_color: u32 = 0,
+    /// This window's frame allocations (ui.frameAllocator while it builds).
+    frame_arena: std.heap.ArenaAllocator = std.heap.ArenaAllocator.init(std.heap.c_allocator),
 
     pub fn init(
         allocator: std.mem.Allocator,
@@ -150,6 +155,7 @@ pub const Runtime = struct {
     }
 
     pub fn deinit(self: *Runtime) void {
+        self.frame_arena.deinit();
         if (self.tooltip_layout) |*layout| layout.deinit();
         self.sel_marked.deinit(self.allocator);
         self.tree.deinit();
@@ -286,7 +292,7 @@ pub const Runtime = struct {
         ui.setBuildWindowStyle(self.config.window.style);
         ui.setBuildTree(self.tree);
         defer ui.setBuildTree(null);
-        ui.beginFrame();
+        ui.beginFrameIn(&self.frame_arena);
         defer ui.endFrame();
         var root = self.render_fn(self.userdata);
         if (self.drawsCaptionButtons() and root.element.kind == .container) {
@@ -1437,6 +1443,11 @@ pub const Runtime = struct {
                 return 0;
             },
             .window_close => return 0,
+            .appearance_change => {
+                // theme hooks that follow the system re-evaluate
+                self.needs_build = true;
+                return 1;
+            },
             .window_close_request => {
                 const close_fn = self.config.close_fn orelse return 0;
                 const allowed = close_fn(self.userdata);
@@ -2588,6 +2599,7 @@ fn titlebarHitCallback(userdata: ?*anyopaque, x: f32, y: f32) callconv(.c) c_int
 
 fn wakeCallback(userdata: ?*anyopaque) callconv(.c) void {
     const self: *Runtime = @ptrCast(@alignCast(userdata orelse return));
+    if (self.config.wake_fn) |wake_fn| wake_fn(self.userdata);
     self.needs_build = true;
     // background results (ui.postWake) concern the app state: all windows
     for (open_runtimes.items) |runtime| {

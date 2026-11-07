@@ -811,6 +811,14 @@ static LRESULT CALLBACK zant_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) 
             DestroyWindow(hwnd);
             return 0;
 
+        case WM_SETTINGCHANGE:
+            /* light / dark app mode changed in Settings */
+            if (lp && wcscmp((const wchar_t *)lp, L"ImmersiveColorSet") == 0) {
+                zant_send_simple(w, ZANT_EVENT_APPEARANCE_CHANGE);
+                zant_request(w);
+            }
+            break;
+
         case WM_DESTROY:
             w->closing = true;
             KillTimer(hwnd, ZANT_TIMER_REDRAW);
@@ -1434,6 +1442,14 @@ void zant_app_set_dock_visible(int visible) {
     (void)visible; /* the taskbar shows visible windows */
 }
 
+int zant_system_dark_mode(void) {
+    DWORD light = 1, size = sizeof(light);
+    if (RegGetValueW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+                     L"AppsUseLightTheme", RRF_RT_REG_DWORD, NULL, &light, &size) != ERROR_SUCCESS)
+        return 0;
+    return light == 0 ? 1 : 0;
+}
+
 uint64_t zant_clipboard_change_count(void) {
     return (uint64_t)GetClipboardSequenceNumber();
 }
@@ -1462,6 +1478,10 @@ static void zant_tray_show_menu(void) {
 }
 
 static LRESULT CALLBACK zant_app_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+    if (msg == WM_CLIPBOARDUPDATE) {
+        zant_app_emit(ZANT_APP_EVENT_CLIPBOARD, 0);
+        return 0;
+    }
     if (msg == WM_HOTKEY) {
         zant_app_emit(ZANT_APP_EVENT_HOTKEY, (int)wp);
         return 0;
@@ -1630,4 +1650,13 @@ int zant_hotkey_register(int id, int key, int modifiers) {
 
 void zant_hotkey_unregister(int id) {
     if (g_app_hwnd) UnregisterHotKey(g_app_hwnd, id);
+}
+
+void zant_clipboard_watch(int enable) {
+    static bool watching = false;
+    HWND hwnd = zant_app_window();
+    if (!hwnd || (enable != 0) == watching) return;
+    watching = enable != 0;
+    if (watching) AddClipboardFormatListener(hwnd);
+    else RemoveClipboardFormatListener(hwnd);
 }

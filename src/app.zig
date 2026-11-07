@@ -186,7 +186,7 @@ pub const App = struct {
                 self.tree.markLayoutDirty();
                 return 0;
             },
-            .window_close, .window_close_request, .app_quit_request => return 0,
+            .window_close, .window_close_request, .app_quit_request, .appearance_change => return 0,
             .scroll => return 0,
         }
     }

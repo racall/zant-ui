@@ -171,6 +171,33 @@ pub fn setDockVisible(visible: bool) void {
     platform.setDockVisible(visible);
 }
 
+/// The system uses the dark appearance (macOS Dark Mode, Windows app mode
+/// Dark). Windows rebuild when it changes, so a theme hook can follow it:
+///
+///     pub fn theme(_: *State) zant.tokens.Theme {
+///         return if (zant.desktop.systemDarkMode()) zant.tokens.antDark() else zant.tokens.antLight();
+///     }
+pub fn systemDarkMode() bool {
+    return platform.systemDarkMode();
+}
+
+/// Sends `.clipboard` app events after each clipboard change (any app,
+/// this one included): clipboard managers, sync tools. Read the text with
+/// `clipboardText`; compare `clipboardChangeCount` to skip your own write.
+pub fn watchClipboard(enable: bool) void {
+    platform.watchClipboard(enable);
+}
+
+/// Text on the clipboard (UTF-8; empty when it holds no text). Caller frees.
+pub fn clipboardText(allocator: std.mem.Allocator) ![]u8 {
+    return platform.clipboardAlloc(allocator);
+}
+
+/// Puts `text` on the clipboard (plain text).
+pub fn setClipboardText(text: []const u8) bool {
+    return platform.setClipboard(text);
+}
+
 /// Increments whenever any app writes to the clipboard: poll it (cheap) to
 /// notice copies, then read the text with `ui.clipboardText`.
 pub fn clipboardChangeCount() u64 {
@@ -186,6 +213,9 @@ pub const AppEvent = union(enum) {
     hotkey: u32,
     /// macOS: the Dock icon was clicked (show the hidden main window).
     reopen,
+    /// The clipboard changed (any app, this one included) — see
+    /// `watchClipboard`.
+    clipboard,
 };
 
 var app_handler_ctx: ?*anyopaque = null;
@@ -199,6 +229,7 @@ fn appCallback(_: ?*anyopaque, raw: *const platform.AppEvent) callconv(.c) void 
         platform.AppEventType.tray_menu => .{ .tray_menu = @intCast(@max(raw.id, 0)) },
         platform.AppEventType.hotkey => .{ .hotkey = @intCast(@max(raw.id, 0)) },
         platform.AppEventType.reopen => .reopen,
+        platform.AppEventType.clipboard => .clipboard,
         else => return,
     };
     if (handler(ctx, event)) Runtime.invalidateAll();

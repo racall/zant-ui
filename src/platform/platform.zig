@@ -17,6 +17,7 @@ pub const EventType = struct {
     pub const window_close: c_int = 13;
     pub const scroll: c_int = 14;
     pub const window_close_request: c_int = 15;
+    pub const appearance_change: c_int = 16;
 };
 
 pub const Key = struct {
@@ -231,6 +232,8 @@ extern fn zant_tray_icon_pixels() c_int;
 extern fn zant_hotkey_register(id: c_int, key: c_int, modifiers: c_int) c_int;
 extern fn zant_hotkey_unregister(id: c_int) void;
 extern fn zant_clipboard_change_count() u64;
+extern fn zant_system_dark_mode() c_int;
+extern fn zant_clipboard_watch(enable: c_int) void;
 extern fn zant_clipboard_set_text(text: [*]const u8, length: usize) c_int;
 extern fn zant_clipboard_get_text(out: ?[*]u8, capacity: usize) usize;
 
@@ -350,6 +353,7 @@ pub const AppEventType = struct {
     pub const tray_menu: c_int = 2;
     pub const hotkey: c_int = 3;
     pub const reopen: c_int = 4;
+    pub const clipboard: c_int = 5;
 };
 
 pub const AppEvent = extern struct { type: c_int, id: c_int };
@@ -389,6 +393,17 @@ pub fn registerHotkey(id: c_int, key: c_int, modifiers: c_int) bool {
 
 pub fn unregisterHotkey(id: c_int) void {
     if (supported) zant_hotkey_unregister(id);
+}
+
+/// Sends `AppEventType.clipboard` after each clipboard change.
+pub fn watchClipboard(enable: bool) void {
+    if (supported) zant_clipboard_watch(@intFromBool(enable));
+}
+
+/// The system uses the dark appearance.
+pub fn systemDarkMode() bool {
+    if (!supported) return false;
+    return zant_system_dark_mode() != 0;
 }
 
 /// Changes whenever any app writes to the clipboard.

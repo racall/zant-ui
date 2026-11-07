@@ -91,7 +91,15 @@ pub const MemoBuild = struct {
     func: *const fn (ctx: *const anyopaque) Node,
 };
 
-threadlocal var frame_arena = std.heap.ArenaAllocator.init(std.heap.c_allocator);
+threadlocal var default_frame_arena = std.heap.ArenaAllocator.init(std.heap.c_allocator);
+/// Arena of the frame being built: each window (runtime) has its own, so a
+/// window's frame never frees memory another window's nodes still use (an
+/// action context, a drawing) between its frames.
+threadlocal var frame_arena_ptr: ?*std.heap.ArenaAllocator = null;
+
+fn frameArena() *std.heap.ArenaAllocator {
+    return frame_arena_ptr orelse &default_frame_arena;
+}
 threadlocal var frame_active = false;
 
 /// Theme used by `ui.*` builders for their default colours. The runtime sets
@@ -273,7 +281,14 @@ pub fn nowMs() i64 {
 }
 
 pub fn beginFrame() void {
-    _ = frame_arena.reset(.retain_capacity);
+    beginFrameIn(null);
+}
+
+/// Starts a frame whose allocations live in `arena` until its next frame
+/// (the runtime passes the window's own arena).
+pub fn beginFrameIn(arena: ?*std.heap.ArenaAllocator) void {
+    frame_arena_ptr = arena;
+    _ = frameArena().reset(.retain_capacity);
     pending_wake_ms = null;
     pending_edited = null;
     frame_active = true;
@@ -288,11 +303,11 @@ pub fn isFrameActive() bool {
 }
 
 fn alloc(comptime T: type) *T {
-    return frame_arena.allocator().create(T) catch @panic("Zant UI: out of memory while building a frame");
+    return frameArena().allocator().create(T) catch @panic("Zant UI: out of memory while building a frame");
 }
 
 fn allocSlice(comptime T: type, length: usize) []T {
-    return frame_arena.allocator().alloc(T, length) catch
+    return frameArena().allocator().alloc(T, length) catch
         @panic("Zant UI: out of memory while building a frame");
 }
 
@@ -302,7 +317,7 @@ fn allocSlice(comptime T: type, length: usize) []T {
 /// the text it copies). Callbacks fire before the next frame is built, so the
 /// memory stays valid for every event dispatched against this frame.
 pub fn frameAllocator() std.mem.Allocator {
-    return frame_arena.allocator();
+    return frameArena().allocator();
 }
 
 /// Copies `value` into the frame arena.
@@ -312,7 +327,7 @@ pub fn frameString(value: []const u8) []const u8 {
 
 fn copyString(value: []const u8) []const u8 {
     if (value.len == 0) return "";
-    return frame_arena.allocator().dupe(u8, value) catch
+    return frameArena().allocator().dupe(u8, value) catch
         @panic("Zant UI: out of memory while building a frame");
 }
 
@@ -722,6 +737,56 @@ pub const PointerAreaOptions = struct {
 ///         .cursor = .resize_horizontal,
 ///         .on_pointer = ui.pointerAction(self, State.dragSplit),
 ///     })
+pub const ClickableOptions = struct {
+    /// Layout and look of the area (a column container); `hover_background`
+    /// gives the hover feedback.
+    box: BoxOptions = .{},
+    on_click: ?actions.Action = null,
+    /// Called with `index` instead of `on_click` (rows of a list).
+    index_action: ?actions.IndexAction = null,
+    index: usize = 0,
+    cursor: platform_mod.Cursor = .pointing_hand,
+};
+
+const ClickTarget = struct {
+    on_click: ?actions.Action,
+    index_action: ?actions.IndexAction,
+    index: usize,
+
+    fn onPointer(self: *ClickTarget, info: actions.PointerInfo) bool {
+        if (info.phase != .up or info.button != .left) return false;
+        // released over the area (a press dragged away is cancelled)
+        if (info.x < 0 or info.y < 0 or info.x > info.width or info.y > info.height) return false;
+        if (self.index_action) |a| {
+            a.func(a.ctx, self.index);
+            return true;
+        }
+        if (self.on_click) |a| {
+            a.func(a.ctx);
+            return true;
+        }
+        return false;
+    }
+};
+
+/// A container that is clicked as a whole, like a list row or a card:
+/// buttons inside it still take their own clicks.
+///
+///     ui.clickable(.{
+///         .box = .{ .padding = ui.insetXY(12, 8), .radius = 6, .hover_background = theme.color_fill_tertiary, .children = &.{...} },
+///         .index_action = ui.indexAction(self, State.openItem),
+///         .index = i,
+///     })
+pub fn clickable(options: ClickableOptions) Node {
+    const target = alloc(ClickTarget);
+    target.* = .{ .on_click = options.on_click, .index_action = options.index_action, .index = options.index };
+    return pointerArea(.{
+        .box = options.box,
+        .cursor = options.cursor,
+        .on_pointer = pointerAction(target, ClickTarget.onPointer),
+    });
+}
+
 pub fn pointerArea(options: PointerAreaOptions) Node {
     var element: Element = .{
         .kind = .container,
@@ -803,7 +868,7 @@ pub fn text(value: []const u8, options: TextOptions) Node {
 }
 
 pub fn textFmt(comptime fmt: []const u8, args: anytype, options: TextOptions) Node {
-    const value = std.fmt.allocPrint(frame_arena.allocator(), fmt, args) catch
+    const value = std.fmt.allocPrint(frameArena().allocator(), fmt, args) catch
         @panic("Zant UI: out of memory while formatting text");
     return text(value, options);
 }
@@ -1036,7 +1101,7 @@ pub fn radioGroup(options: RadioGroupOptions) Node {
     const children = allocSlice(Node, options.options.len);
     const base = options.key orelse "radio-group";
     for (options.options, 0..) |option, i| {
-        const key = std.fmt.allocPrint(frame_arena.allocator(), "{s}-{d}", .{ base, i }) catch
+        const key = std.fmt.allocPrint(frameArena().allocator(), "{s}-{d}", .{ base, i }) catch
             @panic("Zant UI: out of memory while building a form");
         children[i] = make(.{
             .kind = .toggle,
@@ -1080,7 +1145,7 @@ pub fn tabs(options: TabsOptions) Node {
     const tab_children = allocSlice(Node, options.items.len);
     const base = options.key orelse "tab";
     for (options.items, 0..) |item, i| {
-        const key = std.fmt.allocPrint(frame_arena.allocator(), "{s}-{d}", .{ base, i }) catch
+        const key = std.fmt.allocPrint(frameArena().allocator(), "{s}-{d}", .{ base, i }) catch
             @panic("Zant UI: out of memory while building tabs");
         tab_children[i] = button(.{
             .key = key,
@@ -1094,7 +1159,7 @@ pub fn tabs(options: TabsOptions) Node {
     const row_children = allocSlice(Node, options.items.len + 1);
     @memcpy(row_children[0..options.items.len], tab_children);
     row_children[options.items.len] = styled(column(.{
-        .key = std.fmt.allocPrint(frame_arena.allocator(), "{s}-ink", .{base}) catch base,
+        .key = std.fmt.allocPrint(frameArena().allocator(), "{s}-ink", .{base}) catch base,
         .children = &.{},
     }), .{
         .absolute = true,
@@ -1210,7 +1275,7 @@ pub const IconOptions = struct {
 
 /// A line icon from the Zant icon set (24×24 grid, uniform stroke).
 pub fn icon(options: IconOptions) Node {
-    const arena = frame_arena.allocator();
+    const arena = frameArena().allocator();
     const d = arena.create(node_mod.vector.Drawing) catch @panic("Zant UI: out of memory while building a frame");
     d.* = icons_mod.drawing(arena, options.name, options.size, options.color orelse build_theme.color_text, options.stroke) catch
         @panic("Zant UI: out of memory while building a frame");
@@ -1383,7 +1448,7 @@ pub const PdfOptions = struct {
 /// Native PDF preview backed by PDFKit (macOS) or PDFium (Windows). Interaction is inspired by
 /// EmbedPDF, but this remains a native Skia UI (no WebView).
 pub fn pdfPreview(options: PdfOptions) Node {
-    const src_z = std.fmt.allocPrintSentinel(frame_arena.allocator(), "{s}", .{options.src}, 0) catch
+    const src_z = std.fmt.allocPrintSentinel(frameArena().allocator(), "{s}", .{options.src}, 0) catch
         @panic("Zant UI: out of memory while opening PDF");
     const count = pdf_mod.pageCount(src_z);
     const page = if (count == 0) 0 else @min(options.page, count - 1);
@@ -1719,3 +1784,9 @@ pub const MessageKind = message_mod.MessageKind;
 pub const MessageOptions = message_mod.MessageOptions;
 /// antd message: a transient pill near the top of the window.
 pub const message = message_mod.message;
+const hotkey_input_mod = @import("components/hotkey_input.zig");
+pub const HotkeyInputOptions = hotkey_input_mod.HotkeyInputOptions;
+pub const HotkeyAction = hotkey_input_mod.HotkeyAction;
+/// Shortcut recorder for a global hotkey (`zant.desktop.Shortcut`).
+pub const hotkeyInput = hotkey_input_mod.hotkeyInput;
+pub const hotkeyAction = hotkey_input_mod.hotkeyAction;
