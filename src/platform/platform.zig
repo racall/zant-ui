@@ -31,6 +31,8 @@ pub const Key = struct {
     pub const escape: c_int = 0x1109;
     pub const tab: c_int = 0x110A;
     pub const enter: c_int = 0x110B;
+    pub const page_up: c_int = 0x110C;
+    pub const page_down: c_int = 0x110D;
 };
 
 pub const Mod = struct {

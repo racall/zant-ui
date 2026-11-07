@@ -95,6 +95,8 @@ static int zant_key_from_event(NSEvent *event) {
         case 126: return ZANT_KEY_UP;
         case 115: return ZANT_KEY_HOME;
         case 119: return ZANT_KEY_END;
+        case 116: return ZANT_KEY_PAGE_UP;
+        case 121: return ZANT_KEY_PAGE_DOWN;
         case 51: return ZANT_KEY_BACKSPACE;
         case 117: return ZANT_KEY_DELETE;
         case 53: return ZANT_KEY_ESCAPE;

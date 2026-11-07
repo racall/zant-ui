@@ -45,6 +45,8 @@ enum {
     ZANT_KEY_ESCAPE = 0x1109,
     ZANT_KEY_TAB = 0x110A,
     ZANT_KEY_ENTER = 0x110B,
+    ZANT_KEY_PAGE_UP = 0x110C,
+    ZANT_KEY_PAGE_DOWN = 0x110D,
 };
 
 enum {
