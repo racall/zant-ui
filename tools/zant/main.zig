@@ -925,7 +925,7 @@ fn cmdCreate(allocator: std.mem.Allocator, io: Io, args: []const [:0]const u8) !
     try writeFile(allocator, io, claude_path, claude_text);
     try writeFile(allocator, io, try std.fs.path.join(allocator, &.{ target, ".gitignore" }),
         \\# build output and caches
-        \\zig-out/
+        \\zig-out*/
         \\.zig-cache/
         \\# Zant UI link for projects on another drive (Windows)
         \\.zant/
