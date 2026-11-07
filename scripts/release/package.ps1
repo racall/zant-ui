@@ -19,7 +19,9 @@ $Name = 'zant-windows-x64.zip'
 Set-Location $Root
 
 if (!(Test-Path 'third_party/skia-win/skia-binaries/skia.lib')) { throw 'run scripts/fetch_skia_windows.ps1 first' }
-& $Zig build cli -Doptimize=ReleaseSafe
+# a generic CPU: the build machine's own (e.g. AVX-512 on CI) would crash
+# zant on users' machines
+& $Zig build cli -Doptimize=ReleaseSafe -Dcpu=baseline
 if ($LASTEXITCODE -ne 0) { throw 'zig build cli failed' }
 # the bridge (MSVC) and pdfium.dll, into zig-out/bin
 & $Zig build zant-runtime

@@ -515,7 +515,18 @@ fn writeConfigSource(allocator: std.mem.Allocator, io: Io, root: []const u8, cfg
     defer allocator.free(config_source);
     const config_path = try std.fs.path.join(allocator, &.{ root, "src", "app_config.zig" });
     defer allocator.free(config_path);
-    try writeFile(allocator, io, config_path, config_source);
+    try writeGenerated(allocator, io, config_path, config_source);
+}
+
+/// Writes a generated file only when its content changed: an unchanged
+/// mtime keeps `zant run --watch` (which watches src/) from seeing its own
+/// regenerated src/app_config.zig as an edit and rebuilding in a loop.
+fn writeGenerated(allocator: std.mem.Allocator, io: Io, path: []const u8, data: []const u8) !void {
+    if (readFile(allocator, io, path)) |old| {
+        defer allocator.free(old);
+        if (std.mem.eql(u8, old, data)) return;
+    } else |_| {}
+    try writeFile(allocator, io, path, data);
 }
 
 /// Generated files for building on this platform: src/app_config.zig, plus
@@ -528,11 +539,11 @@ pub fn syncProject(allocator: std.mem.Allocator, io: Io, root: []const u8, cfg: 
     defer allocator.free(plist);
     const plist_path = try std.fs.path.join(allocator, &.{ root, "Info.plist" });
     defer allocator.free(plist_path);
-    try writeFile(allocator, io, plist_path, plist);
+    try writeGenerated(allocator, io, plist_path, plist);
 
     if (cfg.sandbox or cfg.entitlements != null) {
         const ent_path = try std.fs.path.join(allocator, &.{ root, "app.entitlements" });
-        try writeFile(allocator, io, ent_path, try entitlementsPlist(allocator, cfg, null));
+        try writeGenerated(allocator, io, ent_path, try entitlementsPlist(allocator, cfg, null));
     }
 }
 

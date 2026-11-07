@@ -23,7 +23,8 @@ cd "$ROOT"
   echo "run scripts/fetch_skia.sh first" >&2
   exit 1
 }
-"$ZIG" build cli -Doptimize=ReleaseSafe
+# a generic CPU: the build machine's own features would not run everywhere
+"$ZIG" build cli -Doptimize=ReleaseSafe -Dcpu=baseline
 
 stage="$(mktemp -d)"
 trap 'rm -rf "$stage"' EXIT
