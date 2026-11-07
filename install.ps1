@@ -35,8 +35,11 @@ function Step($t) { Write-Host '  → ' -ForegroundColor Cyan -NoNewline; Write-
 function Ok($t) { Write-Host '  ✓ ' -ForegroundColor Green -NoNewline; Write-Host $t }
 # throw, not exit: under `irm | iex` exit would close the user's PowerShell
 function Die($t) { Write-Host ''; Write-Host '  ✗ ' -ForegroundColor Red -NoNewline; Write-Host $t; Write-Host ''; throw 'zant 安装没有完成' }
-function Fetch([string]$Url, [string]$Path) {
-    curl.exe -fsSL --retry 3 -o $Path $Url
+# small files (version, checksum) get a total time limit, archives only a
+# connect timeout
+function Fetch([string]$Url, [string]$Path, [switch]$Small) {
+    $limit = if ($Small) { @('--max-time', '60') } else { @() }
+    curl.exe -fsSL --retry 3 --connect-timeout 20 @limit -o $Path $Url
     return ($LASTEXITCODE -eq 0)
 }
 
@@ -84,7 +87,7 @@ try {
 
     # ---- 3. zant and Zant UI
     $verFile = Join-Path $tmp 'version.txt'
-    if (!(Fetch "$Download/version.txt" $verFile)) { Die "无法获取版本信息：$Download/version.txt" }
+    if (!(Fetch "$Download/version.txt" $verFile -Small)) { Die "无法获取版本信息：$Download/version.txt" }
     $latest = (Get-Content -Raw $verFile).Trim()
     $ui = Join-Path $ZantHome 'zant-ui'
     $bin = Join-Path $ZantHome 'bin'
@@ -97,7 +100,7 @@ try {
         $zip = Join-Path $tmp $Archive
         if (!(Fetch "$Download/$Archive" $zip)) { Die "下载失败：$Download/$Archive" }
         $shaFile = Join-Path $tmp 'archive.sha256'
-        if (!(Fetch "$Download/$Archive.sha256" $shaFile)) { Die '下载校验值失败' }
+        if (!(Fetch "$Download/$Archive.sha256" $shaFile -Small)) { Die '下载校验值失败' }
         if ((Get-FileHash $zip -Algorithm SHA256).Hash.ToLower() -ne (Get-Content -Raw $shaFile).Trim()) { Die '下载的文件校验不对，请重试' }
         $new = Join-Path $tmp 'new'
         New-Item -ItemType Directory -Path $new | Out-Null

@@ -71,7 +71,7 @@ if ! xcode-select -p >/dev/null 2>&1; then
 fi
 
 if [ -z "$ZIG" ]; then
-  curl -fL --retry 3 --progress-bar "$ZIG_URL" -o "$tmp/zig.tar.xz" || die "下载 Zig 失败：$ZIG_URL"
+  curl -fL --retry 3 --connect-timeout 20 --progress-bar "$ZIG_URL" -o "$tmp/zig.tar.xz" || die "下载 Zig 失败：$ZIG_URL"
   actual="$(shasum -a 256 "$tmp/zig.tar.xz" | awk '{print $1}')"
   [ "$actual" = "$ZIG_SHA256" ] || die "Zig 下载的文件校验不对（$actual），请重试"
   tar -xJf "$tmp/zig.tar.xz" -C "$tmp"
@@ -83,7 +83,7 @@ if [ -z "$ZIG" ]; then
 fi
 
 # ---- 3. zant and Zant UI
-latest="$(curl -fsSL --retry 3 "$DOWNLOAD/version.txt" 2>/dev/null | tr -d '[:space:]')" ||
+latest="$(curl -fsSL --retry 3 --connect-timeout 20 --max-time 60 "$DOWNLOAD/version.txt" 2>/dev/null | tr -d '[:space:]')" ||
   die "无法获取版本信息：$DOWNLOAD/version.txt"
 [ -n "$latest" ] || die "无法获取版本信息：$DOWNLOAD/version.txt"
 installed="$(cat "$ZANT_HOME/zant-ui/.zant-version" 2>/dev/null | tr -d '[:space:]' || true)"
@@ -91,8 +91,8 @@ if [ "$installed" = "$latest" ] && [ -x "$ZANT_HOME/bin/zant" ] && [ "${ZANT_FOR
   ok "zant ${latest} 已经是最新"
 else
   if [ -n "$installed" ]; then step "更新 zant：${installed} → ${latest}"; else step "下载 zant ${latest}"; fi
-  curl -fL --retry 3 --progress-bar "$DOWNLOAD/$ARCHIVE" -o "$tmp/$ARCHIVE" || die "下载失败：$DOWNLOAD/$ARCHIVE"
-  expected="$(curl -fsSL --retry 3 "$DOWNLOAD/$ARCHIVE.sha256" | tr -d '[:space:]')" || die "下载校验值失败"
+  curl -fL --retry 3 --connect-timeout 20 --progress-bar "$DOWNLOAD/$ARCHIVE" -o "$tmp/$ARCHIVE" || die "下载失败：$DOWNLOAD/$ARCHIVE"
+  expected="$(curl -fsSL --retry 3 --connect-timeout 20 --max-time 60 "$DOWNLOAD/$ARCHIVE.sha256" | tr -d '[:space:]')" || die "下载校验值失败"
   actual="$(shasum -a 256 "$tmp/$ARCHIVE" | awk '{print $1}')"
   [ "$actual" = "$expected" ] || die "下载的文件校验不对，请重试"
   mkdir -p "$tmp/new"
