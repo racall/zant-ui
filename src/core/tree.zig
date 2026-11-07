@@ -479,6 +479,34 @@ pub const Tree = struct {
 
     fn paintNode(self: *Tree, node: *Node, canvas: Canvas) void {
         if (!node.visible) return;
+        if (node.visual.show_on_hover) {
+            const t = self.ancestorHoverT(node);
+            if (t <= 0.003) return;
+            if (t < 0.997) {
+                const b = node.bounds;
+                canvas.saveLayerAlpha(geometry.Rect.init(b.x - 4, b.y - 4, b.width + 8, b.height + 8), t);
+                defer canvas.restore();
+                return self.paintNodeInner(node, canvas);
+            }
+        }
+        self.paintNodeInner(node, canvas);
+    }
+
+    /// Hover progress (0…1) of the nearest ancestor with a hover look.
+    fn ancestorHoverT(self: *Tree, node: *const Node) f32 {
+        var parent = node.parent;
+        while (parent) |pid| {
+            const p = self.get(pid);
+            switch (p.data) {
+                .container => |*d| if (d.hover_visual != null) return d.hover_t,
+                else => {},
+            }
+            parent = p.parent;
+        }
+        return 1;
+    }
+
+    fn paintNodeInner(self: *Tree, node: *Node, canvas: Canvas) void {
         const anim = node.anim orelse return self.paintNodeContent(node, canvas, node.bounds);
         // FLIP offset applies to the node's own box (leaf containers)
         var rect = node.bounds;

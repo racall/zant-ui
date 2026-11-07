@@ -7,18 +7,24 @@
 #   ... -Env "ZANT_SNAPSHOT=$env:TEMP\a.png;ZANT_SNAPSHOT_EXIT=1" -Wait 15
 #
 # -Wait N waits up to N seconds for the program to exit and prints its log.
+# -Log <file> writes the program's output there (default: a shared log in
+# %TEMP%\zant-desktop), e.g. for an app that keeps running while other
+# programs are started with this script; give such a program its own -Name
+# (the scheduled task: one name runs one program at a time).
 param(
     [Parameter(Mandatory = $true)][string]$Exe,
     [string]$WorkDir = (Get-Location).Path,
     [string]$Arguments = "",
     [string]$Env = "",
-    [int]$Wait = 0
+    [int]$Wait = 0,
+    [string]$Log = "",
+    [string]$Name = "ZantDesktopRun"
 )
 $ErrorActionPreference = "Stop"
 $cache = Join-Path $env:TEMP "zant-desktop"
 New-Item -ItemType Directory -Force $cache | Out-Null
-$log = Join-Path $cache "desktop-run.log"
-$done = Join-Path $cache "desktop-run.done"
+$log = if ($Log) { $Log } else { Join-Path $cache "desktop-run.log" }
+$done = Join-Path $cache "$Name.done"
 Remove-Item -Force -ErrorAction SilentlyContinue $log, $done
 
 # a bare name ("powershell.exe") is looked up on PATH
@@ -29,10 +35,12 @@ foreach ($pair in ($Env -split ";")) {
 }
 $lines += "`"$exePath`" $Arguments > `"$log`" 2>&1"
 $lines += "echo %ERRORLEVEL% > `"$done`""
-$cmd = Join-Path $cache "desktop-run.cmd"
-Set-Content -Encoding ASCII $cmd ($lines -join "`r`n")
+$cmd = Join-Path $cache "$Name.cmd"
+# UTF-8 without BOM: after "chcp 65001" cmd reads the following lines as
+# UTF-8, so paths and arguments in any language survive
+[IO.File]::WriteAllText($cmd, ($lines -join "`r`n"), (New-Object Text.UTF8Encoding $false))
 
-$task = "ZantDesktopRun"
+$task = $Name
 schtasks /Create /TN $task /TR "cmd /c `"$cmd`"" /SC ONCE /ST 00:00 /F /IT | Out-Null
 schtasks /Run /TN $task | Out-Null
 

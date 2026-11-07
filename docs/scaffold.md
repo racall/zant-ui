@@ -2,7 +2,8 @@
 
 ![生成项目](assets/scaffold.png)
 
-脚手架是一个编译后的 `zant` 工具，不使用 shell 脚本。
+脚手架是一个编译后的 `zant` 工具。发布构建（`zant build`）的平台步骤调用 Zant UI 自带的打包脚本
+（`tools/zant/package/`），项目里不需要自己写脚本。
 
 先构建框架：
 
@@ -14,8 +15,9 @@ zig build
 macOS 与 Windows 用法相同。Windows 上先运行一次
 `powershell -ExecutionPolicy Bypass -File scripts/fetch_skia_windows.ps1`，并把 Zig 和
 `<zant-ui>\zig-out\bin` 加入 PATH；需要 Visual Studio 2022+ / Build Tools 的 C++ 工作负载。
-沙盒、签名、Info.plist 只对 macOS 有效；Bundle ID 在 Windows 上只作应用标识（例如传给
-`zant.paths.appDataDir` 得到 `%APPDATA%\<id>`）。
+`zant create` 只问两端通用的设置，生成的项目在两端都能直接 `zant run`。平台专属的设置和文件
+由 `zant run` / `build` / `package` 在当前平台按需补充：macOS 上补 `app.config.json` 的
+`macos` 段（沙盒、签名账号）并生成 Info.plist、entitlements；Windows 暂无专属设置。
 
 ## 创建项目
 
@@ -24,13 +26,29 @@ cd /path/to/work
 /path/to/zant-ui/zig-out/bin/zant create my-app
 ```
 
-会询问：
+会询问（都是两端通用的）：
 
 1. 应用标题
 2. 窗口风格：原生标题栏 / 隐藏标题栏 / 无边框
-3. Apple Bundle ID
-4. 是否启用 App Sandbox
-5. 打包开发者账号（自动列出本机 codesign 身份；0 = ad-hoc；Windows 上没有可选身份，直接回车）
+3. 应用标识（反向域名，如 `com.xx.test`）：macOS 的 Bundle ID，也是 Windows 上
+   `zant.paths.appDataDir` 的数据目录名（`%APPDATA%\<id>`）
+
+应用标识同时符合苹果与微软的规范，不合规就不能创建项目：
+
+- 只能有英文字母、数字、`-`、`.`（苹果 Bundle ID）；至少两段，没有空段，第一个字符是字母，
+  每段不以 `-` 开头或结尾；`com.apple` 开头的是苹果保留的
+- 3～50 个字符（微软 MSIX 包名）；任何一段不能是 CON、PRN、AUX、NUL、COM1～9、LPT1～9
+  （Windows 保留名，也不能做文件夹名）
+
+输错会说明原因并重新询问，连续 3 次不合规则退出、不创建任何文件；`--bundle-id` 不合规直接报错；
+项目名生成的默认标识不合规时（如项目名 `con`）不提供默认值。`--force` 覆盖时，旧目录在全部
+检查通过后才删除。`zant run` / `build` / `package` 每次都会检查 `app.config.json` 里的
+`bundle_id`，手改成不合规的值会报错并停止。
+
+macOS 专属设置不在创建时询问：在 Mac 上第一次 `zant run` / `zant compile` / `zant build` / `zant sync` 时写入
+`"macos": { "sandbox": false }`；第一次 `zant package` 时列出本机 codesign 身份让你选择
+（0 = ad-hoc；非交互终端直接用 ad-hoc），写入 `macos.signing_identity`。
+Windows 的命令行窗口（包括代码页 936 的中文系统）中文显示与输入正常。
 
 生成过程会逐步输出状态。目标目录已存在时加 `--force` 覆盖。
 
@@ -45,6 +63,8 @@ cd /path/to/work
   --sandbox true \
   --sign "Developer ID Application: Your Name (TEAMID)"
 ```
+
+`--sandbox`、`--sign` 可选：给出时直接写入 `macos` 段。
 
 ## 运行
 
@@ -62,14 +82,14 @@ cd my-app
 zant run
 zant run --watch      # 热更新：改动后自动重编译并重启（重启式）
 zant run --release
-zant build
-zant build --release
-zant package
-zant sync             # 只重新生成 src/app_config.zig、Info.plist（沙盒时还有 app.entitlements）
+zant compile          # 只编译（--release 用 ReleaseFast）
+zant package          # 本机测试用的 .app / 程序目录
+zant build            # 发布构建：签名、DMG、公证、安装包或提交商店，见「发布构建」
+zant sync             # 只重新生成 src/app_config.zig、Info.plist（沙盒或设了 macos.entitlements 时还有 app.entitlements）
 zant update           # 框架更新后重编译全局 zant CLI（Windows 上先把运行中的 zant.exe 改名为 zant.old.exe）
 ```
 
-`zant run` / `zant build` 默认 Debug 构建（Windows 上是控制台程序）；`--release` 与 `zant package`
+`zant run` / `zant compile` 默认 Debug 构建（Windows 上是控制台程序）；`--release`、`zant package` 与 `zant build`
 用 ReleaseFast（Windows 为 GUI 子系统）。
 
 ## 热更新
@@ -101,16 +121,47 @@ zant package
 
 Windows：生成 `zig-out/<应用标题>/` 目录（`<应用标题>.exe`、`zant_skia.dll`、`pdfium.dll`、
 MSVC 运行库 `vcruntime140*.dll` / `msvcp140.dll`），GUI 子系统，压缩即可分发；不签名。
+exe 内带应用图标（`assets/icons/app-windows.png`）。项目和 Zant UI 不在同一个盘时，`zant create`
+用目录联接 `.zant/zant-ui` 引用 Zant UI（`build.zig.zon` 只接受相对路径）。
 
 macOS：生成 `zig-out/<应用标题>.app`：
 
-- 读取 Bundle ID、版本、窗口配置
+- 读取应用标识（Bundle ID）、版本、窗口配置；缺少签名账号时先询问
+- 用 `assets/icons/app-macos.png` 生成 `AppIcon.icns`（见「图标」）
 - 生成 Info.plist
 - 沙盒开启时写入 entitlements
 - 使用配置中的 Developer ID 签名
 - 无开发者账号时使用 ad-hoc 签名
 
-未自动做 notarization。沙盒应用 `zant run` 也会先打包，再用 `open -n -W` 启动。
+沙盒应用 `zant run` 也会先打包，再用 `open -n -W` 启动。
+
+## 发布构建
+
+`zant package` 只做本机测试用的版本。要发给别人用 `zant build`：macOS 用 Developer ID 签名、
+打包 DMG 并公证，或打包 .pkg 提交 App Store Connect；Windows 打包成签名的安装包，或 MSIX
+提交 Microsoft Store。设置放在独立的 `build.config.json`（`zant build <配置文件>` 可以指定别的），
+缺的设置在终端里询问并可保存；CI 上用 `zant build --yes` 不提问，密钥从环境变量读取。
+详见 [发布构建](build.md)。
+
+## 图标
+
+`zant create` 在 `assets/icons/` 放一套默认图标（PNG + 可编辑的 SVG 源文件），分别符合两端规范。
+换成自己的图标：替换同名 PNG（尺寸不变），SVG 只是方便修改的源文件。
+
+| 文件 | 用途与规范 |
+|---|---|
+| `app-macos.png` | macOS 应用图标，1024×1024；苹果图标网格：主体 824×824 居中（四周留 100 px）、连续圆角、底部投影。`zant package` 生成 10 种尺寸的 `AppIcon.icns`；`zant run` 开发运行时显示在程序坞 |
+| `app-windows.png` | Windows 应用图标，256×256（正方形，至少 256）；铺满画布、不加投影、笔画加粗。编译时自动生成含 16、20、24、32、40、48、64、256 的 `.ico` 编进 exe（资管器图标、窗口与任务栏图标） |
+| `tray-dark.png` / `tray-light.png` | Windows 通知区域（托盘）图标，64×64，单色（白色给深色任务栏、黑色给浅色任务栏），同 Windows 11 系统托盘图标；按系统小图标尺寸缩放（100% 时 16 px，125–200% 时 20/24/32），任务栏切换深浅色时框架自动换图；实心形状、标志镂空，16 px 下依然清楚 |
+| `statusbar.png` | macOS 菜单栏（状态栏）图标，36×36（18 pt @2x），图形约 15 pt、线宽 1.5 pt（与菜单栏里的 SF Symbols 一致）；模板图：只用黑色 + 透明度，系统按深浅色菜单栏和高亮状态着色 |
+
+代码里用 `@embedFile` 按名字引用（不依赖运行时文件，打包后也可用）：
+`icon_app_macos`、`icon_app_windows`、`icon_tray_dark`、`icon_tray_light`、`icon_statusbar`，例如
+`zant.desktop.setTray(.{ .icon = if (zant.keys.is_macos) @embedFile("icon_statusbar") else @embedFile("icon_tray_dark"), .icon_light = if (zant.keys.is_macos) null else @embedFile("icon_tray_light"), .template = zant.keys.is_macos })`。
+这些由 Zant UI 的 `configureApp`（模板 `build.zig` 已调用）在文件存在时加入，测试代码也能引用。
+`assets/icons/` 里的每个 PNG 都按同样的规则加入：`icon_` 加文件名（`-` 换成 `_`），所以应用自己的图标
+（例如同步中的托盘图标 `statusbar-sync.png`）放进来就能 `@embedFile("icon_statusbar_sync")`。
+PNG 要求 8 位、非隔行扫描（常见导出工具的默认格式）。
 
 ## 组件与状态示例
 

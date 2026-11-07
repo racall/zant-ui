@@ -13,7 +13,7 @@
 - 语言：Zig 0.17.1
 - 窗口：macOS AppKit / NSWindow；Windows Win32 HWND（原生，不使用 WebView）
 - 渲染：Skia Ganesh + Metal（macOS）/ Direct3D 12（Windows）；CPU 光栅回退用于测试/特殊环境
-- 布局：Zig 实现的单行 Flex
+- 布局：Zig 实现的 CSS 风格 Flex（含换行 wrap、百分比、绝对定位）
 - 文本：Skia Paragraph，支持中英文、换行、字体回退
 - 状态：父组件持有状态 + 回调；可选 Zustand 风格 `zant.store.Store(T)`
 - 脚手架：编译后的 `zant` CLI，不使用 shell 脚手架
@@ -41,8 +41,9 @@ zant create my-app
 cd my-app
 zant run
 zant run --watch              # 重启式热更新，非沙盒
-zant build --release
-zant package                  # ReleaseFast；macOS 生成 .app 并 codesign，Windows 生成 zig-out/<标题>/ 目录
+zant compile --release        # 只编译
+zant package                  # 本机测试：macOS 生成 .app 并 codesign，Windows 生成 zig-out/<标题>/ 目录
+zant build                    # 发布：签名、DMG / 公证 / App Store，或 Windows 安装包 / MSIX（docs/build.md）
 zant update                   # 重新编译框架并更新全局二进制
 ```
 
@@ -55,7 +56,8 @@ src/
   launch.zig            最小启动入口
   store.zig             Zustand 风格 Store
   core/                 节点、树、布局、几何、事件、Unicode
-  components/           文本、按钮、输入、Toggle、Select、图片
+  components/           按钮、输入、开关、Select、图片、菜单、Segmented、Modal、Message、
+                        虚拟列表、快捷键列表 / 录入、标题栏按钮
   renderer/skia/        Skia C ABI：可移植核心 + mac（CoreText/Metal）/ win（DirectWrite/D3D12）
   platform/platform.h   平台 C ABI（两个平台各实现一份）
   platform/macos/       AppKit 窗口、PDFKit 桥
@@ -173,26 +175,46 @@ ui.styled(node, .{
 - 生成项目默认最小窗口 600×620；内容放不下时优先调整布局，不要靠重叠。
 - 文本宽度受容器约束；长文本使用 `ui.paragraph`。
 
+## 桌面集成（详见 docs/desktop.md）
+
+- 托盘 / 状态栏、全局快捷键、剪贴板监听与图片、多窗口与 `.panel` 快捷面板、单实例、系统深色模式
+  都走 `zant.desktop`，应用里不要写平台代码；示例项目 ClipHop（局域网剪贴板同步）。
+- 应用钩子：`onStart`、`onAppEvent`、`onWake`、`onCloseRequest`、`onQuitRequest`。
+- 多个窗口渲染同一份状态，任何窗口的动作都会重建所有窗口；`ui.focus` 等命令只作用于发出它的窗口。
+- 程序坞图标 / 任务栏按钮由框架按窗口自动处理（有托盘时只在普通窗口开着时显示），应用不要自己切换；
+  开机启动用 `setLaunchAtLogin`（系统机制），登录时后台启动用 `WindowOptions.hidden_at_login`。
+- 网络代码用阻塞调用放在独立线程（Zig 0.17 `std.Io` 带超时的连接 / 接收在两端都不可用）。
+- 改了 `scripts/win/sync.sh` 同步的文件列表后确认 Windows 端源码与本机一致（同步失败要能看到报错）。
+
 ## 窗口与配置
 
 - 项目配置：`app.config.json`。
-- 生成文件：`src/app_config.zig`、`Info.plist`、`app.entitlements`（后两者只在 macOS 打包时用），
-  不要手改。Windows 上 Bundle ID 用作 `%APPDATA%` 下的数据目录名（`zant.paths.appDataDir`）。
-- 配置字段：标题、Bundle ID、版本、`sandbox`、`signing_identity`，以及
-  `window` 下的 style/width/height/min/background/resizable/always_on_top/
-  movable_by_background/center。
+- 脚手架两端通用：`zant create` 只问通用设置（标题、窗口风格、应用标识 `bundle_id`）；
+  平台专属的设置与文件由 `zant run` / `build` / `package` 在该平台补充（macOS：`macos` 段的
+  `sandbox` / `signing_identity`，Info.plist、entitlements）。不要再让 create 问单个平台的问题。
+- 图标：`zant create` 带 `assets/icons/` 默认图标（两端规范见 `docs/scaffold.md`「图标」）；
+  `configureApp` 把它们加为 `@embedFile` 名字（`icon_tray_dark` 等，assets/icons 里每个 PNG 都是 `icon_<文件名>`），Windows 编译时生成 .ico 资源，
+  `zant package` 在 macOS 生成 .icns；PNG 读写与缩放在 `src/core/png.zig`（CLI 与 `zant-icon` 工具共用）。
+- 生成文件：`src/app_config.zig`（两端）、`Info.plist`、`app.entitlements`（仅 macOS），
+  不要手改。Windows 上 `bundle_id` 用作 `%APPDATA%` 下的数据目录名（`zant.paths.appDataDir`）。
+- 配置字段：标题、`bundle_id`、版本，`window` 下的 style/width/height/min/background/
+  resizable/always_on_top/movable_by_background/center，以及 `macos.sandbox`、
+  `macos.signing_identity`、`macos.entitlements`；发布设置在独立的 `build.config.json`
+  （`zant build`，`tools/zant/distribute.zig` + `tools/zant/package/` 脚本，见 `docs/build.md`）。
 - 代码中的 `WindowOptions` 优先级高于 JSON。
-- 修改 JSON 后执行 `zant run` / `zant build` / `zant package`。
+- 修改 JSON 后执行 `zant run` / `zant compile` / `zant package`。
 
 ## 沙盒与签名（macOS）
 
-- 沙盒和签名只用于 macOS；Windows 打包不签名（Authenticode 未自动化），`sandbox` 被忽略。
+- 沙盒只用于 macOS，Windows 上 `sandbox` 被忽略；Windows 的 `zant package` 不签名，`zant build` 可以用
+  signtool 签名（证书存储或 .pfx，见 `docs/build.md`）。
 - `sandbox: true` 时打包写入 `com.apple.security.app-sandbox` entitlement。
 - 沙盒应用必须通过 LaunchServices 启动；`zant run` 已处理。
 - 签名身份来自本机 keychain 或 `app.config.json`；`none` 表示 ad-hoc。
 - **不要把私钥、证书、密码、token、真实签名身份提交到 Git。**
   示例和文档使用通用占位符。
-- 发布到外部分发前需要 notarization + stapling，当前未自动完成。
+- 发布用 `zant build`：Developer ID 签名、DMG、公证与装订（notarytool + stapler），或 Mac App Store；
+  见 `docs/build.md`。
 
 ## Markdown / 数学
 
@@ -246,7 +268,7 @@ ui.styled(node, .{
   （`zant-components` 配合 `ZANT_AUTOPLAY=quiet`）看每帧耗时，单帧应远低于 16.7 ms；
   Windows 上用 `scripts/win/resize-check.ps1` 测拖动缩放帧率（应跟满刷新率）。
 - 每帧路径里不要写 stderr（Windows 上每行约 10 ms）。
-- 当前测试 152/152（`tests/` + 框架模块内单元测试），macOS 与 Windows 都要通过；新增行为应补测试。
+- 当前测试 160/160（`tests/` + 框架模块内单元测试），macOS 与 Windows 都要通过；新增行为应补测试。
 - 文字排版缓存：`TextData` / `RichTextData` 保留当前与上一个宽度的排版，测量自然宽度走独立缓存
   （`measureWidth` / `naturalWidth`）；不要在测量路径里调 `ensureLayout` 换宽度，否则每帧会重排所有文字。
 - 无确定高度的 column 不计算子节点的 flex 基准高度（不会用到），避免整棵子树按估计宽度多排一遍。

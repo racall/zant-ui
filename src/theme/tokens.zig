@@ -27,6 +27,14 @@ pub const Theme = struct {
     color_success: u32 = 0xff52c41a,
     color_warning: u32 = 0xfffaad14,
     color_error: u32 = 0xffff4d4f,
+    // status surfaces (antd colorSuccessBg… / the Tag presets' text, which
+    // stays readable on them)
+    color_success_bg: u32 = 0xfff6ffed,
+    color_success_text: u32 = 0xff389e0d,
+    color_warning_bg: u32 = 0xfffffbe6,
+    color_warning_text: u32 = 0xffd48806,
+    color_error_bg: u32 = 0xfffff2f0,
+    color_error_text: u32 = 0xffcf1322,
 
     border_radius: f32 = 6,
     border_radius_sm: f32 = 4,
@@ -85,6 +93,12 @@ pub fn antDark() Theme {
         .color_border = 0xff424242,
         .color_border_secondary = 0xff303030,
         .color_split = 0x0fffffff,
+        .color_success_bg = 0xff162312,
+        .color_success_text = 0xff49aa19,
+        .color_warning_bg = 0xff2b2111,
+        .color_warning_text = 0xffd89614,
+        .color_error_bg = 0xff2c1618,
+        .color_error_text = 0xffdc4446,
     };
 }
 

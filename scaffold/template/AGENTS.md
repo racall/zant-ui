@@ -20,7 +20,7 @@
 - 跨平台：快捷键用 `key.modifiers.primary()` 与 `zant.keys.label("mod+s")`（⌘S / Ctrl+S），
   自绘标题栏用 `ui.titlebarInsets()` 留出系统控件位置，数据目录用 `zant.paths.appDataDir`
 - 配置：项目根目录 `app.config.json`
-- 脚手架：编译后的 `zant` CLI，不使用 shell 脚本
+- 脚手架：编译后的 `zant` CLI（发布构建的平台步骤由 Zant UI 自带的打包脚本完成）
 
 ## 常用命令
 
@@ -28,15 +28,16 @@
 zant run              # 生成配置代码、编译并运行
 zant run --watch      # 重启式热更新（macOS 沙盒应用不支持）
 zant run --release
-zant build
-zant build --release
-zant package           # macOS：生成并签名 .app；Windows：zig-out/<标题>/ 可分发目录
+zant compile [--release]  # 只编译
+zant package           # 本机测试：macOS 生成并签名 .app；Windows：zig-out/<标题>/ 程序目录
+zant build             # 发布：DMG / 公证 / App Store，Windows 安装包 / MSIX；设置在 build.config.json
 zig fmt src build.zig  # 格式化
 zig build test         # 测试
 ```
 
 不要手动编辑 `src/app_config.zig`、`Info.plist`、`app.entitlements`，它们由
-`zant` 根据 `app.config.json` 生成（`zant sync` 只重新生成它们）。
+`zant` 根据 `app.config.json` 在当前平台生成（`zant sync` 只重新生成它们；Info.plist 与
+entitlements 只在 macOS 上生成）。
 Windows 上 Debug 构建是控制台程序，Release（`--release`、`zant package`）为 GUI 子系统。
 
 ## 目录结构
@@ -48,7 +49,11 @@ src/components/stat_card.zig  自定义展示组件（props）
 src/components/counter_card.zig 自定义子组件（props + 事件回调）
 src/components/dashboard.zig 自定义父组件（组合子组件）
 src/app_config.zig           生成文件，不要手改
-app.config.json              窗口、沙盒、签名配置
+app.config.json              窗口配置（通用）+ macos 段（沙盒、签名）
+assets/icons/                默认图标：app-macos.png（1024）、app-windows.png（256）、
+                             tray-dark.png / tray-light.png（Windows 托盘，深 / 浅色任务栏）、
+                             statusbar.png（macOS 菜单栏模板图，18 pt）；替换同名 PNG 即可，
+                             代码用 @embedFile("icon_tray_dark") 等引用
 DESIGN.md                    UI/UX 设计规范（最高优先级）
 AGENTS.md / CLAUDE.md        给 AI coding agent 的规范
 ```
@@ -79,26 +84,30 @@ AGENTS.md / CLAUDE.md        给 AI coding agent 的规范
 
 ## 窗口配置
 
-`app.config.json` 支持：
+`app.config.json` 分两部分：
 
-`title`、`bundle_id`、`version`、`sandbox`、`signing_identity`，
-以及 `window` 下的 `style`、`width`、`height`、`min_width`、`min_height`、
-`background`、`resizable`、`always_on_top`、`movable_by_background`、`center`。
+- 两端通用（`zant create` 写入）：`title`、`bundle_id`（应用标识，如 `com.xx.test`）、`version`，
+  以及 `window` 下的 `style`、`width`、`height`、`min_width`、`min_height`、
+  `background`、`resizable`、`always_on_top`、`movable_by_background`、`center`。
+- 平台专属：`macos` 段的 `sandbox`、`signing_identity`，在 Mac 上首次 `zant run` / `compile` / `build`
+  时补充 `sandbox`（默认 false），首次 `zant package` 时询问签名账号。Windows 暂无专属设置。
 
 代码中的 `WindowOptions` 优先级高于配置文件。修改 JSON 后重新执行
-`zant run` / `zant build`。
+`zant run` / `zant compile`。
 
 ## 沙盒与签名（仅 macOS）
 
-- `sandbox: true` 时 `zant package` 写入 `com.apple.security.app-sandbox`。
-- 签名使用 `signing_identity`；`none` 表示 ad-hoc。
+- `macos.sandbox: true` 时 `zant package` 写入 `com.apple.security.app-sandbox`。
+- 签名使用 `macos.signing_identity`；`none` 表示 ad-hoc。
 - 沙盒应用运行必须通过 LaunchServices；`zant run` 已处理。
-- Windows 上不签名、不沙盒，`zant package` 只生成可分发目录。
-- 不要提交私钥、证书或密码。
+- Windows 上不沙盒；`zant package` 只生成程序目录。
+- 发布用 `zant build`：签名证书、公证、商店等设置在 `build.config.json`（Zant UI 的
+  `docs/build.md`），这里的 `signing_identity` 只用于 `zant package` 和沙盒应用的 `zant run`。
+- 不要提交私钥、证书或密码（.p8 / .p12 / .pfx）；CI 的密钥写成 `$环境变量名`。
 
 ## 代码质量
 
 - 修改后运行 `zig fmt` 和 `zig build test`。
 - 优先保持示例简短、可读，不要为了“架构”增加不必要的抽象。
 - 注释解释“为什么”，不要重复代码表面含义。
-- 不要新增 shell 脚本；脚手架功能放进 `zant` CLI。
+- 不要在项目里另写构建、打包脚本：缺的功能补进 Zant UI 的 `zant` CLI 或它的打包脚本。

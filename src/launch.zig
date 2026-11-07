@@ -3,6 +3,7 @@ const ui = @import("ui.zig");
 const tokens = @import("theme/tokens.zig");
 const Runtime = @import("ui_runtime.zig").Runtime;
 const events = @import("core/events.zig");
+const desktop = @import("desktop.zig");
 
 pub const Options = struct {
     title: [:0]const u8 = "Zant UI",
@@ -25,7 +26,20 @@ pub const Options = struct {
 ///   consume the key.
 /// - `pub fn onCloseRequest(self: *State) bool` — asked before the window
 ///   closes or the app quits (close button, ⌘W, ⌘Q). Return false to keep
-///   it open, e.g. after asking about unsaved changes.
+///   it open, e.g. after asking about unsaved changes, or to hide it to the
+///   tray instead (`zant.desktop.mainWindow().?.hide()`).
+/// - `pub fn onQuitRequest(self: *State) bool` — asked instead of
+///   `onCloseRequest` when the user quits the app (⌘Q, Dock menu) rather
+///   than closing the window.
+/// - `pub fn onAppEvent(self: *State, event: zant.desktop.AppEvent) bool` —
+///   tray / status bar clicks and menu items, global hotkeys, Dock clicks
+///   (`zant.desktop`). Return true when state changed.
+/// - `pub fn onWake(self: *State) void` — on the UI thread after
+///   `ui.postWake()` from a background thread: take the results it
+///   published (then all windows rebuild).
+/// - `pub fn onStart(self: *State) void` — once, after the main window
+///   exists and before the first frame: open panels, set the tray icon,
+///   register hotkeys, start background work.
 ///
 /// For shared/asynchronous state use `ui_runtime.Runtime` + `store.Store`.
 pub fn run(
@@ -56,6 +70,18 @@ pub fn run(
             const value: *State = @ptrCast(@alignCast(ctx));
             return value.onCloseRequest();
         }
+        fn quit(ctx: *anyopaque) bool {
+            const value: *State = @ptrCast(@alignCast(ctx));
+            return value.onQuitRequest();
+        }
+        fn start(ctx: *anyopaque) void {
+            const value: *State = @ptrCast(@alignCast(ctx));
+            value.onStart();
+        }
+        fn wake(ctx: *anyopaque) void {
+            const value: *State = @ptrCast(@alignCast(ctx));
+            value.onWake();
+        }
     };
 
     const runtime = try Runtime.init(allocator, state, Adapter.render, .{
@@ -65,7 +91,13 @@ pub fn run(
         .theme_fn = if (@hasDecl(State, "theme")) Adapter.theme else null,
         .key_fn = if (@hasDecl(State, "onKey")) Adapter.key else null,
         .close_fn = if (@hasDecl(State, "onCloseRequest")) Adapter.close else null,
+        .quit_fn = if (@hasDecl(State, "onQuitRequest")) Adapter.quit else null,
+        .start_fn = if (@hasDecl(State, "onStart")) Adapter.start else null,
+        .wake_fn = if (@hasDecl(State, "onWake")) Adapter.wake else null,
     });
     defer runtime.deinit();
+    desktop.setMainRuntime(runtime);
+    defer desktop.setMainRuntime(null);
+    if (@hasDecl(State, "onAppEvent")) desktop.setAppEventHandler(state, State.onAppEvent);
     try runtime.run();
 }

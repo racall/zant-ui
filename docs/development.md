@@ -24,7 +24,8 @@ zig build run-gallery      # 命令式画廊
 zig build run-markdown     # Markdown 渲染画廊（ZANT_DARK=1 深色）
 zig build run-math         # 公式画廊
 zig build run-components   # 全部组件总览（ZANT_DARK=1 深色）
-zig build run-pdf -- a.pdf # PDF 预览（ZANT_PDF_PAGE=页码，ZANT_PDF_PROBE=1 只输出页数与文字长度）
+zig build run-pdf -- a.pdf # PDF 阅读器（ZANT_PDF_PAGE=起始页，从 0 开始，last 为最后一页；ZANT_PDF_ZOOM=1.5；
+                           # ZANT_PDF_SEARCH=搜索词；ZANT_PDF_DEMO=1 示例批注；ZANT_PDF_PROBE=1 只输出文档信息）
 ```
 
 ## 环境变量
@@ -50,7 +51,7 @@ Windows 上写 stderr 很贵（每行约 10 ms），不要在每帧都会执行�
 
 ## 测试
 
-`zig build test`（152 项，macOS 与 Windows 都要通过）覆盖 Flex 布局、组件、声明式 UI 与协调、
+`zig build test`（160 项，macOS 与 Windows 都要通过）覆盖 Flex 布局、组件、声明式 UI 与协调、
 节点生命周期、动效（假时钟）、文本、Store / SQLite、指针区域、文字选择、PDF 阅读器（选择 / 搜索 /
 批注 / 导出）、Markdown（含 remend 522 条上游用例）与数学排版（含 mhchem 823 条用例全部可排版）。
 
@@ -97,7 +98,9 @@ scripts/win/remote.sh XyUI 'powershell -File scripts/win/run-desktop.ps1 -Exe zi
 ```
 
 SSH 会话里的窗口不可见、也拿不到真实缩放，所以视觉检查用 `run-desktop.ps1` 在已登录的
-桌面会话里运行。桌面自动化测试（都输出 PASS / FAIL 报告和截图）：
+桌面会话里运行。一直运行的程序（例如测试同步时的应用）用自己的 `-Name`（计划任务名，一个名字
+同时只能运行一个程序）和 `-Log <文件>`，之后再用 `run-desktop.ps1` 启动测试脚本不会互相影响。
+参数里可以有中文路径（启动脚本按 UTF-8 写入）。桌面自动化测试（都输出 PASS / FAIL 报告和截图）：
 
 | 脚本 | 内容 |
 |---|---|
@@ -106,6 +109,7 @@ SSH 会话里的窗口不可见、也拿不到真实缩放，所以视觉检查�
 | `scripts/win/smoke-stillmd.ps1 -App <still. app.exe>` | 驱动 still.：输入、保存（CRLF）、剪贴板、对话框、拼音输入法、标题栏、拖动、关闭确认 |
 | `scripts/win/docs-check.ps1 -App <still. app.exe>` | 用 still. 打开 `docs/` 下每个 md（预览 / 编辑）并截图 |
 | `scripts/win/resize-check.ps1` | 真实鼠标 120 Hz 拖动窗口右下角缩放（含缩到最小），统计缩放帧率与延迟；先跑 `ZANT_AUTOPLAY` 测动画帧率；检查布局与最小尺寸 |
+| `scripts/win/scaffold-check.ps1` | 在真实命令行窗口（代码页 936）运行 `zant create`，用 Unicode 按键输入中文标题，截图并检查生成的 `app.config.json` |
 | `scripts/win/stream-resize-check.ps1 -Sse <录制的 SSE>` | `zant-md-stream` 回放真实回复的同时，真实鼠标拖动标题栏移动窗口、拖右下角放大 / 缩到最小 / 还原，每步截图，统计帧时间 |
 | `scripts/win/pdf-check.ps1 -Folder <目录>` | 对目录里的 PDF 检查页数、文字、链接与目录、首页 / 中间页截图；真实鼠标拖选 + Ctrl+C、双击选词、缩放、滚轮、搜索、翻页 |
 

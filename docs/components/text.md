@@ -9,7 +9,7 @@ ui.textFmt("Count: {d}", .{count}, .{ .color = 0xa6000000 })
 
 ## 选项
 
-`key`、`size`、`weight`（`.regular` / `.medium` / `.semibold` / `.bold`）、
+`key`、`size`、`weight`（`.thin` / `.extra_light` / `.light` / `.regular` / `.medium` / `.semibold` / `.bold` / `.extra_bold` / `.black`）、
 `color`（ARGB）、`text_align`（`.left` / `.center` / `.right`）、`wrap`、
 `line_height`、`max_lines`、`family`（`.sans` / `.serif` / `.mono` / `.serif_cjk` /
 `.math`）。

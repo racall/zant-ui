@@ -30,6 +30,9 @@ test "Store key value JSON and collection" {
     try std.testing.expect(store.getBool("onboarded", false));
     try std.testing.expectApproxEqAbs(@as(f64, 1.25), store.getFloat("scale", 0), 0.001);
     try std.testing.expect(store.has("theme"));
+    // values longer than any small read buffer exist too
+    try std.testing.expect(store.has("settings"));
+    try std.testing.expect(!store.has("missing"));
 
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
@@ -65,4 +68,66 @@ test "Store collection persists across reopen" {
     defer users2.freeAll(rows);
     try std.testing.expectEqual(@as(usize, 1), rows.len);
     try std.testing.expectEqualStrings("Persisted", rows[0].name);
+}
+
+const Kind = enum { text, image };
+
+const ClipV1 = struct {
+    id: i64 = 0,
+    body: []const u8,
+    pub const table_name = "clips";
+};
+
+const ClipV2 = struct {
+    id: i64 = 0,
+    kind: Kind = .image,
+    body: []const u8,
+    pinned: bool,
+    pub const table_name = "clips";
+};
+
+test "Store collection: enums, new fields of a later version, clear" {
+    const path = "/tmp/zant-store-migrate.sqlite";
+    std.Io.Dir.cwd().deleteFile(std.testing.io, path) catch {};
+    defer std.Io.Dir.cwd().deleteFile(std.testing.io, path) catch {};
+    {
+        var store = try zant.db.open(std.testing.allocator, path);
+        defer store.close();
+        var clips = try store.collection(ClipV1);
+        _ = try clips.add(.{ .body = "old" });
+    }
+    var store = try zant.db.open(std.testing.allocator, path);
+    defer store.close();
+    // the table gains kind / pinned; the old row gets their defaults
+    var clips = try store.collection(ClipV2);
+    try store.begin();
+    _ = try clips.add(.{ .kind = .text, .body = "new", .pinned = true });
+    try store.commit();
+    const rows = try clips.all();
+    defer clips.freeAll(rows);
+    try std.testing.expectEqual(@as(usize, 2), rows.len);
+    try std.testing.expectEqual(Kind.image, rows[0].kind);
+    try std.testing.expect(!rows[0].pinned);
+    try std.testing.expectEqualStrings("old", rows[0].body);
+    try std.testing.expectEqual(Kind.text, rows[1].kind);
+    try std.testing.expect(rows[1].pinned);
+    try clips.clear();
+    try std.testing.expectEqual(@as(i64, 0), try clips.count());
+}
+
+const Message = struct {
+    id: i64 = 0,
+    from: []const u8,
+    order: i64,
+};
+
+test "Store collection: SQL keywords as names" {
+    var store = try zant.db.open(std.testing.allocator, ":memory:");
+    defer store.close();
+    var messages = try store.collection(Message);
+    _ = try messages.add(.{ .from = "Ada", .order = 2 });
+    const rows = try messages.all();
+    defer messages.freeAll(rows);
+    try std.testing.expectEqualStrings("Ada", rows[0].from);
+    try std.testing.expectEqual(@as(i64, 2), rows[0].order);
 }

@@ -2,9 +2,9 @@
 
 由 Zant UI 生成的原生桌面应用（macOS 与 Windows）。
 
-- Bundle ID：`__BUNDLE_ID__`
-- 沙盒：`__SANDBOX__`（仅 macOS）
-- 打包账号：`__SIGN_IDENTITY__`（仅 macOS）
+- 应用标识（bundle_id）：`__BUNDLE_ID__`（macOS 的 Bundle ID，Windows 的数据目录名）
+- macOS 专属设置（沙盒、签名账号）在 Mac 上首次 `zant run` / `zant package` 时自动补充到
+  `app.config.json` 的 `macos` 段
 
 ## 运行
 
@@ -19,16 +19,16 @@ zant run --watch
 它会读取 `app.config.json`，自动生成配置代码、编译并启动应用。
 Windows 上需要 Visual Studio 2022+ / Build Tools 的 C++ 工作负载（构建 `zant_skia.dll`）。
 
-## 构建
+## 编译
 
 ```bash
-zant build
-zant build --release
+zant compile
+zant compile --release
 ```
 
 Windows 上 Debug 构建是控制台程序，`--release` 为 GUI 子系统。
 
-## 打包
+## 本机测试打包
 
 ```bash
 zant package
@@ -36,7 +36,18 @@ zant package
 
 - macOS：生成并签名 `zig-out/__APP_TITLE__.app`（沙盒开启时写入 entitlements）。
 - Windows：生成 `zig-out/__APP_TITLE__/` 目录（exe、`zant_skia.dll`、`pdfium.dll` 与
-  MSVC 运行库），压缩即可分发。
+  MSVC 运行库）。
+
+## 发布
+
+```bash
+zant build            # 缺的设置会询问，可保存到 build.config.json
+zant build --yes      # CI：不提问
+```
+
+- macOS：Developer ID 签名的 DMG，可选 Apple 公证；或 .pkg 提交 Mac App Store。
+- Windows：安装包 `setup.exe`（可签名）；或 MSIX 提交 Microsoft Store；或免安装 zip。
+- 结果在 `zig-out/dist/`。设置说明见 Zant UI 的 `docs/build.md`；密码和密钥用环境变量，不要提交。
 
 ## 配置
 
@@ -44,6 +55,14 @@ zant package
 签名账号等。代码中的 `WindowOptions` 优先级高于配置文件。
 
 详见 Zant UI 的 `docs/window-config.md`。
+
+## 图标
+
+`assets/icons/` 下是默认图标，替换同名 PNG 即可（尺寸不变）：`app-macos.png`（1024，macOS 应用图标）、
+`app-windows.png`（256，Windows 应用图标）、`tray-dark.png` / `tray-light.png`（Windows 托盘，
+深色 / 浅色任务栏用的单色图）、`statusbar.png`（macOS 菜单栏模板图，18 pt，黑色 + 透明）。
+代码中用 `@embedFile("icon_tray_dark")` 等引用。
+规范见 Zant UI 的 `docs/scaffold.md`「图标」。
 
 ## 示例结构
 

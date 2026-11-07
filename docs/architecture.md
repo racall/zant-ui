@@ -6,7 +6,9 @@
 src/main.zig / 生成项目 main.zig
         │
         ├── ui.zig              声明式 Node builder、ui.styled、命令式辅助
-        ├── launch.zig          最小入口（theme / onKey / onCloseRequest 钩子）
+        ├── launch.zig          最小入口（theme / onKey / onCloseRequest / onQuitRequest /
+        │                       onStart / onAppEvent / onWake 钩子）
+        ├── desktop.zig         桌面集成：多窗口、托盘、全局快捷键、剪贴板（docs/desktop.md）
         ├── ui_runtime.zig      Runtime：协调、事件、焦点、IME、动画、帧调度
         │       ├── core/tree.zig      保留树、命中测试、绘制、FLIP
         │       ├── core/layout.zig    Flex 布局

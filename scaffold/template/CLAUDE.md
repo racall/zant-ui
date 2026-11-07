@@ -11,14 +11,14 @@
 ## 快速上下文
 
 - 项目：`__APP_TITLE__`（Zig + Skia；macOS Metal + AppKit，Windows Direct3D 12 + Win32）。
-- Bundle ID：`__BUNDLE_ID__`。
+- 应用标识（bundle_id）：`__BUNDLE_ID__`。
 - 入口：`src/main.zig`。
 - 状态：`src/state.zig` 中的 `AppState`，由 main 持有。
 - 组件：`src/components/`，父组件通过 props 传值，子组件通过回调向上发事件。
-- 配置：`app.config.json`；`src/app_config.zig`、`Info.plist`、`app.entitlements`
-  由 `zant` 生成，不要手改。
+- 配置：`app.config.json`（两端通用设置 + `macos` 专属段）；`src/app_config.zig`、
+  `Info.plist`、`app.entitlements`（后两者仅 macOS）由 `zant` 生成，不要手改。
 - 运行：`zant run`（`--watch` 改动后自动重编译、重启）。
-- 打包：`zant package`。
+- 打包：`zant package`（本机测试）；发布：`zant build`（`build.config.json`）。
 - 测试：`zig build test`。
 - 格式化：`zig fmt src build.zig`。
 

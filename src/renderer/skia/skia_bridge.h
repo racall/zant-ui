@@ -123,6 +123,15 @@ ZantImage *zant_image_from_pixels(const void *pixels, int width, int height, int
 /* Decodes an encoded image (PNG, JPEG, GIF, BMP, ICO) from memory. Thread-safe. */
 ZantImage *zant_image_from_encoded(const void *data, size_t size);
 /* A second handle to the same pixels; destroy each handle separately. */
+/* Decodes an encoded image scaled down so its larger side is at most
+   max_dim pixels (aspect kept; smaller images are not enlarged): list
+   thumbnails without keeping full-size pixels. Thread-safe. */
+ZantImage *zant_image_thumbnail(const void *data, size_t size, int max_dim);
+/* PNG bytes of the image (free with zant_bytes_free); NULL on failure. */
+void *zant_image_encode_png(ZantImage *image, size_t *out_size);
+/* Straight-alpha RGBA pixels (width * 4 per row) into dst; 1 on success. */
+int zant_image_read_rgba(ZantImage *image, void *dst, size_t dst_size);
+void zant_bytes_free(void *bytes);
 ZantImage *zant_image_retain(ZantImage *image);
 void zant_image_destroy(ZantImage *image);
 int zant_image_width(ZantImage *image);

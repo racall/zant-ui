@@ -11,6 +11,7 @@
         "build.zig.zon",
         "app.config.json",
         "src",
+        "assets",
         "README.md",
         "AGENTS.md",
         "CLAUDE.md",

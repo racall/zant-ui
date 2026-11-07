@@ -41,8 +41,9 @@ fn configureMacosSkia(b: *std.Build, target: std.Build.ResolvedTarget, mod: *std
         mod.addObjectFile(b.path(lib));
     }
     const frameworks = [_][]const u8{
-        "AppKit",       "Metal", "MetalKit", "QuartzCore", "CoreText",               "CoreFoundation",
-        "CoreGraphics", "IOKit", "Security", "CoreVideo",  "UniformTypeIdentifiers", "PDFKit",
+        "AppKit",       "Metal",             "MetalKit", "QuartzCore", "CoreText",               "CoreFoundation",
+        "CoreGraphics", "IOKit",             "Security", "CoreVideo",  "UniformTypeIdentifiers", "PDFKit",
+        "Carbon",       "ServiceManagement",
     };
     for (frameworks) |framework| {
         mod.linkFramework(framework, .{});
@@ -69,7 +70,7 @@ fn configureWindows(b: *std.Build, target: std.Build.ResolvedTarget, mod: *std.B
     };
     mod.addObjectFile(importLibrary(b, "src/renderer/skia/zant_skia.def", "zant_skia.lib", machine));
     mod.addObjectFile(importLibrary(b, "src/platform/windows/winsqlite3.def", "winsqlite3.lib", machine));
-    const system_libs = [_][]const u8{ "user32", "gdi32", "imm32", "dwmapi", "shell32", "ole32", "comctl32", "uuid", "kernel32" };
+    const system_libs = [_][]const u8{ "user32", "gdi32", "imm32", "dwmapi", "shell32", "ole32", "comctl32", "uuid", "kernel32", "advapi32" };
     for (system_libs) |lib| mod.linkSystemLibrary(lib, .{ .use_pkg_config = .no });
 
     // the DLL itself can only be built on Windows (MSVC)
@@ -111,11 +112,69 @@ fn importLibrary(b: *std.Build, def: []const u8, name: []const u8, machine: []co
 /// (and pdfium.dll) next to the exe and puts that directory on PATH for the
 /// given run steps (tests are not installed next to the DLL).
 pub fn configureApp(b: *std.Build, zant_dep: *std.Build.Dependency, exe: *std.Build.Step.Compile, runs: []const *std.Build.Step.Run) void {
+    addAppIcons(b, exe.root_module);
+    // the app's tests (and other compiled run steps) see the same icon imports
+    for (runs) |run| {
+        if (run.producer) |artifact| {
+            if (artifact.root_module != exe.root_module) addAppIcons(b, artifact.root_module);
+        }
+    }
     if (exe.rootModuleTarget().os.tag != .windows) return;
     exe.win32_manifest = zant_dep.path("src/platform/windows/zant.manifest");
     if (exe.root_module.optimize != .debug) exe.subsystem = .windows;
+    addWindowsIcon(b, zant_dep, exe);
     if (builtin.os.tag != .windows) return;
     installRuntime(b, zant_dep.namedLazyPath("zant_skia"), runs);
+}
+
+/// App icons in `assets/icons/` (created by `zant create`, replaceable).
+/// Each one that exists is importable by name: `@embedFile("icon_tray_dark")`.
+pub const app_icons = [_]struct { file: []const u8, import: []const u8 }{
+    .{ .file = "assets/icons/app-macos.png", .import = "icon_app_macos" }, // 1024×1024, Apple icon grid
+    .{ .file = "assets/icons/app-windows.png", .import = "icon_app_windows" }, // 256×256, full bleed
+    .{ .file = "assets/icons/tray-dark.png", .import = "icon_tray_dark" }, // Windows tray, dark taskbar (white)
+    .{ .file = "assets/icons/tray-light.png", .import = "icon_tray_light" }, // Windows tray, light taskbar (black)
+    .{ .file = "assets/icons/statusbar.png", .import = "icon_statusbar" }, // macOS menu bar template, 18 pt
+};
+
+fn appFileExists(b: *std.Build, sub_path: []const u8) bool {
+    const full = b.root.joinString(b.allocator, sub_path) catch return false;
+    std.Io.Dir.cwd().access(b.graph.io, full, .{}) catch return false;
+    return true;
+}
+
+/// Every PNG in assets/icons is importable as `icon_<name>` ("-" → "_"):
+/// the defaults above plus the app's own (ClipHop's `statusbar-sync.png` is
+/// `@embedFile("icon_statusbar_sync")`).
+fn addAppIcons(b: *std.Build, module: *std.Build.Module) void {
+    const io = b.graph.io;
+    const full = b.root.joinString(b.allocator, "assets/icons") catch return;
+    var dir = std.Io.Dir.cwd().openDir(io, full, .{ .iterate = true }) catch return;
+    defer dir.close(io);
+    var it = dir.iterate();
+    while (it.next(io) catch null) |entry| {
+        if (entry.kind != .file or !std.mem.endsWith(u8, entry.name, ".png")) continue;
+        const stem = entry.name[0 .. entry.name.len - ".png".len];
+        const import = b.fmt("icon_{s}", .{stem});
+        std.mem.replaceScalar(u8, import, '-', '_');
+        module.addAnonymousImport(import, .{ .root_source_file = b.path(b.fmt("assets/icons/{s}", .{entry.name})) });
+    }
+}
+
+/// Windows: the .ico (16–256, built from app-windows.png by `zant-icon`) as
+/// icon resource 1 — Explorer's file icon, and the window / taskbar icon
+/// (the Win32 backend loads resource 1).
+fn addWindowsIcon(b: *std.Build, zant_dep: *std.Build.Dependency, exe: *std.Build.Step.Compile) void {
+    const source = "assets/icons/app-windows.png";
+    if (!appFileExists(b, source)) return;
+    const make_ico = b.addRunArtifact(zant_dep.artifact("zant-icon"));
+    make_ico.addArg("ico");
+    make_ico.addFileArg(b.path(source));
+    const ico = make_ico.addOutputFileArg("app.ico");
+    const files = b.addWriteFiles();
+    _ = files.addCopyFile(ico, "app.ico");
+    const rc = files.add("app.rc", "1 ICON \"app.ico\"\n");
+    exe.root_module.addWin32ResourceFile(.{ .file = rc, .include_paths = &.{files.getDirectory()} });
 }
 
 fn installRuntime(b: *std.Build, dir: std.Build.LazyPath, runs: []const *std.Build.Step.Run) void {
@@ -168,6 +227,8 @@ pub fn build(b: *std.Build) void {
 
     b.installArtifact(exe);
 
+    // PNG read / resize / write (src/core/png.zig): shared by the CLI tools
+    const png_mod = b.createModule(.{ .root_source_file = b.path("src/core/png.zig") });
     const tool_options = b.addOptions();
     tool_options.addOption([]const u8, "zant_root", b.root.root_dir.path orelse ".");
     const zant_tool = b.addExecutable(.{
@@ -176,10 +237,22 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("tools/zant/main.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = &.{.{ .name = "build_options", .module = tool_options.createModule() }},
+            .imports = &.{ .{ .name = "build_options", .module = tool_options.createModule() }, .{ .name = "png", .module = png_mod } },
         }),
     });
     b.installArtifact(zant_tool);
+
+    // build-time icon tool for apps (runs on the build machine)
+    const icon_tool = b.addExecutable(.{
+        .name = "zant-icon",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tools/zant/icon.zig"),
+            .target = b.graph.host,
+            .optimize = .ReleaseSafe,
+            .imports = &.{.{ .name = "png", .module = png_mod }},
+        }),
+    });
+    b.installArtifact(icon_tool);
 
     const demo = b.addExecutable(.{
         .name = "zant-demo",
@@ -321,6 +394,10 @@ pub fn build(b: *std.Build) void {
     const lib_tests = b.addTest(.{ .root_module = zant_mod });
     const run_lib_tests = b.addRunArtifact(lib_tests);
     test_step.dependOn(&run_lib_tests.step);
+
+    // the `zant` CLI's own tests (app identifier rules, ...)
+    const tool_tests = b.addTest(.{ .root_module = zant_tool.root_module });
+    test_step.dependOn(&b.addRunArtifact(tool_tests).step);
 
     if (target.result.os.tag == .windows) {
         for ([_]*std.Build.Step.Compile{ exe, demo, math_demo, md_demo, pdf_demo, components_demo }) |app| {

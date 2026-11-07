@@ -6,8 +6,8 @@ antd `Dropdown` 菜单：8px 圆角浮层、4px 内边距、32px 菜单项，支
 ```zig
 if (state.menu_open) {
     // 点击外部任意位置关闭（放在菜单前面）
-    children.append(ui.dismissLayer(.{ .on_dismiss = ui.action(state, State.closeMenu) }));
-    children.append(ui.styled(ui.dropdownMenu(.{
+    children.append(arena, ui.dismissLayer(.{ .on_dismiss = ui.action(state, State.closeMenu) })) catch {};
+    children.append(arena, ui.styled(ui.dropdownMenu(.{
         .key = "menu",
         .width = 240,
         .items = &.{
@@ -16,7 +16,7 @@ if (state.menu_open) {
             ui.MenuItem.divider,
             .{ .key = "m-del", .label = "删除", .icon = .trash, .danger = true, .on_click = ui.action(state, State.remove) },
         },
-    }), .{ .absolute = true, .top = 46, .right = 16 }));
+    }), .{ .absolute = true, .top = 46, .right = 16 })) catch {};
 }
 ```
 

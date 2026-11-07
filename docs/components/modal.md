@@ -5,14 +5,14 @@ antd `Modal`：半透明遮罩（`rgba(0,0,0,.45)`）淡入，卡片以 zoom 动
 处理调用同一个关闭动作。打开时作为窗口根的最后一个子节点渲染。
 
 ```zig
-if (state.help_open) children.append(ui.modal(.{
+if (state.help_open) children.append(arena, ui.modal(.{
     .key = "help",
     .title = "键盘快捷键",
     .width = null,                      // null = 按内容；默认 520
     .on_close = ui.action(state, State.closeHelp),
     .content = ui.shortcutList(.{ .groups = &shortcut_groups }),
     .footer = ui.button(.{ .text = "知道了", .variant = .primary, .on_click = ui.action(state, State.closeHelp) }),
-}));
+})) catch {};
 ```
 
 选项：`key`、`title`、`content`、`footer`（null 无底栏）、`width`（默认 520，null 按内容）、

@@ -35,6 +35,16 @@ pub const Config = struct {
     /// Asked before the window closes or the app quits (close button, ⌘W,
     /// ⌘Q). Return false to keep it open (e.g. unsaved changes).
     close_fn: ?*const fn (userdata: *anyopaque) bool = null,
+    /// Asked when the user quits the app (⌘Q, Dock menu); main window only.
+    /// Defaults to `close_fn`.
+    quit_fn: ?*const fn (userdata: *anyopaque) bool = null,
+    /// The window lost / gained the keyboard (e.g. hide a panel on blur).
+    focus_fn: ?*const fn (userdata: *anyopaque, focused: bool) bool = null,
+    /// Once, after the window exists and before the event loop starts.
+    start_fn: ?*const fn (userdata: *anyopaque) void = null,
+    /// On the UI thread after `ui.postWake` (any thread): take results that
+    /// background work published. Main window only.
+    wake_fn: ?*const fn (userdata: *anyopaque) void = null,
 };
 
 pub const Runtime = struct {
@@ -112,6 +122,8 @@ pub const Runtime = struct {
     sel_marked: std.ArrayListUnmanaged(NodeId) = .empty,
     /// Window clear colour; follows the root background (dark mode).
     clear_color: u32 = 0,
+    /// This window's frame allocations (ui.frameAllocator while it builds).
+    frame_arena: std.heap.ArenaAllocator = std.heap.ArenaAllocator.init(std.heap.c_allocator),
 
     pub fn init(
         allocator: std.mem.Allocator,
@@ -143,6 +155,7 @@ pub const Runtime = struct {
     }
 
     pub fn deinit(self: *Runtime) void {
+        self.frame_arena.deinit();
         if (self.tooltip_layout) |*layout| layout.deinit();
         self.sel_marked.deinit(self.allocator);
         self.tree.deinit();
@@ -153,6 +166,45 @@ pub const Runtime = struct {
     pub fn invalidate(self: *Runtime) void {
         self.needs_build = true;
         platform.requestRedraw(self.window, 0);
+    }
+
+    /// Rebuilds every open window (they may render the same app state).
+    pub fn invalidateAll() void {
+        for (open_runtimes.items) |runtime| runtime.invalidate();
+    }
+
+    fn register(self: *Runtime) void {
+        open_runtimes.append(std.heap.c_allocator, self) catch {};
+    }
+
+    fn unregister(self: *Runtime) void {
+        for (open_runtimes.items, 0..) |runtime, i| {
+            if (runtime == self) {
+                _ = open_runtimes.swapRemove(i);
+                return;
+            }
+        }
+    }
+
+    /// A second window of the app (panel, tool window) on the running event
+    /// loop. It shares the app state through `userdata`; state changes in any
+    /// window rebuild all of them.
+    pub fn openWindow(self: *Runtime) !void {
+        if (platform.getenv("ZANT_FRAME_STATS")) |v| {
+            const labels = [_][]const u8{ ":2", ":3", ":4", ":5", ":6", ":7", ":8", ":9" };
+            if (v.len > 0 and v[0] == '1') self.frame_stats = .{ .label = labels[@min(open_runtimes.items.len -| 1, labels.len - 1)] };
+        }
+        const host = makeHost(self);
+        self.window = try platform.createWindow(self.config.title, self.config.window, &host);
+        self.register();
+    }
+
+    /// Closes a window opened with `openWindow` and frees the runtime.
+    pub fn closeWindow(self: *Runtime) void {
+        self.unregister();
+        if (self.window) |window| platform.destroy(window);
+        self.window = null;
+        self.deinit();
     }
 
     pub fn invalidateCallback(ctx: *anyopaque) void {
@@ -169,7 +221,9 @@ pub const Runtime = struct {
         const window = try platform.createWindow(self.config.title, self.config.window, &host);
         self.window = window;
         ui.wake_window.store(window, .release);
+        self.register();
         defer {
+            self.unregister();
             ui.wake_window.store(null, .release);
             platform.destroy(window);
             self.window = null;
@@ -186,6 +240,7 @@ pub const Runtime = struct {
             self.allocator.free(path);
             self.layout_file = null;
         };
+        if (self.config.start_fn) |start_fn| start_fn(self.userdata);
         if (platform.getenv("ZANT_SNAPSHOT")) |path| {
             const copy = try self.allocator.dupeSentinel(u8, path, 0);
             defer self.allocator.free(copy);
@@ -241,8 +296,10 @@ pub const Runtime = struct {
         ui.setBuildWindowStyle(self.config.window.style);
         ui.setBuildTree(self.tree);
         defer ui.setBuildTree(null);
-        ui.beginFrame();
+        ui.beginFrameIn(&self.frame_arena);
         defer ui.endFrame();
+        const prev_owner = ui.setCommandOwner(self);
+        defer _ = ui.setCommandOwner(prev_owner);
         var root = self.render_fn(self.userdata);
         if (self.drawsCaptionButtons() and root.element.kind == .container) {
             root = ui.appendChildren(root, &.{ui.windowControls(.{
@@ -1111,8 +1168,11 @@ pub const Runtime = struct {
     /// nodes created by the same update exist and have bounds).
     fn runCommands(self: *Runtime) void {
         var buf: [ui.max_commands]ui.Command = undefined;
-        for (ui.takeCommands(&buf)) |*cmd| {
-            const id = self.findKey(cmd.key()) orelse continue;
+        for (ui.takeCommandsFor(self, &buf)) |*cmd| {
+            const id = self.findKey(cmd.key()) orelse {
+                ui.requeueCommand(cmd.*);
+                continue;
+            };
             switch (cmd.kind) {
                 .focus => {
                     const node = self.tree.get(id);
@@ -1289,9 +1349,17 @@ pub const Runtime = struct {
     pub fn dispatch(self: *Runtime, event: events.Event) c_int {
         self.dispatch_depth += 1;
         defer self.dispatch_depth -= 1;
+        const prev_owner = ui.setCommandOwner(self);
+        defer _ = ui.setCommandOwner(prev_owner);
         self.sampleClock();
         const result = self.dispatchEvent(event);
         self.reportSelection();
+        // the app's state may have changed: other windows rebuild too
+        if (self.needs_build and open_runtimes.items.len > 1) {
+            for (open_runtimes.items) |runtime| {
+                if (runtime != self) runtime.invalidate();
+            }
+        }
         return switch (event) {
             // pointer / wheel events: non-zero only when something must be
             // redrawn, so plain mouse movement over static UI paints nothing
@@ -1355,6 +1423,9 @@ pub const Runtime = struct {
                 return result;
             },
             .window_blur => {
+                if (self.config.focus_fn) |focus_fn| {
+                    if (focus_fn(self.userdata, false)) self.needs_build = true;
+                }
                 self.active = false;
                 self.sel_dragging = false;
                 self.releasePointerCapture(.{ .x = self.last_click_x, .y = self.last_click_y });
@@ -1368,6 +1439,9 @@ pub const Runtime = struct {
                 return 0;
             },
             .window_focus => {
+                if (self.config.focus_fn) |focus_fn| {
+                    if (focus_fn(self.userdata, true)) self.needs_build = true;
+                }
                 self.active = true;
                 if (self.drawsCaptionButtons()) self.needs_build = true;
                 return 0;
@@ -1380,9 +1454,22 @@ pub const Runtime = struct {
                 return 0;
             },
             .window_close => return 0,
+            .appearance_change => {
+                // theme hooks that follow the system re-evaluate
+                self.needs_build = true;
+                return 1;
+            },
             .window_close_request => {
                 const close_fn = self.config.close_fn orelse return 0;
-                return @intFromBool(!close_fn(self.userdata));
+                const allowed = close_fn(self.userdata);
+                self.needs_build = true;
+                return @intFromBool(!allowed);
+            },
+            .app_quit_request => {
+                const quit_fn = self.config.quit_fn orelse self.config.close_fn orelse return 0;
+                const allowed = quit_fn(self.userdata);
+                self.needs_build = true;
+                return @intFromBool(!allowed);
             },
             .scroll => |scroll_event| {
                 if (self.tree.wheelTargetAt(scroll_event.x, scroll_event.y)) |wid| {
@@ -2363,7 +2450,27 @@ pub const Runtime = struct {
         return 0;
     }
 
-    fn handleTextInput(self: *Runtime, value: []const u8) c_int {
+    fn handleTextInput(self: *Runtime, raw: []const u8) c_int {
+        // control characters (Esc, Backspace, bell... that an input method or
+        // a stray key event delivers as text) are never typed into a field
+        var buf: [256]u8 = undefined;
+        var clean: std.ArrayListUnmanaged(u8) = .initBuffer(&buf);
+        var heap: ?[]u8 = null;
+        defer if (heap) |h| self.allocator.free(h);
+        const value = if (hasControlChars(raw)) blk: {
+            const out = if (raw.len <= buf.len) &clean else out: {
+                heap = self.allocator.alloc(u8, raw.len) catch return 0;
+                clean = .initBuffer(heap.?);
+                break :out &clean;
+            };
+            for (raw) |c| {
+                if (c < 0x20 and c != '\t' and c != '\n' and c != '\r') continue;
+                if (c == 0x7f) continue;
+                out.appendAssumeCapacity(c);
+            }
+            break :blk out.items;
+        } else raw;
+        if (value.len == 0) return 0;
         if (self.tree.focused) |id| {
             const node = self.tree.get(id);
             if (std.meta.activeTag(node.data) == .input) {
@@ -2371,6 +2478,13 @@ pub const Runtime = struct {
             }
         }
         return 0;
+    }
+
+    fn hasControlChars(text: []const u8) bool {
+        for (text) |c| {
+            if ((c < 0x20 and c != '\t' and c != '\n' and c != '\r') or c == 0x7f) return true;
+        }
+        return false;
     }
 
     fn handleComposition(self: *Runtime, composition: events.Composition) c_int {
@@ -2423,6 +2537,10 @@ const monotonicMs = platform.monotonicMs;
 const FrameStats = struct {
     const Phase = enum { rebuild, layout, paint };
 
+    /// "" for the main window ("[frames]"), ":2", ":3"... for the windows
+    /// opened later ("[frames:2]").
+    label: []const u8 = "",
+
     window_start: i64 = 0,
     last_end: i64 = 0,
     frames: u32 = 0,
@@ -2467,13 +2585,14 @@ const FrameStats = struct {
         // frames over half the 60 Hz budget, one line each
         const text = @import("renderer/text.zig").layout_stats.take();
         if (end - start > 8_000) {
-            std.debug.print("[slow-frame] ms={d:.2} rebuild={d:.2} layout={d:.2} paint={d:.2} text_layouts={d} text_ms={d:.2}\n", .{ ms(end - start), ms(self.cur_phase_us[0]), ms(self.cur_phase_us[1]), ms(self.cur_phase_us[2]), text.count, ms(text.us) });
+            std.debug.print("[slow-frame{s}] ms={d:.2} rebuild={d:.2} layout={d:.2} paint={d:.2} text_layouts={d} text_ms={d:.2}\n", .{ self.label, ms(end - start), ms(self.cur_phase_us[0]), ms(self.cur_phase_us[1]), ms(self.cur_phase_us[2]), text.count, ms(text.us) });
         }
         self.cur_phase_us = .{ 0, 0, 0 };
         const elapsed = end - self.window_start;
         if (elapsed < 1_000_000) return;
         const fps = @as(f64, @floatFromInt(self.frames)) * 1_000_000.0 / @as(f64, @floatFromInt(elapsed));
-        std.debug.print("[frames] fps={d:.1} max_frame_ms={d:.2} (rebuild={d:.2} layout={d:.2} paint={d:.2}) max_gap_ms={d:.2} resize_frames={d} max_resize_latency_ms={d:.2} size={d:.0}x{d:.0}\n", .{
+        std.debug.print("[frames{s}] fps={d:.1} max_frame_ms={d:.2} (rebuild={d:.2} layout={d:.2} paint={d:.2}) max_gap_ms={d:.2} resize_frames={d} max_resize_latency_ms={d:.2} size={d:.0}x{d:.0}\n", .{
+            self.label,
             fps,
             ms(self.max_frame_us),
             ms(self.max_phase_us[0]),
@@ -2485,7 +2604,7 @@ const FrameStats = struct {
             width,
             height,
         });
-        self.* = .{ .last_end = end, .pending_resize = self.pending_resize };
+        self.* = .{ .label = self.label, .last_end = end, .pending_resize = self.pending_resize };
     }
 };
 
@@ -2523,8 +2642,16 @@ fn titlebarHitCallback(userdata: ?*anyopaque, x: f32, y: f32) callconv(.c) c_int
 
 fn wakeCallback(userdata: ?*anyopaque) callconv(.c) void {
     const self: *Runtime = @ptrCast(@alignCast(userdata orelse return));
+    if (self.config.wake_fn) |wake_fn| wake_fn(self.userdata);
     self.needs_build = true;
+    // background results (ui.postWake) concern the app state: all windows
+    for (open_runtimes.items) |runtime| {
+        if (runtime != self) runtime.invalidate();
+    }
 }
+
+/// Windows of the app on the UI thread (main window first).
+var open_runtimes: std.ArrayListUnmanaged(*Runtime) = .empty;
 
 fn makeHost(runtime: *Runtime) platform.Host {
     return .{
