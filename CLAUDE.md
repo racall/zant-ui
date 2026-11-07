@@ -16,7 +16,7 @@
 - 声明式 API：`src/ui.zig`；协调器：`src/ui_runtime.zig`。
 - 组件：`src/components/`；样式统一入口：`ui.styled`。
 - 脚手架：`tools/zant/main.zig`；模板：`scaffold/template/`。
-- 测试：`zig build test`（当前 154/154，含 remend 522 条、mhchem 823 条上游用例；macOS 与 Windows 都要过）。
+- 测试：`zig build test`（当前 159/159，含 remend 522 条、mhchem 823 条上游用例；macOS 与 Windows 都要过）。
 - Windows：测试机见 `AGENTS.md`「跨平台规范」；`scripts/win/` 同步、远程构建、桌面冒烟测试。
 - 动效：`src/motion/`，规范见 `docs/motion.md` 与 `AGENTS.md`「动效规范」；
   `ZANT_NO_MOTION=1` 关闭动效。
@@ -33,6 +33,9 @@
   示例 `zig build run-markdown` / `run-math` / `run-md-stream`（流式帧率基准，可读真实 SSE）。
 - 性能基准：`zig build bench`（`zant-bench`：打开长对话、流式、打字、光标、悬停、缩放、滚动；
   `ZANT_BENCH_LIST=1` 用虚拟列表）。优化前先建基线（ReleaseFast，另装到 `zig-out-baseline`），两边平台对比。
+- 桌面集成：`zant.desktop`（`docs/desktop.md`）：多窗口 / `.panel` 快捷面板、托盘与状态栏、全局快捷键、
+  剪贴板监听与图片、单实例、深色模式；钩子 `onStart` / `onAppEvent` / `onWake` / `onQuitRequest`。
+  组件 `ui.clickable`、`ui.hotkeyInput`、`BoxOptions.show_on_hover`。示例项目 ClipHop。
 - 虚拟列表：`ui.list` + `ui.ListState`（`docs/components/list.md`）；悬停样式 `BoxOptions.hover_background`；
   焦点范围 `BoxOptions.focus_scope`（`ui.modal` 自带）。
 - 流式性能：改 Markdown / 布局 / 文本后，用 ReleaseFast 的 `zant-md-stream` 配 `ZANT_FRAME_STATS=1`

@@ -173,6 +173,15 @@ ui.styled(node, .{
 - 生成项目默认最小窗口 600×620；内容放不下时优先调整布局，不要靠重叠。
 - 文本宽度受容器约束；长文本使用 `ui.paragraph`。
 
+## 桌面集成（详见 docs/desktop.md）
+
+- 托盘 / 状态栏、全局快捷键、剪贴板监听与图片、多窗口与 `.panel` 快捷面板、单实例、系统深色模式
+  都走 `zant.desktop`，应用里不要写平台代码；示例项目 ClipHop（局域网剪贴板同步）。
+- 应用钩子：`onStart`、`onAppEvent`、`onWake`、`onCloseRequest`、`onQuitRequest`。
+- 多个窗口渲染同一份状态，任何窗口的动作都会重建所有窗口；`ui.focus` 等命令只作用于发出它的窗口。
+- 网络代码用阻塞调用放在独立线程（Zig 0.17 `std.Io` 带超时的连接 / 接收在两端都不可用）。
+- 改了 `scripts/win/sync.sh` 同步的文件列表后确认 Windows 端源码与本机一致（同步失败要能看到报错）。
+
 ## 窗口与配置
 
 - 项目配置：`app.config.json`。
@@ -181,7 +190,7 @@ ui.styled(node, .{
   `sandbox` / `signing_identity`，Info.plist、entitlements）。不要再让 create 问单个平台的问题。
 - 图标：`zant create` 带 `assets/icons/` 默认图标（两端规范见 `docs/scaffold.md`「图标」）；
   `configureApp` 把它们加为 `@embedFile` 名字（`icon_tray` 等），Windows 编译时生成 .ico 资源，
-  `zant package` 在 macOS 生成 .icns；PNG 读写与缩放在 `tools/zant/png.zig`（`zant-icon` 工具）。
+  `zant package` 在 macOS 生成 .icns；PNG 读写与缩放在 `src/core/png.zig`（CLI 与 `zant-icon` 工具共用）。
 - 生成文件：`src/app_config.zig`（两端）、`Info.plist`、`app.entitlements`（仅 macOS），
   不要手改。Windows 上 `bundle_id` 用作 `%APPDATA%` 下的数据目录名（`zant.paths.appDataDir`）。
 - 配置字段：标题、`bundle_id`、版本，`window` 下的 style/width/height/min/background/
@@ -252,7 +261,7 @@ ui.styled(node, .{
   （`zant-components` 配合 `ZANT_AUTOPLAY=quiet`）看每帧耗时，单帧应远低于 16.7 ms；
   Windows 上用 `scripts/win/resize-check.ps1` 测拖动缩放帧率（应跟满刷新率）。
 - 每帧路径里不要写 stderr（Windows 上每行约 10 ms）。
-- 当前测试 154/154（`tests/` + 框架模块内单元测试），macOS 与 Windows 都要通过；新增行为应补测试。
+- 当前测试 159/159（`tests/` + 框架模块内单元测试），macOS 与 Windows 都要通过；新增行为应补测试。
 - 文字排版缓存：`TextData` / `RichTextData` 保留当前与上一个宽度的排版，测量自然宽度走独立缓存
   （`measureWidth` / `naturalWidth`）；不要在测量路径里调 `ensureLayout` 换宽度，否则每帧会重排所有文字。
 - 无确定高度的 column 不计算子节点的 flex 基准高度（不会用到），避免整棵子树按估计宽度多排一遍。
