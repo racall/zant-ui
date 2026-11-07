@@ -768,12 +768,28 @@ static void zant_install_menu(const char *title) {
     [NSApp setMainMenu:main_menu];
 }
 
+/* Unbundled runs (`zant run`, zig-out/bin/app) have no AppIcon.icns: show
+   the project's assets/icons/app-macos.png in the Dock instead, so the icon
+   is visible while developing. Packaged apps use their bundle icon. */
+static void zant_apply_dev_icon(void) {
+    if ([[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleIconFile"]) return;
+    NSString *exe = [[NSBundle mainBundle] executablePath];
+    if (!exe) return;
+    /* <project>/zig-out/bin/app -> <project>/assets/icons/app-macos.png */
+    NSString *project = [[[exe stringByDeletingLastPathComponent] stringByDeletingLastPathComponent]
+        stringByDeletingLastPathComponent];
+    NSString *path = [project stringByAppendingPathComponent:@"assets/icons/app-macos.png"];
+    NSImage *icon = [[NSImage alloc] initWithContentsOfFile:path];
+    if (icon) NSApp.applicationIconImage = icon;
+}
+
 ZantWindow *zant_window_create(const char *title, const ZantWindowOptions *options,
                                        const ZantHost *host) {
     @autoreleasepool {
         [NSApplication sharedApplication];
         [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
         zant_install_menu(title);
+        zant_apply_dev_icon();
 
         ZantWindow *window = calloc(1, sizeof(ZantWindow));
         if (!window) return NULL;

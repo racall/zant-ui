@@ -33,7 +33,7 @@
 | 字段 | 说明 |
 |---|---|
 | `title` | 窗口标题、应用显示名 |
-| `bundle_id` | 应用标识（如 `com.xx.test`）：macOS 的 Bundle ID，Windows 上 `zant.paths.appDataDir` 的目录名 |
+| `bundle_id` | 应用标识（如 `com.xx.test`）：macOS 的 Bundle ID，Windows 上 `zant.paths.appDataDir` 的目录名；须符合苹果与微软规范（见 `docs/scaffold.md`），否则 `zant` 报错 |
 | `version` | 版本号（macOS 写入 `CFBundleShortVersionString`） |
 | `macos.sandbox` | 是否写入 App Sandbox entitlement 并用沙盒方式运行（仅 macOS） |
 | `macos.signing_identity` | `codesign` 身份；`none` 表示 ad-hoc（仅 macOS） |

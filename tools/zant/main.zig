@@ -3,6 +3,7 @@ const build_options = @import("build_options");
 const Io = std.Io;
 const Dir = Io.Dir;
 const is_windows = @import("builtin").os.tag == .windows;
+const png = @import("png.zig");
 
 var child_environ: ?*std.process.Environ.Map = null;
 
@@ -211,6 +212,34 @@ fn prompt(allocator: std.mem.Allocator, label: []const u8, default: []const u8) 
     return allocator.dupe(u8, if (value.len == 0) default else value);
 }
 
+/// Asks for the app identifier until it follows the rules; three invalid
+/// answers end `zant create` before anything is written. The suggested
+/// default (from the project name) is offered only when it is valid itself.
+fn askBundle(allocator: std.mem.Allocator, suggested: []const u8) ![]const u8 {
+    const default: []const u8 = if (bundleError(suggested) == null) suggested else "";
+    var attempts: usize = 0;
+    while (attempts < 3) : (attempts += 1) {
+        std.debug.print("\n", .{});
+        const value = if (default.len > 0)
+            try prompt(allocator, "应用标识（反向域名，如 com.xx.test）", default)
+        else blk: {
+            std.debug.print("应用标识（反向域名，如 com.xx.test）: ", .{});
+            var buf: [256]u8 = undefined;
+            break :blk try allocator.dupe(u8, std.mem.trim(u8, console.readLine(&buf), " "));
+        };
+        if (value.len == 0) {
+            std.debug.print("  " ++ Color.red ++ "✗" ++ Color.reset ++ " 应用标识不能为空，请输入（如 com.xx.test）\n", .{});
+            continue;
+        }
+        if (bundleError(value)) |why| {
+            std.debug.print("  " ++ Color.red ++ "✗" ++ Color.reset ++ " “{s}”不符合规范：{s}，请重新输入\n", .{ value, why });
+            continue;
+        }
+        return value;
+    }
+    fail("应用标识连续 3 次不符合规范，未创建项目", .{});
+}
+
 fn promptYesNo(allocator: std.mem.Allocator, label: []const u8, default: bool) !bool {
     const def = if (default) "Y/n" else "y/N";
     while (true) {
@@ -330,6 +359,7 @@ fn loadConfig(allocator: std.mem.Allocator, io: Io, root: []const u8) !AppConfig
         if (w.movable_by_background) |v| cfg.window.movable_by_background = v;
         if (w.center) |v| cfg.window.center = v;
     }
+    if (bundleError(cfg.bundle_id)) |why| fail("app.config.json 的 bundle_id \"{s}\" 不符合规范：{s}（如 com.xx.test）", .{ cfg.bundle_id, why });
     if (cfg.window.min_width > cfg.window.width) cfg.window.min_width = cfg.window.width;
     if (cfg.window.min_height > cfg.window.height) cfg.window.min_height = cfg.window.height;
     return cfg;
@@ -388,6 +418,10 @@ fn generateConfigSource(allocator: std.mem.Allocator, cfg: *const AppConfig) ![]
 }
 
 fn generateInfoPlist(allocator: std.mem.Allocator, cfg: *const AppConfig) ![]u8 {
+    return generateInfoPlistIcon(allocator, cfg, false);
+}
+
+fn generateInfoPlistIcon(allocator: std.mem.Allocator, cfg: *const AppConfig, icon: bool) ![]u8 {
     const title = try escapeXml(allocator, cfg.title);
     defer allocator.free(title);
     const bundle = try escapeXml(allocator, cfg.bundle_id);
@@ -398,7 +432,7 @@ fn generateInfoPlist(allocator: std.mem.Allocator, cfg: *const AppConfig) ![]u8 
         \\<plist version="1.0"><dict>
         \\<key>CFBundleDevelopmentRegion</key><string>zh_CN</string>
         \\<key>CFBundleDisplayName</key><string>{s}</string>
-        \\<key>CFBundleExecutable</key><string>app</string>
+        \\<key>CFBundleExecutable</key><string>app</string>{s}
         \\<key>CFBundleIdentifier</key><string>{s}</string>
         \\<key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
         \\<key>CFBundleName</key><string>{s}</string>
@@ -410,7 +444,7 @@ fn generateInfoPlist(allocator: std.mem.Allocator, cfg: *const AppConfig) ![]u8 
         \\<key>NSPrincipalClass</key><string>NSApplication</string>
         \\</dict></plist>
         \\
-    , .{ title, bundle, title, cfg.version });
+    , .{ title, if (icon) "\n<key>CFBundleIconFile</key><string>AppIcon</string>" else "", bundle, title, cfg.version });
 }
 
 /// src/app_config.zig (both platforms).
@@ -554,7 +588,8 @@ fn packageApp(allocator: std.mem.Allocator, io: Io, root: []const u8, cfg: *cons
     defer allocator.free(dst_exe);
     try Dir.cwd().copyFile(src_exe, std.Io.Dir.cwd(), dst_exe, io, .{ .replace = true, .make_path = true });
 
-    const plist = try generateInfoPlist(allocator, cfg);
+    const has_icon = try writeMacIcon(allocator, io, root, app_path);
+    const plist = try generateInfoPlistIcon(allocator, cfg, has_icon);
     defer allocator.free(plist);
     const dst_plist = try std.fmt.allocPrint(allocator, "{s}/Contents/Info.plist", .{app_path});
     defer allocator.free(dst_plist);
@@ -585,6 +620,38 @@ fn packageApp(allocator: std.mem.Allocator, io: Io, root: []const u8, cfg: *cons
 }
 
 /// `zig-out/bin/app` (`app.exe` on Windows).
+/// Contents/Resources/AppIcon.icns from assets/icons/app-macos.png (1024×1024,
+/// Apple icon grid): the ten iconset sizes are resized here, iconutil packs
+/// them. Returns false when the project has no icon.
+fn writeMacIcon(allocator: std.mem.Allocator, io: Io, root: []const u8, app_path: []const u8) !bool {
+    const source = try std.fs.path.join(allocator, &.{ root, "assets", "icons", "app-macos.png" });
+    const data = readFile(allocator, io, source) catch return false;
+    const img = png.decode(allocator, data) catch |err| fail("{s} 无法读取（{s}）：需要 8 位、非隔行扫描的 PNG", .{ source, @errorName(err) });
+    if (img.width != 1024 or img.height != 1024) fail("{s} 是 {d}×{d}；macOS 应用图标需要 1024×1024（苹果图标网格：主体 824×824 居中）", .{ source, img.width, img.height });
+    step("生成应用图标 AppIcon.icns", .{});
+    const iconset = try std.fmt.allocPrint(allocator, "{s}/zig-out/AppIcon.iconset", .{root});
+    Dir.cwd().deleteTree(io, iconset) catch {};
+    try Dir.cwd().createDirPath(io, iconset);
+    for ([_]u32{ 16, 32, 128, 256, 512 }) |size| {
+        for ([_]u32{ 1, 2 }) |scale| {
+            const px = size * scale;
+            const resized = if (px == img.width) img else try png.resize(allocator, img, px, px);
+            const name = if (scale == 1)
+                try std.fmt.allocPrint(allocator, "{s}/icon_{d}x{d}.png", .{ iconset, size, size })
+            else
+                try std.fmt.allocPrint(allocator, "{s}/icon_{d}x{d}@2x.png", .{ iconset, size, size });
+            try writeFile(allocator, io, name, try png.encode(allocator, resized));
+        }
+    }
+    const resources = try std.fmt.allocPrint(allocator, "{s}/Contents/Resources", .{app_path});
+    try Dir.cwd().createDirPath(io, resources);
+    const icns = try std.fmt.allocPrint(allocator, "{s}/AppIcon.icns", .{resources});
+    try runInherit(allocator, io, &.{ "iconutil", "-c", "icns", "-o", icns, iconset }, root);
+    Dir.cwd().deleteTree(io, iconset) catch {};
+    ok("应用图标已生成", .{});
+    return true;
+}
+
 fn appExePath(allocator: std.mem.Allocator, root: []const u8) ![]u8 {
     return std.fmt.allocPrint(allocator, "{s}/zig-out/bin/app{s}", .{ root, if (is_windows) ".exe" else "" });
 }
@@ -636,15 +703,51 @@ fn validName(name: []const u8) bool {
     return true;
 }
 
-fn validBundle(bundle: []const u8) bool {
-    if (bundle.len == 0 or !std.ascii.isAlphabetic(bundle[0])) return false;
-    for (bundle) |ch| {
-        if (!(std.ascii.isAlphanumeric(ch) or ch == '-' or ch == '.')) return false;
+/// Why `id` is not a valid app identifier, or null. The identifier is the
+/// macOS CFBundleIdentifier and, on Windows, the data folder name (and fits
+/// an MSIX package name), so it follows both:
+/// - Apple: only A–Z a–z 0–9 `-` `.`, reverse-DNS ("com.xx.test"); the
+///   `com.apple.` prefix is reserved.
+/// - Microsoft (MSIX Identity Name): 3–50 characters, no trailing `.`; a part
+///   may not be a reserved device name (CON, NUL, COM1…), which Windows also
+///   refuses as a folder name.
+/// Plus: at least two parts, none empty, each starting with a letter or
+/// digit and not ending with `-`, the first starting with a letter.
+fn bundleError(id: []const u8) ?[]const u8 {
+    if (id.len < 3 or id.len > 50) return "长度要在 3～50 个字符之间（微软 MSIX 包名规范）";
+    for (id) |ch| {
+        if (!(std.ascii.isAlphanumeric(ch) or ch == '-' or ch == '.'))
+            return "只能包含英文字母、数字、- 和 .（苹果 Bundle ID 规范；不能有空格、下划线、中文）";
     }
-    // reverse-DNS: at least two parts, none empty ("com.xx.test")
-    if (std.mem.indexOfScalar(u8, bundle, '.') == null) return false;
-    if (bundle[bundle.len - 1] == '.' or std.mem.indexOf(u8, bundle, "..") != null) return false;
-    return true;
+    if (std.mem.indexOfScalar(u8, id, '.') == null) return "要用反向域名格式，至少两段，如 com.xx.test";
+    if (!std.ascii.isAlphabetic(id[0])) return "要以英文字母开头";
+    if (std.ascii.startsWithIgnoreCase(id, "com.apple.") or std.ascii.eqlIgnoreCase(id, "com.apple"))
+        return "com.apple 开头的标识是苹果保留的";
+    var parts = std.mem.splitScalar(u8, id, '.');
+    while (parts.next()) |part| {
+        if (part.len == 0) return "不能以 . 开头或结尾，也不能有连续的 ..";
+        if (part[0] == '-' or part[part.len - 1] == '-') return "每一段不能以 - 开头或结尾";
+        if (reservedWindowsName(part)) return "不能有 CON、PRN、AUX、NUL、COM1～9、LPT1～9 这样的段（Windows 保留名）";
+    }
+    return null;
+}
+
+fn reservedWindowsName(part: []const u8) bool {
+    for ([_][]const u8{ "con", "prn", "aux", "nul" }) |name| {
+        if (std.ascii.eqlIgnoreCase(part, name)) return true;
+    }
+    if (part.len == 4 and part[3] >= '1' and part[3] <= '9' and
+        (std.ascii.startsWithIgnoreCase(part, "com") or std.ascii.startsWithIgnoreCase(part, "lpt"))) return true;
+    return false;
+}
+
+test "app identifier follows Apple and Microsoft rules" {
+    for ([_][]const u8{ "com.xx.test", "dev.zant.demo-app", "io.github.user.App2", "Com.Example.MyApp" }) |id| {
+        try std.testing.expect(bundleError(id) == null);
+    }
+    for ([_][]const u8{ "bad", "ab", "com.xx_test", "com.xx test", "com.剪贴板", "1com.xx", "com..xx", "com.xx.", ".com.xx", "com.-xx", "com.xx-", "com.apple.notes", "com.con.app", "com.xx.LPT1", "a.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }) |id| {
+        try std.testing.expect(bundleError(id) != null);
+    }
 }
 
 fn pathExists(io: Io, path: []const u8) bool {
@@ -689,10 +792,7 @@ fn cmdCreate(allocator: std.mem.Allocator, io: Io, args: []const [:0]const u8) !
     defer allocator.free(cwd);
     const target = try std.fs.path.join(allocator, &.{ cwd, name });
     defer allocator.free(target);
-    if (pathExists(io, target)) {
-        if (!force) fail("目录已存在: {s}（使用 --force 覆盖）", .{target});
-        Dir.cwd().deleteTree(io, target) catch {};
-    }
+    if (pathExists(io, target) and !force) fail("目录已存在: {s}（使用 --force 覆盖）", .{target});
 
     const default_title = try titleFromName(allocator, name);
     defer allocator.free(default_title);
@@ -734,25 +834,17 @@ fn cmdCreate(allocator: std.mem.Allocator, io: Io, args: []const [:0]const u8) !
                 }
             }
         }
-        if (bundle_arg == null) {
-            while (true) {
-                std.debug.print("\n", .{});
-                const value = try prompt(allocator, "应用标识（反向域名，如 com.xx.test）", bundle);
-                if (validBundle(value)) {
-                    bundle = value;
-                    break;
-                }
-                std.debug.print("  只能包含字母、数字、-、.，且至少有一个 .（如 com.xx.test）\n", .{});
-            }
-        }
+        if (bundle_arg == null) bundle = try askBundle(allocator, bundle);
     }
     if (std.mem.eql(u8, style, "2")) style = "hidden-titlebar";
     if (std.mem.eql(u8, style, "3")) style = "borderless";
     if (!std.mem.eql(u8, style, "native") and !std.mem.eql(u8, style, "hidden-titlebar") and !std.mem.eql(u8, style, "borderless"))
         fail("窗口风格必须是 native、hidden-titlebar 或 borderless", .{});
     if (title.len == 0) fail("应用标题不能为空", .{});
-    if (!validBundle(bundle)) fail("应用标识（bundle_id）无效: {s}", .{bundle});
+    if (bundleError(bundle)) |why| fail("应用标识 {s} 不符合规范：{s}", .{ bundle, why });
 
+    // everything is validated: only now replace an existing folder (--force)
+    if (pathExists(io, target)) Dir.cwd().deleteTree(io, target) catch {};
     step("创建 {s}", .{target});
     try Dir.cwd().createDirPath(io, target);
     ok("目录已创建", .{});
@@ -783,7 +875,7 @@ fn cmdCreate(allocator: std.mem.Allocator, io: Io, args: []const [:0]const u8) !
     const design = try readFile(allocator, io, try std.fs.path.join(allocator, &.{ zroot, "scaffold/template/DESIGN.md" }));
     defer allocator.free(design);
 
-    const zant_rel = try std.fs.path.relativeAlloc(allocator, cwd, null, target, zroot);
+    const zant_rel = try zantDependencyPath(allocator, io, cwd, target, zroot);
     defer allocator.free(zant_rel);
     // a Zig string literal in build.zig.zon: "\\" would be an escape
     std.mem.replaceScalar(u8, zant_rel, '\\', '/');
@@ -831,6 +923,26 @@ fn cmdCreate(allocator: std.mem.Allocator, io: Io, args: []const [:0]const u8) !
     const claude_path = try std.fs.path.join(allocator, &.{ target, "CLAUDE.md" });
     defer allocator.free(claude_path);
     try writeFile(allocator, io, claude_path, claude_text);
+    try writeFile(allocator, io, try std.fs.path.join(allocator, &.{ target, ".gitignore" }),
+        \\# build output and caches
+        \\zig-out/
+        \\.zig-cache/
+        \\# Zant UI link for projects on another drive (Windows)
+        \\.zant/
+        \\# generated by `zant` on macOS from app.config.json
+        \\Info.plist
+        \\app.entitlements
+        \\
+    );
+    // default icons (both platforms' guidelines); replace the PNGs, the SVGs are editable sources
+    try Dir.cwd().createDirPath(io, try std.fs.path.join(allocator, &.{ target, "assets", "icons" }));
+    for ([_][]const u8{ "app-macos", "app-windows", "tray", "statusbar" }) |icon| {
+        for ([_][]const u8{ ".png", ".svg" }) |ext| {
+            const file = try std.mem.concat(allocator, u8, &.{ icon, ext });
+            const data = try readFile(allocator, io, try std.fs.path.join(allocator, &.{ zroot, "scaffold/template/assets/icons", file }));
+            try writeFile(allocator, io, try std.fs.path.join(allocator, &.{ target, "assets", "icons", file }), data);
+        }
+    }
     // UI/UX design guide (highest-priority rules for AI agents)
     const design_path = try std.fs.path.join(allocator, &.{ target, "DESIGN.md" });
     defer allocator.free(design_path);
@@ -887,6 +999,25 @@ fn cmdCreate(allocator: std.mem.Allocator, io: Io, args: []const [:0]const u8) !
     std.debug.print("  " ++ Color.dim ++ "macOS 专属设置（沙盒、签名）在 Mac 上首次 zant run / zant package 时补充到 app.config.json" ++ Color.reset ++ "\n", .{});
     const sep = if (is_windows) "\\" else "/";
     std.debug.print("\n下一步：\n  cd {s}\n  {s}{s}zig-out{s}bin{s}zant run\n\n", .{ name, zroot, sep, sep, sep });
+}
+
+/// Path of Zant UI for build.zig.zon, which only accepts paths relative to
+/// the project. On Windows a project on another drive than Zant UI has no
+/// relative path: link Zant UI into the project with a directory junction
+/// (no admin rights needed) and refer to that.
+fn zantDependencyPath(allocator: std.mem.Allocator, io: Io, cwd: []const u8, target: []const u8, zroot: []const u8) ![]u8 {
+    const rel = try std.fs.path.relativeAlloc(allocator, cwd, null, target, zroot);
+    if (!std.fs.path.isAbsolute(rel)) return rel;
+    allocator.free(rel);
+    const dir = try std.fs.path.join(allocator, &.{ target, ".zant" });
+    try Dir.cwd().createDirPath(io, dir);
+    const link = try std.fs.path.join(allocator, &.{ dir, "zant-ui" });
+    const result = runCapture(allocator, io, &.{ "cmd", "/c", "mklink", "/J", link, zroot }) catch |err|
+        fail("项目和 Zant UI 不在同一个盘，创建目录联接失败（{s}）；请把项目建在 {s} 所在的盘", .{ @errorName(err), zroot });
+    if (result.term != .exited or result.term.exited != 0)
+        fail("项目和 Zant UI 不在同一个盘，创建目录联接失败：{s}", .{result.stderr});
+    ok("项目和 Zant UI 不在同一个盘：已用目录联接 .zant/zant-ui 引用 Zant UI", .{});
+    return allocator.dupe(u8, ".zant/zant-ui");
 }
 
 fn replace(allocator: std.mem.Allocator, input: []u8, needle: []const u8, value: []const u8) ![]u8 {

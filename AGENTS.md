@@ -179,6 +179,9 @@ ui.styled(node, .{
 - 脚手架两端通用：`zant create` 只问通用设置（标题、窗口风格、应用标识 `bundle_id`）；
   平台专属的设置与文件由 `zant run` / `build` / `package` 在该平台补充（macOS：`macos` 段的
   `sandbox` / `signing_identity`，Info.plist、entitlements）。不要再让 create 问单个平台的问题。
+- 图标：`zant create` 带 `assets/icons/` 默认图标（两端规范见 `docs/scaffold.md`「图标」）；
+  `configureApp` 把它们加为 `@embedFile` 名字（`icon_tray` 等），Windows 编译时生成 .ico 资源，
+  `zant package` 在 macOS 生成 .icns；PNG 读写与缩放在 `tools/zant/png.zig`（`zant-icon` 工具）。
 - 生成文件：`src/app_config.zig`（两端）、`Info.plist`、`app.entitlements`（仅 macOS），
   不要手改。Windows 上 `bundle_id` 用作 `%APPDATA%` 下的数据目录名（`zant.paths.appDataDir`）。
 - 配置字段：标题、`bundle_id`、版本，`window` 下的 style/width/height/min/background/
@@ -249,7 +252,7 @@ ui.styled(node, .{
   （`zant-components` 配合 `ZANT_AUTOPLAY=quiet`）看每帧耗时，单帧应远低于 16.7 ms；
   Windows 上用 `scripts/win/resize-check.ps1` 测拖动缩放帧率（应跟满刷新率）。
 - 每帧路径里不要写 stderr（Windows 上每行约 10 ms）。
-- 当前测试 152/152（`tests/` + 框架模块内单元测试），macOS 与 Windows 都要通过；新增行为应补测试。
+- 当前测试 154/154（`tests/` + 框架模块内单元测试），macOS 与 Windows 都要通过；新增行为应补测试。
 - 文字排版缓存：`TextData` / `RichTextData` 保留当前与上一个宽度的排版，测量自然宽度走独立缓存
   （`measureWidth` / `naturalWidth`）；不要在测量路径里调 `ensureLayout` 换宽度，否则每帧会重排所有文字。
 - 无确定高度的 column 不计算子节点的 flex 基准高度（不会用到），避免整棵子树按估计宽度多排一遍。

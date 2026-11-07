@@ -32,6 +32,18 @@ cd /path/to/work
 3. 应用标识（反向域名，如 `com.xx.test`）：macOS 的 Bundle ID，也是 Windows 上
    `zant.paths.appDataDir` 的数据目录名（`%APPDATA%\<id>`）
 
+应用标识同时符合苹果与微软的规范，不合规就不能创建项目：
+
+- 只能有英文字母、数字、`-`、`.`（苹果 Bundle ID）；至少两段，没有空段，第一个字符是字母，
+  每段不以 `-` 开头或结尾；`com.apple` 开头的是苹果保留的
+- 3～50 个字符（微软 MSIX 包名）；任何一段不能是 CON、PRN、AUX、NUL、COM1～9、LPT1～9
+  （Windows 保留名，也不能做文件夹名）
+
+输错会说明原因并重新询问，连续 3 次不合规则退出、不创建任何文件；`--bundle-id` 不合规直接报错；
+项目名生成的默认标识不合规时（如项目名 `con`）不提供默认值。`--force` 覆盖时，旧目录在全部
+检查通过后才删除。`zant run` / `build` / `package` 每次都会检查 `app.config.json` 里的
+`bundle_id`，手改成不合规的值会报错并停止。
+
 macOS 专属设置不在创建时询问：在 Mac 上第一次 `zant run` / `zant build` 时写入
 `"macos": { "sandbox": false }`；第一次 `zant package` 时列出本机 codesign 身份让你选择
 （0 = ad-hoc；非交互终端直接用 ad-hoc），写入 `macos.signing_identity`。
@@ -108,16 +120,36 @@ zant package
 
 Windows：生成 `zig-out/<应用标题>/` 目录（`<应用标题>.exe`、`zant_skia.dll`、`pdfium.dll`、
 MSVC 运行库 `vcruntime140*.dll` / `msvcp140.dll`），GUI 子系统，压缩即可分发；不签名。
+exe 内带应用图标（`assets/icons/app-windows.png`）。项目和 Zant UI 不在同一个盘时，`zant create`
+用目录联接 `.zant/zant-ui` 引用 Zant UI（`build.zig.zon` 只接受相对路径）。
 
 macOS：生成 `zig-out/<应用标题>.app`：
 
 - 读取应用标识（Bundle ID）、版本、窗口配置；缺少签名账号时先询问
+- 用 `assets/icons/app-macos.png` 生成 `AppIcon.icns`（见「图标」）
 - 生成 Info.plist
 - 沙盒开启时写入 entitlements
 - 使用配置中的 Developer ID 签名
 - 无开发者账号时使用 ad-hoc 签名
 
 未自动做 notarization。沙盒应用 `zant run` 也会先打包，再用 `open -n -W` 启动。
+
+## 图标
+
+`zant create` 在 `assets/icons/` 放一套默认图标（PNG + 可编辑的 SVG 源文件），分别符合两端规范。
+换成自己的图标：替换同名 PNG（尺寸不变），SVG 只是方便修改的源文件。
+
+| 文件 | 用途与规范 |
+|---|---|
+| `app-macos.png` | macOS 应用图标，1024×1024；苹果图标网格：主体 824×824 居中（四周留 100 px）、连续圆角、底部投影。`zant package` 生成 10 种尺寸的 `AppIcon.icns`；`zant run` 开发运行时显示在程序坞 |
+| `app-windows.png` | Windows 应用图标，256×256（正方形，至少 256）；铺满画布、不加投影、笔画加粗。编译时自动生成含 16、20、24、32、40、48、64、256 的 `.ico` 编进 exe（资管器图标、窗口与任务栏图标） |
+| `tray.png` | Windows 通知区域（托盘）图标，64×64；按系统小图标尺寸缩放（100% 时 16 px） |
+| `statusbar.png` | macOS 菜单栏（状态栏）图标，44×44（22 pt @2x）；模板图：只用黑色 + 透明度，系统按深浅色菜单栏着色 |
+
+代码里用 `@embedFile` 按名字引用（不依赖运行时文件，打包后也可用）：
+`icon_app_macos`、`icon_app_windows`、`icon_tray`、`icon_statusbar`，例如 `@embedFile("icon_tray")`。
+这些由 Zant UI 的 `configureApp`（模板 `build.zig` 已调用）在文件存在时加入，测试代码也能引用。
+PNG 要求 8 位、非隔行扫描（常见导出工具的默认格式）。
 
 ## 组件与状态示例
 

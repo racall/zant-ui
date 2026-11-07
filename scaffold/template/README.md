@@ -45,6 +45,13 @@ zant package
 
 详见 Zant UI 的 `docs/window-config.md`。
 
+## 图标
+
+`assets/icons/` 下是默认图标，替换同名 PNG 即可（尺寸不变）：`app-macos.png`（1024，macOS 应用图标）、
+`app-windows.png`（256，Windows 应用图标）、`tray.png`（Windows 托盘）、`statusbar.png`
+（macOS 菜单栏模板图，黑色 + 透明）。代码中用 `@embedFile("icon_tray")` 等引用。
+规范见 Zant UI 的 `docs/scaffold.md`「图标」。
+
 ## 示例结构
 
 - `src/state.zig`：共享状态 `AppState` 和动作。

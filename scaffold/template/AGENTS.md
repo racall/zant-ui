@@ -49,7 +49,10 @@ src/components/stat_card.zig  自定义展示组件（props）
 src/components/counter_card.zig 自定义子组件（props + 事件回调）
 src/components/dashboard.zig 自定义父组件（组合子组件）
 src/app_config.zig           生成文件，不要手改
-app.config.json              窗口、沙盒、签名配置
+app.config.json              窗口配置（通用）+ macos 段（沙盒、签名）
+assets/icons/                默认图标：app-macos.png（1024）、app-windows.png（256）、
+                             tray.png（Windows 托盘）、statusbar.png（macOS 菜单栏模板图）；
+                             替换同名 PNG 即可，代码用 @embedFile("icon_tray") 等引用
 DESIGN.md                    UI/UX 设计规范（最高优先级）
 AGENTS.md / CLAUDE.md        给 AI coding agent 的规范
 ```

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44">
+  <!-- macOS menu bar extra (status bar) icon: a template image — black with
+       alpha only, the system tints it for light / dark menu bars and the
+       highlighted state. 22 pt tall (statusbar.png is 44×44 = @2x), glyph
+       about 17 pt so it lines up with system menu bar icons. -->
+  <rect x="5.5" y="5.5" width="33" height="33" rx="9" fill="none" stroke="#000000" stroke-width="3.5"/>
+  <path d="M15.5 15.5 H28.5 L15.5 28.5 H28.5" fill="none" stroke="#000000" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

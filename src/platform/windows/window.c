@@ -841,7 +841,12 @@ ZantWindow *zant_window_create(const char *title, const ZantWindowOptions *optio
     wc.lpfnWndProc = zant_wndproc;
     wc.hInstance = instance;
     wc.hCursor = LoadCursorW(NULL, IDC_ARROW);
-    wc.hIcon = LoadIconW(instance, MAKEINTRESOURCEW(1));
+    /* icon resource 1: the app icon built from assets/icons/app-windows.png
+       (configureApp); large for Alt+Tab / taskbar, small for the title bar */
+    wc.hIcon = (HICON)LoadImageW(instance, MAKEINTRESOURCEW(1), IMAGE_ICON, GetSystemMetrics(SM_CXICON),
+                                 GetSystemMetrics(SM_CYICON), LR_DEFAULTCOLOR);
+    wc.hIconSm = (HICON)LoadImageW(instance, MAKEINTRESOURCEW(1), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON),
+                                   GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR);
     if (!wc.hIcon) wc.hIcon = LoadIconW(NULL, IDI_APPLICATION);
     wc.lpszClassName = ZANT_CLASS_NAME;
     RegisterClassExW(&wc);
