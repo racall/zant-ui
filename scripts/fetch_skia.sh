@@ -14,6 +14,18 @@ SHA256="b783a68efe4fdeb1cf5e012aabad14def14f64ea6b75234bd36ecbf1a5e58399"
 HEADERS_REF="m157.2"
 HEADERS_COMMIT="6a8fe80eadfac737c12e64229a1b9530bc78f3d1"
 
+# third_party/skia/.zant-release records the archive in place, so a newer
+# pin (after `zant update` pulls) downloads again. A tree from before the
+# stamp existed is taken as the current pin.
+STAMP="third_party/skia/.zant-release"
+if [[ -f "third_party/skia/skia-binaries/libskia.a" && ! -f "$STAMP" ]]; then
+  echo "${RELEASE} ${SHA256}" >"$STAMP"
+fi
+if [[ -f "$STAMP" && "$(cat "$STAMP")" != "${RELEASE} ${SHA256}" ]]; then
+  echo "Skia pin changed: replacing third_party/skia"
+  rm -rf third_party/skia
+fi
+
 if [[ ! -f "third_party/skia/skia-binaries/libskia.a" ]]; then
   echo "Downloading Skia ${RELEASE} (macOS arm64)..."
   curl -L --fail --retry 3 --max-time 600 "$URL" -o "third_party/${ASSET}"
@@ -24,10 +36,16 @@ if [[ ! -f "third_party/skia/skia-binaries/libskia.a" ]]; then
   fi
   mkdir -p third_party/skia
   tar -xzf "third_party/${ASSET}" -C third_party/skia
+  rm -f "third_party/${ASSET}"
+  echo "${RELEASE} ${SHA256}" >"$STAMP"
 else
   echo "Skia libraries already present."
 fi
 
+if [[ -d third_party/skia-headers/.git && "$(git -C third_party/skia-headers rev-parse HEAD 2>/dev/null)" != "$HEADERS_COMMIT" ]]; then
+  echo "Skia headers pin changed: fetching again"
+  rm -rf third_party/skia-headers
+fi
 if [[ ! -f "third_party/skia-headers/include/core/SkSurface.h" ]]; then
   echo "Fetching Skia ${HEADERS_REF} public headers..."
   rm -rf third_party/skia-headers

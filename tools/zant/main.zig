@@ -687,9 +687,9 @@ fn packageApp(allocator: std.mem.Allocator, io: Io, root: []const u8, cfg: *cons
 
 pub fn compileApp(allocator: std.mem.Allocator, io: Io, root: []const u8, release: bool) !void {
     const args = if (release)
-        &[_][]const u8{ "zig", "build", "-Doptimize=ReleaseFast" }
+        &[_][]const u8{ zigExe(), "build", "-Doptimize=ReleaseFast" }
     else
-        &[_][]const u8{ "zig", "build" };
+        &[_][]const u8{ zigExe(), "build" };
     step("{s}", .{if (release) "正在编译 ReleaseFast" else "正在编译"});
     try runInherit(allocator, io, args, root);
     ok("编译完成", .{});
@@ -1211,7 +1211,7 @@ fn cmdBuild(allocator: std.mem.Allocator, io: Io, release: bool) !void {
     const root = try std.process.currentPathAlloc(io, allocator);
     defer allocator.free(root);
     try cmdSync(allocator, io, root);
-    const args = if (release) &[_][]const u8{ "zig", "build", "-Doptimize=ReleaseFast" } else &[_][]const u8{ "zig", "build" };
+    const args = if (release) &[_][]const u8{ zigExe(), "build", "-Doptimize=ReleaseFast" } else &[_][]const u8{ zigExe(), "build" };
     try runInherit(allocator, io, args, root);
 }
 
@@ -1228,7 +1228,7 @@ fn cmdRun(allocator: std.mem.Allocator, io: Io, release: bool) !void {
         // executing the Mach-O inside the bundle directly.
         try runInherit(allocator, io, &.{ "open", "-n", "-W", app_path }, root);
     } else {
-        const args = if (release) &[_][]const u8{ "zig", "build", "-Doptimize=ReleaseFast" } else &[_][]const u8{ "zig", "build" };
+        const args = if (release) &[_][]const u8{ zigExe(), "build", "-Doptimize=ReleaseFast" } else &[_][]const u8{ zigExe(), "build" };
         try runInherit(allocator, io, args, root);
         const exe = try appExePath(allocator, root);
         defer allocator.free(exe);
@@ -1243,7 +1243,7 @@ fn cmdRun(allocator: std.mem.Allocator, io: Io, release: bool) !void {
 
 fn buildOnce(allocator: std.mem.Allocator, io: Io, root: []const u8, release: bool) !bool {
     _ = allocator;
-    const args = if (release) &[_][]const u8{ "zig", "build", "-Doptimize=ReleaseFast" } else &[_][]const u8{ "zig", "build" };
+    const args = if (release) &[_][]const u8{ zigExe(), "build", "-Doptimize=ReleaseFast" } else &[_][]const u8{ zigExe(), "build" };
     var child = std.process.spawn(io, .{
         .argv = args,
         .cwd = .{ .path = root },
@@ -1387,6 +1387,130 @@ fn cmdPackage(allocator: std.mem.Allocator, io: Io) !void {
     std.debug.print("\n输出: {s}\n", .{app_path});
 }
 
+/// The Zig that built this zant (the install scripts may keep a pinned Zig
+/// outside PATH); "zig" from PATH when that one is gone (e.g. Homebrew
+/// replaced it).
+pub fn zigExe() []const u8 {
+    const path = build_options.zig_exe;
+    if (std.fs.path.isAbsolute(path)) {
+        var file = std.Io.Dir.cwd().openFile(io_global orelse return "zig", path, .{}) catch return "zig";
+        file.close(io_global.?);
+        return path;
+    }
+    return "zig";
+}
+var io_global: ?Io = null;
+
+/// `zant update`: pulls Zant UI (a clean checkout that tracks a remote,
+/// fast-forward only), fetches the pinned dependencies again when they
+/// changed, checks the Zig version and rebuilds the CLI.
+fn cmdUpdate(allocator: std.mem.Allocator, io: Io) !void {
+    const root = build_options.zant_root;
+    std.debug.print("\n" ++ Color.cyan ++ "更新 Zant UI" ++ Color.reset ++ "：{s}\n", .{root});
+
+    const git_dir = try std.fs.path.join(allocator, &.{ root, ".git" });
+    if (pathExists(io, git_dir) or fileExists(io, git_dir)) {
+        const before = gitOutput(allocator, io, root, &.{ "rev-parse", "--short", "HEAD" });
+        const dirty = gitOutput(allocator, io, root, &.{ "status", "--porcelain", "--untracked-files=no" });
+        const upstream = gitOutput(allocator, io, root, &.{ "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}" });
+        if (dirty.len > 0) {
+            std.debug.print("  " ++ Color.dim ++ "本地有未提交的修改，不拉取新代码，只重新编译" ++ Color.reset ++ "\n", .{});
+        } else if (upstream.len == 0) {
+            std.debug.print("  " ++ Color.dim ++ "当前分支没有对应的远程分支，不拉取新代码，只重新编译" ++ Color.reset ++ "\n", .{});
+        } else {
+            step("拉取最新代码（{s}）", .{upstream});
+            const pulled = runOk(io, &.{ "git", "-C", root, "pull", "--ff-only", "--quiet" }, root);
+            const after = gitOutput(allocator, io, root, &.{ "rev-parse", "--short", "HEAD" });
+            if (!pulled) {
+                std.debug.print("  " ++ Color.dim ++ "拉取失败（本地有远程没有的提交，或网络问题），用现有代码重新编译" ++ Color.reset ++ "\n", .{});
+            } else if (std.mem.eql(u8, before, after)) {
+                ok("已经是最新（{s}）", .{after});
+            } else {
+                ok("已更新：{s} → {s}", .{ before, after });
+            }
+        }
+    } else {
+        std.debug.print("  " ++ Color.dim ++ "不是 git 仓库，不拉取新代码，只重新编译" ++ Color.reset ++ "\n", .{});
+    }
+
+    // Zig version the framework needs (build.zig.zon) vs the one zant uses
+    const zon = readFile(allocator, io, try std.fs.path.join(allocator, &.{ root, "build.zig.zon" })) catch "";
+    const needed = zonString(zon, ".minimum_zig_version") orelse "";
+    const zig = zigExe();
+    const have = blk: {
+        const res = runCapture(allocator, io, &.{ zig, "version" }) catch break :blk "";
+        break :blk std.mem.trim(u8, res.stdout, " \r\n");
+    };
+    if (needed.len > 0 and !std.mem.eql(u8, needed, have)) {
+        fail("Zant UI 现在需要 Zig {s}（zant 用的是 {s}）：重新运行安装脚本即可（见 Zant UI README「安装」），它会下载对应版本的 Zig", .{ needed, if (have.len > 0) have else "找不到的 Zig" });
+    }
+
+    // pinned Skia / PDFium / fonts: the scripts download only what changed
+    step("检查依赖（Skia 等）", .{});
+    if (is_windows) {
+        try runInherit(allocator, io, &.{ "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", try std.fs.path.join(allocator, &.{ root, "scripts", "fetch_skia_windows.ps1" }) }, root);
+    } else {
+        try runInherit(allocator, io, &.{ "/bin/bash", try std.fs.path.join(allocator, &.{ root, "scripts", "fetch_skia.sh" }) }, root);
+    }
+
+    step("重新编译 zant", .{});
+    const exe = try std.fmt.allocPrint(allocator, "{s}/zig-out/bin/zant{s}", .{ root, if (is_windows) ".exe" else "" });
+    const old = try std.fmt.allocPrint(allocator, "{s}/zig-out/bin/zant.old.exe", .{root});
+    if (is_windows) {
+        // a running .exe cannot be overwritten, but it can be renamed
+        Dir.cwd().deleteFile(io, old) catch {};
+        Dir.cwd().rename(exe, Dir.cwd(), old, io) catch {};
+    }
+    if (!runOk(io, &.{ zig, "build", "cli" }, root)) {
+        if (is_windows) Dir.cwd().rename(old, Dir.cwd(), exe, io) catch {};
+        fail("编译失败，zant 保持原来的版本", .{});
+    }
+    ok("已更新：{s}", .{exe});
+}
+
+/// Runs a command with the terminal; false when it fails (no exit).
+fn runOk(io: Io, argv: []const []const u8, cwd: []const u8) bool {
+    var child = std.process.spawn(io, .{
+        .argv = argv,
+        .cwd = .{ .path = cwd },
+        .stdin = .inherit,
+        .stdout = .inherit,
+        .stderr = .inherit,
+        .create_no_window = false,
+        .environ_map = child_environ,
+    }) catch return false;
+    const term = child.wait(io) catch return false;
+    return term.success();
+}
+
+/// Trimmed stdout of a git command in `root`, "" on failure.
+fn gitOutput(allocator: std.mem.Allocator, io: Io, root: []const u8, args: []const []const u8) []const u8 {
+    var argv: std.ArrayListUnmanaged([]const u8) = .empty;
+    argv.appendSlice(allocator, &.{ "git", "-C", root }) catch return "";
+    argv.appendSlice(allocator, args) catch return "";
+    const res = runCapture(allocator, io, argv.items) catch return "";
+    if (res.term != .exited or res.term.exited != 0) return "";
+    return std.mem.trim(u8, res.stdout, " \r\n");
+}
+
+fn fileExists(io: Io, path: []const u8) bool {
+    Dir.cwd().access(io, path, .{}) catch return false;
+    return true;
+}
+
+/// The string value of `.field = "value"` in a .zon file.
+fn zonString(text: []const u8, field: []const u8) ?[]const u8 {
+    const at = std.mem.indexOf(u8, text, field) orelse return null;
+    const open = std.mem.indexOfScalarPos(u8, text, at, '"') orelse return null;
+    const close = std.mem.indexOfScalarPos(u8, text, open + 1, '"') orelse return null;
+    return text[open + 1 .. close];
+}
+
+test "zon string field" {
+    try std.testing.expectEqualStrings("0.17.1", zonString(".{ .name = .x, .minimum_zig_version = \"0.17.1\", }", ".minimum_zig_version").?);
+    try std.testing.expect(zonString(".{}", ".minimum_zig_version") == null);
+}
+
 fn hasArg(args: []const [:0]const u8, needle: []const u8) bool {
     for (args) |arg| if (std.mem.eql(u8, arg, needle)) return true;
     return false;
@@ -1397,6 +1521,7 @@ pub fn main(init: std.process.Init) !void {
     defer arena.deinit();
     const allocator = arena.allocator();
     const io = init.io;
+    io_global = io;
     console.init();
     defer console.deinit();
     child_environ = init.environ_map;
@@ -1415,7 +1540,7 @@ pub fn main(init: std.process.Init) !void {
             \\  build [配置文件]      发布构建：签名、公证、DMG / 安装包，或提交商店
             \\                        （默认读 build.config.json；--yes 不提问，CI 用）
             \\  sync                  重新生成配置代码
-            \\  update                重新编译 zant
+            \\  update                更新 Zant UI（git pull、依赖）并重新编译 zant
             \\
         , .{});
         return;
@@ -1439,16 +1564,7 @@ pub fn main(init: std.process.Init) !void {
         defer allocator.free(root);
         try cmdSync(allocator, io, root);
     } else if (std.mem.eql(u8, args[1], "update")) {
-        step("重新编译 Zant UI 全局 CLI", .{});
-        if (is_windows) {
-            // a running .exe cannot be overwritten, but it can be renamed
-            const exe = try std.fmt.allocPrint(allocator, "{s}/zig-out/bin/zant.exe", .{build_options.zant_root});
-            const old = try std.fmt.allocPrint(allocator, "{s}/zig-out/bin/zant.old.exe", .{build_options.zant_root});
-            Dir.cwd().deleteFile(io, old) catch {};
-            Dir.cwd().rename(exe, Dir.cwd(), old, io) catch {};
-        }
-        try runInherit(allocator, io, &.{ "zig", "build" }, build_options.zant_root);
-        ok("已更新：{s}/zig-out/bin/zant{s}", .{ build_options.zant_root, if (is_windows) ".exe" else "" });
+        try cmdUpdate(allocator, io);
     } else {
         std.debug.print("未知命令: {s}\n", .{args[1]});
     }

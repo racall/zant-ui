@@ -231,6 +231,9 @@ pub fn build(b: *std.Build) void {
     const png_mod = b.createModule(.{ .root_source_file = b.path("src/core/png.zig") });
     const tool_options = b.addOptions();
     tool_options.addOption([]const u8, "zant_root", b.root.root_dir.path orelse ".");
+    // the Zig that builds zant is the one it runs for apps (the install
+    // scripts may put a pinned Zig outside PATH)
+    tool_options.addOption([]const u8, "zig_exe", b.graph.zig_exe);
     const zant_tool = b.addExecutable(.{
         .name = "zant",
         .root_module = b.createModule(.{
@@ -241,6 +244,8 @@ pub fn build(b: *std.Build) void {
         }),
     });
     b.installArtifact(zant_tool);
+    const cli_step = b.step("cli", "Build only the zant CLI (install scripts, zant update)");
+    cli_step.dependOn(&b.addInstallArtifact(zant_tool, .{}).step);
 
     // build-time icon tool for apps (runs on the build machine)
     const icon_tool = b.addExecutable(.{

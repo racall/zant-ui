@@ -37,18 +37,36 @@ function Get-Pinned([string]$Url, [string]$Path, [string]$Sha) {
     }
 }
 
+# A folder's .zant-release records the archive unpacked there, so a newer
+# pin (after `zant update` pulls) downloads again; a folder from before the
+# stamp existed is taken as the current pin.
+function Sync-Pin([string]$Dir, [string]$Marker, [string]$Pin) {
+    $stamp = Join-Path $Dir ".zant-release"
+    if ((Test-Path $Marker) -and !(Test-Path $stamp)) { Set-Content -NoNewline -Path $stamp -Value $Pin }
+    if ((Test-Path $stamp) -and ((Get-Content -Raw $stamp) -ne $Pin)) {
+        Write-Host "Pin changed: replacing $Dir"
+        Remove-Item -Recurse -Force $Dir
+    }
+}
+
 # Skia binaries
 $SkiaDir = Join-Path $ThirdParty "skia-win"
 $SkiaArchive = Join-Path $ThirdParty $Asset
+Sync-Pin $SkiaDir (Join-Path $SkiaDir "skia-binaries/skia.lib") "$Release $SkiaSha"
 if (!(Test-Path (Join-Path $SkiaDir "skia-binaries/skia.lib"))) {
     Get-Pinned "https://github.com/rust-skia/skia-binaries/releases/download/$Release/$Asset" $SkiaArchive $SkiaSha
     New-Item -ItemType Directory -Force $SkiaDir | Out-Null
     tar -xzf $SkiaArchive -C $SkiaDir
     if ($LASTEXITCODE -ne 0) { throw "could not unpack $SkiaArchive" }
+    Set-Content -NoNewline -Path (Join-Path $SkiaDir ".zant-release") -Value "$Release $SkiaSha"
 }
 
 # Skia headers (sparse checkout, same as scripts/fetch_skia.sh)
 $Headers = Join-Path $ThirdParty "skia-headers"
+if ((Test-Path (Join-Path $Headers ".git")) -and ((git -C $Headers rev-parse HEAD).Trim() -ne $HeadersCommit)) {
+    Write-Host "Skia headers pin changed: fetching again"
+    Remove-Item -Recurse -Force $Headers
+}
 if (!(Test-Path (Join-Path $Headers "include/core/SkCanvas.h"))) {
     if (Test-Path $Headers) { Remove-Item -Recurse -Force $Headers }
     git clone --depth 1 --branch $HeadersRef --filter=blob:none --sparse https://github.com/rust-skia/skia.git $Headers
@@ -61,12 +79,14 @@ if ($head -ne $HeadersCommit) { throw "skia-headers is at $head, expected $Heade
 
 # PDFium
 $PdfiumDir = Join-Path $ThirdParty "pdfium-win"
+Sync-Pin $PdfiumDir (Join-Path $PdfiumDir "bin/pdfium.dll") "$PdfiumRelease $PdfiumSha"
 if (!(Test-Path (Join-Path $PdfiumDir "bin/pdfium.dll"))) {
     $PdfiumArchive = Join-Path $ThirdParty "pdfium-win-x64.tgz"
     Get-Pinned "https://github.com/bblanchon/pdfium-binaries/releases/download/$PdfiumRelease/pdfium-win-x64.tgz" $PdfiumArchive $PdfiumSha
     New-Item -ItemType Directory -Force $PdfiumDir | Out-Null
     tar -xzf $PdfiumArchive -C $PdfiumDir
     if ($LASTEXITCODE -ne 0) { throw "could not unpack $PdfiumArchive" }
+    Set-Content -NoNewline -Path (Join-Path $PdfiumDir ".zant-release") -Value "$PdfiumRelease $PdfiumSha"
 }
 
 # STIX Two Math
