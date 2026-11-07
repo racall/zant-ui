@@ -520,8 +520,17 @@ pub const Tree = struct {
             .button, .input, .select => true,
             else => false,
         };
-        if (node.visual.background != null and !self_filled) {
-            const color = node.visual.background.?;
+        var hover_fill: ?u32 = null;
+        var hover_border: ?u32 = null;
+        switch (node.data) {
+            .container => |*d| if (d.hover_visual) |hv| if (d.hover_t > 0.001) {
+                if (hv.background) |bg| hover_fill = motion.mixColor(node.visual.background orelse (bg & 0x00ffffff), bg, d.hover_t);
+                if (hv.border_color) |bc| hover_border = motion.mixColor(node.visual.border_color orelse (bc & 0x00ffffff), bc, d.hover_t);
+            },
+            else => {},
+        }
+        if ((node.visual.background != null or hover_fill != null) and !self_filled) {
+            const color = hover_fill orelse node.visual.background.?;
             if (node.visual.radius > 0) {
                 canvas.fillRoundRect(rect, node.visual.radius, color);
             } else {
@@ -572,7 +581,7 @@ pub const Tree = struct {
         }
         // borders frame the content: drawn after children so filled children
         // (headers, cells) never cover them
-        if (node.visual.border_color) |border| {
+        if (hover_border orelse node.visual.border_color) |border| {
             if (node.visual.border_width > 0) {
                 canvas.strokeRoundRect(
                     geometry.Rect.init(rect.x + 0.5, rect.y + 0.5, @max(0, rect.width - 1), @max(0, rect.height - 1)),
@@ -653,6 +662,24 @@ pub const Tree = struct {
             if (node.data.container.content_height > node.bounds.height + 0.5) return node.id;
         }
         return null;
+    }
+
+    /// Innermost container with a hover look under `(x, y)`.
+    pub fn hoverBoxAt(self: *Tree, x: f32, y: f32) ?NodeId {
+        return self.hoverBoxNode(self.get(self.root), x, y);
+    }
+
+    fn hoverBoxNode(self: *Tree, node: *Node, x: f32, y: f32) ?NodeId {
+        if (!node.inFlow() or !node.bounds.contains(x, y)) return null;
+        var i = node.children.items.len;
+        while (i > 0) {
+            i -= 1;
+            if (self.hoverBoxNode(self.get(node.children.items[i]), x, y)) |hit| return hit;
+        }
+        return switch (node.data) {
+            .container => |*d| if (d.hover_visual != null) node.id else null,
+            else => null,
+        };
     }
 
     /// Innermost node under `(x, y)` that takes wheel input: a scroll

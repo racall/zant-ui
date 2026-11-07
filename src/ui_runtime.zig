@@ -91,6 +91,8 @@ pub const Runtime = struct {
     pressed_link: ?NodeId = null,
     /// Pointer area holding the pointer between `down` and `up`.
     pointer_capture: ?NodeId = null,
+    /// Container whose hover look is shown (`BoxOptions.hover_*`).
+    hover_box: ?NodeId = null,
     /// Pointer area last sent `hover` (gets `leave` when the pointer goes).
     pointer_hover_area: ?NodeId = null,
     /// Multi-click detection (double / triple click).
@@ -474,6 +476,7 @@ pub const Runtime = struct {
         if (self.pressed_link == id) self.pressed_link = null;
         if (self.pointer_capture == id) self.pointer_capture = null;
         if (self.pointer_hover_area == id) self.pointer_hover_area = null;
+        if (self.hover_box == id) self.hover_box = null;
         if (self.sel_root == id or (self.sel_anchor != null and self.sel_anchor.?.node == id) or
             (self.sel_focus != null and self.sel_focus.?.node == id)) self.clearTextSelection();
         if (self.open_select == id) self.open_select = null;
@@ -620,6 +623,8 @@ pub const Runtime = struct {
                 data.key_action = element.key_action;
                 data.cursor = element.cursor;
                 data.resize_action = element.on_resize;
+                if (!std.meta.eql(data.hover_visual, element.hover_visual)) paint_changed = true;
+                data.hover_visual = element.hover_visual;
                 if (element.pointer == null and self.pointer_capture == id) self.pointer_capture = null;
             },
             .text => |*data| {
@@ -848,6 +853,7 @@ pub const Runtime = struct {
                 data.key_action = element.key_action;
                 data.cursor = element.cursor;
                 data.resize_action = element.on_resize;
+                data.hover_visual = element.hover_visual;
             },
             .button => |*data| {
                 data.action = element.on_click;
@@ -1015,11 +1021,17 @@ pub const Runtime = struct {
         const now = self.now_ms;
         var active = switch (node.data) {
             .container => |*data| blk: {
-                if (!data.scroll_animating) break :blk false;
+                var running = false;
+                if (data.hover_visual != null) {
+                    data.hover.retarget(if (data.hovered) 1 else 0, now, .{ .duration_ms = @intCast(self.theme.motion_duration_mid), .easing = .ease_in_out });
+                    data.hover_t = data.hover.value(now);
+                    running = !data.hover.done(now);
+                }
+                if (!data.scroll_animating) break :blk running;
                 const target = data.scroll_anim.value(now);
                 _ = self.tree.scrollBy(node.id, target - data.scroll_offset);
                 if (data.scroll_anim.done(now)) data.scroll_animating = false;
-                break :blk data.scroll_animating;
+                break :blk data.scroll_animating or running;
             },
             .button => |*data| button_mod.animate(data, now, self.theme),
             .toggle => |*data| toggle_mod.animate(data, now, self.theme),
@@ -1309,6 +1321,7 @@ pub const Runtime = struct {
                 return 1;
             },
             .pointer_leave => |p| {
+                self.setHoverBox(null);
                 if (self.pointer_hover_area) |prev| {
                     self.pointer_hover_area = null;
                     self.sendPointer(prev, .leave, p, 0, 0);
@@ -1614,6 +1627,42 @@ pub const Runtime = struct {
         return false;
     }
 
+    /// The container whose hover look applies: the nearest one around the
+    /// widget under the pointer (CSS :hover on ancestors), or with nothing
+    /// interactive under it, the innermost one containing the point. A
+    /// modal mask over a row hides the row's hover.
+    fn hoverBoxFor(self: *Runtime, target: ?NodeId, x: f32, y: f32) ?NodeId {
+        const id = target orelse return self.tree.hoverBoxAt(x, y);
+        var cur: ?NodeId = id;
+        while (cur) |c| : (cur = self.tree.get(c).parent) {
+            switch (self.tree.get(c).data) {
+                .container => |*d| if (d.hover_visual != null) return c,
+                else => {},
+            }
+        }
+        return null;
+    }
+
+    /// Moves the container hover look (paint-only, animated).
+    fn setHoverBox(self: *Runtime, id: ?NodeId) void {
+        if (std.meta.eql(self.hover_box, id)) return;
+        if (self.hover_box) |old| {
+            switch (self.tree.get(old).data) {
+                .container => |*d| d.hovered = false,
+                else => {},
+            }
+            self.tree.poke(old);
+        }
+        self.hover_box = id;
+        if (id) |new| {
+            switch (self.tree.get(new).data) {
+                .container => |*d| d.hovered = true,
+                else => {},
+            }
+            self.tree.poke(new);
+        }
+    }
+
     fn pointerAreaNode(self: *Runtime, id: NodeId) ?node_mod.PointerArea {
         const node = self.tree.get(id);
         if (!node.alive) return null;
@@ -1693,6 +1742,7 @@ pub const Runtime = struct {
         const target = self.tree.hitTest(p.x, p.y);
         self.setHover(target);
         self.updatePointerHover(target, p);
+        self.setHoverBox(self.hoverBoxFor(target, p.x, p.y));
         if (self.pressed_button) |id| {
             const node = self.tree.get(id);
             const inside = node.bounds.contains(p.x, p.y);

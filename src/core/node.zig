@@ -127,6 +127,13 @@ pub const Visual = struct {
     focus_scope: bool = false,
 };
 
+/// Look of a container while the pointer is over it (`BoxOptions.hover_*`),
+/// applied at paint time with antd's hover transition — no rebuild.
+pub const HoverVisual = struct {
+    background: ?u32 = null,
+    border_color: ?u32 = null,
+};
+
 /// Pointer handling of a container (`ui.pointerArea`).
 pub const PointerArea = struct {
     action: actions.PointerAction,
@@ -140,6 +147,11 @@ pub const PointerArea = struct {
 pub const ContainerData = struct {
     /// Pointer area handler (`ui.pointerArea`); makes the container interactive.
     pointer: ?PointerArea = null,
+    /// Hover look (`BoxOptions.hover_background` / `hover_border_color`).
+    hover_visual: ?HoverVisual = null,
+    hovered: bool = false,
+    hover: Animated = .{},
+    hover_t: f32 = 0,
     /// Key handler while the container is focused (focusable pointer areas).
     key_action: ?actions.KeyAction = null,
     /// Called after layout when the container's size changed (`on_resize`).

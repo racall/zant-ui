@@ -32,6 +32,9 @@ const State = struct {
     /// Pointer area demo: knob position (0..1) and the drag start.
     knob: f32 = 0.3,
     knob_drag: ?[2]f32 = null,
+    /// Virtual list demo (10 000 rows).
+    rows: ui.ListState = undefined,
+    rows_ready: bool = false,
 
     /// One state change every 700 ms, so each enter / exit animation runs
     /// to the end before the next one starts.
@@ -90,6 +93,21 @@ const State = struct {
             else => return false,
         }
         return true;
+    }
+
+    fn listRow(self: *State, i: usize) ui.Node {
+        _ = self;
+        const t = ui.currentTheme();
+        const arena = ui.frameAllocator();
+        return ui.row(.{ .height = 32, .padding = ui.insetXY(12, 0), .gap = 8, .align_items = .center, .radius = 6, .hover_background = t.color_fill_secondary, .children = arena.dupe(ui.Node, &.{
+            ui.text(std.fmt.allocPrint(arena, "第 {d} 行", .{i + 1}) catch "", .{ .size = 13 }),
+            ui.text("虚拟列表只构建可见的行", .{ .size = 12, .color = t.color_text_secondary }),
+        }) catch &.{} });
+    }
+
+    fn listScrolled(self: *State) void {
+        const r = self.rows.renderedRange();
+        self.event("list rows {d}", .{r[0]});
     }
 
     fn clickPrimary(self: *State) void {
@@ -307,7 +325,11 @@ fn render(s: *State) ui.Node {
     });
 
     const track_w: f32 = 240;
-    const interaction = section("交互 PointerArea / 可选择文字", &.{
+    if (!s.rows_ready) {
+        s.rows = .init(std.heap.c_allocator);
+        s.rows_ready = true;
+    }
+    const interaction = section("交互 PointerArea / 虚拟列表 / 可选择文字", &.{
         ui.row(.{ .gap = 12, .align_items = .center, .children = &.{
             ui.pointerArea(.{
                 .box = .{ .key = "track", .width = track_w, .height = 28, .justify = .center, .children = &.{
@@ -318,6 +340,9 @@ fn render(s: *State) ui.Node {
                 .on_pointer = ui.pointerAction(s, State.onTrack),
             }),
             ui.textFmt("{d}%", .{@as(u32, @intFromFloat(@round(s.knob * 100)))}, .{ .size = 12, .color = theme.color_text_secondary }),
+        } }),
+        ui.column(.{ .key = "list-box", .height = 160, .radius = 8, .border_color = theme.color_border_secondary, .border_width = 1, .clip = true, .align_items = .stretch, .children = &.{
+            ui.list(&s.rows, .{ .key = "vlist", .count = 10_000, .item = ui.listItem(s, State.listRow), .item_height = 32, .on_scroll = ui.action(s, State.listScrolled) }),
         } }),
         ui.column(.{ .key = "select-text", .selectable = true, .gap = 4, .align_items = .stretch, .children = &.{
             ui.paragraph("这段文字可以拖动选择：双击选词，三击选整段，⌘C / Ctrl+C 复制。", .{}),

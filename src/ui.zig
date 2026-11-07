@@ -79,6 +79,8 @@ pub const Element = struct {
     cursor: ?platform_mod.Cursor = null,
     /// Container size changes (`BoxOptions.on_resize`).
     on_resize: ?actions.Action = null,
+    /// Container hover look (`BoxOptions.hover_*`).
+    hover_visual: ?node_mod.HoverVisual = null,
     /// Image already decoded in memory (`ui.image(.{ .image = .. })`).
     image_handle: ?*anyopaque = null,
     image_id: u64 = 0,
@@ -646,6 +648,11 @@ pub const BoxOptions = struct {
     selectable: bool = false,
     /// Leave this subtree out of text selections (gutters, labels).
     unselectable: bool = false,
+    /// Background / border while the pointer is over the container (with
+    /// antd's 200 ms transition), painted without rebuilding: list rows,
+    /// cards, menu-like items. Children's own hover states still apply.
+    hover_background: ?u32 = null,
+    hover_border_color: ?u32 = null,
     /// Keyboard focus moves (Tab / Shift+Tab) stay inside this container
     /// while it is the topmost scope shown (dialogs, popover panels).
     focus_scope: bool = false,
@@ -665,7 +672,13 @@ pub fn column(options: BoxOptions) Node {
         .visual = visualFrom(options),
         .children = options.children,
         .on_resize = options.on_resize,
+        .hover_visual = hoverFrom(options),
     });
+}
+
+fn hoverFrom(options: BoxOptions) ?node_mod.HoverVisual {
+    if (options.hover_background == null and options.hover_border_color == null) return null;
+    return .{ .background = options.hover_background, .border_color = options.hover_border_color };
 }
 
 pub fn row(options: BoxOptions) Node {
@@ -676,6 +689,7 @@ pub fn row(options: BoxOptions) Node {
         .visual = visualFrom(options),
         .children = options.children,
         .on_resize = options.on_resize,
+        .hover_visual = hoverFrom(options),
     });
 }
 
@@ -720,6 +734,7 @@ pub fn pointerArea(options: PointerAreaOptions) Node {
         .key_action = options.on_key,
         .cursor = options.cursor,
         .on_resize = options.box.on_resize,
+        .hover_visual = hoverFrom(options.box),
     };
     element.layout.direction = options.box.flex_direction orelse .column;
     return make(element);

@@ -130,6 +130,13 @@ if ($track) {
     Double-Click-At $app ($track.X + $track.W / 2) ($track.Y + $track.H / 2)
     Assert-Event $app "pointer double" "pointer area double click"
 } else { Write-Result $false "find 'track'" }
+# virtual list: the wheel scrolls 10 000 rows (only visible ones exist)
+$vl = Find-Key $app "vlist"
+if ($vl) {
+    Wheel-At $app ($vl.X + $vl.W / 2) ($vl.Y + $vl.H / 2) -20
+    Assert-Event $app "list rows" "virtual list scrolls with the wheel"
+    Shot $app "09c-list"
+} else { Write-Result $false "find 'vlist'" }
 # selectable text: drag across both paragraphs, Ctrl+C
 $sel = Find-Key $app "select-text"
 if ($sel) {
