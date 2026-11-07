@@ -33,7 +33,8 @@ see `docs/development.md`.
 ## Presence (enter / exit)
 
 ```zig
-ui.styled(panel, .{ .key = "menu", .motion = .slide_up, .motion_origin = .top_right })
+// the key belongs to the node itself, e.g. ui.column(.{ .key = "menu", ... })
+ui.styled(panel, .{ .motion = .slide_up, .motion_origin = .top_right })
 ```
 
 | preset          | effect                               | enter / exit (antd)                     |

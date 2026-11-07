@@ -17,4 +17,4 @@ ui.hotkeyInput(.{
 ```
 
 录入时：带 Ctrl / Alt（⌥）/ ⌘（Win）的组合键会被记录；Esc 取消；Backspace / Delete 清除。
-`placeholder`、`recording_text` 可改文案。全局快捷键的注册见 [桌面集成](../desktop.md)。
+`placeholder`、`recording_text` 可改文案；`width`（默认按内容）、`height`（默认 32）、`key`（默认 `"hotkey-input"`，同屏多个时各给一个）。全局快捷键的注册见 [桌面集成](../desktop.md)。

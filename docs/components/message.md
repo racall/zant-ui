@@ -7,11 +7,11 @@ move-up 动效进出；不拦截点击。显示时长由应用决定：在截止
 ```zig
 const now = ui.nowMs();
 if (now < state.toast_until_ms) {
-    children.append(ui.message(.{
+    children.append(arena, ui.message(.{
         .text = state.toastText(),
         .kind = .success,            // .info / .warning / .err
         .top = 60,
-    }));
+    })) catch {};
     ui.wakeAfter(@intCast(state.toast_until_ms - now));
 }
 ```

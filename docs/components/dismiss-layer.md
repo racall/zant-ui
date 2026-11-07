@@ -4,8 +4,8 @@
 `on_dismiss`。默认不绘制；传 `background` 可作为遮罩（`ui.modal` 内部就是这样用的）。
 
 ```zig
-children.append(ui.dismissLayer(.{ .on_dismiss = ui.action(state, State.closeMenu) }));
-children.append(menu);
+children.append(arena, ui.dismissLayer(.{ .on_dismiss = ui.action(state, State.closeMenu) })) catch {};
+children.append(arena, menu) catch {};
 ```
 
 选项：`key`（默认 `"dismiss-layer"`，同屏多个时各给一个）、`on_dismiss`、`background`。

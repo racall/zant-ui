@@ -24,7 +24,8 @@ zig build run-gallery      # 命令式画廊
 zig build run-markdown     # Markdown 渲染画廊（ZANT_DARK=1 深色）
 zig build run-math         # 公式画廊
 zig build run-components   # 全部组件总览（ZANT_DARK=1 深色）
-zig build run-pdf -- a.pdf # PDF 预览（ZANT_PDF_PAGE=页码，ZANT_PDF_PROBE=1 只输出页数与文字长度）
+zig build run-pdf -- a.pdf # PDF 阅读器（ZANT_PDF_PAGE=起始页，从 0 开始，last 为最后一页；ZANT_PDF_ZOOM=1.5；
+                           # ZANT_PDF_SEARCH=搜索词；ZANT_PDF_DEMO=1 示例批注；ZANT_PDF_PROBE=1 只输出文档信息）
 ```
 
 ## 环境变量
@@ -50,7 +51,7 @@ Windows 上写 stderr 很贵（每行约 10 ms），不要在每帧都会执行�
 
 ## 测试
 
-`zig build test`（154 项，macOS 与 Windows 都要通过）覆盖 Flex 布局、组件、声明式 UI 与协调、
+`zig build test`（160 项，macOS 与 Windows 都要通过）覆盖 Flex 布局、组件、声明式 UI 与协调、
 节点生命周期、动效（假时钟）、文本、Store / SQLite、指针区域、文字选择、PDF 阅读器（选择 / 搜索 /
 批注 / 导出）、Markdown（含 remend 522 条上游用例）与数学排版（含 mhchem 823 条用例全部可排版）。
 

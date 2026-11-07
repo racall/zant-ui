@@ -39,7 +39,9 @@ Metal / Direct3D 12 GPU 渲染，以及一个编译后的项目脚手架。不�
 | PDF 阅读器（连续滚动、缩放、选择复制、搜索、链接、批注与带批注导出，参照 EmbedPDF） | ✅ |
 | 指针区域（拖动捕获、多击、滚轮）、内存图片、后台线程唤醒 UI | ✅ |
 | 虚拟列表（只构建可见条目，聊天贴底跟随，参照 GPUI）、容器悬停样式、对话框焦点范围 | ✅ |
-| 编译后脚手架 `zant`、app.config.json、App Sandbox + Developer ID 签名（macOS） | ✅ |
+| 桌面集成（`zant.desktop`）：多窗口与快捷面板、托盘 / 菜单栏、全局快捷键、剪贴板监听（文字 / 图片 / 文件）、开机启动、单实例 | ✅ |
+| 编译后脚手架 `zant`、app.config.json、App Sandbox | ✅ |
+| 发布构建 `zant build`：Developer ID 签名 + 公证 + DMG / Mac App Store；Windows 签名安装包 / MSIX | ✅ |
 | 平台快捷键（`zant.keys`：⌘ / Ctrl 与按键文字）、应用数据目录（`zant.paths`） | ✅ |
 
 ## 设计规范
@@ -67,7 +69,7 @@ zig build run-components  # 全部组件总览（ZANT_DARK=1 深色）
 zig build run-pdf -- a.pdf  # PDF 阅读器（滚动、缩放、选择复制、搜索、批注）
 zig build run-md-stream   # 流式 Markdown 基准（聊天 + 模拟 / 真实 SSE，帧统计）
 zig build bench           # 无窗口帧基准：打开长对话、流式、打字、光标、悬停、缩放、滚动
-zig build test            # 测试（149 项，含 remend 522 条上游用例、mhchem 823 条用例）
+zig build test            # 测试（160 项，含 remend 522 条上游用例、mhchem 823 条用例）
 ```
 
 ## 全局 CLI 与脚手架
@@ -137,7 +139,9 @@ Zig 没有闭包；回调统一用 `ui.action` / `ui.textAction` / `ui.boolActio
 `ui.indexAction` / `ui.rangeAction` / `ui.inputKeyAction` 包装，`ctx` 通常是 `*State`。
 
 `zant.launch.run` 会识别状态类型上的可选钩子：`theme`（运行时主题，深色模式）、
-`onKey`（应用快捷键）、`onCloseRequest`（关窗 / ⌘W / ⌘Q，Windows 上为关闭按钮 / Ctrl+W / Alt+F4，前确认未保存修改）。
+`onKey`（应用快捷键）、`onCloseRequest`（关窗 / ⌘W / ⌘Q，Windows 上为关闭按钮 / Ctrl+W / Alt+F4，前确认未保存修改）、
+`onQuitRequest`（退出应用时代替 `onCloseRequest`），以及桌面集成用的 `onStart`、`onAppEvent`
+（托盘、全局快捷键、剪贴板变化）、`onWake`（后台线程 `ui.postWake()` 之后），见 [桌面集成](docs/desktop.md)。
 
 命令式辅助（在动作回调或 render 中调用）：
 
@@ -194,7 +198,7 @@ try viewer.saveAnnotated("out.pdf");
 标签页下划线通过 FLIP 平滑移动。动画帧只重绘、不重建。
 
 ```zig
-ui.styled(panel, .{ .key = "menu", .motion = .slide_up, .motion_origin = .top_right })
+ui.styled(panel, .{ .motion = .slide_up, .motion_origin = .top_right }) // panel 自己带 .key = "menu"
 ```
 
 见 [动效](docs/motion.md)。
@@ -241,7 +245,8 @@ const id = try notes.add(.{ .body = "hello" });
 ```text
 src/ui.zig                 声明式 builders、ui.styled、命令式辅助
 src/ui_runtime.zig         协调器、事件、焦点、IME、动画、帧调度
-src/launch.zig             最小启动入口（theme / onKey / onCloseRequest 钩子）
+src/launch.zig             最小启动入口（theme / onKey / onCloseRequest / onStart / onAppEvent / onWake 等钩子）
+src/desktop.zig            桌面集成：多窗口、托盘、全局快捷键、剪贴板、开机启动、单实例
 src/core/                  节点、树、Flex 布局、几何、事件、图标、矢量绘制
 src/components/            按钮、输入、开关、Select、菜单、Segmented、Modal、Message …
 src/motion/                缓动曲线、Animated、presence 预设

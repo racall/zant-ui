@@ -206,7 +206,7 @@ app_store() {
     xcrun altool --validate-app "$pkg" "${auth[@]}" || die "App Store Connect 验证没有通过（见上面的错误）"
     step "上传到 App Store Connect"
     xcrun altool --upload-package "$pkg" "${auth[@]}" || die "上传失败（见上面的错误）"
-    ok "已上传：苹果处理完成后（通常 10～30 分钟）在 App Store Connect 的 TestFlight 里可以看到这个版本"
+    ok "已上传：苹果处理完成后，在 App Store Connect 的 TestFlight 里可以看到这个版本"
   fi
 }
 

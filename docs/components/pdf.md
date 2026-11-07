@@ -30,7 +30,7 @@ try viewer.open("manual.pdf"); // error.PasswordRequired 时用 openWithPassword
 |---|---|
 | `key` | 节点 key 前缀（同一窗口多个阅读器要不同），默认 `"pdf"` |
 | `toolbar` | 显示工具栏（翻页、页码输入、缩放、搜索），默认开 |
-| `annotation_tools` | 工具栏里的批注工具（选择 / 高亮 / 下划线 / 画笔 / 便签 + 撤销重做） |
+| `annotation_tools` | 工具栏里的批注工具（选择 / 高亮 / 下划线 / 画笔 / 便签 + 撤销重做），默认关 |
 | `selection_menu` | 选中文字后浮出的菜单：复制、高亮、下划线、删除线，默认开 |
 | `page_gap`、`padding` | 页间距、四周留白（px） |
 | `background` | 视口背景，默认主题 `color_bg_layout` |

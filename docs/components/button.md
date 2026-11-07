@@ -17,5 +17,5 @@ ui.button(.{
 [icon.md](icon.md)）、`icon_size`、`focusable`（`false` 时点击不抢焦点）、
 `on_click`、`index_action`、`index`。
 
-Hover/Pressed 使用 160/100ms 过渡；只有指针在按钮内释放才触发点击。
+Hover/Pressed 使用 200/100ms 过渡（antd motionDurationMid / Fast）；只有指针在按钮内释放才触发点击。
 Tab 聚焦，Space/Enter 激活；禁用状态忽略输入。

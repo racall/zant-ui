@@ -39,6 +39,19 @@ macOS 与 Windows 共用同一套 API；快捷键文字一律用 `zant.keys.labe
 | Markdown 编辑器/预览 | [markdown.md](markdown.md) |
 | 样式覆盖 | [style.md](style.md) |
 
+## 其他 `ui.*` 函数
+
+| 函数 | 说明 |
+|---|---|
+| `ui.richText(.{ .spans, .line_height, .on_link })` | 富文本：一段里混排不同样式、链接（`RichSpan.link` + `on_link`）、行内绘制（`RichSpan.embed`）；`line_height` 默认 2.0，0 用字体自身行高 |
+| `ui.vector(.{ .drawing, .width, .copy })` | 保留式矢量绘制（公式、图表）；尺寸取绘制内容，`copy` 是被选中复制时的文字 |
+| `ui.memo(.{ .key, .hash }, ctx, build)` | 类似 React.memo：`hash` 不变时整棵子树跳过构建；`build` 要返回 `ui.column` / `ui.row`，`ctx` 和子树里回调的上下文要活过这一帧 |
+| `ui.withKey(node, key)` | 给一个已经建好的节点设置 key（为 memo 子树分配 key） |
+| `ui.focus(key)` | 下一次布局后让这个 key 的控件获得键盘焦点（例如打开时聚焦搜索框） |
+| `ui.scrollIntoView(key)` | 滚动最近的滚动容器，把这个控件滚到顶部（有动效，关闭动效时直接跳） |
+| `ui.scrollToEnd(key)` | 下一次布局后把这个滚动容器滚到底（无动效，聊天跟随新内容） |
+| `ui.keyBounds(key)` | 上一次布局中这个 key 的位置和尺寸，浮层跟随控件定位用 |
+
 自定义组件示例见生成项目的 `src/components/stat_card.zig`，以及
 [窗口配置](../window-config.md)。
 

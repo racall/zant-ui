@@ -36,6 +36,7 @@ ui.pointerArea(.{
   `resize_horizontal`、`resize_vertical`、`grab`、`grabbing`、`not_allowed`）。
 - `focusable = true`：点击获得键盘焦点（Tab 也能到达），按键先交给 `on_key`
   （`ui.keyAction`，返回 `true` 表示已处理）。
+- `clicks = false`：只接收悬停和滚轮，按下时像普通容器（里面的文字仍可选择）。
 - 区域里的按钮、输入框等交互控件照常接收自己的点击。
 
 ## 悬停样式 `hover_background` / `hover_border_color`

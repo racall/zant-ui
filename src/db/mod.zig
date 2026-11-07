@@ -146,9 +146,12 @@ pub const Store = struct {
         const value = (try self.kvGet(key, &buf)) orelse return null;
         return std.json.parseFromSliceLeaky(T, allocator, value.text, .{}) catch Error.InvalidJson;
     }
+    /// The key exists (whatever the size of its value).
     pub fn has(self: *Store, key: []const u8) bool {
-        var buf: [8]u8 = undefined;
-        return (self.kvGet(key, &buf) catch null) != null;
+        var stmt = self.db.prepare("SELECT 1 FROM _zant_kv WHERE key = ? LIMIT 1") catch return false;
+        defer stmt.deinit();
+        stmt.bindValue(1, key) catch return false;
+        return stmt.step() catch false;
     }
     pub fn remove(self: *Store, key: []const u8) !void {
         var stmt = try self.db.prepare("DELETE FROM _zant_kv WHERE key = ?");

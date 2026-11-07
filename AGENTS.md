@@ -13,7 +13,7 @@
 - 语言：Zig 0.17.1
 - 窗口：macOS AppKit / NSWindow；Windows Win32 HWND（原生，不使用 WebView）
 - 渲染：Skia Ganesh + Metal（macOS）/ Direct3D 12（Windows）；CPU 光栅回退用于测试/特殊环境
-- 布局：Zig 实现的单行 Flex
+- 布局：Zig 实现的 CSS 风格 Flex（含换行 wrap、百分比、绝对定位）
 - 文本：Skia Paragraph，支持中英文、换行、字体回退
 - 状态：父组件持有状态 + 回调；可选 Zustand 风格 `zant.store.Store(T)`
 - 脚手架：编译后的 `zant` CLI，不使用 shell 脚手架
@@ -56,7 +56,8 @@ src/
   launch.zig            最小启动入口
   store.zig             Zustand 风格 Store
   core/                 节点、树、布局、几何、事件、Unicode
-  components/           文本、按钮、输入、Toggle、Select、图片
+  components/           按钮、输入、开关、Select、图片、菜单、Segmented、Modal、Message、
+                        虚拟列表、快捷键列表 / 录入、标题栏按钮
   renderer/skia/        Skia C ABI：可移植核心 + mac（CoreText/Metal）/ win（DirectWrite/D3D12）
   platform/platform.h   平台 C ABI（两个平台各实现一份）
   platform/macos/       AppKit 窗口、PDFKit 桥
@@ -205,13 +206,15 @@ ui.styled(node, .{
 
 ## 沙盒与签名（macOS）
 
-- 沙盒和签名只用于 macOS；Windows 打包不签名（Authenticode 未自动化），`sandbox` 被忽略。
+- 沙盒只用于 macOS，Windows 上 `sandbox` 被忽略；Windows 的 `zant package` 不签名，`zant build` 可以用
+  signtool 签名（证书存储或 .pfx，见 `docs/build.md`）。
 - `sandbox: true` 时打包写入 `com.apple.security.app-sandbox` entitlement。
 - 沙盒应用必须通过 LaunchServices 启动；`zant run` 已处理。
 - 签名身份来自本机 keychain 或 `app.config.json`；`none` 表示 ad-hoc。
 - **不要把私钥、证书、密码、token、真实签名身份提交到 Git。**
   示例和文档使用通用占位符。
-- 发布到外部分发前需要 notarization + stapling，当前未自动完成。
+- 发布用 `zant build`：Developer ID 签名、DMG、公证与装订（notarytool + stapler），或 Mac App Store；
+  见 `docs/build.md`。
 
 ## Markdown / 数学
 

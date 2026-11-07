@@ -30,6 +30,9 @@ test "Store key value JSON and collection" {
     try std.testing.expect(store.getBool("onboarded", false));
     try std.testing.expectApproxEqAbs(@as(f64, 1.25), store.getFloat("scale", 0), 0.001);
     try std.testing.expect(store.has("theme"));
+    // values longer than any small read buffer exist too
+    try std.testing.expect(store.has("settings"));
+    try std.testing.expect(!store.has("missing"));
 
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();

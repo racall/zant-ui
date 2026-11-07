@@ -5,7 +5,7 @@
 | CSS | Zant |
 |---|---|
 | `display:flex` | `ui.column` / `ui.row` |
-| `flex-direction` | `direction` / `flex_direction` |
+| `flex-direction` | `ui.row` / `ui.column`，或 `flex_direction` |
 | `justify-content` | `justify` / `justify_content` |
 | `align-items` | `align_items` |
 | `align-self` | `align_self` |
@@ -34,9 +34,9 @@ ui.row(.{
     .row_gap = 8,
     .align_content = .space_between,
     .children = &.{
-        ui.card(.{ .width_percent = 33, .children = &.{ ... } }),
-        ui.card(.{ .width_percent = 33, .children = &.{ ... } }),
-        ui.card(.{ .width_percent = 33, .children = &.{ ... } }),
+        ui.styled(ui.card(.{ .children = &.{ ... } }), .{ .width_percent = 33 }),
+        ui.styled(ui.card(.{ .children = &.{ ... } }), .{ .width_percent = 33 }),
+        ui.styled(ui.card(.{ .children = &.{ ... } }), .{ .width_percent = 33 }),
     },
 })
 ```

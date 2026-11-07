@@ -45,7 +45,7 @@ cd /path/to/work
 检查通过后才删除。`zant run` / `build` / `package` 每次都会检查 `app.config.json` 里的
 `bundle_id`，手改成不合规的值会报错并停止。
 
-macOS 专属设置不在创建时询问：在 Mac 上第一次 `zant run` / `zant compile` / `zant build` 时写入
+macOS 专属设置不在创建时询问：在 Mac 上第一次 `zant run` / `zant compile` / `zant build` / `zant sync` 时写入
 `"macos": { "sandbox": false }`；第一次 `zant package` 时列出本机 codesign 身份让你选择
 （0 = ad-hoc；非交互终端直接用 ad-hoc），写入 `macos.signing_identity`。
 Windows 的命令行窗口（包括代码页 936 的中文系统）中文显示与输入正常。
@@ -85,7 +85,7 @@ zant run --release
 zant compile          # 只编译（--release 用 ReleaseFast）
 zant package          # 本机测试用的 .app / 程序目录
 zant build            # 发布构建：签名、DMG、公证、安装包或提交商店，见「发布构建」
-zant sync             # 只重新生成 src/app_config.zig、Info.plist（沙盒时还有 app.entitlements）
+zant sync             # 只重新生成 src/app_config.zig、Info.plist（沙盒或设了 macos.entitlements 时还有 app.entitlements）
 zant update           # 框架更新后重编译全局 zant CLI（Windows 上先把运行中的 zant.exe 改名为 zant.old.exe）
 ```
 

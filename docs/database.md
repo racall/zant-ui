@@ -131,7 +131,7 @@ try store.commit();
 | 整数 | `setInt` / `getInt` |
 | 布尔 | `setBool` / `getBool` |
 | 浮点 | `setFloat` / `getFloat` |
-| JSON | `setJson` / `getJson` |
+| JSON | `setJson` / `getJson`（单个值最大 64 KB；更大的数据用对象集合或文件） |
 | 删除键 | `remove(key)`；清空所有键值 `clear()` |
 | 是否存在 | `has(key)` |
 | 对象集合 | `store.collection(T)` |
