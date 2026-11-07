@@ -13,7 +13,6 @@
 const std = @import("std");
 const m = @import("main.zig");
 const png = @import("png");
-const build_options = @import("build_options");
 const Io = std.Io;
 const Dir = Io.Dir;
 const Allocator = std.mem.Allocator;
@@ -329,7 +328,7 @@ fn save(c: *Ctx) void {
 // ---- scripts ----
 
 fn scriptPath(c: *Ctx) ![]const u8 {
-    return std.fs.path.join(c.a, &.{ build_options.zant_root, "tools", "zant", "package", if (is_windows) "windows.ps1" else "macos.sh" });
+    return std.fs.path.join(c.a, &.{ m.zant_root, "tools", "zant", "package", if (is_windows) "windows.ps1" else "macos.sh" });
 }
 
 fn scriptArgv(c: *Ctx, action: []const u8) ![]const []const u8 {
@@ -565,7 +564,7 @@ fn dmgBackground(c: *Ctx, mac: *Macos) ![]const u8 {
     const v = value(c, mac.dmg_background.?, "macos.dmg_background");
     if (eql(u8, v, "none")) return "";
     const path = if (eql(u8, v, "default"))
-        try std.fs.path.join(c.a, &.{ build_options.zant_root, "tools", "zant", "package", "dmg-background.png" })
+        try std.fs.path.join(c.a, &.{ m.zant_root, "tools", "zant", "package", "dmg-background.png" })
     else
         try expandPath(c, v);
     const data = m.readFile(c.a, c.io, path) catch fail("找不到 DMG 背景图片 {s}", .{path});

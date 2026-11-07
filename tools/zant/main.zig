@@ -810,10 +810,12 @@ pub fn packageWindows(allocator: std.mem.Allocator, io: Io, root: []const u8, cf
             if (!std.mem.eql(u8, f.src, "pdfium.dll")) return err;
         };
     }
-    // zant_skia.dll is built with /MD: ship the MSVC runtime next to it
+    // zant_skia.dll is built with /MD: ship the MSVC runtime next to it (the
+    // copy installed with a prebuilt bridge, else the system's)
     const system_root = (if (child_environ) |env| env.get("SystemRoot") else null) orelse "C:\\Windows";
     for ([_][]const u8{ "vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll" }) |name| {
-        const src = try std.fmt.allocPrint(allocator, "{s}\\System32\\{s}", .{ system_root, name });
+        const local = try std.fmt.allocPrint(allocator, "{s}/zig-out/bin/{s}", .{ root, name });
+        const src = if (fileExists(io, local)) local else try std.fmt.allocPrint(allocator, "{s}\\System32\\{s}", .{ system_root, name });
         defer allocator.free(src);
         const dst = try std.fs.path.join(allocator, &.{ out, name });
         defer allocator.free(dst);
@@ -979,7 +981,7 @@ fn cmdCreate(allocator: std.mem.Allocator, io: Io, args: []const [:0]const u8) !
     try Dir.cwd().createDirPath(io, try std.fs.path.join(allocator, &.{ target, "src", "components" }));
 
     step("写入模板、配置和自定义组件", .{});
-    const zroot = build_options.zant_root;
+    const zroot = zant_root;
     const build_zig = try readFile(allocator, io, try std.fs.path.join(allocator, &.{ zroot, "scaffold/template/build.zig" }));
     defer allocator.free(build_zig);
     const build_zon = try readFile(allocator, io, try std.fs.path.join(allocator, &.{ zroot, "scaffold/template/build.zig.zon" }));
@@ -1387,15 +1389,37 @@ fn cmdPackage(allocator: std.mem.Allocator, io: Io) !void {
     std.debug.print("\n输出: {s}\n", .{app_path});
 }
 
-/// The Zig that built this zant (the install scripts may keep a pinned Zig
-/// outside PATH); "zig" from PATH when that one is gone (e.g. Homebrew
-/// replaced it).
+/// Zant UI's folder. An installed release (install.sh / install.ps1) keeps
+/// it as `zant-ui` next to `bin/zant`; a zant built from a checkout uses
+/// that checkout.
+pub var zant_root: []const u8 = build_options.zant_root;
+/// The install folder (`~/.zant`, `%LOCALAPPDATA%\zant`) of a release install.
+pub var release_home: ?[]const u8 = null;
+
+fn findRoot(allocator: std.mem.Allocator, io: Io) void {
+    const dir = std.process.executableDirPathAlloc(io, allocator) catch return;
+    const home = std.fs.path.dirname(dir) orelse return;
+    const root = std.fs.path.join(allocator, &.{ home, "zant-ui" }) catch return;
+    const zon = std.fs.path.join(allocator, &.{ root, "build.zig.zon" }) catch return;
+    if (!fileExists(io, zon)) return;
+    zant_root = root;
+    release_home = home;
+}
+
+/// The Zig to build apps with: $ZANT_ZIG; the Zig that built this zant;
+/// the one the installer downloaded (`<home>/zig/<version>`); else `zig`
+/// from PATH.
 pub fn zigExe() []const u8 {
-    const path = build_options.zig_exe;
-    if (std.fs.path.isAbsolute(path)) {
-        var file = std.Io.Dir.cwd().openFile(io_global orelse return "zig", path, .{}) catch return "zig";
-        file.close(io_global.?);
-        return path;
+    const io = io_global orelse return "zig";
+    if (child_environ) |env| if (env.get("ZANT_ZIG")) |z| if (z.len > 0) return z;
+    if (std.fs.path.isAbsolute(build_options.zig_exe) and fileExists(io, build_options.zig_exe)) return build_options.zig_exe;
+    if (release_home) |home| {
+        const a = std.heap.page_allocator;
+        const zon = Dir.cwd().readFileAlloc(io, std.fs.path.join(a, &.{ zant_root, "build.zig.zon" }) catch return "zig", a, .limited(64 * 1024)) catch return "zig";
+        if (zonString(zon, ".minimum_zig_version")) |version| {
+            const exe = std.fs.path.join(a, &.{ home, "zig", version, if (is_windows) "zig.exe" else "zig" }) catch return "zig";
+            if (fileExists(io, exe)) return exe;
+        }
     }
     return "zig";
 }
@@ -1405,7 +1429,8 @@ var io_global: ?Io = null;
 /// fast-forward only), fetches the pinned dependencies again when they
 /// changed, checks the Zig version and rebuilds the CLI.
 fn cmdUpdate(allocator: std.mem.Allocator, io: Io) !void {
-    const root = build_options.zant_root;
+    if (release_home) |home| return updateRelease(allocator, io, home);
+    const root = zant_root;
     std.debug.print("\n" ++ Color.cyan ++ "更新 Zant UI" ++ Color.reset ++ "：{s}\n", .{root});
 
     const git_dir = try std.fs.path.join(allocator, &.{ root, ".git" });
@@ -1468,6 +1493,26 @@ fn cmdUpdate(allocator: std.mem.Allocator, io: Io) !void {
     ok("已更新：{s}", .{exe});
 }
 
+/// An installed release updates by running the install script of the
+/// latest release again (it checks the version, Zig and replaces
+/// `zant-ui/` and `bin/zant`); ZANT_DOWNLOAD points it elsewhere.
+fn updateRelease(allocator: std.mem.Allocator, io: Io, home: []const u8) !void {
+    const base = (if (child_environ) |env| env.get("ZANT_DOWNLOAD") else null) orelse release_download;
+    try child_environ.?.put("ZANT_HOME", home);
+    const script = if (is_windows)
+        try std.fmt.allocPrint(allocator, "irm '{s}/install.ps1' | iex", .{base})
+    else
+        try std.fmt.allocPrint(allocator, "curl -fsSL '{s}/install.sh' | bash", .{base});
+    const argv: []const []const u8 = if (is_windows)
+        &.{ "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script }
+    else
+        &.{ "/bin/bash", "-c", script };
+    if (!runOk(io, argv, home)) fail("更新没有完成（见上面的说明）", .{});
+}
+
+/// Where release archives and the install scripts are published.
+pub const release_download = "https://github.com/racall/zant-ui/releases/latest/download";
+
 /// Runs a command with the terminal; false when it fails (no exit).
 fn runOk(io: Io, argv: []const []const u8, cwd: []const u8) bool {
     var child = std.process.spawn(io, .{
@@ -1522,11 +1567,15 @@ pub fn main(init: std.process.Init) !void {
     const allocator = arena.allocator();
     const io = init.io;
     io_global = io;
+    findRoot(allocator, io);
     console.init();
     defer console.deinit();
     child_environ = init.environ_map;
     if (init.environ_map.get("ZIG_GLOBAL_CACHE_DIR") == null) {
-        const cache = try std.fmt.allocPrint(allocator, "{s}/.zig-global-cache", .{build_options.zant_root});
+        const cache = if (release_home) |home|
+            try std.fs.path.join(allocator, &.{ home, "cache" })
+        else
+            try std.fmt.allocPrint(allocator, "{s}/.zig-global-cache", .{zant_root});
         try init.environ_map.put("ZIG_GLOBAL_CACHE_DIR", cache);
     }
     const args = try init.minimal.args.toSlice(allocator);

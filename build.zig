@@ -75,6 +75,13 @@ fn configureWindows(b: *std.Build, target: std.Build.ResolvedTarget, mod: *std.B
 
     // the DLL itself can only be built on Windows (MSVC)
     if (builtin.os.tag != .windows) return null;
+    // release archives (install.ps1) ship it prebuilt, with the MSVC
+    // runtime: no Visual Studio needed to build apps
+    if (hasPrebuiltBridge(b)) {
+        const dir = b.path(prebuilt_bridge);
+        b.addNamedLazyPath("zant_skia", dir);
+        return dir;
+    }
     const bridge = b.addSystemCommand(&.{ "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File" });
     bridge.addFileArg(b.path("scripts/win/build_bridge.ps1"));
     bridge.addArg("-OutDir");
@@ -93,6 +100,18 @@ fn configureWindows(b: *std.Build, target: std.Build.ResolvedTarget, mod: *std.B
     for (inputs) |input| bridge.addFileInput(b.path(input));
     b.addNamedLazyPath("zant_skia", out);
     return out;
+}
+
+/// Folder of the prebuilt zant_skia.dll in release archives (made by
+/// scripts/release/package.ps1; a source checkout never has it).
+const prebuilt_bridge = "third_party/zant-skia-prebuilt";
+/// MSVC runtime the bridge needs, next to it in release archives.
+const msvc_runtime = [_][]const u8{ "vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll" };
+
+fn hasPrebuiltBridge(b: *std.Build) bool {
+    const path = b.root.joinString(b.allocator, prebuilt_bridge ++ "/zant_skia.dll") catch return false;
+    std.Io.Dir.cwd().access(b.graph.io, path, .{}) catch return false;
+    return true;
 }
 
 fn importLibrary(b: *std.Build, def: []const u8, name: []const u8, machine: []const u8) std.Build.LazyPath {
@@ -124,7 +143,7 @@ pub fn configureApp(b: *std.Build, zant_dep: *std.Build.Dependency, exe: *std.Bu
     if (exe.root_module.optimize != .debug) exe.subsystem = .windows;
     addWindowsIcon(b, zant_dep, exe);
     if (builtin.os.tag != .windows) return;
-    installRuntime(b, zant_dep.namedLazyPath("zant_skia"), runs);
+    installRuntime(b, zant_dep.namedLazyPath("zant_skia"), hasPrebuiltBridge(zant_dep.builder), runs);
 }
 
 /// App icons in `assets/icons/` (created by `zant create`, replaceable).
@@ -177,11 +196,16 @@ fn addWindowsIcon(b: *std.Build, zant_dep: *std.Build.Dependency, exe: *std.Buil
     exe.root_module.addWin32ResourceFile(.{ .file = rc, .include_paths = &.{files.getDirectory()} });
 }
 
-fn installRuntime(b: *std.Build, dir: std.Build.LazyPath, runs: []const *std.Build.Step.Run) void {
+fn installRuntime(b: *std.Build, dir: std.Build.LazyPath, prebuilt: bool, runs: []const *std.Build.Step.Run) void {
     const runtime = b.step("zant-runtime", "Install zant_skia.dll and pdfium.dll");
     for ([_][]const u8{ "zant_skia.dll", "pdfium.dll" }) |name| {
         runtime.dependOn(&b.addInstallBinFile(dir.path(b, name), name).step);
     }
+    // the prebuilt bridge comes with the MSVC runtime (a machine without
+    // Visual Studio may not have it)
+    if (prebuilt) for (msvc_runtime) |name| {
+        runtime.dependOn(&b.addInstallBinFile(dir.path(b, name), name).step);
+    };
     b.getInstallStep().dependOn(runtime);
     // the install prefix is only known when the build runs; this assumes the
     // default (zig-out) for the PATH of run steps
@@ -409,6 +433,6 @@ pub fn build(b: *std.Build) void {
             app.win32_manifest = b.path("src/platform/windows/zant.manifest");
             if (optimize != .debug) app.subsystem = .windows;
         }
-        if (bridge_dir) |dir| installRuntime(b, dir, &.{ run_demo, run_gallery_cmd, run_math, run_md, run_pdf, run_components, run_tests, run_lib_tests });
+        if (bridge_dir) |dir| installRuntime(b, dir, hasPrebuiltBridge(b), &.{ run_demo, run_gallery_cmd, run_math, run_md, run_pdf, run_components, run_tests, run_lib_tests });
     }
 }

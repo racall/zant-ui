@@ -1,0 +1,86 @@
+# Release archives for the one-line installers (install.sh / install.ps1).
+#
+# Push a tag like v0.1.0: both platforms are built and a GitHub release is
+# published with zant-macos-arm64.tar.gz, zant-windows-x64.zip, their
+# .sha256, version.txt and the install scripts. Running the workflow by hand
+# (Actions → release → Run workflow) only builds the archives as artifacts.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  ZIG_VERSION: 0.17.1
+
+jobs:
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Zig
+        run: |
+          curl -fsSL "https://ziglang.org/download/$ZIG_VERSION/zig-aarch64-macos-$ZIG_VERSION.tar.xz" -o zig.tar.xz
+          echo "75f1bc7a1e9852f17ec9a0c1895f767c4ec56d46bc8a834920eece1d0359dd8d  zig.tar.xz" | shasum -a 256 -c
+          tar -xJf zig.tar.xz -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/zig-aarch64-macos-$ZIG_VERSION" >> "$GITHUB_PATH"
+          rm zig.tar.xz
+      - name: Skia
+        run: ./scripts/fetch_skia.sh
+      - name: Package
+        run: ./scripts/release/package.sh "${{ github.ref_type == 'tag' && github.ref_name || format('dev-{0}', github.sha) }}" dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: dist/
+
+  windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: Zig
+        shell: pwsh
+        run: |
+          $zip = "$env:RUNNER_TEMP\zig.zip"
+          curl.exe -fsSL -o $zip "https://ziglang.org/download/$env:ZIG_VERSION/zig-x86_64-windows-$env:ZIG_VERSION.zip"
+          if ((Get-FileHash $zip -Algorithm SHA256).Hash.ToLower() -ne 'b03f477a1943673e02aca0f570e8030dffd536ce1f45cbc4d3326ec31159562e') { throw 'zig checksum' }
+          tar -xf $zip -C $env:RUNNER_TEMP
+          "$env:RUNNER_TEMP\zig-x86_64-windows-$env:ZIG_VERSION" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+      - name: Skia, PDFium, fonts
+        shell: pwsh
+        run: ./scripts/fetch_skia_windows.ps1
+      - name: Package
+        shell: pwsh
+        run: ./scripts/release/package.ps1 -Version "${{ github.ref_type == 'tag' && github.ref_name || format('dev-{0}', github.sha) }}" -Out dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/
+
+  publish:
+    if: github.ref_type == 'tag'
+    needs: [macos, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "${{ github.ref_name }}" > dist/version.txt
+          cp install.sh install.ps1 dist/
+          gh release create "${{ github.ref_name }}" dist/* \
+            --title "zant ${{ github.ref_name }}" \
+            --notes "安装 / Install:
+
+          macOS (Apple silicon): \`curl -fsSL https://github.com/${{ github.repository }}/releases/latest/download/install.sh | bash\`
+
+          Windows (PowerShell): \`irm https://github.com/${{ github.repository }}/releases/latest/download/install.ps1 | iex\`"
