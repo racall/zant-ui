@@ -1,7 +1,7 @@
 # 窗口配置
 
-应用的窗口默认值来自项目根目录的 `app.config.json`。`zant run` / `zant build` /
-`zant package` / `zant sync` 会读取它，并生成 `src/app_config.zig`（macOS 上还有 `Info.plist`）。
+应用的窗口默认值来自项目根目录的 `app.config.json`。`zant run` / `zant compile` /
+`zant package` / `zant build` / `zant sync` 会读取它，并生成 `src/app_config.zig`（macOS 上还有 `Info.plist`）。
 通用设置由 `zant create` 写入；平台专属的段（目前只有 `macos`）在该平台首次运行 / 打包时补充。
 
 ## app.config.json
@@ -36,7 +36,8 @@
 | `bundle_id` | 应用标识（如 `com.xx.test`）：macOS 的 Bundle ID，Windows 上 `zant.paths.appDataDir` 的目录名；须符合苹果与微软规范（见 `docs/scaffold.md`），否则 `zant` 报错 |
 | `version` | 版本号（macOS 写入 `CFBundleShortVersionString`） |
 | `macos.sandbox` | 是否写入 App Sandbox entitlement 并用沙盒方式运行（仅 macOS） |
-| `macos.signing_identity` | `codesign` 身份；`none` 表示 ad-hoc（仅 macOS） |
+| `macos.signing_identity` | `zant package` 和沙盒应用 `zant run` 用的 `codesign` 身份；`none` 表示 ad-hoc（仅 macOS）。发布构建的证书在 `build.config.json`，见 [发布构建](build.md) |
+| `macos.entitlements` | 应用需要的其他权限，如 `{"com.apple.security.network.client": true}`；值是 true / false、字符串或字符串列表。签名时（`zant package` / `zant build`）一起写入 |
 | `window.style` | `native` / `hidden-titlebar` / `borderless` |
 | `window.width` / `height` | 初始窗口尺寸（逻辑像素，Windows 按显示器缩放） |
 | `window.min_width` / `min_height` | 最小尺寸 |

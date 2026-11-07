@@ -18,7 +18,7 @@
 - 配置：`app.config.json`（两端通用设置 + `macos` 专属段）；`src/app_config.zig`、
   `Info.plist`、`app.entitlements`（后两者仅 macOS）由 `zant` 生成，不要手改。
 - 运行：`zant run`（`--watch` 改动后自动重编译、重启）。
-- 打包：`zant package`。
+- 打包：`zant package`（本机测试）；发布：`zant build`（`build.config.json`）。
 - 测试：`zig build test`。
 - 格式化：`zig fmt src build.zig`。
 

@@ -2,17 +2,21 @@ const std = @import("std");
 const build_options = @import("build_options");
 const Io = std.Io;
 const Dir = Io.Dir;
-const is_windows = @import("builtin").os.tag == .windows;
+pub const is_windows = @import("builtin").os.tag == .windows;
 const png = @import("png");
+const distribute = @import("distribute.zig");
 
-var child_environ: ?*std.process.Environ.Map = null;
+pub var child_environ: ?*std.process.Environ.Map = null;
+/// Run before `fail` exits: `zant build` removes temporary key files and
+/// keychains there.
+pub var on_fail: ?*const fn () void = null;
 
-const Color = struct {
-    const cyan = "\x1b[36m";
-    const green = "\x1b[32m";
-    const red = "\x1b[31m";
-    const dim = "\x1b[2m";
-    const reset = "\x1b[0m";
+pub const Color = struct {
+    pub const cyan = "\x1b[36m";
+    pub const green = "\x1b[32m";
+    pub const red = "\x1b[31m";
+    pub const dim = "\x1b[2m";
+    pub const reset = "\x1b[0m";
 };
 
 const WindowConfig = struct {
@@ -35,16 +39,23 @@ const WindowConfig = struct {
 /// `package` on that platform the first time they are needed:
 ///   "macos": { "sandbox": false, "signing_identity": "none" }
 /// (older projects keep `sandbox` / `signing_identity` at the top level).
-const AppConfig = struct {
+pub const AppConfig = struct {
     title: []const u8 = "Zant App",
     bundle_id: []const u8 = "dev.zant.app",
     version: []const u8 = "0.1.0",
     sandbox: bool = false,
     signing_identity: []const u8 = "none",
     window: WindowConfig = .{},
+    /// `macos.entitlements`: extra entitlements for the signed app, e.g.
+    /// `{ "com.apple.security.network.client": true }` (values: true / false,
+    /// a string or a list of strings). `sandbox` adds app-sandbox itself.
+    entitlements: ?std.json.Value = null,
     /// set in the file (`macos` section or legacy top-level keys)
     has_sandbox: bool = false,
     has_signing: bool = false,
+    /// read from the legacy top-level keys (moved into `macos` when written)
+    legacy_sandbox: bool = false,
+    legacy_signing: bool = false,
 };
 
 const RawWindow = struct {
@@ -63,6 +74,7 @@ const RawWindow = struct {
 const RawMacos = struct {
     sandbox: ?bool = null,
     signing_identity: ?[]const u8 = null,
+    entitlements: ?std.json.Value = null,
 };
 
 const RawConfig = struct {
@@ -75,21 +87,25 @@ const RawConfig = struct {
     macos: ?RawMacos = null,
 };
 
-fn step(comptime fmt: []const u8, args: anytype) void {
+pub fn step(comptime fmt: []const u8, args: anytype) void {
     std.debug.print("  " ++ Color.cyan ++ "→" ++ Color.reset ++ " " ++ fmt ++ "\n", args);
 }
 
-fn ok(comptime fmt: []const u8, args: anytype) void {
+pub fn ok(comptime fmt: []const u8, args: anytype) void {
     std.debug.print("  " ++ Color.green ++ "✓" ++ Color.reset ++ " " ++ fmt ++ "\n", args);
 }
 
-fn fail(comptime fmt: []const u8, args: anytype) noreturn {
+pub fn fail(comptime fmt: []const u8, args: anytype) noreturn {
+    if (on_fail) |cleanup| {
+        on_fail = null;
+        cleanup();
+    }
     std.debug.print("\n  " ++ Color.red ++ "✗" ++ Color.reset ++ " " ++ fmt ++ "\n\n", args);
     console.deinit();
     std.process.exit(1);
 }
 
-fn writeFile(allocator: std.mem.Allocator, io: Io, path: []const u8, data: []const u8) !void {
+pub fn writeFile(allocator: std.mem.Allocator, io: Io, path: []const u8, data: []const u8) !void {
     if (std.fs.path.dirname(path)) |parent| {
         try Dir.cwd().createDirPath(io, parent);
     }
@@ -97,11 +113,11 @@ fn writeFile(allocator: std.mem.Allocator, io: Io, path: []const u8, data: []con
     _ = allocator;
 }
 
-fn readFile(allocator: std.mem.Allocator, io: Io, path: []const u8) ![]u8 {
+pub fn readFile(allocator: std.mem.Allocator, io: Io, path: []const u8) ![]u8 {
     return Dir.cwd().readFileAlloc(io, path, allocator, .limited(8 * 1024 * 1024));
 }
 
-fn runInherit(allocator: std.mem.Allocator, io: Io, argv: []const []const u8, cwd: []const u8) !void {
+pub fn runInherit(allocator: std.mem.Allocator, io: Io, argv: []const []const u8, cwd: []const u8) !void {
     _ = allocator;
     var child = std.process.spawn(io, .{
         .argv = argv,
@@ -116,7 +132,7 @@ fn runInherit(allocator: std.mem.Allocator, io: Io, argv: []const []const u8, cw
     if (!term.success()) fail("{s} 执行失败", .{argv[0]});
 }
 
-fn runCapture(allocator: std.mem.Allocator, io: Io, argv: []const []const u8) !std.process.RunResult {
+pub fn runCapture(allocator: std.mem.Allocator, io: Io, argv: []const []const u8) !std.process.RunResult {
     return std.process.run(allocator, io, .{
         .argv = argv,
         .stdout_limit = .limited(1024 * 1024),
@@ -130,7 +146,7 @@ fn runCapture(allocator: std.mem.Allocator, io: Io, argv: []const []const u8) !s
 /// e.g. 936 on Chinese systems, which shows UTF-8 text as mojibake) and ANSI
 /// colors (off by default in conhost). Restored on exit: the code page belongs
 /// to the console window, not to this process.
-const console = struct {
+pub const console = struct {
     const win = struct {
         extern "kernel32" fn GetStdHandle(id: u32) callconv(.winapi) ?*anyopaque;
         extern "kernel32" fn GetConsoleOutputCP() callconv(.winapi) u32;
@@ -173,7 +189,7 @@ const console = struct {
     /// One line of input (without the line break) as UTF-8. A console is read
     /// as UTF-16 (ReadFile returns no bytes for non-ASCII input under code
     /// page 65001 and OEM bytes otherwise); pipes are read as UTF-8 bytes.
-    fn readLine(buf: []u8) []const u8 {
+    pub fn readLine(buf: []u8) []const u8 {
         if (is_windows) {
             const h = win.GetStdHandle(STD_INPUT_HANDLE);
             var mode: u32 = 0;
@@ -195,6 +211,30 @@ const console = struct {
         return std.mem.trimEnd(u8, buf[0..n], "\r");
     }
 
+    /// A line typed without echo (a password); used for this run only.
+    pub fn readSecret(buf: []u8) []const u8 {
+        if (is_windows) {
+            const h = win.GetStdHandle(STD_INPUT_HANDLE);
+            var mode: u32 = 0;
+            const tty = win.GetConsoleMode(h, &mode) != 0;
+            if (tty) _ = win.SetConsoleMode(h, mode & ~@as(u32, 0x0004)); // ENABLE_ECHO_INPUT
+            defer if (tty) {
+                _ = win.SetConsoleMode(h, mode);
+            };
+            const line = readLine(buf);
+            std.debug.print("\n", .{});
+            return line;
+        }
+        const saved = std.posix.tcgetattr(std.posix.STDIN_FILENO) catch return readLine(buf);
+        var quiet = saved;
+        quiet.lflag.ECHO = false;
+        std.posix.tcsetattr(std.posix.STDIN_FILENO, .NOW, quiet) catch {};
+        defer std.posix.tcsetattr(std.posix.STDIN_FILENO, .NOW, saved) catch {};
+        const line = readLine(buf);
+        std.debug.print("\n", .{});
+        return line;
+    }
+
     fn readByte(buf: []u8) usize {
         if (is_windows) {
             var read: u32 = 0;
@@ -205,7 +245,7 @@ const console = struct {
     }
 };
 
-fn prompt(allocator: std.mem.Allocator, label: []const u8, default: []const u8) ![]u8 {
+pub fn prompt(allocator: std.mem.Allocator, label: []const u8, default: []const u8) ![]u8 {
     std.debug.print("{s} [{s}]: ", .{ label, default });
     var buf: [2048]u8 = undefined;
     const value = std.mem.trim(u8, console.readLine(&buf), " ");
@@ -240,7 +280,7 @@ fn askBundle(allocator: std.mem.Allocator, suggested: []const u8) ![]const u8 {
     fail("应用标识连续 3 次不符合规范，未创建项目", .{});
 }
 
-fn promptYesNo(allocator: std.mem.Allocator, label: []const u8, default: bool) !bool {
+pub fn promptYesNo(allocator: std.mem.Allocator, label: []const u8, default: bool) !bool {
     const def = if (default) "Y/n" else "y/N";
     while (true) {
         std.debug.print("{s} [{s}]: ", .{ label, def });
@@ -253,7 +293,7 @@ fn promptYesNo(allocator: std.mem.Allocator, label: []const u8, default: bool) !
     }
 }
 
-fn listIdentities(allocator: std.mem.Allocator, io: Io) ![]const []const u8 {
+pub fn listIdentities(allocator: std.mem.Allocator, io: Io) ![]const []const u8 {
     if (is_windows) return &.{}; // code signing identities are a macOS concept
     const result = runCapture(allocator, io, &.{ "security", "find-identity", "-v", "-p", "codesigning" }) catch return &.{};
     defer allocator.free(result.stdout);
@@ -303,7 +343,7 @@ fn escapeZig(allocator: std.mem.Allocator, text: []const u8) ![]u8 {
     return out.toOwnedSlice(allocator);
 }
 
-fn escapeXml(allocator: std.mem.Allocator, text: []const u8) ![]u8 {
+pub fn escapeXml(allocator: std.mem.Allocator, text: []const u8) ![]u8 {
     var out: std.ArrayListUnmanaged(u8) = .empty;
     for (text) |ch| {
         switch (ch) {
@@ -317,7 +357,7 @@ fn escapeXml(allocator: std.mem.Allocator, text: []const u8) ![]u8 {
     return out.toOwnedSlice(allocator);
 }
 
-fn loadConfig(allocator: std.mem.Allocator, io: Io, root: []const u8) !AppConfig {
+pub fn loadConfig(allocator: std.mem.Allocator, io: Io, root: []const u8) !AppConfig {
     const path = try std.fs.path.join(allocator, &.{ root, "app.config.json" });
     defer allocator.free(path);
     const data = readFile(allocator, io, path) catch fail("找不到 app.config.json（请先运行 zant create）", .{});
@@ -332,19 +372,27 @@ fn loadConfig(allocator: std.mem.Allocator, io: Io, root: []const u8) !AppConfig
     if (parsed.sandbox) |v| {
         cfg.sandbox = v;
         cfg.has_sandbox = true;
+        cfg.legacy_sandbox = true;
     }
     if (parsed.signing_identity) |v| {
         cfg.signing_identity = v;
         cfg.has_signing = true;
+        cfg.legacy_signing = true;
     }
     if (parsed.macos) |m| {
         if (m.sandbox) |v| {
             cfg.sandbox = v;
             cfg.has_sandbox = true;
+            cfg.legacy_sandbox = false;
         }
         if (m.signing_identity) |v| {
             cfg.signing_identity = v;
             cfg.has_signing = true;
+            cfg.legacy_signing = false;
+        }
+        if (m.entitlements) |v| {
+            if (v != .object) fail("app.config.json 的 macos.entitlements 要是对象，如 {{ \"com.apple.security.network.client\": true }}", .{});
+            cfg.entitlements = v;
         }
     }
     if (parsed.window) |w| {
@@ -418,14 +466,28 @@ fn generateConfigSource(allocator: std.mem.Allocator, cfg: *const AppConfig) ![]
 }
 
 fn generateInfoPlist(allocator: std.mem.Allocator, cfg: *const AppConfig) ![]u8 {
-    return generateInfoPlistIcon(allocator, cfg, false);
+    return generateInfoPlistFor(allocator, cfg, .{});
 }
 
-fn generateInfoPlistIcon(allocator: std.mem.Allocator, cfg: *const AppConfig, icon: bool) ![]u8 {
+pub const PlistExtras = struct {
+    icon: bool = false,
+    /// CFBundleVersion (App Store Connect needs a new one for every upload of
+    /// the same version); defaults to `version`
+    build_number: ?[]const u8 = null,
+    /// LSApplicationCategoryType, e.g. public.app-category.utilities
+    category: ?[]const u8 = null,
+};
+
+fn generateInfoPlistFor(allocator: std.mem.Allocator, cfg: *const AppConfig, extras: PlistExtras) ![]u8 {
     const title = try escapeXml(allocator, cfg.title);
     defer allocator.free(title);
     const bundle = try escapeXml(allocator, cfg.bundle_id);
     defer allocator.free(bundle);
+    const build = try escapeXml(allocator, extras.build_number orelse cfg.version);
+    const category = if (extras.category) |c|
+        try std.fmt.allocPrint(allocator, "\n<key>LSApplicationCategoryType</key><string>{s}</string>", .{try escapeXml(allocator, c)})
+    else
+        "";
     return std.fmt.allocPrint(allocator,
         \\<?xml version="1.0" encoding="UTF-8"?>
         \\<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -438,13 +500,13 @@ fn generateInfoPlistIcon(allocator: std.mem.Allocator, cfg: *const AppConfig, ic
         \\<key>CFBundleName</key><string>{s}</string>
         \\<key>CFBundlePackageType</key><string>APPL</string>
         \\<key>CFBundleShortVersionString</key><string>{s}</string>
-        \\<key>CFBundleVersion</key><string>1</string>
+        \\<key>CFBundleVersion</key><string>{s}</string>{s}
         \\<key>LSMinimumSystemVersion</key><string>13.0</string>
         \\<key>NSHighResolutionCapable</key><true/>
         \\<key>NSPrincipalClass</key><string>NSApplication</string>
         \\</dict></plist>
         \\
-    , .{ title, if (icon) "\n<key>CFBundleIconFile</key><string>AppIcon</string>" else "", bundle, title, cfg.version });
+    , .{ title, if (extras.icon) "\n<key>CFBundleIconFile</key><string>AppIcon</string>" else "", bundle, title, cfg.version, build, category });
 }
 
 /// src/app_config.zig (both platforms).
@@ -458,7 +520,7 @@ fn writeConfigSource(allocator: std.mem.Allocator, io: Io, root: []const u8, cfg
 
 /// Generated files for building on this platform: src/app_config.zig, plus
 /// Info.plist and app.entitlements on macOS.
-fn syncProject(allocator: std.mem.Allocator, io: Io, root: []const u8, cfg: *const AppConfig) !void {
+pub fn syncProject(allocator: std.mem.Allocator, io: Io, root: []const u8, cfg: *const AppConfig) !void {
     try writeConfigSource(allocator, io, root, cfg);
     if (is_windows) return; // Info.plist and entitlements are macOS bundle files
 
@@ -468,18 +530,54 @@ fn syncProject(allocator: std.mem.Allocator, io: Io, root: []const u8, cfg: *con
     defer allocator.free(plist_path);
     try writeFile(allocator, io, plist_path, plist);
 
-    const ent_path = try std.fs.path.join(allocator, &.{ root, "app.entitlements" });
-    defer allocator.free(ent_path);
-    if (cfg.sandbox) {
-        try writeFile(allocator, io, ent_path,
-            \\<?xml version="1.0" encoding="UTF-8"?>
-            \\<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-            \\<plist version="1.0"><dict>
-            \\<key>com.apple.security.app-sandbox</key><true/>
-            \\</dict></plist>
-            \\
-        );
+    if (cfg.sandbox or cfg.entitlements != null) {
+        const ent_path = try std.fs.path.join(allocator, &.{ root, "app.entitlements" });
+        try writeFile(allocator, io, ent_path, try entitlementsPlist(allocator, cfg, null));
     }
+}
+
+/// The app's entitlements: app-sandbox when `macos.sandbox` is on, the
+/// `macos.entitlements` from app.config.json, and for the Mac App Store the
+/// application and team identifiers (`store` = team id; sandbox is forced).
+pub fn entitlementsPlist(allocator: std.mem.Allocator, cfg: *const AppConfig, store_team: ?[]const u8) ![]u8 {
+    var out: std.ArrayListUnmanaged(u8) = .empty;
+    try out.appendSlice(allocator,
+        \\<?xml version="1.0" encoding="UTF-8"?>
+        \\<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        \\<plist version="1.0"><dict>
+        \\
+    );
+    if (cfg.sandbox or store_team != null) try out.appendSlice(allocator, "<key>com.apple.security.app-sandbox</key><true/>\n");
+    if (store_team) |team| {
+        const t = try escapeXml(allocator, team);
+        const id = try escapeXml(allocator, cfg.bundle_id);
+        try out.print(allocator, "<key>com.apple.application-identifier</key><string>{s}.{s}</string>\n", .{ t, id });
+        try out.print(allocator, "<key>com.apple.developer.team-identifier</key><string>{s}</string>\n", .{t});
+    }
+    if (cfg.entitlements) |ents| {
+        var it = ents.object.iterator();
+        while (it.next()) |entry| {
+            const key = entry.key_ptr.*;
+            if (std.mem.eql(u8, key, "com.apple.security.app-sandbox") and (cfg.sandbox or store_team != null)) continue;
+            try out.print(allocator, "<key>{s}</key>", .{try escapeXml(allocator, key)});
+            switch (entry.value_ptr.*) {
+                .bool => |v| try out.appendSlice(allocator, if (v) "<true/>" else "<false/>"),
+                .string => |v| try out.print(allocator, "<string>{s}</string>", .{try escapeXml(allocator, v)}),
+                .array => |list| {
+                    try out.appendSlice(allocator, "<array>");
+                    for (list.items) |item| {
+                        if (item != .string) fail("macos.entitlements 的 {s}：列表里只能是字符串", .{key});
+                        try out.print(allocator, "<string>{s}</string>", .{try escapeXml(allocator, item.string)});
+                    }
+                    try out.appendSlice(allocator, "</array>");
+                },
+                else => fail("macos.entitlements 的 {s}：值只能是 true / false、字符串或字符串列表", .{key}),
+            }
+            try out.append(allocator, '\n');
+        }
+    }
+    try out.appendSlice(allocator, "</dict></plist>\n");
+    return out.toOwnedSlice(allocator);
 }
 
 const Need = enum { run, package };
@@ -488,16 +586,17 @@ const Need = enum { run, package };
 /// (projects are created with the shared settings only). On macOS: `sandbox`
 /// when running or building, the signing identity when packaging (asked in
 /// an interactive terminal, ad-hoc otherwise). Windows needs nothing yet.
-fn completePlatformConfig(allocator: std.mem.Allocator, io: Io, root: []const u8, cfg: *AppConfig, need: Need) !void {
+pub fn completePlatformConfig(allocator: std.mem.Allocator, io: Io, root: []const u8, cfg: *AppConfig, need: Need) !void {
     if (is_windows) return;
     const want_signing = need == .package and !cfg.has_signing;
-    if (cfg.has_sandbox and !want_signing) return;
+    const want_sandbox = !cfg.has_sandbox;
+    if (!want_sandbox and !want_signing) return;
     if (want_signing) {
         cfg.signing_identity = if (try std.Io.File.stdin().isTty(io)) try askSigningIdentity(allocator, io) else "none";
         cfg.has_signing = true;
     }
     cfg.has_sandbox = true;
-    try writeMacosSection(allocator, io, root, cfg);
+    try writeMacosSection(allocator, io, root, cfg, want_sandbox, want_signing);
     if (want_signing) {
         ok("已在 app.config.json 补充 macOS 打包账号：{s}", .{if (std.mem.eql(u8, cfg.signing_identity, "none")) "Ad-hoc" else cfg.signing_identity});
     } else {
@@ -517,28 +616,41 @@ fn askSigningIdentity(allocator: std.mem.Allocator, io: Io) ![]const u8 {
     } else |_| return value;
 }
 
-/// Writes the `macos` section (replacing it, or appending it before the
-/// closing brace), and drops the legacy top-level keys it supersedes.
-fn writeMacosSection(allocator: std.mem.Allocator, io: Io, root: []const u8, cfg: *const AppConfig) !void {
+/// Adds the missing `macos` keys: into the existing section (its other keys,
+/// such as `entitlements`, stay as they are) or as a new section before the
+/// closing brace. Legacy top-level `sandbox` / `signing_identity` move into
+/// the section.
+fn writeMacosSection(allocator: std.mem.Allocator, io: Io, root: []const u8, cfg: *const AppConfig, add_sandbox: bool, add_signing: bool) !void {
     const path = try std.fs.path.join(allocator, &.{ root, "app.config.json" });
     const text = try readFile(allocator, io, path);
-    const identity = try escapeJson(allocator, cfg.signing_identity);
-    const section = if (cfg.has_signing)
-        try std.fmt.allocPrint(allocator, "\"macos\": {{\n    \"sandbox\": {},\n    \"signing_identity\": \"{s}\"\n  }}", .{ cfg.sandbox, identity })
-    else
-        try std.fmt.allocPrint(allocator, "\"macos\": {{\n    \"sandbox\": {}\n  }}", .{cfg.sandbox});
+    var keys: std.ArrayListUnmanaged([]const u8) = .empty;
+    if (add_sandbox or cfg.legacy_sandbox) try keys.append(allocator, try std.fmt.allocPrint(allocator, "\"sandbox\": {}", .{cfg.sandbox}));
+    if (add_signing or cfg.legacy_signing) try keys.append(allocator, try std.fmt.allocPrint(allocator, "\"signing_identity\": \"{s}\"", .{try escapeJson(allocator, cfg.signing_identity)}));
+    if (keys.items.len == 0) return;
     var out: []u8 = undefined;
     if (std.mem.indexOf(u8, text, "\"macos\"")) |start| {
         const open = std.mem.indexOfScalarPos(u8, text, start, '{') orelse fail("app.config.json 的 macos 段格式不对", .{});
-        const close = std.mem.indexOfScalarPos(u8, text, open, '}') orelse fail("app.config.json 的 macos 段格式不对", .{});
-        out = try std.mem.concat(allocator, u8, &.{ text[0..start], section, text[close + 1 ..] });
+        const rest = std.mem.trimStart(u8, text[open + 1 ..], " \t\r\n");
+        const empty = rest.len > 0 and rest[0] == '}';
+        var insert: std.ArrayListUnmanaged(u8) = .empty;
+        for (keys.items, 0..) |key, idx| {
+            try insert.appendSlice(allocator, "\n    ");
+            try insert.appendSlice(allocator, key);
+            if (!(empty and idx == keys.items.len - 1)) try insert.append(allocator, ',');
+        }
+        if (empty) {
+            out = try std.mem.concat(allocator, u8, &.{ text[0 .. open + 1], insert.items, "\n  ", rest });
+        } else {
+            out = try std.mem.concat(allocator, u8, &.{ text[0 .. open + 1], insert.items, text[open + 1 ..] });
+        }
     } else {
         const end = std.mem.lastIndexOfScalar(u8, text, '}') orelse fail("app.config.json 格式不对", .{});
         const body = std.mem.trimEnd(u8, text[0..end], " \t\r\n");
-        out = try std.mem.concat(allocator, u8, &.{ body, ",\n  ", section, "\n}\n" });
+        const joined = try std.mem.join(allocator, ",\n    ", keys.items);
+        out = try std.mem.concat(allocator, u8, &.{ body, ",\n  \"macos\": {\n    ", joined, "\n  }\n}\n" });
     }
-    out = try dropTopLevelKey(allocator, out, "sandbox");
-    out = try dropTopLevelKey(allocator, out, "signing_identity");
+    if (cfg.legacy_sandbox) out = try dropTopLevelKey(allocator, out, "sandbox");
+    if (cfg.legacy_signing) out = try dropTopLevelKey(allocator, out, "signing_identity");
     try writeFile(allocator, io, path, out);
 }
 
@@ -553,7 +665,7 @@ fn dropTopLevelKey(allocator: std.mem.Allocator, text: []u8, key: []const u8) ![
     return std.mem.concat(allocator, u8, &.{ text[0..start], text[line_end..] });
 }
 
-fn escapeJson(allocator: std.mem.Allocator, text: []const u8) ![]u8 {
+pub fn escapeJson(allocator: std.mem.Allocator, text: []const u8) ![]u8 {
     var out: std.ArrayListUnmanaged(u8) = .empty;
     for (text) |c| switch (c) {
         '"' => try out.appendSlice(allocator, "\\\""),
@@ -564,6 +676,16 @@ fn escapeJson(allocator: std.mem.Allocator, text: []const u8) ![]u8 {
 }
 
 fn packageApp(allocator: std.mem.Allocator, io: Io, root: []const u8, cfg: *const AppConfig, release: bool) ![]u8 {
+    try compileApp(allocator, io, root, release);
+    if (is_windows) return packageWindows(allocator, io, root, cfg);
+    const ent: ?[]const u8 = if (cfg.sandbox or cfg.entitlements != null)
+        try std.fmt.allocPrint(allocator, "{s}/app.entitlements", .{root})
+    else
+        null;
+    return buildMacBundle(allocator, io, root, cfg, .{ .identity = cfg.signing_identity, .entitlements = ent });
+}
+
+pub fn compileApp(allocator: std.mem.Allocator, io: Io, root: []const u8, release: bool) !void {
     const args = if (release)
         &[_][]const u8{ "zig", "build", "-Doptimize=ReleaseFast" }
     else
@@ -571,49 +693,55 @@ fn packageApp(allocator: std.mem.Allocator, io: Io, root: []const u8, cfg: *cons
     step("{s}", .{if (release) "正在编译 ReleaseFast" else "正在编译"});
     try runInherit(allocator, io, args, root);
     ok("编译完成", .{});
-    if (is_windows) return packageWindows(allocator, io, root, cfg);
+}
 
+pub const BundleOptions = struct {
+    /// codesign identity; "none" = ad-hoc
+    identity: []const u8 = "none",
+    entitlements: ?[]const u8 = null,
+    /// Contents/embedded.provisionprofile (Mac App Store)
+    provisioning_profile: ?[]const u8 = null,
+    /// a keychain to find the identity in (`zant build` with a CI certificate)
+    keychain: ?[]const u8 = null,
+    plist: PlistExtras = .{},
+};
+
+/// zig-out/<title>.app from the compiled zig-out/bin/app: icon, Info.plist,
+/// signature (hardened runtime and a secure timestamp with a real identity).
+pub fn buildMacBundle(allocator: std.mem.Allocator, io: Io, root: []const u8, cfg: *const AppConfig, opts: BundleOptions) ![]u8 {
     const app_name = cfg.title;
     if (std.mem.indexOfScalar(u8, app_name, '/') != null) fail("应用标题不能包含 '/'", .{});
     const app_path = try std.fmt.allocPrint(allocator, "{s}/zig-out/{s}.app", .{ root, app_name });
-    errdefer allocator.free(app_path);
     Dir.cwd().deleteTree(io, app_path) catch {};
     const macos_path = try std.fmt.allocPrint(allocator, "{s}/Contents/MacOS", .{app_path});
-    defer allocator.free(macos_path);
     try Dir.cwd().createDirPath(io, macos_path);
 
     const src_exe = try std.fmt.allocPrint(allocator, "{s}/zig-out/bin/app", .{root});
-    defer allocator.free(src_exe);
     const dst_exe = try std.fmt.allocPrint(allocator, "{s}/Contents/MacOS/app", .{app_path});
-    defer allocator.free(dst_exe);
     try Dir.cwd().copyFile(src_exe, std.Io.Dir.cwd(), dst_exe, io, .{ .replace = true, .make_path = true });
 
-    const has_icon = try writeMacIcon(allocator, io, root, app_path);
-    const plist = try generateInfoPlistIcon(allocator, cfg, has_icon);
-    defer allocator.free(plist);
-    const dst_plist = try std.fmt.allocPrint(allocator, "{s}/Contents/Info.plist", .{app_path});
-    defer allocator.free(dst_plist);
-    try writeFile(allocator, io, dst_plist, plist);
-
-    const identity = if (cfg.signing_identity.len == 0) "none" else cfg.signing_identity;
-    var sign_argv: std.ArrayListUnmanaged([]const u8) = .empty;
-    defer sign_argv.deinit(allocator);
-    try sign_argv.appendSlice(allocator, &.{ "codesign", "--force", "--deep" });
-    const ent_path: ?[]const u8 = if (cfg.sandbox)
-        try std.fmt.allocPrint(allocator, "{s}/app.entitlements", .{root})
-    else
-        null;
-    defer if (ent_path) |ent| allocator.free(ent);
-    if (ent_path) |ent| {
-        try sign_argv.appendSlice(allocator, &.{ "--entitlements", ent });
+    var extras = opts.plist;
+    extras.icon = try writeMacIcon(allocator, io, root, app_path);
+    const plist = try generateInfoPlistFor(allocator, cfg, extras);
+    try writeFile(allocator, io, try std.fmt.allocPrint(allocator, "{s}/Contents/Info.plist", .{app_path}), plist);
+    if (opts.provisioning_profile) |profile| {
+        const dst = try std.fmt.allocPrint(allocator, "{s}/Contents/embedded.provisionprofile", .{app_path});
+        Dir.cwd().copyFile(profile, Dir.cwd(), dst, io, .{ .replace = true }) catch |err|
+            fail("无法复制描述文件 {s}：{s}", .{ profile, @errorName(err) });
     }
+
+    const identity = if (opts.identity.len == 0) "none" else opts.identity;
+    var sign_argv: std.ArrayListUnmanaged([]const u8) = .empty;
+    try sign_argv.appendSlice(allocator, &.{ "codesign", "--force", "--deep" });
+    if (opts.entitlements) |ent| try sign_argv.appendSlice(allocator, &.{ "--entitlements", ent });
+    if (opts.keychain) |kc| try sign_argv.appendSlice(allocator, &.{ "--keychain", kc });
     if (std.mem.eql(u8, identity, "none")) {
         try sign_argv.appendSlice(allocator, &.{ "--sign", "-" });
     } else {
         try sign_argv.appendSlice(allocator, &.{ "--options", "runtime", "--timestamp", "--sign", identity });
     }
     try sign_argv.append(allocator, app_path);
-    step("正在签名（{s}）", .{identity});
+    step("正在签名（{s}）", .{if (std.mem.eql(u8, identity, "none")) "Ad-hoc" else identity});
     try runInherit(allocator, io, sign_argv.items, root);
     ok("已生成 {s}", .{app_path});
     return app_path;
@@ -658,7 +786,7 @@ fn appExePath(allocator: std.mem.Allocator, root: []const u8) ![]u8 {
 
 /// Windows: a folder with the exe, zant_skia.dll, pdfium.dll and the MSVC
 /// runtime the DLL needs, ready to zip or run anywhere on Windows 10+.
-fn packageWindows(allocator: std.mem.Allocator, io: Io, root: []const u8, cfg: *const AppConfig) ![]u8 {
+pub fn packageWindows(allocator: std.mem.Allocator, io: Io, root: []const u8, cfg: *const AppConfig) ![]u8 {
     for ([_]u8{ '/', '\\', ':', '*', '?', '"', '<', '>', '|' }) |bad| {
         if (std.mem.indexOfScalar(u8, cfg.title, bad) != null) fail("应用标题不能包含 {c}", .{bad});
     }
@@ -750,7 +878,7 @@ test "app identifier follows Apple and Microsoft rules" {
     }
 }
 
-fn pathExists(io: Io, path: []const u8) bool {
+pub fn pathExists(io: Io, path: []const u8) bool {
     if (Dir.cwd().openDir(io, path, .{})) |dir| {
         dir.close(io);
         return true;
@@ -1183,7 +1311,7 @@ fn appArgv(exe: []const u8) [4][]const u8 {
     return .{ "/bin/bash", "-c", benign_log_filter, exe };
 }
 
-fn rawLogs() bool {
+pub fn rawLogs() bool {
     const env = child_environ orelse return false;
     const value = env.get("ZANT_RAW_LOGS") orelse return false;
     return value.len > 0 and value[0] == '1';
@@ -1278,7 +1406,18 @@ pub fn main(init: std.process.Init) !void {
     }
     const args = try init.minimal.args.toSlice(allocator);
     if (args.len < 2) {
-        std.debug.print("用法: zant <create|run|build|package|update> ...\n  zant run --watch   热更新（重启式）\n", .{});
+        std.debug.print(
+            \\用法: zant <命令>
+            \\  create <项目名>       生成项目
+            \\  run [--watch]         编译并运行（--watch 热更新）
+            \\  compile [--release]   只编译
+            \\  package               生成本机测试用的 .app / 程序目录
+            \\  build [配置文件]      发布构建：签名、公证、DMG / 安装包，或提交商店
+            \\                        （默认读 build.config.json；--yes 不提问，CI 用）
+            \\  sync                  重新生成配置代码
+            \\  update                重新编译 zant
+            \\
+        , .{});
         return;
     }
     if (std.mem.eql(u8, args[1], "create")) {
@@ -1290,6 +1429,8 @@ pub fn main(init: std.process.Init) !void {
             try cmdRun(allocator, io, hasArg(args, "--release"));
         }
     } else if (std.mem.eql(u8, args[1], "build")) {
+        try distribute.cmdBuild(allocator, io, args);
+    } else if (std.mem.eql(u8, args[1], "compile")) {
         try cmdBuild(allocator, io, hasArg(args, "--release"));
     } else if (std.mem.eql(u8, args[1], "package")) {
         try cmdPackage(allocator, io);
@@ -1311,4 +1452,8 @@ pub fn main(init: std.process.Init) !void {
     } else {
         std.debug.print("未知命令: {s}\n", .{args[1]});
     }
+}
+
+test {
+    _ = distribute;
 }

@@ -88,8 +88,9 @@ zant create my-app        # 交互式：标题、窗口风格、应用标识（�
 cd my-app
 zant run                  # 生成配置代码、编译并运行
 zant run --watch          # 重启式热更新
-zant build --release
-zant package              # macOS：生成并签名 .app；Windows：生成可分发目录
+zant compile --release    # 只编译
+zant package              # 本机测试：macOS 生成并签名 .app；Windows 生成程序目录
+zant build                # 发布：DMG + 公证 / App Store，Windows 安装包 / MSIX（见 docs/build.md）
 ```
 
 生成项目包含 `app.config.json`、`src/state.zig`（`AppState`）、父子组件示例、

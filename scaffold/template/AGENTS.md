@@ -28,9 +28,9 @@
 zant run              # 生成配置代码、编译并运行
 zant run --watch      # 重启式热更新（macOS 沙盒应用不支持）
 zant run --release
-zant build
-zant build --release
-zant package           # macOS：生成并签名 .app；Windows：zig-out/<标题>/ 可分发目录
+zant compile [--release]  # 只编译
+zant package           # 本机测试：macOS 生成并签名 .app；Windows：zig-out/<标题>/ 程序目录
+zant build             # 发布：DMG / 公证 / App Store，Windows 安装包 / MSIX；设置在 build.config.json
 zig fmt src build.zig  # 格式化
 zig build test         # 测试
 ```
@@ -89,19 +89,21 @@ AGENTS.md / CLAUDE.md        给 AI coding agent 的规范
 - 两端通用（`zant create` 写入）：`title`、`bundle_id`（应用标识，如 `com.xx.test`）、`version`，
   以及 `window` 下的 `style`、`width`、`height`、`min_width`、`min_height`、
   `background`、`resizable`、`always_on_top`、`movable_by_background`、`center`。
-- 平台专属：`macos` 段的 `sandbox`、`signing_identity`，在 Mac 上首次 `zant run` / `build`
+- 平台专属：`macos` 段的 `sandbox`、`signing_identity`，在 Mac 上首次 `zant run` / `compile` / `build`
   时补充 `sandbox`（默认 false），首次 `zant package` 时询问签名账号。Windows 暂无专属设置。
 
 代码中的 `WindowOptions` 优先级高于配置文件。修改 JSON 后重新执行
-`zant run` / `zant build`。
+`zant run` / `zant compile`。
 
 ## 沙盒与签名（仅 macOS）
 
 - `macos.sandbox: true` 时 `zant package` 写入 `com.apple.security.app-sandbox`。
 - 签名使用 `macos.signing_identity`；`none` 表示 ad-hoc。
 - 沙盒应用运行必须通过 LaunchServices；`zant run` 已处理。
-- Windows 上不签名、不沙盒，`zant package` 只生成可分发目录。
-- 不要提交私钥、证书或密码。
+- Windows 上不沙盒；`zant package` 只生成程序目录。
+- 发布用 `zant build`：签名证书、公证、商店等设置在 `build.config.json`（Zant UI 的
+  `docs/build.md`），这里的 `signing_identity` 只用于 `zant package` 和沙盒应用的 `zant run`。
+- 不要提交私钥、证书或密码（.p8 / .p12 / .pfx）；CI 的密钥写成 `$环境变量名`。
 
 ## 代码质量
 

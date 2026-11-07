@@ -19,16 +19,16 @@ zant run --watch
 它会读取 `app.config.json`，自动生成配置代码、编译并启动应用。
 Windows 上需要 Visual Studio 2022+ / Build Tools 的 C++ 工作负载（构建 `zant_skia.dll`）。
 
-## 构建
+## 编译
 
 ```bash
-zant build
-zant build --release
+zant compile
+zant compile --release
 ```
 
 Windows 上 Debug 构建是控制台程序，`--release` 为 GUI 子系统。
 
-## 打包
+## 本机测试打包
 
 ```bash
 zant package
@@ -36,7 +36,18 @@ zant package
 
 - macOS：生成并签名 `zig-out/__APP_TITLE__.app`（沙盒开启时写入 entitlements）。
 - Windows：生成 `zig-out/__APP_TITLE__/` 目录（exe、`zant_skia.dll`、`pdfium.dll` 与
-  MSVC 运行库），压缩即可分发。
+  MSVC 运行库）。
+
+## 发布
+
+```bash
+zant build            # 缺的设置会询问，可保存到 build.config.json
+zant build --yes      # CI：不提问
+```
+
+- macOS：Developer ID 签名的 DMG，可选 Apple 公证；或 .pkg 提交 Mac App Store。
+- Windows：安装包 `setup.exe`（可签名）；或 MSIX 提交 Microsoft Store；或免安装 zip。
+- 结果在 `zig-out/dist/`。设置说明见 Zant UI 的 `docs/build.md`；密码和密钥用环境变量，不要提交。
 
 ## 配置
 

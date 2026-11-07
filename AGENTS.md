@@ -41,8 +41,9 @@ zant create my-app
 cd my-app
 zant run
 zant run --watch              # 重启式热更新，非沙盒
-zant build --release
-zant package                  # ReleaseFast；macOS 生成 .app 并 codesign，Windows 生成 zig-out/<标题>/ 目录
+zant compile --release        # 只编译
+zant package                  # 本机测试：macOS 生成 .app 并 codesign，Windows 生成 zig-out/<标题>/ 目录
+zant build                    # 发布：签名、DMG / 公证 / App Store，或 Windows 安装包 / MSIX（docs/build.md）
 zant update                   # 重新编译框架并更新全局二进制
 ```
 
@@ -197,9 +198,10 @@ ui.styled(node, .{
   不要手改。Windows 上 `bundle_id` 用作 `%APPDATA%` 下的数据目录名（`zant.paths.appDataDir`）。
 - 配置字段：标题、`bundle_id`、版本，`window` 下的 style/width/height/min/background/
   resizable/always_on_top/movable_by_background/center，以及 `macos.sandbox`、
-  `macos.signing_identity`。
+  `macos.signing_identity`、`macos.entitlements`；发布设置在独立的 `build.config.json`
+  （`zant build`，`tools/zant/distribute.zig` + `tools/zant/package/` 脚本，见 `docs/build.md`）。
 - 代码中的 `WindowOptions` 优先级高于 JSON。
-- 修改 JSON 后执行 `zant run` / `zant build` / `zant package`。
+- 修改 JSON 后执行 `zant run` / `zant compile` / `zant package`。
 
 ## 沙盒与签名（macOS）
 
