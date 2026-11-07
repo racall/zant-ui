@@ -64,6 +64,9 @@ pub const WindowOptions = struct {
     titlebar_height: f32 = 0,
     /// Create the window without showing it (show it later).
     hidden: bool = false,
+    /// Not shown when the system opened the app at login (a tray app
+    /// starting in the background).
+    hidden_at_login: bool = false,
 };
 
 pub const WindowStyle = enum(c_int) {
@@ -200,6 +203,7 @@ const NativeWindowOptions = extern struct {
     center: c_int,
     titlebar_height: f32,
     hidden: c_int,
+    hidden_at_login: c_int,
 };
 
 extern fn zant_window_create(title: [*:0]const u8, options: *const NativeWindowOptions, host: *const Host) ?*Window;
@@ -221,11 +225,17 @@ extern fn zant_window_is_active(window: *Window) c_int;
 
 extern fn zant_window_set_visible(window: *Window, visible: c_int) void;
 extern fn zant_window_is_visible(window: *Window) c_int;
+extern fn zant_window_is_minimized(window: *Window) c_int;
 extern fn zant_window_activate(window: *Window) void;
 extern fn zant_window_place(window: *Window, place: c_int, margin: f32) void;
 extern fn zant_app_quit() void;
 extern fn zant_app_single_instance(app_id: [*:0]const u8) c_int;
-extern fn zant_app_set_dock_visible(visible: c_int) void;
+extern fn zant_launch_at_login_get(app_id: [*:0]const u8) c_int;
+extern fn zant_launch_at_login_set(app_id: [*:0]const u8, on: c_int) c_int;
+extern fn zant_app_launched_at_login() c_int;
+extern fn zant_clipboard_get_files(out_len: *usize) ?[*]u8;
+extern fn zant_clipboard_set_files(paths: [*]const u8, len: usize) c_int;
+extern fn zant_downloads_dir(out: ?[*]u8, capacity: usize) usize;
 extern fn zant_app_set_handler(handler: ?*const fn (?*anyopaque, *const AppEvent) callconv(.c) void, userdata: ?*anyopaque) void;
 extern fn zant_tray_set(rgba: ?[*]const u8, rgba_light: ?[*]const u8, width: c_int, height: c_int, scale: f32, template_image: c_int, tooltip: ?[*:0]const u8, items: ?[*]const TrayItem, count: c_int) c_int;
 extern fn zant_tray_set_icon(rgba: ?[*]const u8, rgba_light: ?[*]const u8, width: c_int, height: c_int, scale: f32, template_image: c_int, tooltip: ?[*:0]const u8) c_int;
@@ -258,6 +268,7 @@ pub fn createWindow(title: [:0]const u8, options: WindowOptions, host: *const Ho
         .center = if (options.center) 1 else 0,
         .titlebar_height = options.titlebar_height,
         .hidden = if (options.hidden) 1 else 0,
+        .hidden_at_login = if (options.hidden_at_login) 1 else 0,
     };
     return zant_window_create(title.ptr, &native, host) orelse error.WindowCreationFailed;
 }
@@ -357,8 +368,40 @@ pub fn quit() void {
 
 /// macOS: Dock icon and menu bar (regular app) or neither (status bar app).
 /// Windows: no-op.
-pub fn setDockVisible(visible: bool) void {
-    if (supported) zant_app_set_dock_visible(@intFromBool(visible));
+pub fn isMinimized(window: ?*Window) bool {
+    const w = window orelse return false;
+    return supported and zant_window_is_minimized(w) != 0;
+}
+
+pub fn launchAtLoginGet(app_id: [*:0]const u8) c_int {
+    return if (supported) zant_launch_at_login_get(app_id) else 0;
+}
+
+pub fn launchAtLoginSet(app_id: [*:0]const u8, on: bool) c_int {
+    return if (supported) zant_launch_at_login_set(app_id, @intFromBool(on)) else -1;
+}
+
+pub fn launchedAtLogin() bool {
+    return supported and zant_app_launched_at_login() != 0;
+}
+
+/// Paths of files on the clipboard, one per line (copied into `allocator`).
+pub fn clipboardFiles(allocator: std.mem.Allocator) !?[]u8 {
+    if (!supported) return null;
+    var len: usize = 0;
+    const ptr = zant_clipboard_get_files(&len) orelse return null;
+    defer zant_clipboard_free(ptr);
+    return try allocator.dupe(u8, ptr[0..len]);
+}
+
+pub fn setClipboardFiles(paths: []const u8) bool {
+    return supported and paths.len > 0 and zant_clipboard_set_files(paths.ptr, paths.len) != 0;
+}
+
+pub fn downloadsDir(buf: []u8) []const u8 {
+    if (!supported) return "";
+    const n = zant_downloads_dir(buf.ptr, buf.len);
+    return buf[0..@min(n, buf.len)];
 }
 
 pub const AppEventType = struct {

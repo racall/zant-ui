@@ -134,6 +134,8 @@ typedef struct ZantWindowOptions {
     float titlebar_height;
     /* create without showing it (zant_window_set_visible / activate later) */
     int hidden;
+    /* not shown when the system opened the app at login (zant_app_launched_at_login) */
+    int hidden_at_login;
 } ZantWindowOptions;
 
 typedef struct ZantEvent {
@@ -200,6 +202,7 @@ int zant_window_is_active(ZantWindow *window);
 /* Shown / hidden without closing (the window keeps its state). */
 void zant_window_set_visible(ZantWindow *window, int visible);
 int zant_window_is_visible(ZantWindow *window);
+int zant_window_is_minimized(ZantWindow *window);
 /* Shows the window, brings it to the front and gives it keyboard focus
    (activating the app, except for ZANT_WINDOW_PANEL on macOS). */
 void zant_window_activate(ZantWindow *window);
@@ -213,9 +216,17 @@ void zant_app_quit(void);
    (it gets ZANT_APP_EVENT_REOPEN) and should exit. Call before creating
    windows. */
 int zant_app_single_instance(const char *app_id);
-/* macOS: Dock icon and menu bar (regular app) or neither (status bar app);
-   Windows: no-op (the taskbar shows visible windows). */
-void zant_app_set_dock_visible(int visible);
+/* Launch at login, the system's own way: macOS SMAppService (the app's
+   entry in System Settings > General > Login Items; packaged apps only),
+   Windows the user's Run key (name: the app id; the app starts with
+   --zant-login). get: 0 off, 1 on, 2 waiting for the user's approval
+   (macOS). set: 1 done, 0 failed, -1 not possible here (an unpackaged
+   macOS build, macOS before 13). */
+int zant_launch_at_login_get(const char *app_id);
+int zant_launch_at_login_set(const char *app_id, int on);
+/* 1 when the system opened this process at login. macOS knows it once
+   the event loop runs (windows with hidden_at_login wait for it). */
+int zant_app_launched_at_login(void);
 
 /* App-level events, delivered on the UI thread. */
 enum {
@@ -253,6 +264,11 @@ int zant_tray_set(const uint8_t *rgba, const uint8_t *rgba_light, int width, int
 int zant_tray_set_icon(const uint8_t *rgba, const uint8_t *rgba_light, int width, int height, float scale,
                        int template_image, const char *tooltip);
 void zant_tray_remove(void);
+/* With a tray icon the app behaves like other tray / menu bar apps: on
+   macOS its Dock icon and menu bar show only while one of its normal
+   windows is open (or minimized), the standard switch between the regular
+   and accessory activation policies; on Windows hidden windows have no
+   taskbar button anyway. */
 /* Pixel size of the tray icon on this display (Windows: the small icon
    size, 16 at 100%; macOS: 36, an 18 pt menu bar icon at @2x). */
 int zant_tray_icon_pixels(void);
@@ -281,6 +297,14 @@ uint8_t *zant_clipboard_get_image_png(size_t *out_len);
 /* Puts a PNG image on the clipboard, in the formats other apps read
    (macOS: PNG + TIFF; Windows: "PNG" + CF_DIBV5). */
 int zant_clipboard_set_image_png(const uint8_t *png, size_t len);
+/* Files and folders on the clipboard (copied in Finder / Explorer): their
+   paths, UTF-8, one per line (free with zant_clipboard_free), or NULL. */
+char *zant_clipboard_get_files(size_t *out_len);
+/* Puts files on the clipboard (paths one per line), to paste in Finder /
+   Explorer like copied ones. */
+int zant_clipboard_set_files(const char *paths, size_t len);
+/* The user's Downloads folder (UTF-8); its length, 0 when unknown. */
+size_t zant_downloads_dir(char *out, size_t capacity);
 void zant_clipboard_free(void *bytes);
 
 /* Changes each time anything (any app) writes to the clipboard. */

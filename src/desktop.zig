@@ -62,6 +62,11 @@ pub const Window = struct {
         return platform.isVisible(self.runtime.window);
     }
 
+    /// Minimized to the Dock / taskbar (still open, unlike hidden).
+    pub fn isMinimized(self: Window) bool {
+        return platform.isMinimized(self.runtime.window);
+    }
+
     /// Has the keyboard focus.
     pub fn isActive(self: Window) bool {
         return platform.isActive(self.runtime.window);
@@ -184,11 +189,50 @@ pub fn quit() void {
     platform.quit();
 }
 
-/// macOS: show the Dock icon and menu bar (a regular app) or neither (a
-/// status bar app, e.g. while only the menu bar item is left). Windows:
-/// no-op; the taskbar shows visible windows.
-pub fn setDockVisible(visible: bool) void {
-    platform.setDockVisible(visible);
+// ---------------------------------------------------------------- launch at login
+
+pub const LoginItem = enum {
+    off,
+    on,
+    /// macOS: registered, waiting for the user to allow it in System
+    /// Settings > General > Login Items
+    needs_approval,
+};
+
+/// Whether the system starts the app at login (read from the system each
+/// time: the user can change it in System Settings / Task Manager too).
+/// `app_id`: the bundle id (Windows names its Run entry with it).
+pub fn launchAtLogin(app_id: []const u8) LoginItem {
+    var buf: [256]u8 = undefined;
+    const id = std.fmt.bufPrintSentinel(&buf, "{s}", .{app_id}, 0) catch return .off;
+    return switch (platform.launchAtLoginGet(id.ptr)) {
+        1 => .on,
+        2 => .needs_approval,
+        else => .off,
+    };
+}
+
+/// Turns launch at login on or off, the system's own way: macOS
+/// SMAppService (the app's entry under Login Items; the app must be
+/// packaged, `zant package`, and macOS 13 or newer), Windows the user's
+/// Run key (the app gets `--zant-login`). `error.Unsupported` from a
+/// `zant run` build on macOS.
+pub fn setLaunchAtLogin(app_id: []const u8, on: bool) error{ Unsupported, Failed }!void {
+    var buf: [256]u8 = undefined;
+    const id = std.fmt.bufPrintSentinel(&buf, "{s}", .{app_id}, 0) catch return error.Failed;
+    return switch (platform.launchAtLoginSet(id.ptr, on)) {
+        1 => {},
+        -1 => error.Unsupported,
+        else => error.Failed,
+    };
+}
+
+/// The system opened the app at login. Windows created with
+/// `.hidden_at_login` stay hidden then (a tray app starts in the
+/// background); on macOS this is known once the event loop runs, so read
+/// it in actions and events, not before `zant.launch.run`.
+pub fn launchedAtLogin() bool {
+    return platform.launchedAtLogin();
 }
 
 /// The computer's name as the user sees it ("Brian's MacBook Pro" on
@@ -228,6 +272,27 @@ pub fn clipboardText(allocator: std.mem.Allocator) ![]u8 {
 /// to PNG here, about a second for a 12-megapixel photo.
 pub fn clipboardImage(allocator: std.mem.Allocator) !?[]u8 {
     return platform.clipboardImagePng(allocator);
+}
+
+/// Files and folders on the clipboard (copied in Finder / Explorer): their
+/// absolute paths, one per line (caller frees), or null when there are
+/// none. Check it before the text: Finder also puts the names there as text.
+pub fn clipboardFiles(allocator: std.mem.Allocator) !?[]u8 {
+    return platform.clipboardFiles(allocator);
+}
+
+/// Puts files on the clipboard (absolute paths, one per line), to paste in
+/// Finder / Explorer like copied ones.
+pub fn setClipboardFiles(paths: []const u8) bool {
+    return platform.setClipboardFiles(paths);
+}
+
+/// The user's Downloads folder (caller frees), or null when unknown.
+pub fn downloadsDir(allocator: std.mem.Allocator) !?[]u8 {
+    var buf: [std.fs.max_path_bytes]u8 = undefined;
+    const dir = platform.downloadsDir(&buf);
+    if (dir.len == 0) return null;
+    return try allocator.dupe(u8, dir);
 }
 
 /// Puts a PNG image on the clipboard in the formats other apps paste.
@@ -338,6 +403,11 @@ fn trayPixels(arena: std.mem.Allocator, icon_png: []const u8, light_png: ?[]cons
 }
 
 /// Adds or updates the tray icon / status bar item and its menu.
+///
+/// From then on the app behaves like other tray / menu bar apps: its Dock
+/// icon and menu bar (macOS) show only while one of its normal windows is
+/// open or minimized; hide the main window and the app lives in the tray.
+/// (On Windows a hidden window has no taskbar button anyway.)
 pub fn setTray(options: TrayOptions) !void {
     const gpa = std.heap.c_allocator;
     var arena_state = std.heap.ArenaAllocator.init(gpa);

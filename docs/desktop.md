@@ -41,7 +41,9 @@ self.panel.?.focus("panel-search");
   按钮就有效）；`activate()` 显示并获得键盘焦点（快捷面板）。
 - `Window`：`show` / `hide` / `activate` / `isVisible` / `isActive` / `place` / `focus` / `close`；
   主窗口用 `zant.desktop.mainWindow()`。
-- `WindowOptions.hidden = true` 创建时不显示。
+- `WindowOptions.hidden = true` 创建时不显示；`.hidden_at_login = true` 只在系统登录时自动打开应用时不显示
+  （托盘应用在后台启动，见下文“开机启动”）。
+- `isMinimized()`：最小化到程序坞 / 任务栏（仍算打开着，和隐藏不同）。
 
 ## 托盘 / 状态栏
 
@@ -61,8 +63,28 @@ try zant.desktop.setTray(.{
 - 状态（例如“同步中”）：`zant.desktop.setTrayIcon(.{ .icon, .icon_light, .template, .tooltip })` 只换图标和
   提示文字，不重建菜单（菜单正打开时也不受影响），开销很小。状态图标和普通图标一样放进 `assets/icons/`
   （每个 PNG 都可以 `@embedFile("icon_<名字>")`，见 [scaffold.md](scaffold.md)「图标」）。
-- 隐藏到托盘：`mainWindow().?.hide()` 加 `setDockVisible(false)`（macOS 隐藏程序坞图标）。
+- 隐藏到托盘：`mainWindow().?.hide()` 即可。调用过 `setTray` 的应用和其他托盘 / 菜单栏应用一样：macOS 上
+  只有普通窗口开着（或最小化）时才显示程序坞图标和菜单栏（系统标准做法：在 regular / accessory 两种
+  activation policy 之间切换，并修正切回时菜单栏不更新的已知问题）；Windows 上隐藏的窗口本来就没有
+  任务栏按钮。应用不需要自己处理。“是否在托盘里”用 `!w.isVisible() and !w.isMinimized()` 判断。
 - `zant.desktop.quit()` 直接退出（不再询问 `onCloseRequest`）。
+
+## 开机启动
+
+```zig
+const state = zant.desktop.launchAtLogin(cfg.bundle_id);      // .off / .on / .needs_approval
+try zant.desktop.setLaunchAtLogin(cfg.bundle_id, true);       // error.Unsupported / error.Failed
+if (zant.desktop.launchedAtLogin()) { ... }                    // 这次是登录时自动打开的
+```
+
+- 用系统自己的机制：macOS 13+ 的 `SMAppService`（出现在“系统设置 › 通用 › 登录项”，系统会提示
+  “已添加登录项”；只有打包后的 .app 可以，`zant run` 运行时返回 `error.Unsupported`）；Windows 是当前
+  用户的 `Run` 注册表项（名字为应用标识，启动参数 `--zant-login`）。
+- 状态每次从系统读取（用户也可以在系统设置 / 任务管理器里关掉）；默认关闭，由用户在设置里打开。
+- `needs_approval`：macOS 需要用户在“登录项”里允许。
+- 登录时打开：主窗口设 `.hidden_at_login = true`，应用只出现在托盘 / 菜单栏。macOS 通过启动时的
+  Apple 事件（`keyAELaunchedAsLogInItem`）判断，事件循环开始后才知道，所以带 `.hidden_at_login` 的窗口
+  在启动完成时才显示。
 
 ## 全局快捷键
 
@@ -84,8 +106,10 @@ _ = zant.desktop.registerHotkey(1, .{ .key = .{ .character = 'v' }, .modifiers =
 | `clipboardChangeCount()` | 变化计数；写入后记下它，可以忽略自己引起的那次变化 |
 | `clipboardText` / `setClipboardText` | 纯文本 |
 | `clipboardImage` / `setClipboardImage` | PNG：macOS 读 PNG / TIFF，写 PNG + TIFF；Windows 读 "PNG" 或位图（CF_DIBV5 / CF_DIB），写 "PNG" + CF_DIBV5 |
+| `clipboardFiles` / `setClipboardFiles` | 在访达 / 资源管理器里复制的文件和文件夹：绝对路径，每行一个；写入后可以在访达 / 资源管理器里粘贴（Windows 为 CF_HDROP，粘贴是复制而不是移动） |
 
-复制文字时很多应用也会附带一张渲染图，所以先读文字，没有文字再读图片。
+读取顺序：先文件（访达还会把文件名作为文字放进剪贴板），再文字（复制文字时很多应用也会附带一张渲染图），
+最后图片。
 `clipboardImage` 可以在后台线程调用，大图应当这样做：剪贴板里是位图时（Windows 截图和很多应用）要在这里
 编码成 PNG，1200 万像素的照片约需 1 秒（ClipHop 的 `state.zig`「Capture」是参考写法）。
 
@@ -93,6 +117,7 @@ _ = zant.desktop.registerHotkey(1, .{ .key = .{ .character = 'v' }, .modifiers =
 
 - `singleInstance(bundle_id)`：在 `main` 开头调用；再次启动时把已运行的实例调到前台并返回 false。
 - `deviceName(buf)`：用户看到的电脑名（macOS“Brian 的 MacBook Pro”，Windows 计算机名）。
+- `downloadsDir(allocator)`：用户的“下载”文件夹（Windows 用系统记录的位置，用户移动过也正确）。
 - `systemDarkMode()`：系统深色模式。
 - `invalidateAll()`：在动作之外改了状态时重建所有窗口。
 - 图片：`zant.image.Image.thumbnail(png, max_px)`（缩小解码，线程安全，列表缩略图用）、`encodePng`。

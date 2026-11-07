@@ -41,9 +41,9 @@ fn configureMacosSkia(b: *std.Build, target: std.Build.ResolvedTarget, mod: *std
         mod.addObjectFile(b.path(lib));
     }
     const frameworks = [_][]const u8{
-        "AppKit",       "Metal", "MetalKit", "QuartzCore", "CoreText",               "CoreFoundation",
-        "CoreGraphics", "IOKit", "Security", "CoreVideo",  "UniformTypeIdentifiers", "PDFKit",
-        "Carbon",
+        "AppKit",       "Metal",             "MetalKit", "QuartzCore", "CoreText",               "CoreFoundation",
+        "CoreGraphics", "IOKit",             "Security", "CoreVideo",  "UniformTypeIdentifiers", "PDFKit",
+        "Carbon",       "ServiceManagement",
     };
     for (frameworks) |framework| {
         mod.linkFramework(framework, .{});

@@ -1,5 +1,6 @@
 #import <AppKit/AppKit.h>
 #import <Carbon/Carbon.h>
+#import <ServiceManagement/ServiceManagement.h>
 #import <CoreGraphics/CoreGraphics.h>
 #import <Metal/Metal.h>
 #import <QuartzCore/QuartzCore.h>
@@ -51,6 +52,8 @@ struct ZantWindow {
     atomic_bool wake_pending;
     char backend_name[64];
     ZantWindow *next;
+    /* hidden_at_login: shown once launching finished, unless opened at login */
+    bool show_after_launch;
 };
 
 static id g_app_delegate = nil;
@@ -60,6 +63,13 @@ static ZantWindow *g_main = NULL;
 static ZantWindow *g_windows = NULL;
 /* zant_app_quit: terminate without asking the main window again */
 static bool g_quitting = false;
+/* the event loop runs (applicationDidFinishLaunching came) */
+static bool g_launched = false;
+/* the system opened the app at login (the launch Apple event says so) */
+static bool g_launched_at_login = false;
+/* a tray app: the Dock icon follows its normal windows (zant_update_dock) */
+static bool g_dock_auto = false;
+static void zant_update_dock(void);
 
 /* Centres the traffic lights in the app's taller title bar (the approach
    Electron uses for trafficLightPosition). AppKit re-lays the title bar out
@@ -760,6 +770,7 @@ static bool zant_close_vetoed(ZantWindow *window, int quit) {
     zant_link_invalidate(window);
     /* closing the main window ends the app; other windows just close */
     if (window == g_main) [NSApp terminate:nil];
+    dispatch_async(dispatch_get_main_queue(), ^{ zant_update_dock(); });
 }
 
 - (void)windowDidResignKey:(NSNotification *)notification {
@@ -809,6 +820,34 @@ static bool zant_close_vetoed(ZantWindow *window, int quit) {
     (void)sender;
     if (g_quitting) return NSTerminateNow;
     return zant_close_vetoed(g_main, 1) ? NSTerminateCancel : NSTerminateNow;
+}
+
+/* The launch Apple event tells whether the system opened the app at login
+   (the way Chromium and others read it). */
+static bool zant_launch_event_is_login(void) {
+    NSAppleEventDescriptor *event = [[NSAppleEventManager sharedAppleEventManager] currentAppleEvent];
+    if (!event || event.eventClass != kCoreEventClass || event.eventID != kAEOpenApplication) return false;
+    return [[event paramDescriptorForKeyword:keyAEPropData] enumCodeValue] == keyAELaunchedAsLogInItem;
+}
+
+- (void)applicationWillFinishLaunching:(NSNotification *)notification {
+    (void)notification;
+    if (zant_launch_event_is_login()) g_launched_at_login = true;
+}
+
+/* Windows created with hidden_at_login appear now, unless opened at login. */
+- (void)applicationDidFinishLaunching:(NSNotification *)notification {
+    (void)notification;
+    if (zant_launch_event_is_login()) g_launched_at_login = true;
+    g_launched = true;
+    for (ZantWindow *w = g_windows; w; w = w->next) {
+        if (!w->show_after_launch || w->closing) continue;
+        w->show_after_launch = false;
+        if (g_launched_at_login) continue;
+        [w->window makeKeyAndOrderFront:nil];
+        [NSApp activateIgnoringOtherApps:YES];
+    }
+    zant_update_dock();
 }
 
 /* Dock icon clicked: the app decides (e.g. show its hidden main window);
@@ -1029,7 +1068,9 @@ ZantWindow *zant_window_create(const char *title, const ZantWindowOptions *optio
         g_windows = window;
         if (!g_main) g_main = window;
 
-        if (!options->hidden) {
+        const bool wait_for_launch = options->hidden_at_login && !g_launched;
+        if (wait_for_launch) window->show_after_launch = true;
+        if (!options->hidden && !wait_for_launch) {
             if (style == ZANT_WINDOW_PANEL) {
                 [win orderFrontRegardless];
                 [win makeKeyWindow];
@@ -1102,14 +1143,17 @@ void zant_window_post_wake(ZantWindow *window) {
 
 void zant_window_set_visible(ZantWindow *window, int visible) {
     if (!window || !window->window || window->closing) return;
+    window->show_after_launch = false;
     if (!visible) {
         [window->window orderOut:nil];
+        zant_update_dock();
         return;
     }
     if (window->style == ZANT_WINDOW_PANEL) {
         [window->window orderFrontRegardless];
     } else {
         [window->window orderFront:nil];
+        zant_update_dock();
     }
     zant_request_view_redraw(window->view);
 }
@@ -1118,15 +1162,21 @@ int zant_window_is_visible(ZantWindow *window) {
     return window && window->window && window->window.isVisible ? 1 : 0;
 }
 
+int zant_window_is_minimized(ZantWindow *window) {
+    return window && window->window && window->window.isMiniaturized ? 1 : 0;
+}
+
 void zant_window_activate(ZantWindow *window) {
     if (!window || !window->window || window->closing) return;
     if (window->style == ZANT_WINDOW_PANEL) {
         [window->window orderFrontRegardless];
         [window->window makeKeyWindow];
     } else {
+        window->show_after_launch = false;
         if (window->window.isMiniaturized) [window->window deminiaturize:nil];
         [NSApp activateIgnoringOtherApps:YES];
         [window->window makeKeyAndOrderFront:nil];
+        zant_update_dock();
     }
     [window->window makeFirstResponder:window->view];
     zant_request_view_redraw(window->view);
@@ -1195,13 +1245,65 @@ void zant_app_quit(void) {
     [NSApp terminate:nil];
 }
 
-void zant_app_set_dock_visible(int visible) {
+/* Tray apps (zant_tray_set): a Dock icon and menu bar only while a normal
+   window is open or minimized, the standard switch between the regular and
+   accessory activation policies (as menu bar apps do). */
+static void zant_update_dock(void) {
+    if (!g_dock_auto) return;
+    bool shown = false;
+    for (ZantWindow *w = g_windows; w; w = w->next) {
+        if (w->closing || w->style == ZANT_WINDOW_PANEL) continue;
+        if (w->window.isVisible || w->window.isMiniaturized) {
+            shown = true;
+            break;
+        }
+    }
     const NSApplicationActivationPolicy policy =
-        visible ? NSApplicationActivationPolicyRegular : NSApplicationActivationPolicyAccessory;
+        shown ? NSApplicationActivationPolicyRegular : NSApplicationActivationPolicyAccessory;
     if (NSApp.activationPolicy == policy) return;
     [NSApp setActivationPolicy:policy];
-    /* back to a regular app: AppKit may leave it behind other apps */
-    if (visible) [NSApp activateIgnoringOtherApps:YES];
+    /* back to regular: AppKit leaves the menu bar with the previous app
+       until the app activates again; activating on the next turn of the
+       run loop brings the app's own menu bar */
+    if (shown) {
+        dispatch_async(dispatch_get_main_queue(), ^{ [NSApp activateIgnoringOtherApps:YES]; });
+    }
+}
+
+int zant_app_launched_at_login(void) {
+    return g_launched_at_login ? 1 : 0;
+}
+
+/* Only a packaged app (an .app bundle) can be a login item. */
+static bool zant_is_app_bundle(void) {
+    return [[[NSBundle mainBundle] bundlePath] hasSuffix:@".app"] && [NSBundle mainBundle].bundleIdentifier != nil;
+}
+
+int zant_launch_at_login_get(const char *app_id) {
+    (void)app_id; /* the bundle's own identity */
+    if (@available(macOS 13.0, *)) {
+        if (!zant_is_app_bundle()) return 0;
+        switch (SMAppService.mainAppService.status) {
+            case SMAppServiceStatusEnabled: return 1;
+            case SMAppServiceStatusRequiresApproval: return 2;
+            default: return 0;
+        }
+    }
+    return 0;
+}
+
+int zant_launch_at_login_set(const char *app_id, int on) {
+    (void)app_id;
+    if (@available(macOS 13.0, *)) {
+        if (!zant_is_app_bundle()) return -1;
+        NSError *error = nil;
+        SMAppService *service = SMAppService.mainAppService;
+        const BOOL ok = on ? [service registerAndReturnError:&error] : [service unregisterAndReturnError:&error];
+        if (!ok) NSLog(@"zant: login item: %@", error);
+        /* turning off what is already off is fine */
+        return (ok || (!on && service.status == SMAppServiceStatusNotRegistered)) ? 1 : 0;
+    }
+    return -1;
 }
 
 /* ---- status bar item (menu bar extra) ---- */
@@ -1255,6 +1357,8 @@ int zant_tray_set(const uint8_t *rgba, const uint8_t *rgba_light, int width, int
             g_tray_target = [[ZantTrayTarget alloc] init];
         }
         zant_tray_apply_icon(rgba, width, height, scale, template_image, tooltip);
+        g_dock_auto = true;
+        zant_update_dock();
         NSMenu *menu = [[NSMenu alloc] init];
         menu.autoenablesItems = NO;
         for (int i = 0; i < count; i++) {
@@ -1420,6 +1524,58 @@ uint8_t *zant_clipboard_get_image_png(size_t *out_len) {
         memcpy(bytes, png.bytes, png.length);
         if (out_len) *out_len = png.length;
         return bytes;
+    }
+}
+
+char *zant_clipboard_get_files(size_t *out_len) {
+    @autoreleasepool {
+        if (out_len) *out_len = 0;
+        NSArray<NSURL *> *urls =
+            [[NSPasteboard generalPasteboard] readObjectsForClasses:@[ NSURL.class ]
+                                                            options:@{NSPasteboardURLReadingFileURLsOnlyKey : @YES}];
+        NSMutableString *joined = [NSMutableString string];
+        for (NSURL *url in urls) {
+            NSString *path = url.path;
+            if (path.length == 0) continue;
+            if (joined.length) [joined appendString:@"\n"];
+            [joined appendString:path];
+        }
+        const char *utf8 = joined.UTF8String;
+        const size_t len = utf8 ? strlen(utf8) : 0;
+        if (len == 0) return NULL;
+        char *out = malloc(len + 1);
+        if (!out) return NULL;
+        memcpy(out, utf8, len + 1);
+        if (out_len) *out_len = len;
+        return out;
+    }
+}
+
+int zant_clipboard_set_files(const char *paths, size_t len) {
+    @autoreleasepool {
+        if (!paths || len == 0) return 0;
+        NSString *all = [[NSString alloc] initWithBytes:paths length:len encoding:NSUTF8StringEncoding];
+        NSMutableArray<NSURL *> *urls = [NSMutableArray array];
+        for (NSString *line in [all componentsSeparatedByString:@"\n"]) {
+            if (line.length) [urls addObject:[NSURL fileURLWithPath:line]];
+        }
+        if (urls.count == 0) return 0;
+        NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
+        [pasteboard clearContents];
+        return [pasteboard writeObjects:urls] ? 1 : 0;
+    }
+}
+
+size_t zant_downloads_dir(char *out, size_t capacity) {
+    @autoreleasepool {
+        NSArray<NSString *> *dirs = NSSearchPathForDirectoriesInDomains(NSDownloadsDirectory, NSUserDomainMask, YES);
+        const char *utf8 = dirs.firstObject.UTF8String;
+        const size_t len = utf8 ? strlen(utf8) : 0;
+        if (out && capacity > 0) {
+            const size_t n = len < capacity ? len : capacity;
+            memcpy(out, utf8, n);
+        }
+        return len;
     }
 }
 

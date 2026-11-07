@@ -179,6 +179,8 @@ ui.styled(node, .{
   都走 `zant.desktop`，应用里不要写平台代码；示例项目 ClipHop（局域网剪贴板同步）。
 - 应用钩子：`onStart`、`onAppEvent`、`onWake`、`onCloseRequest`、`onQuitRequest`。
 - 多个窗口渲染同一份状态，任何窗口的动作都会重建所有窗口；`ui.focus` 等命令只作用于发出它的窗口。
+- 程序坞图标 / 任务栏按钮由框架按窗口自动处理（有托盘时只在普通窗口开着时显示），应用不要自己切换；
+  开机启动用 `setLaunchAtLogin`（系统机制），登录时后台启动用 `WindowOptions.hidden_at_login`。
 - 网络代码用阻塞调用放在独立线程（Zig 0.17 `std.Io` 带超时的连接 / 接收在两端都不可用）。
 - 改了 `scripts/win/sync.sh` 同步的文件列表后确认 Windows 端源码与本机一致（同步失败要能看到报错）。
 

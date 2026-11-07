@@ -33,6 +33,8 @@
 #include <commctrl.h>
 #include <initguid.h>
 #include <shobjidl.h>
+#include <shlobj.h>
+#include <oleidl.h>
 
 #include <math.h>
 #include <stdbool.h>
@@ -967,7 +969,9 @@ ZantWindow *zant_window_create(const char *title, const ZantWindowOptions *optio
     w->next = g_windows;
     g_windows = w;
     if (!g_main) g_main = w;
-    if (!options->hidden) {
+    /* opened at login: a tray app starts in the background */
+    const bool hidden = options->hidden || (options->hidden_at_login && zant_app_launched_at_login());
+    if (!hidden) {
         ShowWindow(hwnd, SW_SHOW);
         SetForegroundWindow(hwnd);
         SetFocus(hwnd);
@@ -1382,6 +1386,10 @@ int zant_window_is_visible(ZantWindow *window) {
     return window && window->hwnd && IsWindowVisible(window->hwnd) ? 1 : 0;
 }
 
+int zant_window_is_minimized(ZantWindow *window) {
+    return window && window->hwnd && IsIconic(window->hwnd) ? 1 : 0;
+}
+
 void zant_window_activate(ZantWindow *window) {
     if (!window || !window->hwnd || window->closing) return;
     ShowWindow(window->hwnd, IsIconic(window->hwnd) ? SW_RESTORE : SW_SHOW);
@@ -1472,8 +1480,57 @@ void zant_app_quit(void) {
     PostQuitMessage(0);
 }
 
-void zant_app_set_dock_visible(int visible) {
-    (void)visible; /* the taskbar shows visible windows */
+/* ---- launch at login: the user's Run key, the app started with --zant-login ---- */
+
+#define ZANT_RUN_KEY L"Software\\Microsoft\\Windows\\CurrentVersion\\Run"
+#define ZANT_LOGIN_ARG L"--zant-login"
+
+int zant_app_launched_at_login(void) {
+    static int known = -1;
+    if (known < 0) {
+        int argc = 0;
+        wchar_t **argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+        known = 0;
+        for (int i = 1; argv && i < argc; i++) {
+            if (wcscmp(argv[i], ZANT_LOGIN_ARG) == 0) known = 1;
+        }
+        if (argv) LocalFree(argv);
+    }
+    return known;
+}
+
+int zant_launch_at_login_get(const char *app_id) {
+    wchar_t *name = zant_widen(app_id);
+    if (!name) return 0;
+    DWORD type = 0, size = 0;
+    const LSTATUS rc = RegGetValueW(HKEY_CURRENT_USER, ZANT_RUN_KEY, name, RRF_RT_REG_SZ, &type, NULL, &size);
+    free(name);
+    return rc == ERROR_SUCCESS ? 1 : 0;
+}
+
+int zant_launch_at_login_set(const char *app_id, int on) {
+    wchar_t *name = zant_widen(app_id);
+    if (!name) return 0;
+    HKEY key = NULL;
+    int ok = 0;
+    if (RegCreateKeyExW(HKEY_CURRENT_USER, ZANT_RUN_KEY, 0, NULL, 0, KEY_SET_VALUE, NULL, &key, NULL) == ERROR_SUCCESS) {
+        if (on) {
+            wchar_t exe[MAX_PATH * 4];
+            const DWORD n = GetModuleFileNameW(NULL, exe, (DWORD)(sizeof(exe) / sizeof(exe[0])));
+            wchar_t command[MAX_PATH * 4 + 64];
+            if (n > 0 && n < sizeof(exe) / sizeof(exe[0])) {
+                swprintf(command, sizeof(command) / sizeof(command[0]), L"\"%ls\" %ls", exe, ZANT_LOGIN_ARG);
+                ok = RegSetValueExW(key, name, 0, REG_SZ, (const BYTE *)command,
+                                    (DWORD)((wcslen(command) + 1) * sizeof(wchar_t))) == ERROR_SUCCESS;
+            }
+        } else {
+            const LSTATUS rc = RegDeleteValueW(key, name);
+            ok = rc == ERROR_SUCCESS || rc == ERROR_FILE_NOT_FOUND;
+        }
+        RegCloseKey(key);
+    }
+    free(name);
+    return ok;
 }
 
 size_t zant_device_name(char *out, size_t capacity) {
@@ -1603,6 +1660,132 @@ uint8_t *zant_clipboard_get_image_png(size_t *out_len) {
         result = zant_dib_to_png(dib, dib_size, out_len);
         free(dib);
     }
+    return result;
+}
+
+/* ---- files on the clipboard (CF_HDROP, as Explorer copies them) ---- */
+
+char *zant_clipboard_get_files(size_t *out_len) {
+    if (out_len) *out_len = 0;
+    if (!IsClipboardFormatAvailable(CF_HDROP)) return NULL;
+    if (!zant_open_clipboard(zant_app_window())) return NULL;
+    char *result = NULL;
+    size_t used = 0, capacity = 0;
+    HANDLE handle = GetClipboardData(CF_HDROP);
+    HDROP drop = handle ? (HDROP)GlobalLock(handle) : NULL;
+    if (drop) {
+        const UINT count = DragQueryFileW(drop, 0xFFFFFFFF, NULL, 0);
+        for (UINT i = 0; i < count; i++) {
+            const UINT n = DragQueryFileW(drop, i, NULL, 0);
+            wchar_t *wide = (wchar_t *)malloc(((size_t)n + 1) * sizeof(wchar_t));
+            if (!wide) continue;
+            DragQueryFileW(drop, i, wide, n + 1);
+            int len = 0;
+            char *utf8 = zant_narrow(wide, (int)n, &len);
+            free(wide);
+            if (!utf8) continue;
+            if (used + (size_t)len + 2 > capacity) {
+                capacity = (used + (size_t)len + 2) * 2;
+                char *grown = (char *)realloc(result, capacity);
+                if (!grown) {
+                    free(utf8);
+                    break;
+                }
+                result = grown;
+            }
+            if (used > 0) result[used++] = '\n';
+            memcpy(result + used, utf8, (size_t)len);
+            used += (size_t)len;
+            result[used] = '\0';
+            free(utf8);
+        }
+        GlobalUnlock(handle);
+    }
+    CloseClipboard();
+    if (!result || used == 0) {
+        free(result);
+        return NULL;
+    }
+    if (out_len) *out_len = used;
+    return result;
+}
+
+int zant_clipboard_set_files(const char *paths, size_t len) {
+    if (!paths || len == 0) return 0;
+    /* DROPFILES + each path as UTF-16 with its NUL + a final NUL */
+    char *copy = (char *)malloc(len + 1);
+    if (!copy) return 0;
+    memcpy(copy, paths, len);
+    copy[len] = '\0';
+    /* one NUL-terminated path per line (empty lines are skipped) */
+    for (size_t i = 0; i < len; i++) {
+        if (copy[i] == '\n' || copy[i] == '\r') copy[i] = '\0';
+    }
+    size_t wide_units = 1;
+    for (size_t at = 0; at < len; at += strlen(copy + at) + 1) {
+        const int n = MultiByteToWideChar(CP_UTF8, 0, copy + at, -1, NULL, 0);
+        if (n > 1) wide_units += (size_t)n;
+    }
+    if (wide_units == 1) {
+        free(copy);
+        return 0;
+    }
+    const size_t bytes = sizeof(DROPFILES) + wide_units * sizeof(wchar_t);
+    HGLOBAL mem = GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, bytes);
+    if (!mem) {
+        free(copy);
+        return 0;
+    }
+    DROPFILES *drop = (DROPFILES *)GlobalLock(mem);
+    drop->pFiles = sizeof(DROPFILES);
+    drop->fWide = TRUE;
+    wchar_t *out = (wchar_t *)((char *)drop + sizeof(DROPFILES));
+    for (size_t at = 0; at < len;) {
+        const char *line = copy + at;
+        const size_t line_len = strlen(line);
+        const int n = MultiByteToWideChar(CP_UTF8, 0, line, -1, NULL, 0);
+        if (n > 1) {
+            MultiByteToWideChar(CP_UTF8, 0, line, -1, out, n);
+            out += n;
+        }
+        at += line_len + 1;
+    }
+    GlobalUnlock(mem);
+    free(copy);
+    /* paste copies (not moves) the files */
+    HGLOBAL effect = GlobalAlloc(GMEM_MOVEABLE, sizeof(DWORD));
+    if (effect) {
+        *(DWORD *)GlobalLock(effect) = DROPEFFECT_COPY;
+        GlobalUnlock(effect);
+    }
+    if (!zant_open_clipboard(zant_app_window())) {
+        GlobalFree(mem);
+        if (effect) GlobalFree(effect);
+        return 0;
+    }
+    EmptyClipboard();
+    const int ok = SetClipboardData(CF_HDROP, mem) != NULL;
+    if (!ok) GlobalFree(mem);
+    if (effect && !SetClipboardData(RegisterClipboardFormatW(CFSTR_PREFERREDDROPEFFECT), effect)) GlobalFree(effect);
+    CloseClipboard();
+    return ok;
+}
+
+size_t zant_downloads_dir(char *out, size_t capacity) {
+    /* FOLDERID_Downloads */
+    static const GUID downloads = {0x374DE290, 0x123F, 0x4565, {0x91, 0x64, 0x39, 0xC4, 0x92, 0x5E, 0x46, 0x7B}};
+    PWSTR wide = NULL;
+    size_t result = 0;
+    if (SUCCEEDED(SHGetKnownFolderPath(&downloads, 0, NULL, &wide)) && wide) {
+        int len = 0;
+        char *utf8 = zant_narrow(wide, -1, &len);
+        if (utf8) {
+            result = (size_t)len;
+            if (out && capacity > 0) memcpy(out, utf8, (size_t)len < capacity ? (size_t)len : capacity);
+            free(utf8);
+        }
+    }
+    if (wide) CoTaskMemFree(wide);
     return result;
 }
 

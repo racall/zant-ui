@@ -36,7 +36,9 @@ foreach ($pair in ($Env -split ";")) {
 $lines += "`"$exePath`" $Arguments > `"$log`" 2>&1"
 $lines += "echo %ERRORLEVEL% > `"$done`""
 $cmd = Join-Path $cache "$Name.cmd"
-Set-Content -Encoding ASCII $cmd ($lines -join "`r`n")
+# UTF-8 without BOM: after "chcp 65001" cmd reads the following lines as
+# UTF-8, so paths and arguments in any language survive
+[IO.File]::WriteAllText($cmd, ($lines -join "`r`n"), (New-Object Text.UTF8Encoding $false))
 
 $task = $Name
 schtasks /Create /TN $task /TR "cmd /c `"$cmd`"" /SC ONCE /ST 00:00 /F /IT | Out-Null
