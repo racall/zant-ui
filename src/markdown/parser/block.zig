@@ -329,9 +329,17 @@ pub const Parser = struct {
             try source.append(self.arena, '\n');
             rest = lines[i];
         }
-        const trimmed = std.mem.trim(u8, source.items, " \n");
+        var trimmed = std.mem.trim(u8, source.items, " \n");
+        // still streaming: a lone trailing backslash is the start of `\]`
+        if (!closed and trailingBackslashes(trimmed) % 2 == 1) trimmed = std.mem.trimEnd(u8, trimmed[0 .. trimmed.len - 1], " \n");
         try out.append(self.arena, .{ .math = .{ .source = trimmed, .closed = closed } });
         return i;
+    }
+
+    fn trailingBackslashes(text: []const u8) usize {
+        var n: usize = 0;
+        while (n < text.len and text[text.len - 1 - n] == '\\') n += 1;
+        return n;
     }
 
     fn isMathClose(line: []const u8, fence: MathFence) bool {
@@ -339,6 +347,15 @@ pub const Parser = struct {
         if (indent > 3) return false;
         const t = std.mem.trimEnd(u8, line[indent..], " \t");
         if (t.len < fence.len) return false;
+        for (t) |c| if (c != '$') return false;
+        return true;
+    }
+
+    fn isPartialMathClose(line: []const u8, fence: MathFence) bool {
+        const indent = scan.indentOf(line);
+        if (indent > 3) return false;
+        const t = std.mem.trimEnd(u8, line[indent..], " \t");
+        if (t.len == 0 or t.len >= fence.len) return false;
         for (t) |c| if (c != '$') return false;
         return true;
     }
@@ -353,6 +370,8 @@ pub const Parser = struct {
                 i += 1;
                 break;
             }
+            // still streaming: the last line is the start of the closing fence
+            if (i + 1 == lines.len and isPartialMathClose(lines[i], fence)) break;
             if (i > start + 1) try source.append(self.arena, '\n');
             try source.appendSlice(self.arena, scan.stripIndent(lines[i], fence.indent));
         }

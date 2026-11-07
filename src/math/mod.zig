@@ -72,11 +72,41 @@ fn layoutOnce(arena: std.mem.Allocator, source: []const u8, options: Options, si
 }
 
 fn errorDrawing(arena: std.mem.Allocator, source: []const u8, options: Options, size: f32) !Drawing {
-    const text = std.mem.trim(u8, source, " \t\n");
+    const text = try collapseWhitespace(arena, source);
     const m = vector.measure(text, size * 0.9, .math, 400, false);
     const cmds = try arena.alloc(vector.Command, 1);
     cmds[0] = .{ .text = .{ .x = 0, .y = 0, .text = text, .size = size * 0.9, .family = .math, .color = options.error_color } };
     return .{ .width = m.advance, .ascent = @max(m.ascent, m.font_ascent), .descent = @max(m.descent, m.font_descent), .commands = cmds };
+}
+
+/// The source shown for a formula that does not parse (often one still
+/// streaming): whitespace runs, line breaks included, become one space, as the
+/// browser shows KaTeX's error span. A newline would draw as a missing glyph.
+fn collapseWhitespace(arena: std.mem.Allocator, source: []const u8) ![]const u8 {
+    const trimmed = std.mem.trim(u8, source, " \t\r\n");
+    const out = try arena.alloc(u8, trimmed.len);
+    var n: usize = 0;
+    var space = false;
+    for (trimmed) |c| {
+        if (c == ' ' or c == '\t' or c == '\r' or c == '\n') {
+            space = true;
+            continue;
+        }
+        if (space) {
+            out[n] = ' ';
+            n += 1;
+            space = false;
+        }
+        out[n] = c;
+        n += 1;
+    }
+    return out[0..n];
+}
+
+test "error source collapses line breaks" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    try std.testing.expectEqualStrings("\\begin{aligned} f(x) &= a \\\\ &= b", try collapseWhitespace(arena.allocator(), "\n\\begin{aligned}\n  f(x) &= a \\\\\r\n&= b\n"));
 }
 
 /// A centred display formula (KaTeX `.katex-display`: 1em vertical margin).
