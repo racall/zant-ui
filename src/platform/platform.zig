@@ -224,9 +224,10 @@ extern fn zant_window_is_visible(window: *Window) c_int;
 extern fn zant_window_activate(window: *Window) void;
 extern fn zant_window_place(window: *Window, place: c_int, margin: f32) void;
 extern fn zant_app_quit() void;
+extern fn zant_app_single_instance(app_id: [*:0]const u8) c_int;
 extern fn zant_app_set_dock_visible(visible: c_int) void;
 extern fn zant_app_set_handler(handler: ?*const fn (?*anyopaque, *const AppEvent) callconv(.c) void, userdata: ?*anyopaque) void;
-extern fn zant_tray_set(rgba: ?[*]const u8, width: c_int, height: c_int, scale: f32, template_image: c_int, tooltip: ?[*:0]const u8, items: ?[*]const TrayItem, count: c_int) c_int;
+extern fn zant_tray_set(rgba: ?[*]const u8, rgba_light: ?[*]const u8, width: c_int, height: c_int, scale: f32, template_image: c_int, tooltip: ?[*:0]const u8, items: ?[*]const TrayItem, count: c_int) c_int;
 extern fn zant_tray_remove() void;
 extern fn zant_tray_icon_pixels() c_int;
 extern fn zant_hotkey_register(id: c_int, key: c_int, modifiers: c_int) c_int;
@@ -337,6 +338,13 @@ pub fn place(window: ?*Window, where: Place, margin: f32) void {
     if (window) |w| zant_window_place(w, @backingInt(where), margin);
 }
 
+/// True for the first process with `app_id`; a later one asks the first to
+/// come forward and gets false.
+pub fn singleInstance(app_id: [*:0]const u8) bool {
+    if (!supported) return true;
+    return zant_app_single_instance(app_id) != 0;
+}
+
 /// Ends the app (all windows) without asking again.
 pub fn quit() void {
     if (supported) zant_app_quit();
@@ -370,10 +378,11 @@ pub const TrayItem = extern struct {
     disabled: c_int = 0,
 };
 
-/// Straight-alpha RGBA icon, `scale` pixels per point (macOS).
-pub fn setTray(rgba: []const u8, width: u32, height: u32, scale: f32, template_image: bool, tooltip: ?[*:0]const u8, items: []const TrayItem) bool {
+/// Straight-alpha RGBA icon, `scale` pixels per point (macOS); `rgba_light`
+/// (same size, Windows) for a light taskbar.
+pub fn setTray(rgba: []const u8, rgba_light: ?[]const u8, width: u32, height: u32, scale: f32, template_image: bool, tooltip: ?[*:0]const u8, items: []const TrayItem) bool {
     if (!supported) return false;
-    return zant_tray_set(if (rgba.len > 0) rgba.ptr else null, @intCast(width), @intCast(height), scale, @intFromBool(template_image), tooltip, if (items.len > 0) items.ptr else null, @intCast(items.len)) != 0;
+    return zant_tray_set(if (rgba.len > 0) rgba.ptr else null, if (rgba_light) |l| l.ptr else null, @intCast(width), @intCast(height), scale, @intFromBool(template_image), tooltip, if (items.len > 0) items.ptr else null, @intCast(items.len)) != 0;
 }
 
 pub fn removeTray() void {

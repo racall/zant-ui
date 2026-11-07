@@ -9,7 +9,10 @@
 #include "src/platform/platform.h"
 #include "src/renderer/skia/skia_bridge.h"
 
+#include <fcntl.h>
 #include <math.h>
+#include <sys/file.h>
+#include <unistd.h>
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -323,6 +326,8 @@ static void zant_request_view_redraw(ZantView *view) {
 }
 
 @implementation ZantView {
+    /* the input method changed the text during the current keyDown */
+    BOOL _imeResponded;
     BOOL _hasMarkedText;
     NSRange _markedSelection;
     NSTrackingArea *_trackingArea;
@@ -525,7 +530,12 @@ static void zant_request_view_redraw(ZantView *view) {
                 return;
             }
         }
+        _imeResponded = NO;
         [self interpretKeyEvents:@[ event ]];
+        /* Esc during composition: input methods (Pinyin, Japanese) drop the
+           marked text without calling unmarkText or setMarkedText:@"". Clear
+           it here, or the next Esc arrives as an inserted U+001B. */
+        if (!_imeResponded && _hasMarkedText && event.keyCode == 53) [self unmarkText];
         return;
     }
 
@@ -581,6 +591,7 @@ static void zant_request_view_redraw(ZantView *view) {
     } else if ([string isKindOfClass:[NSString class]]) {
         text = (NSString *)string;
     }
+    _imeResponded = YES;
     _hasMarkedText = text.length > 0;
     _markedSelection = selectedRange;
     if (!self.macWindow || !self.macWindow->host.event) return;
@@ -600,6 +611,7 @@ static void zant_request_view_redraw(ZantView *view) {
 }
 
 - (void)unmarkText {
+    _imeResponded = YES;
     _hasMarkedText = NO;
     _markedSelection = NSMakeRange(NSNotFound, 0);
     if (!self.macWindow || !self.macWindow->host.event) return;
@@ -621,6 +633,7 @@ static void zant_request_view_redraw(ZantView *view) {
     } else if ([string isKindOfClass:[NSString class]]) {
         text = (NSString *)string;
     }
+    _imeResponded = YES;
     if (text.length == 0) return;
     _hasMarkedText = NO;
     _markedSelection = NSMakeRange(NSNotFound, 0);
@@ -1145,6 +1158,38 @@ void zant_window_place(ZantWindow *window, int place, float margin) {
 
 /* ---- app ---- */
 
+int zant_app_single_instance(const char *app_id) {
+    @autoreleasepool {
+        if (!app_id || !app_id[0]) return 1;
+        NSString *ident = [NSString stringWithUTF8String:app_id];
+        NSString *notice = [ident stringByAppendingString:@".activate"];
+        /* an exclusive lock on a per-user file, held while the process lives */
+        NSString *path = [NSTemporaryDirectory() stringByAppendingPathComponent:[ident stringByAppendingString:@".lock"]];
+        const int fd = open(path.fileSystemRepresentation, O_RDWR | O_CREAT | O_CLOEXEC, 0600);
+        if (fd >= 0 && flock(fd, LOCK_EX | LOCK_NB) != 0) {
+            close(fd);
+            [[NSDistributedNotificationCenter defaultCenter] postNotificationName:notice
+                                                                           object:nil
+                                                                         userInfo:nil
+                                                               deliverImmediately:YES];
+            return 0;
+        }
+        /* the first instance: later launches ask it to come forward */
+        [[NSDistributedNotificationCenter defaultCenter] addObserverForName:notice
+                                                                     object:nil
+                                                                      queue:[NSOperationQueue mainQueue]
+                                                                 usingBlock:^(NSNotification *note) {
+            (void)note;
+            if (g_app_handler) {
+                zant_app_emit(ZANT_APP_EVENT_REOPEN, 0);
+            } else if (g_main && !g_main->closing) {
+                zant_window_activate(g_main);
+            }
+        }];
+        return 1;
+    }
+}
+
 void zant_app_quit(void) {
     g_quitting = true;
     [NSApp terminate:nil];
@@ -1173,12 +1218,14 @@ void zant_app_set_dock_visible(int visible) {
 static NSStatusItem *g_status_item = nil;
 static ZantTrayTarget *g_tray_target = nil;
 
+/* Apple HIG menu bar extras: an 18 pt template image (glyph ~15 pt) */
 int zant_tray_icon_pixels(void) {
-    return 44;
+    return 36;
 }
 
-int zant_tray_set(const uint8_t *rgba, int width, int height, float scale, int template_image,
-                  const char *tooltip, const ZantTrayItem *items, int count) {
+int zant_tray_set(const uint8_t *rgba, const uint8_t *rgba_light, int width, int height, float scale,
+                  int template_image, const char *tooltip, const ZantTrayItem *items, int count) {
+    (void)rgba_light; /* the template image adapts to the menu bar */
     @autoreleasepool {
         zant_app_init(NULL);
         if (!g_status_item) {

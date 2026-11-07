@@ -23,13 +23,16 @@ pub fn measureWidth(node: *Node, theme: Theme, max_width: f32) f32 {
     _ = max_width;
     if (node.style.width) |w| return w;
     const data = &node.data.toggle;
-    const layout = data.ensureLayout(labelColor(node, theme)) catch return 32;
     const indicator: f32 = switch (data.kind) {
         .checkbox, .radio => checkbox_size,
         .switch_control => switch_width,
     };
-    const gap: f32 = if (data.label.len > 0) label_gap else 0;
-    return indicator + gap + layout.metrics.longest_line;
+    // no label: just the control (an empty paragraph's line width is not a
+    // number, which made a bare switch measure 0 wide)
+    if (data.label.len == 0) return indicator;
+    const layout = data.ensureLayout(labelColor(node, theme)) catch return indicator;
+    const line = layout.metrics.longest_line;
+    return indicator + label_gap + (if (std.math.isFinite(line)) line else 0);
 }
 
 pub fn measureHeight(node: *const Node) f32 {

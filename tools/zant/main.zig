@@ -936,7 +936,7 @@ fn cmdCreate(allocator: std.mem.Allocator, io: Io, args: []const [:0]const u8) !
     );
     // default icons (both platforms' guidelines); replace the PNGs, the SVGs are editable sources
     try Dir.cwd().createDirPath(io, try std.fs.path.join(allocator, &.{ target, "assets", "icons" }));
-    for ([_][]const u8{ "app-macos", "app-windows", "tray", "statusbar" }) |icon| {
+    for ([_][]const u8{ "app-macos", "app-windows", "tray-dark", "tray-light", "statusbar" }) |icon| {
         for ([_][]const u8{ ".png", ".svg" }) |ext| {
             const file = try std.mem.concat(allocator, u8, &.{ icon, ext });
             const data = try readFile(allocator, io, try std.fs.path.join(allocator, &.{ zroot, "scaffold/template/assets/icons", file }));

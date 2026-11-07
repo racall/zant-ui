@@ -12,7 +12,8 @@
 //!     self.panel.?.activate();
 //!
 //!     try zant.desktop.setTray(.{
-//!         .icon = if (zant.keys.is_macos) @embedFile("icon_statusbar") else @embedFile("icon_tray"),
+//!         .icon = if (zant.keys.is_macos) @embedFile("icon_statusbar") else @embedFile("icon_tray_dark"),
+//!         .icon_light = if (zant.keys.is_macos) null else @embedFile("icon_tray_light"),
 //!         .template = zant.keys.is_macos,
 //!         .tooltip = "My App",
 //!         .items = &.{ .{ .id = 1, .title = "Open" }, .{ .separator = true }, .{ .id = 2, .title = "Quit" } },
@@ -70,6 +71,13 @@ pub const Window = struct {
     /// pointer, `margin` points from its edges.
     pub fn place(self: Window, where: Place, margin: f32) void {
         platform.place(self.runtime.window, where, margin);
+    }
+
+    /// Focuses the node with `key` in this window after its next layout
+    /// (`ui.focus` from an app event — a hotkey, the tray — has no window).
+    pub fn focus(self: Window, key: []const u8) void {
+        ui.queueCommandFor(self.runtime, .focus, key);
+        self.runtime.invalidate();
     }
 
     /// Closes a window from `openWindow` (not the main window: quit instead).
@@ -158,6 +166,18 @@ pub fn invalidateAll() void {
 }
 
 // ---------------------------------------------------------------- app
+
+/// One running copy per user: true for the first process with `app_id`
+/// (the bundle id); a later launch brings the running one forward (it gets
+/// `.reopen`) and gets false — return from `main` then. Call it before
+/// `zant.launch.run`.
+///
+///     if (!zant.desktop.singleInstance(cfg.bundle_id)) return;
+pub fn singleInstance(app_id: []const u8) bool {
+    var buf: [256]u8 = undefined;
+    const z = std.fmt.bufPrintSentinel(&buf, "{s}", .{app_id}, 0) catch return true;
+    return platform.singleInstance(z.ptr);
+}
 
 /// Ends the app now (all windows), without asking `onCloseRequest` again.
 pub fn quit() void {
@@ -262,9 +282,14 @@ pub const TrayItem = struct {
 
 pub const TrayOptions = struct {
     /// PNG (8-bit, non-interlaced), square; resized to the system size.
-    /// The scaffold's `@embedFile("icon_statusbar")` (macOS) and
-    /// `@embedFile("icon_tray")` (Windows) follow each platform's guidelines.
+    /// On Windows the icon for a dark taskbar. The scaffold's
+    /// `@embedFile("icon_statusbar")` (macOS template, 18 pt) and
+    /// `@embedFile("icon_tray_dark")` / `icon_tray_light` (Windows 11,
+    /// monochrome) follow each platform's guidelines.
     icon: []const u8,
+    /// Windows: the icon for a light taskbar; the tray follows the taskbar's
+    /// light / dark mode. Null: `icon` for both.
+    icon_light: ?[]const u8 = null,
     /// macOS: a template image (black + alpha) the menu bar tints.
     template: bool = false,
     tooltip: []const u8 = "",
@@ -286,6 +311,10 @@ pub fn setTray(options: TrayOptions) !void {
     const height = px;
     const width = @max(1, @as(u32, @intFromFloat(@round(@as(f32, @floatFromInt(decoded.width)) * @as(f32, @floatFromInt(px)) / @as(f32, @floatFromInt(decoded.height))))));
     const icon = if (decoded.width == width and decoded.height == height) decoded else try png.resize(arena, decoded, width, height);
+    const light: ?png.Image = if (options.icon_light) |bytes| blk: {
+        const l = try png.decode(arena, bytes);
+        break :blk if (l.width == width and l.height == height) l else try png.resize(arena, l, width, height);
+    } else null;
     const scale: f32 = if (is_macos) 2 else 1;
 
     const items = try arena.alloc(platform.TrayItem, options.items.len);
@@ -299,7 +328,7 @@ pub fn setTray(options: TrayOptions) !void {
         };
     }
     const tooltip = try arena.dupeSentinel(u8, options.tooltip, 0);
-    if (!platform.setTray(icon.rgba, icon.width, icon.height, scale, options.template, tooltip.ptr, items))
+    if (!platform.setTray(icon.rgba, if (light) |l| l.rgba else null, icon.width, icon.height, scale, options.template, tooltip.ptr, items))
         return error.TrayUnavailable;
 }
 

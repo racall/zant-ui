@@ -190,6 +190,10 @@ pub const Runtime = struct {
     /// loop. It shares the app state through `userdata`; state changes in any
     /// window rebuild all of them.
     pub fn openWindow(self: *Runtime) !void {
+        if (platform.getenv("ZANT_FRAME_STATS")) |v| {
+            const labels = [_][]const u8{ ":2", ":3", ":4", ":5", ":6", ":7", ":8", ":9" };
+            if (v.len > 0 and v[0] == '1') self.frame_stats = .{ .label = labels[@min(open_runtimes.items.len -| 1, labels.len - 1)] };
+        }
         const host = makeHost(self);
         self.window = try platform.createWindow(self.config.title, self.config.window, &host);
         self.register();
@@ -294,6 +298,8 @@ pub const Runtime = struct {
         defer ui.setBuildTree(null);
         ui.beginFrameIn(&self.frame_arena);
         defer ui.endFrame();
+        const prev_owner = ui.setCommandOwner(self);
+        defer _ = ui.setCommandOwner(prev_owner);
         var root = self.render_fn(self.userdata);
         if (self.drawsCaptionButtons() and root.element.kind == .container) {
             root = ui.appendChildren(root, &.{ui.windowControls(.{
@@ -1162,8 +1168,11 @@ pub const Runtime = struct {
     /// nodes created by the same update exist and have bounds).
     fn runCommands(self: *Runtime) void {
         var buf: [ui.max_commands]ui.Command = undefined;
-        for (ui.takeCommands(&buf)) |*cmd| {
-            const id = self.findKey(cmd.key()) orelse continue;
+        for (ui.takeCommandsFor(self, &buf)) |*cmd| {
+            const id = self.findKey(cmd.key()) orelse {
+                ui.requeueCommand(cmd.*);
+                continue;
+            };
             switch (cmd.kind) {
                 .focus => {
                     const node = self.tree.get(id);
@@ -1340,6 +1349,8 @@ pub const Runtime = struct {
     pub fn dispatch(self: *Runtime, event: events.Event) c_int {
         self.dispatch_depth += 1;
         defer self.dispatch_depth -= 1;
+        const prev_owner = ui.setCommandOwner(self);
+        defer _ = ui.setCommandOwner(prev_owner);
         self.sampleClock();
         const result = self.dispatchEvent(event);
         self.reportSelection();
@@ -2439,7 +2450,27 @@ pub const Runtime = struct {
         return 0;
     }
 
-    fn handleTextInput(self: *Runtime, value: []const u8) c_int {
+    fn handleTextInput(self: *Runtime, raw: []const u8) c_int {
+        // control characters (Esc, Backspace, bell... that an input method or
+        // a stray key event delivers as text) are never typed into a field
+        var buf: [256]u8 = undefined;
+        var clean: std.ArrayListUnmanaged(u8) = .initBuffer(&buf);
+        var heap: ?[]u8 = null;
+        defer if (heap) |h| self.allocator.free(h);
+        const value = if (hasControlChars(raw)) blk: {
+            const out = if (raw.len <= buf.len) &clean else out: {
+                heap = self.allocator.alloc(u8, raw.len) catch return 0;
+                clean = .initBuffer(heap.?);
+                break :out &clean;
+            };
+            for (raw) |c| {
+                if (c < 0x20 and c != '\t' and c != '\n' and c != '\r') continue;
+                if (c == 0x7f) continue;
+                out.appendAssumeCapacity(c);
+            }
+            break :blk out.items;
+        } else raw;
+        if (value.len == 0) return 0;
         if (self.tree.focused) |id| {
             const node = self.tree.get(id);
             if (std.meta.activeTag(node.data) == .input) {
@@ -2447,6 +2478,13 @@ pub const Runtime = struct {
             }
         }
         return 0;
+    }
+
+    fn hasControlChars(text: []const u8) bool {
+        for (text) |c| {
+            if ((c < 0x20 and c != '\t' and c != '\n' and c != '\r') or c == 0x7f) return true;
+        }
+        return false;
     }
 
     fn handleComposition(self: *Runtime, composition: events.Composition) c_int {
@@ -2499,6 +2537,10 @@ const monotonicMs = platform.monotonicMs;
 const FrameStats = struct {
     const Phase = enum { rebuild, layout, paint };
 
+    /// "" for the main window ("[frames]"), ":2", ":3"... for the windows
+    /// opened later ("[frames:2]").
+    label: []const u8 = "",
+
     window_start: i64 = 0,
     last_end: i64 = 0,
     frames: u32 = 0,
@@ -2543,13 +2585,14 @@ const FrameStats = struct {
         // frames over half the 60 Hz budget, one line each
         const text = @import("renderer/text.zig").layout_stats.take();
         if (end - start > 8_000) {
-            std.debug.print("[slow-frame] ms={d:.2} rebuild={d:.2} layout={d:.2} paint={d:.2} text_layouts={d} text_ms={d:.2}\n", .{ ms(end - start), ms(self.cur_phase_us[0]), ms(self.cur_phase_us[1]), ms(self.cur_phase_us[2]), text.count, ms(text.us) });
+            std.debug.print("[slow-frame{s}] ms={d:.2} rebuild={d:.2} layout={d:.2} paint={d:.2} text_layouts={d} text_ms={d:.2}\n", .{ self.label, ms(end - start), ms(self.cur_phase_us[0]), ms(self.cur_phase_us[1]), ms(self.cur_phase_us[2]), text.count, ms(text.us) });
         }
         self.cur_phase_us = .{ 0, 0, 0 };
         const elapsed = end - self.window_start;
         if (elapsed < 1_000_000) return;
         const fps = @as(f64, @floatFromInt(self.frames)) * 1_000_000.0 / @as(f64, @floatFromInt(elapsed));
-        std.debug.print("[frames] fps={d:.1} max_frame_ms={d:.2} (rebuild={d:.2} layout={d:.2} paint={d:.2}) max_gap_ms={d:.2} resize_frames={d} max_resize_latency_ms={d:.2} size={d:.0}x{d:.0}\n", .{
+        std.debug.print("[frames{s}] fps={d:.1} max_frame_ms={d:.2} (rebuild={d:.2} layout={d:.2} paint={d:.2}) max_gap_ms={d:.2} resize_frames={d} max_resize_latency_ms={d:.2} size={d:.0}x{d:.0}\n", .{
+            self.label,
             fps,
             ms(self.max_frame_us),
             ms(self.max_phase_us[0]),
@@ -2561,7 +2604,7 @@ const FrameStats = struct {
             width,
             height,
         });
-        self.* = .{ .last_end = end, .pending_resize = self.pending_resize };
+        self.* = .{ .label = self.label, .last_end = end, .pending_resize = self.pending_resize };
     }
 };
 

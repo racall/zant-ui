@@ -1434,6 +1434,28 @@ static void zant_app_emit(int type, int id) {
     g_app_handler(g_app_handler_userdata, &event);
 }
 
+static UINT g_activate_message = 0;
+static HWND zant_app_window(void);
+
+int zant_app_single_instance(const char *app_id) {
+    if (!app_id || !app_id[0]) return 1;
+    wchar_t name[300];
+    _snwprintf(name, 300, L"Local\\%hs.instance", app_id);
+    CreateMutexW(NULL, TRUE, name);
+    wchar_t message[300];
+    _snwprintf(message, 300, L"%hs.activate", app_id);
+    g_activate_message = RegisterWindowMessageW(message);
+    if (GetLastError() == ERROR_ALREADY_EXISTS) {
+        /* the first instance's message window (any top-level window) brings
+           it forward; let it take the foreground */
+        AllowSetForegroundWindow(ASFW_ANY);
+        PostMessageW(HWND_BROADCAST, g_activate_message, 0, 0);
+        return 0;
+    }
+    zant_app_window(); /* receives the broadcast */
+    return 1;
+}
+
 void zant_app_quit(void) {
     PostQuitMessage(0);
 }
@@ -1461,6 +1483,25 @@ static HWND g_app_hwnd = NULL;
 static UINT g_taskbar_created = 0;
 static NOTIFYICONDATAW g_tray;
 static bool g_tray_added = false;
+/* the icon for a dark and for a light taskbar (NULL: same as dark) */
+static HICON g_tray_icon_dark = NULL;
+static HICON g_tray_icon_light = NULL;
+
+/* Windows "Choose your default Windows mode" (taskbar, Start), separate
+   from the app mode */
+static bool zant_taskbar_light(void) {
+    DWORD light = 0, size = sizeof(light);
+    if (RegGetValueW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+                     L"SystemUsesLightTheme", RRF_RT_REG_DWORD, NULL, &light, &size) != ERROR_SUCCESS)
+        return false;
+    return light != 0;
+}
+
+static void zant_tray_pick_icon(void) {
+    HICON icon = (zant_taskbar_light() && g_tray_icon_light) ? g_tray_icon_light : g_tray_icon_dark;
+    g_tray.hIcon = icon;
+    if (icon) g_tray.uFlags |= NIF_ICON;
+}
 static HMENU g_tray_menu = NULL;
 
 static void zant_tray_show_menu(void) {
@@ -1493,6 +1534,18 @@ static LRESULT CALLBACK zant_app_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM 
             case WM_CONTEXTMENU: zant_tray_show_menu(); break;
             default: break;
         }
+        return 0;
+    }
+    if (g_activate_message && msg == g_activate_message) {
+        if (g_app_handler) zant_app_emit(ZANT_APP_EVENT_REOPEN, 0);
+        else if (g_main && !g_main->closing) zant_window_activate(g_main);
+        return 0;
+    }
+    /* taskbar switched light / dark: the matching tray icon */
+    if (msg == WM_SETTINGCHANGE && lp && wcscmp((const wchar_t *)lp, L"ImmersiveColorSet") == 0 && g_tray_added) {
+        g_tray.uFlags = NIF_ICON;
+        zant_tray_pick_icon();
+        Shell_NotifyIconW(NIM_MODIFY, &g_tray);
         return 0;
     }
     /* Explorer restarted: the notification area forgot our icon */
@@ -1559,8 +1612,8 @@ static HICON zant_icon_from_rgba(const uint8_t *rgba, int width, int height) {
     return icon;
 }
 
-int zant_tray_set(const uint8_t *rgba, int width, int height, float scale, int template_image,
-                  const char *tooltip, const ZantTrayItem *items, int count) {
+int zant_tray_set(const uint8_t *rgba, const uint8_t *rgba_light, int width, int height, float scale,
+                  int template_image, const char *tooltip, const ZantTrayItem *items, int count) {
     (void)scale;
     (void)template_image;
     HWND hwnd = zant_app_window();
@@ -1574,13 +1627,16 @@ int zant_tray_set(const uint8_t *rgba, int width, int height, float scale, int t
     }
     g_tray.uFlags = NIF_MESSAGE | NIF_TIP;
     if (rgba && width > 0 && height > 0) {
-        HICON icon = zant_icon_from_rgba(rgba, width, height);
-        if (icon) {
-            if (g_tray.hIcon) DestroyIcon(g_tray.hIcon);
-            g_tray.hIcon = icon;
+        HICON dark = zant_icon_from_rgba(rgba, width, height);
+        HICON light = rgba_light ? zant_icon_from_rgba(rgba_light, width, height) : NULL;
+        if (dark) {
+            if (g_tray_icon_dark) DestroyIcon(g_tray_icon_dark);
+            if (g_tray_icon_light) DestroyIcon(g_tray_icon_light);
+            g_tray_icon_dark = dark;
+            g_tray_icon_light = light;
         }
     }
-    if (g_tray.hIcon) g_tray.uFlags |= NIF_ICON;
+    zant_tray_pick_icon();
     g_tray.szTip[0] = 0;
     if (tooltip) MultiByteToWideChar(CP_UTF8, 0, tooltip, -1, g_tray.szTip, (int)(sizeof(g_tray.szTip) / sizeof(WCHAR)) - 1);
     if (g_tray_menu) DestroyMenu(g_tray_menu);
@@ -1604,7 +1660,9 @@ int zant_tray_set(const uint8_t *rgba, int width, int height, float scale, int t
 void zant_tray_remove(void) {
     if (g_tray_added) Shell_NotifyIconW(NIM_DELETE, &g_tray);
     g_tray_added = false;
-    if (g_tray.hIcon) DestroyIcon(g_tray.hIcon);
+    if (g_tray_icon_dark) DestroyIcon(g_tray_icon_dark);
+    if (g_tray_icon_light) DestroyIcon(g_tray_icon_light);
+    g_tray_icon_dark = g_tray_icon_light = NULL;
     g_tray.hIcon = NULL;
     if (g_tray_menu) DestroyMenu(g_tray_menu);
     g_tray_menu = NULL;

@@ -128,12 +128,13 @@ pub fn configureApp(b: *std.Build, zant_dep: *std.Build.Dependency, exe: *std.Bu
 }
 
 /// App icons in `assets/icons/` (created by `zant create`, replaceable).
-/// Each one that exists is importable by name: `@embedFile("icon_tray")`.
+/// Each one that exists is importable by name: `@embedFile("icon_tray_dark")`.
 pub const app_icons = [_]struct { file: []const u8, import: []const u8 }{
     .{ .file = "assets/icons/app-macos.png", .import = "icon_app_macos" }, // 1024×1024, Apple icon grid
     .{ .file = "assets/icons/app-windows.png", .import = "icon_app_windows" }, // 256×256, full bleed
-    .{ .file = "assets/icons/tray.png", .import = "icon_tray" }, // Windows notification area
-    .{ .file = "assets/icons/statusbar.png", .import = "icon_statusbar" }, // macOS menu bar template
+    .{ .file = "assets/icons/tray-dark.png", .import = "icon_tray_dark" }, // Windows tray, dark taskbar (white)
+    .{ .file = "assets/icons/tray-light.png", .import = "icon_tray_light" }, // Windows tray, light taskbar (black)
+    .{ .file = "assets/icons/statusbar.png", .import = "icon_statusbar" }, // macOS menu bar template, 18 pt
 };
 
 fn appFileExists(b: *std.Build, sub_path: []const u8) bool {

@@ -200,6 +200,11 @@ pub const Command = struct {
     kind: CommandKind,
     key_buf: [96]u8 = undefined,
     key_len: u8 = 0,
+    /// The window (runtime) it is for: the one that was handling an event or
+    /// building when it was queued; null = any window that has the key.
+    owner: ?*const anyopaque = null,
+    /// Frames it waited for a window with its key (dropped after a few).
+    age: u8 = 0,
 
     pub fn key(self: *const Command) []const u8 {
         return self.key_buf[0..self.key_len];
@@ -209,10 +214,24 @@ pub const Command = struct {
 pub const max_commands = 8;
 threadlocal var command_queue: [max_commands]Command = undefined;
 threadlocal var command_count: usize = 0;
+threadlocal var command_owner: ?*const anyopaque = null;
+
+/// The runtime handling an event / building a frame (set by the runtime);
+/// commands queued meanwhile belong to its window. Returns the previous one.
+pub fn setCommandOwner(owner: ?*const anyopaque) ?*const anyopaque {
+    const prev = command_owner;
+    command_owner = owner;
+    return prev;
+}
 
 fn queueCommand(kind: CommandKind, node_key: []const u8) void {
+    queueCommandFor(command_owner, kind, node_key);
+}
+
+/// Queues a command for a specific window (`zant.desktop.Window.focus`).
+pub fn queueCommandFor(owner: ?*const anyopaque, kind: CommandKind, node_key: []const u8) void {
     if (command_count >= max_commands or node_key.len > 96) return;
-    var cmd: Command = .{ .kind = kind, .key_len = @intCast(node_key.len) };
+    var cmd: Command = .{ .kind = kind, .key_len = @intCast(node_key.len), .owner = owner };
     @memcpy(cmd.key_buf[0..node_key.len], node_key);
     command_queue[command_count] = cmd;
     command_count += 1;
@@ -243,6 +262,34 @@ pub fn takeCommands(out: *[max_commands]Command) []Command {
     @memcpy(out[0..n], command_queue[0..n]);
     command_count = 0;
     return out[0..n];
+}
+
+/// Moves the commands for window `owner` (and unowned ones) into `out`;
+/// other windows' commands stay queued.
+pub fn takeCommandsFor(owner: *const anyopaque, out: *[max_commands]Command) []Command {
+    var n: usize = 0;
+    var kept: usize = 0;
+    for (command_queue[0..command_count]) |cmd| {
+        if (cmd.owner == null or cmd.owner == owner) {
+            out[n] = cmd;
+            n += 1;
+        } else {
+            command_queue[kept] = cmd;
+            kept += 1;
+        }
+    }
+    command_count = kept;
+    return out[0..n];
+}
+
+/// Gives back an unowned command whose key this window does not have, so
+/// another window can run it (dropped after a few frames).
+pub fn requeueCommand(cmd: Command) void {
+    if (cmd.owner != null or cmd.age >= 3 or command_count >= max_commands) return;
+    var copy = cmd;
+    copy.age += 1;
+    command_queue[command_count] = copy;
+    command_count += 1;
 }
 
 /// Window of the running app, for `postWake` (set by the runtime).

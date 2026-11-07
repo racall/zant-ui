@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <!-- Windows notification area (tray) icon, black, for a light taskbar:
+       Windows 11 system tray icons are monochrome and follow the taskbar's
+       light / dark mode (the framework switches tray-dark / tray-light when
+       it changes). 16 × 16 at 100 % scale, 20 / 24 / 32 at 125–200 %; a
+       solid shape with the mark cut out stays legible at 16 px. -->
+  <defs>
+    <mask id="cut">
+      <rect width="64" height="64" fill="#ffffff"/>
+      <path d="M22 22 H42 L22 42 H42" fill="none" stroke="#000000" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+    </mask>
+  </defs>
+  <rect x="5" y="5" width="54" height="54" rx="14" fill="#000000" mask="url(#cut)"/>
+</svg>

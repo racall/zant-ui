@@ -243,3 +243,37 @@ test "clickable rows and the hotkey recorder" {
     try std.testing.expect(state.hotkey.?.eql(.{ .key = .{ .character = 'k' }, .modifiers = .{ .control = true, .alt = true } }));
     frame(runtime, &renderer);
 }
+
+test "a switch after a growing wrapped-text column stays inside the row" {
+    const Row = struct {
+        fn render(_: *anyopaque) ui.Node {
+            const a = ui.frameAllocator();
+            return ui.column(.{ .align_items = .stretch, .children = a.dupe(ui.Node, &.{
+                ui.row(.{ .key = "row", .padding = ui.insetXY(16, 12), .gap = 16, .align_items = .center, .children = a.dupe(ui.Node, &.{
+                    ui.column(.{ .key = "text-col", .grow = 1, .shrink = 1, .basis = 0, .gap = 3, .align_items = .stretch, .children = a.dupe(ui.Node, &.{
+                        ui.text("自动同步", .{ .size = 14 }),
+                        ui.text("同一局域网内打开 ClipHop 的设备会互相发现，并同步最新复制的一条文字；历史记录不会同步。", .{ .size = 12, .wrap = true }),
+                    }) catch unreachable }),
+                    ui.@"switch"(.{ .key = "sw", .checked = true }),
+                }) catch unreachable }),
+            }) catch unreachable });
+        }
+    };
+    zant.motion.enabled = false;
+    defer zant.motion.enabled = true;
+    var dummy: u8 = 0;
+    const runtime = try zant.ui_runtime.Runtime.init(std.testing.allocator, &dummy, Row.render, .{ .window = .{ .width = 392, .height = 200 } });
+    defer runtime.deinit();
+    var renderer = try zant.renderer.Renderer.createRaster(392, 200);
+    defer renderer.deinit();
+    const canvas = renderer.begin(1.0).?;
+    runtime.renderFrame(canvas, 392, 200, 1.0);
+    renderer.end();
+    const row = runtime.tree.boundsOfKey("row").?;
+    const col = runtime.tree.boundsOfKey("text-col").?;
+    const sw = runtime.tree.boundsOfKey("sw").?;
+    try std.testing.expectApproxEqAbs(@as(f32, 40), sw.width, 0.5);
+    try std.testing.expect(sw.x + sw.width <= row.x + row.width - 16 + 0.5);
+    // the text column takes the rest of the row
+    try std.testing.expectApproxEqAbs(row.width - 32 - 16 - 40, col.width, 0.5);
+}

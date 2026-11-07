@@ -208,6 +208,11 @@ void zant_window_place(ZantWindow *window, int place, float margin);
 
 /* Ends the event loop (all windows close) without asking the app again. */
 void zant_app_quit(void);
+/* Single instance per user: returns 1 for the first process with this
+   app id; a later one returns 0 after asking the first one to come forward
+   (it gets ZANT_APP_EVENT_REOPEN) and should exit. Call before creating
+   windows. */
+int zant_app_single_instance(const char *app_id);
 /* macOS: Dock icon and menu bar (regular app) or neither (status bar app);
    Windows: no-op (the taskbar shows visible windows). */
 void zant_app_set_dock_visible(int visible);
@@ -228,8 +233,10 @@ void zant_app_set_handler(void (*handler)(void *userdata, const ZantAppEvent *ev
 
 /* Tray icon (Windows notification area) / status bar item (macOS menu bar).
    rgba: straight-alpha RGBA, width × height pixels, `scale` pixels per
-   point (macOS draws it `width / scale` points wide). template_image
-   (macOS): only alpha is used, tinted for the menu bar. Items make the menu
+   point (macOS draws it `width / scale` points wide). rgba_light (Windows,
+   may be NULL): the variant for a light taskbar; the icon follows the
+   taskbar's light / dark mode. template_image (macOS): only alpha is used,
+   tinted for the menu bar. Items make the menu
    (macOS: shown on click; Windows: on right click; a left click sends
    ZANT_APP_EVENT_TRAY_CLICK). Calling it again replaces icon and menu. */
 typedef struct ZantTrayItem {
@@ -239,11 +246,11 @@ typedef struct ZantTrayItem {
     int checked;
     int disabled;
 } ZantTrayItem;
-int zant_tray_set(const uint8_t *rgba, int width, int height, float scale, int template_image,
-                  const char *tooltip, const ZantTrayItem *items, int count);
+int zant_tray_set(const uint8_t *rgba, const uint8_t *rgba_light, int width, int height, float scale,
+                  int template_image, const char *tooltip, const ZantTrayItem *items, int count);
 void zant_tray_remove(void);
 /* Pixel size of the tray icon on this display (Windows: the small icon
-   size, 16 at 100%; macOS: 44, a 22 pt menu bar icon at @2x). */
+   size, 16 at 100%; macOS: 36, an 18 pt menu bar icon at @2x). */
 int zant_tray_icon_pixels(void);
 
 /* System-wide hotkey (works while other apps are frontmost): key is a

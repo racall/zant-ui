@@ -143,11 +143,12 @@ macOS：生成 `zig-out/<应用标题>.app`：
 |---|---|
 | `app-macos.png` | macOS 应用图标，1024×1024；苹果图标网格：主体 824×824 居中（四周留 100 px）、连续圆角、底部投影。`zant package` 生成 10 种尺寸的 `AppIcon.icns`；`zant run` 开发运行时显示在程序坞 |
 | `app-windows.png` | Windows 应用图标，256×256（正方形，至少 256）；铺满画布、不加投影、笔画加粗。编译时自动生成含 16、20、24、32、40、48、64、256 的 `.ico` 编进 exe（资管器图标、窗口与任务栏图标） |
-| `tray.png` | Windows 通知区域（托盘）图标，64×64；按系统小图标尺寸缩放（100% 时 16 px） |
-| `statusbar.png` | macOS 菜单栏（状态栏）图标，44×44（22 pt @2x）；模板图：只用黑色 + 透明度，系统按深浅色菜单栏着色 |
+| `tray-dark.png` / `tray-light.png` | Windows 通知区域（托盘）图标，64×64，单色（白色给深色任务栏、黑色给浅色任务栏），同 Windows 11 系统托盘图标；按系统小图标尺寸缩放（100% 时 16 px，125–200% 时 20/24/32），任务栏切换深浅色时框架自动换图；实心形状、标志镂空，16 px 下依然清楚 |
+| `statusbar.png` | macOS 菜单栏（状态栏）图标，36×36（18 pt @2x），图形约 15 pt、线宽 1.5 pt（与菜单栏里的 SF Symbols 一致）；模板图：只用黑色 + 透明度，系统按深浅色菜单栏和高亮状态着色 |
 
 代码里用 `@embedFile` 按名字引用（不依赖运行时文件，打包后也可用）：
-`icon_app_macos`、`icon_app_windows`、`icon_tray`、`icon_statusbar`，例如 `@embedFile("icon_tray")`。
+`icon_app_macos`、`icon_app_windows`、`icon_tray_dark`、`icon_tray_light`、`icon_statusbar`，例如
+`zant.desktop.setTray(.{ .icon = if (zant.keys.is_macos) @embedFile("icon_statusbar") else @embedFile("icon_tray_dark"), .icon_light = if (zant.keys.is_macos) null else @embedFile("icon_tray_light"), .template = zant.keys.is_macos })`。
 这些由 Zant UI 的 `configureApp`（模板 `build.zig` 已调用）在文件存在时加入，测试代码也能引用。
 PNG 要求 8 位、非隔行扫描（常见导出工具的默认格式）。
 

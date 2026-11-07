@@ -51,8 +51,9 @@ src/components/dashboard.zig 自定义父组件（组合子组件）
 src/app_config.zig           生成文件，不要手改
 app.config.json              窗口配置（通用）+ macos 段（沙盒、签名）
 assets/icons/                默认图标：app-macos.png（1024）、app-windows.png（256）、
-                             tray.png（Windows 托盘）、statusbar.png（macOS 菜单栏模板图）；
-                             替换同名 PNG 即可，代码用 @embedFile("icon_tray") 等引用
+                             tray-dark.png / tray-light.png（Windows 托盘，深 / 浅色任务栏）、
+                             statusbar.png（macOS 菜单栏模板图，18 pt）；替换同名 PNG 即可，
+                             代码用 @embedFile("icon_tray_dark") 等引用
 DESIGN.md                    UI/UX 设计规范（最高优先级）
 AGENTS.md / CLAUDE.md        给 AI coding agent 的规范
 ```
