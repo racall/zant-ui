@@ -91,6 +91,8 @@ pub fn modal(o: ModalOptions) ui.Node {
     }), .{ .absolute = true, .left = 0, .top = 0, .width_percent = 100, .height_percent = 100 });
     return ui.styled(ui.column(.{
         .key = o.key,
+        // Tab stays inside the dialog while it is open
+        .focus_scope = true,
         .children = arena.dupe(ui.Node, &.{ mask, center }) catch &.{},
     }), .{
         .absolute = true,

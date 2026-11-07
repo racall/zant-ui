@@ -122,6 +122,9 @@ pub const Visual = struct {
     /// Text inside is left out of selections (CSS `user-select: none`):
     /// gutters, labels, toolbars inside selectable content.
     unselectable: bool = false,
+    /// Tab / Shift+Tab stay inside the topmost focus scope (modals,
+    /// popover panels).
+    focus_scope: bool = false,
 };
 
 /// Pointer handling of a container (`ui.pointerArea`).

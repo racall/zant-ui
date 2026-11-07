@@ -753,19 +753,39 @@ pub const Tree = struct {
         }
     }
 
+    /// The topmost (last painted) focus scope shown, if any.
+    fn activeFocusScope(self: *Tree, node: *Node) ?NodeId {
+        if (!node.inFlow()) return null;
+        var i = node.children.items.len;
+        while (i > 0) {
+            i -= 1;
+            if (self.activeFocusScope(self.get(node.children.items[i]))) |hit| return hit;
+        }
+        return if (node.visual.focus_scope) node.id else null;
+    }
+
     pub fn tabFocus(self: *Tree, backwards: bool) void {
         var focusables: std.ArrayListUnmanaged(NodeId) = .empty;
         defer focusables.deinit(self.allocator);
-        self.collectFocusables(self.get(self.root), &focusables) catch return;
+        // inside an open dialog Tab cycles through the dialog only
+        const scope = self.activeFocusScope(self.get(self.root)) orelse self.root;
+        self.collectFocusables(self.get(scope), &focusables) catch return;
         if (focusables.items.len == 0) return;
         var index: usize = 0;
+        var found = false;
         if (self.focused) |focused_id| {
             for (focusables.items, 0..) |id, i| {
                 if (id == focused_id) {
                     index = i;
+                    found = true;
                     break;
                 }
             }
+        }
+        if (!found) {
+            // focus outside the scope (or none): enter at its first / last
+            self.setFocus(focusables.items[if (backwards) focusables.items.len - 1 else 0]);
+            return;
         }
         if (self.focused != null) {
             if (backwards) {

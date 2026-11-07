@@ -594,6 +594,7 @@ fn visualFrom(box: BoxOptions) node_mod.Visual {
         .block_pointer = box.block_pointer,
         .selectable = box.selectable,
         .unselectable = box.unselectable,
+        .focus_scope = box.focus_scope,
     };
 }
 
@@ -645,6 +646,9 @@ pub const BoxOptions = struct {
     selectable: bool = false,
     /// Leave this subtree out of text selections (gutters, labels).
     unselectable: bool = false,
+    /// Keyboard focus moves (Tab / Shift+Tab) stay inside this container
+    /// while it is the topmost scope shown (dialogs, popover panels).
+    focus_scope: bool = false,
     /// Called after layout whenever this container's size changes (first
     /// layout included), then the UI is rebuilt in the same frame. Read the
     /// new size with `ui.keyBounds(key)`; use it for layouts that depend on
