@@ -106,8 +106,7 @@ const State = struct {
     }
 
     fn listScrolled(self: *State) void {
-        const r = self.rows.renderedRange();
-        self.event("list rows {d}", .{r[0]});
+        self.event("list scrolled", .{});
     }
 
     fn clickPrimary(self: *State) void {

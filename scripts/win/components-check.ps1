@@ -134,7 +134,13 @@ if ($track) {
 $vl = Find-Key $app "vlist"
 if ($vl) {
     Wheel-At $app ($vl.X + $vl.W / 2) ($vl.Y + $vl.H / 2) -20
-    Assert-Event $app "list rows" "virtual list scrolls with the wheel"
+    Assert-Event $app "list scrolled" "virtual list scrolls with the wheel"
+    Start-Sleep -Milliseconds 300
+    # rows scrolled away are released, rows further down now exist
+    $gone = (Find-Key $app "vlist-i0") -eq $null
+    $later = $false
+    foreach ($k in 20..60) { if (Find-Key $app "vlist-i$k") { $later = $true; break } }
+    Write-Result ($gone -and $later) "virtual list builds only the rows in view (row 1 released, rows 20+ built)"
     Shot $app "09c-list"
 } else { Write-Result $false "find 'vlist'" }
 # selectable text: drag across both paragraphs, Ctrl+C
