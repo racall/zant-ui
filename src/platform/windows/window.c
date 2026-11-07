@@ -210,6 +210,8 @@ static int zant_key_from_vk(WPARAM vk) {
         case VK_DOWN: return ZANT_KEY_DOWN;
         case VK_HOME: return ZANT_KEY_HOME;
         case VK_END: return ZANT_KEY_END;
+        case VK_PRIOR: return ZANT_KEY_PAGE_UP;
+        case VK_NEXT: return ZANT_KEY_PAGE_DOWN;
         case VK_BACK: return ZANT_KEY_BACKSPACE;
         case VK_DELETE: return ZANT_KEY_DELETE;
         case VK_ESCAPE: return ZANT_KEY_ESCAPE;

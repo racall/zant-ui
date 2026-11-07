@@ -16,7 +16,9 @@
 | `math/` | KaTeX | TeX 解析 + KaTeX 字体参数与盒模型排版，STIX Two Math 绘制 |
 
 remend 的移植用 Streamdown 原版测试集校验：`tests/fixtures/remend_cases.json`
-（522 条，由 `packages/remend/__tests__` 抽取）全部通过。
+（522 条，由 `packages/remend/__tests__` 抽取）全部通过。与原版的差异：公式（`$…$`、`$$…$$`、
+`\(…\)`、`\[…\]`）里的方括号（如区间 `[m,n]`）不当作未完成的链接补全，原版会在公式后面露出
+`streamdown:incomplete-link`。
 
 ## 用法
 
@@ -112,6 +114,8 @@ Bmatrix vmatrix Vmatrix smallmatrix cases dcases rcases aligned align gathered s
 流式回复（SSE 逐段追加）每次更新只重新解析变化的块；变化区间里的块按位置继承旧块的身份
 （UI key，同 Streamdown 按下标的 key），正在生长的段落 / 代码块 / 表格复用已有节点，未变化的
 行和单元格保留排好的文字。聊天视图跟随最新内容用 `ui.scrollToEnd("chat")`（滚动容器的 key）。
+还没输出完的公式：结束符只到了一半（`\]` 只到 `\`、`$$` 只到 `$`）时不显示这半个符号；
+暂时无法排版的公式显示为一行灰色原文（换行当作空格，同浏览器里的 KaTeX）。
 基准与参考数据见 `docs/development.md`「流式 Markdown 基准」（`zig build run-md-stream`）。
 
 ## 框架能力（为本组件新增）

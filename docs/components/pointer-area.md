@@ -38,6 +38,20 @@ ui.pointerArea(.{
   （`ui.keyAction`，返回 `true` 表示已处理）。
 - 区域里的按钮、输入框等交互控件照常接收自己的点击。
 
+## 悬停样式 `hover_background` / `hover_border_color`
+
+```zig
+ui.row(.{ .height = 32, .radius = 6, .hover_background = theme.color_fill_secondary, .children = … })
+```
+
+指针在容器上时显示的背景 / 边框，带 antd 的 200 ms 过渡，只重绘、不重建界面，应用不必保存悬停
+状态。指针在容器里的按钮等控件上时，容器也算悬停（CSS `:hover`）；模态框等遮挡层盖住时不显示。
+
+## 焦点范围 `BoxOptions.focus_scope`
+
+Tab / Shift+Tab 只在最上层的焦点范围内循环。`ui.modal` 自带：打开对话框后 Tab 不会跳到背后的控件；
+焦点在范围外时，Tab 进入范围的第一个控件。
+
 ## `BoxOptions.on_resize`
 
 容器尺寸变化（包括首次布局）后调用，然后**同一帧内**重建并重新布局，所以新尺寸不会先闪一帧

@@ -135,3 +135,34 @@ test "message is a pass-through pill with a drop-in presence" {
     // the full-width row itself never catches clicks
     try std.testing.expect(!node.element.visual.block_pointer);
 }
+
+test "modal is a focus scope: Tab cycles inside the dialog only" {
+    const App = struct {
+        open: bool = true,
+        fn renderOpaque(ctx: *anyopaque) ui.Node {
+            const self: *@This() = @ptrCast(@alignCast(ctx));
+            const behind = ui.row(.{ .gap = 8, .children = &.{ ui.button(.{ .key = "behind-a", .text = "A" }), ui.button(.{ .key = "behind-b", .text = "B" }) } });
+            if (!self.open) return ui.column(.{ .grow = 1, .children = &.{behind} });
+            return ui.column(.{ .grow = 1, .children = &.{
+                behind,
+                ui.modal(.{ .key = "dlg", .title = "T", .content = ui.input(.{ .key = "dlg-input" }), .footer = ui.button(.{ .key = "dlg-ok", .text = "OK" }) }),
+            } });
+        }
+    };
+    zant.motion.enabled = false;
+    defer zant.motion.enabled = true;
+    var app = App{};
+    const runtime = try zant.ui_runtime.Runtime.init(std.testing.allocator, &app, App.renderOpaque, .{ .window = .{ .width = 600, .height = 400 } });
+    defer runtime.deinit();
+    runtime.rebuildForTest();
+    var seen: [8][]const u8 = undefined;
+    for (&seen) |*s| {
+        _ = runtime.dispatch(.{ .key_down = .{ .key = .tab } });
+        const id = runtime.tree.focused.?;
+        s.* = runtime.tree.get(id).key orelse "-";
+        try std.testing.expect(!std.mem.startsWith(u8, s.*, "behind"));
+    }
+    // Shift+Tab also stays inside
+    _ = runtime.dispatch(.{ .key_down = .{ .key = .tab, .modifiers = .{ .shift = true } } });
+    try std.testing.expect(!std.mem.startsWith(u8, runtime.tree.get(runtime.tree.focused.?).key orelse "-", "behind"));
+}

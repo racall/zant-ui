@@ -122,6 +122,16 @@ pub const Visual = struct {
     /// Text inside is left out of selections (CSS `user-select: none`):
     /// gutters, labels, toolbars inside selectable content.
     unselectable: bool = false,
+    /// Tab / Shift+Tab stay inside the topmost focus scope (modals,
+    /// popover panels).
+    focus_scope: bool = false,
+};
+
+/// Look of a container while the pointer is over it (`BoxOptions.hover_*`),
+/// applied at paint time with antd's hover transition — no rebuild.
+pub const HoverVisual = struct {
+    background: ?u32 = null,
+    border_color: ?u32 = null,
 };
 
 /// Pointer handling of a container (`ui.pointerArea`).
@@ -129,11 +139,19 @@ pub const PointerArea = struct {
     action: actions.PointerAction,
     /// Wheel / trackpad scroll goes to the handler instead of scroll containers.
     capture_scroll: bool = false,
+    /// false: presses are not taken (no capture, no `down` / `drag`), so
+    /// they reach what is inside — text selection in a scrolling list.
+    clicks: bool = true,
 };
 
 pub const ContainerData = struct {
     /// Pointer area handler (`ui.pointerArea`); makes the container interactive.
     pointer: ?PointerArea = null,
+    /// Hover look (`BoxOptions.hover_background` / `hover_border_color`).
+    hover_visual: ?HoverVisual = null,
+    hovered: bool = false,
+    hover: Animated = .{},
+    hover_t: f32 = 0,
     /// Key handler while the container is focused (focusable pointer areas).
     key_action: ?actions.KeyAction = null,
     /// Called after layout when the container's size changed (`on_resize`).
@@ -197,7 +215,12 @@ pub const TextData = struct {
         if (!self.layout_dirty and self.layout != null and @abs(self.layout_width - max_width) < 0.25) {
             return &self.layout.?;
         }
-        if (!self.layout_dirty and self.alt_layout != null and @abs(self.alt_width - max_width) < 0.25) {
+        if (!self.layout_dirty and self.alt_layout != null) {
+            // the other cached width, or re-wrap it to this one (no shaping)
+            if (@abs(self.alt_width - max_width) >= 0.25) {
+                self.alt_layout.?.relayout(max_width);
+                self.alt_width = max_width;
+            }
             std.mem.swap(?text.TextLayout, &self.layout, &self.alt_layout);
             std.mem.swap(f32, &self.layout_width, &self.alt_width);
             return &self.layout.?;
@@ -287,7 +310,12 @@ pub const RichTextData = struct {
         if (!self.layout_dirty and self.layout != null and @abs(self.layout_width - max_width) < 0.25) {
             return &self.layout.?;
         }
-        if (!self.layout_dirty and self.alt_layout != null and @abs(self.alt_width - max_width) < 0.25) {
+        if (!self.layout_dirty and self.alt_layout != null) {
+            // the other cached width, or re-wrap it to this one (no shaping)
+            if (@abs(self.alt_width - max_width) >= 0.25) {
+                self.alt_layout.?.relayout(max_width);
+                self.alt_width = max_width;
+            }
             std.mem.swap(?rich_text.Layout, &self.layout, &self.alt_layout);
             std.mem.swap(f32, &self.layout_width, &self.alt_width);
             return &self.layout.?;

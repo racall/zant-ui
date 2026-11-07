@@ -20,6 +20,8 @@ pub const Key = union(enum) {
     escape,
     tab,
     enter,
+    page_up,
+    page_down,
 };
 
 pub const Modifiers = packed struct {
@@ -96,6 +98,8 @@ pub fn keyFromPlatform(key: c_int) Key {
         platform.Key.escape => .escape,
         platform.Key.tab => .tab,
         platform.Key.enter => .enter,
+        platform.Key.page_up => .page_up,
+        platform.Key.page_down => .page_down,
         else => .{ .character = if (key >= 0) @intCast(key) else 0 },
     };
 }

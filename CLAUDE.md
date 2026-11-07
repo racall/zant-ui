@@ -16,7 +16,7 @@
 - 声明式 API：`src/ui.zig`；协调器：`src/ui_runtime.zig`。
 - 组件：`src/components/`；样式统一入口：`ui.styled`。
 - 脚手架：`tools/zant/main.zig`；模板：`scaffold/template/`。
-- 测试：`zig build test`（当前 143/143，含 remend 522 条、mhchem 823 条上游用例；macOS 与 Windows 都要过）。
+- 测试：`zig build test`（当前 152/152，含 remend 522 条、mhchem 823 条上游用例；macOS 与 Windows 都要过）。
 - Windows：测试机见 `AGENTS.md`「跨平台规范」；`scripts/win/` 同步、远程构建、桌面冒烟测试。
 - 动效：`src/motion/`，规范见 `docs/motion.md` 与 `AGENTS.md`「动效规范」；
   `ZANT_NO_MOTION=1` 关闭动效。
@@ -31,6 +31,10 @@
 - Markdown：`src/markdown/`（Streamdown 移植，模块化），数学：`src/math/`（KaTeX 算法，
   `mhchem.zig` 为 KaTeX contrib/mhchem 的逐字节对齐移植）。详见 `docs/markdown.md`；
   示例 `zig build run-markdown` / `run-math` / `run-md-stream`（流式帧率基准，可读真实 SSE）。
+- 性能基准：`zig build bench`（`zant-bench`：打开长对话、流式、打字、光标、悬停、缩放、滚动；
+  `ZANT_BENCH_LIST=1` 用虚拟列表）。优化前先建基线（ReleaseFast，另装到 `zig-out-baseline`），两边平台对比。
+- 虚拟列表：`ui.list` + `ui.ListState`（`docs/components/list.md`）；悬停样式 `BoxOptions.hover_background`；
+  焦点范围 `BoxOptions.focus_scope`（`ui.modal` 自带）。
 - 流式性能：改 Markdown / 布局 / 文本后，用 ReleaseFast 的 `zant-md-stream` 配 `ZANT_FRAME_STATS=1`
   复测（长回复 + 多条历史），单帧应远低于 16.7 ms，`[slow-frame]` 的 text_layouts 不应随内容增长。
 - 视觉检查：`ZANT_SNAPSHOT=out.png ZANT_SNAPSHOT_EXIT=1 ./zig-out/bin/<app>`；Windows 的窗口要在

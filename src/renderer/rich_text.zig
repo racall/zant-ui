@@ -32,6 +32,7 @@ extern fn zant_rich_text_layout_create(spans: [*]const Span, count: usize, max_w
 extern fn zant_text_layout_metrics(layout: ?*anyopaque) Metrics;
 extern fn zant_canvas_draw_text_layout(canvas: ?*anyopaque, layout: ?*anyopaque, x: f32, y: f32) void;
 extern fn zant_text_layout_destroy(layout: ?*anyopaque) void;
+extern fn zant_text_layout_relayout(layout: ?*anyopaque, max_width: f32) void;
 extern fn zant_text_layout_index_at(layout: ?*anyopaque, x: f32, y: f32) usize;
 
 pub const Layout = struct {
@@ -47,6 +48,15 @@ pub const Layout = struct {
         if (stats.enabled) stats.add(@import("../platform/platform.zig").monotonicUs() - t0);
         const m = zant_text_layout_metrics(handle);
         return .{ .handle = handle, .width = m.width, .height = m.height, .baseline = m.first_baseline };
+    }
+
+    /// Re-wraps at another width, reusing the shaped text.
+    pub fn relayout(self: *Layout, max_width: f32) void {
+        zant_text_layout_relayout(self.handle, max_width);
+        const m = zant_text_layout_metrics(self.handle);
+        self.width = m.width;
+        self.height = m.height;
+        self.baseline = m.first_baseline;
     }
 
     pub fn deinit(self: *Layout) void {

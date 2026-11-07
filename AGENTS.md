@@ -246,12 +246,17 @@ ui.styled(node, .{
   （`zant-components` 配合 `ZANT_AUTOPLAY=quiet`）看每帧耗时，单帧应远低于 16.7 ms；
   Windows 上用 `scripts/win/resize-check.ps1` 测拖动缩放帧率（应跟满刷新率）。
 - 每帧路径里不要写 stderr（Windows 上每行约 10 ms）。
-- 当前测试 143/143（`tests/` + 框架模块内单元测试），macOS 与 Windows 都要通过；新增行为应补测试。
+- 当前测试 152/152（`tests/` + 框架模块内单元测试），macOS 与 Windows 都要通过；新增行为应补测试。
 - 文字排版缓存：`TextData` / `RichTextData` 保留当前与上一个宽度的排版，测量自然宽度走独立缓存
   （`measureWidth` / `naturalWidth`）；不要在测量路径里调 `ensureLayout` 换宽度，否则每帧会重排所有文字。
 - 无确定高度的 column 不计算子节点的 flex 基准高度（不会用到），避免整棵子树按估计宽度多排一遍。
 - 流式 Markdown：变化区间里的块按位置继承旧块的 id（UI key），正在生长的块复用节点；
   改 `cache.zig` / `blocks.zig` 后用 `zant-md-stream` 复测帧率。
+- 宽度变化时文字复用已整形的排版只重新断行（`zant_text_layout_relayout`）；新增排版缓存逻辑要保证
+  与新建排版结果一致（`tests/text_test.zig` 有对照测试）。
+- 长列表 / 聊天用 `ui.list`（`docs/components/list.md`），不要把成百上千条放进普通滚动容器。
+- 性能改动先用 `zig build bench`（`zant-bench`，无窗口、可复现）记录改动前数据，两边平台都对比；
+  没有可测量收益的优化不要合入。
 
 ## 代码质量
 
@@ -278,7 +283,8 @@ ui.styled(node, .{
   `ZANT_WIN_ZIG`）；`scripts/win/sync.sh [../app]` 同步，`scripts/win/remote.sh <dir> '<cmd>'` 远程执行，
   `scripts/win/run-desktop.ps1` 在可见桌面运行（SSH 会话看不到窗口），
   桌面自动化测试见 `docs/development.md`「Windows 测试机」（`components-check.ps1` 点击全部组件、
-  `smoke-stillmd.ps1`、`docs-check.ps1`、`pdf-check.ps1`、`resize-check.ps1`），按 key 定位靠
+  `smoke-stillmd.ps1`、`docs-check.ps1`、`pdf-check.ps1`、`resize-check.ps1`、
+  `stream-resize-check.ps1` 流式输出中移动 / 缩放窗口），按 key 定位靠
   `ZANT_LAYOUT_FILE`。PowerShell 变量名不区分大小写，测试脚本里不要让 `$app` 和参数 `$App` 撞名。
 - 新组件要加进 `examples/components.zig`（交互时打印 `[event] ...`），并在
   `scripts/win/components-check.ps1` 里补点击用例。

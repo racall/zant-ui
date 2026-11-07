@@ -202,6 +202,8 @@ struct ZantTextLayout {
     ZantTextStyle style{};
     std::unique_ptr<Paragraph> paragraph;
     float layout_width = 0.0f;
+    /* rich text: always laid out at the given width */
+    bool rich = false;
 
     void layout_at(float width) {
         if (!paragraph) return;
@@ -663,6 +665,7 @@ ZantTextLayout *zant_rich_text_layout_create(const ZantRichSpan *spans, size_t c
     result->text = std::move(joined);
     result->paragraph = std::move(paragraph);
     result->layout_width = max_width;
+    result->rich = true;
     return result;
 }
 
@@ -685,6 +688,22 @@ ZantTextLayout *zant_text_layout_create(const char *utf8, size_t length,
 
 void zant_text_layout_destroy(ZantTextLayout *layout) {
     delete layout;
+}
+
+void zant_text_layout_relayout(ZantTextLayout *layout, float max_width) {
+    if (!layout || !layout->paragraph) return;
+    Paragraph *p = layout->paragraph.get();
+    if (layout->rich) {
+        p->layout(std::max(max_width, 1.0f));
+        layout->layout_width = max_width;
+        return;
+    }
+    // same rules as build_paragraph
+    const ZantTextStyle &style = layout->style;
+    const bool fixed_width = style.wrap || style.max_lines > 0;
+    p->layout(fixed_width ? std::max(max_width, 1.0f) : 1.0e9f);
+    if (!fixed_width && style.align != 0) p->layout(std::ceil(p->getMaxIntrinsicWidth()) + 1.0f);
+    layout->layout_width = style.wrap ? std::max(max_width, 1.0f) : 1.0e9f;
 }
 
 ZantTextMetrics zant_text_layout_metrics(ZantTextLayout *layout) {

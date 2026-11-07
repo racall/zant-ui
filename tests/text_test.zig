@@ -32,3 +32,26 @@ test "UTF-8 cursor offset never splits Chinese input" {
     const index = layout.indexAt(caret.x + 1, caret.y + 2);
     try std.testing.expect(index <= s.len);
 }
+
+test "text relayout at another width matches a fresh layout" {
+    const zant_text = @import("zant").text;
+    const rich = @import("zant").node.RichSpan;
+    _ = rich;
+    const samples = [_]zant_text.Style{
+        .{ .font_size = 15, .wrap = true },
+        .{ .font_size = 13, .wrap = false, .text_align = .center },
+        .{ .font_size = 14, .wrap = true, .max_lines = 2 },
+    };
+    const content = "Relayout keeps the shaped text: 中文混排 English words wrap differently at each width, 123456.";
+    for (samples) |style| {
+        var a = try zant_text.TextLayout.init(content, style, 300);
+        defer a.deinit();
+        a.relayout(140);
+        var fresh = try zant_text.TextLayout.init(content, style, 140);
+        defer fresh.deinit();
+        try std.testing.expectApproxEqAbs(fresh.metrics.height, a.metrics.height, 0.01);
+        try std.testing.expectApproxEqAbs(fresh.metrics.longest_line, a.metrics.longest_line, 0.01);
+        try std.testing.expectEqual(fresh.metrics.line_count, a.metrics.line_count);
+        try std.testing.expectEqual(fresh.indexAt(100, fresh.metrics.height - 5), a.indexAt(100, a.metrics.height - 5));
+    }
+}

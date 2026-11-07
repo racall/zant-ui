@@ -11,11 +11,18 @@ pub const incomplete_link = "streamdown:incomplete-link";
 /// Sentinel source for images whose source has not streamed in yet.
 pub const incomplete_image = "streamdown:incomplete-image";
 
+/// Brackets inside `$…$`, `$$…$$`, `\(…\)` and `\[…\]` (including a formula that is
+/// still streaming) are math such as `[a,b]`, not links. Upstream remend only
+/// checks code; healing them appends the sentinel URL to the formula.
+fn inMath(ctx: *Context, text: []const u8, position: usize) !bool {
+    return (try ctx.scan(text)).inMathAt(position);
+}
+
 fn handleIncompleteUrl(ctx: *Context, text: []const u8, last_paren: usize, mode: LinkMode) !?[]const u8 {
     const after = text[last_paren + 2 ..];
     if (std.mem.indexOfScalar(u8, after, ')') != null) return null;
     const open = p.findMatchingOpeningBracket(text, last_paren) orelse return null;
-    if (try ctx.isInsideCodeBlock(text, open)) return null;
+    if (try ctx.isInsideCodeBlock(text, open) or try inMath(ctx, text, open)) return null;
     const is_image = open > 0 and text[open - 1] == '!';
     const start = if (is_image) open - 1 else open;
     const before = text[0..start];
@@ -28,7 +35,7 @@ fn handleIncompleteUrl(ctx: *Context, text: []const u8, last_paren: usize, mode:
 fn findFirstIncompleteBracket(ctx: *Context, text: []const u8, max_pos: usize) !usize {
     var j: usize = 0;
     while (j < max_pos) : (j += 1) {
-        if (text[j] == '[' and !try ctx.isInsideCodeBlock(text, j)) {
+        if (text[j] == '[' and !try ctx.isInsideCodeBlock(text, j) and !try inMath(ctx, text, j)) {
             if (j > 0 and text[j - 1] == '!') continue;
             const closing = p.findMatchingClosingBracket(text, j) orelse return j;
             if (closing + 1 < text.len and text[closing + 1] == '(') {
@@ -56,13 +63,13 @@ fn handleIncompleteText(ctx: *Context, text: []const u8, i: usize, mode: LinkMod
 
 fn healTrailingLinkOrImage(ctx: *Context, text: []const u8, mode: LinkMode) ![]const u8 {
     if (std.mem.lastIndexOf(u8, text, "](")) |last_paren| {
-        if (!try ctx.isInsideCodeBlock(text, last_paren)) {
+        if (!try ctx.isInsideCodeBlock(text, last_paren) and !try inMath(ctx, text, last_paren)) {
             if (try handleIncompleteUrl(ctx, text, last_paren, mode)) |result| return result;
         }
     }
     var search_end = text.len;
     while (std.mem.lastIndexOfScalar(u8, text[0..search_end], '[')) |i| {
-        if (!try ctx.isInsideCodeBlock(text, i)) {
+        if (!try ctx.isInsideCodeBlock(text, i) and !try inMath(ctx, text, i)) {
             if (try handleIncompleteText(ctx, text, i, mode)) |result| return result;
         }
         if (i == 0) break;

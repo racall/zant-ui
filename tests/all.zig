@@ -67,3 +67,6 @@ comptime {
 comptime {
     _ = @import("mhchem_render_test.zig");
 }
+comptime {
+    _ = @import("list_test.zig");
+}

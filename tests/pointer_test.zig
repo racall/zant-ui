@@ -154,3 +154,48 @@ test "image: in-memory pixels shown by ui.image" {
     }
     try std.testing.expect(found);
 }
+
+test "container hover look: no rebuild, follows the pointer, hidden under a modal" {
+    const App = struct {
+        builds: usize = 0,
+        modal: bool = false,
+        fn renderOpaque(ctx: *anyopaque) ui.Node {
+            const self: *@This() = @ptrCast(@alignCast(ctx));
+            self.builds += 1;
+            const rows = ui.column(.{ .key = "rows", .align_items = .stretch, .children = &.{
+                ui.row(.{ .key = "row-a", .height = 40, .hover_background = 0xff112233, .children = &.{ui.button(.{ .key = "btn-a", .text = "A" })} }),
+                ui.row(.{ .key = "row-b", .height = 40, .hover_background = 0xff445566 }),
+            } });
+            if (!self.modal) return ui.column(.{ .grow = 1, .align_items = .stretch, .children = &.{rows} });
+            return ui.column(.{ .grow = 1, .align_items = .stretch, .children = &.{ rows, ui.modal(.{ .content = ui.text("x", .{}) }) } });
+        }
+    };
+    zant.motion.enabled = false;
+    defer zant.motion.enabled = true;
+    var app = App{};
+    const runtime = try Runtime.init(std.testing.allocator, &app, App.renderOpaque, .{ .window = .{ .width = 300, .height = 300 } });
+    defer runtime.deinit();
+    var r = try zant.renderer.Renderer.createRaster(300, 300);
+    defer r.deinit();
+    frame(runtime, &r, 300, 300);
+    const builds = app.builds;
+    const b = runtime.tree.boundsOfKey("row-b").?;
+    _ = runtime.dispatch(.{ .pointer_move = .{ .x = 200, .y = b.y + 20 } });
+    frame(runtime, &r, 300, 300);
+    try std.testing.expectEqual(builds, app.builds);
+    const row_b = runtime.tree.get(runtime.tree.idOfKey("row-b").?);
+    try std.testing.expect(row_b.data.container.hovered);
+    // over the button in row A: row A shows its hover (ancestor of the widget)
+    const btn = runtime.tree.boundsOfKey("btn-a").?;
+    _ = runtime.dispatch(.{ .pointer_move = .{ .x = btn.x + 5, .y = btn.y + 5 } });
+    frame(runtime, &r, 300, 300);
+    try std.testing.expect(!row_b.data.container.hovered);
+    try std.testing.expect(runtime.tree.get(runtime.tree.idOfKey("row-a").?).data.container.hovered);
+    // a modal over the rows hides their hover
+    app.modal = true;
+    runtime.invalidate();
+    frame(runtime, &r, 300, 300);
+    _ = runtime.dispatch(.{ .pointer_move = .{ .x = 200, .y = b.y + 20 } });
+    frame(runtime, &r, 300, 300);
+    try std.testing.expect(!row_b.data.container.hovered);
+}

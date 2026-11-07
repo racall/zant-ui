@@ -228,3 +228,24 @@ test "markdown: a multi-line \\[ \\] formula with `=` / `+` lines stays one bloc
     try std.testing.expectEqual(@as(usize, 2), partial.len);
     try std.testing.expect(partial[1].doc.blocks[0] == .math);
 }
+
+test "markdown: a streaming formula hides its half-arrived closing delimiter" {
+    const cases = [_][2][]const u8{
+        .{ "\\[\nf(x) = a + c\\", "f(x) = a + c" }, // `\]` cut after the backslash
+        .{ "\\[\n\\begin{aligned} a &= b \\\\\n&= c \\\\", "\\begin{aligned} a &= b \\\\\n&= c \\\\" }, // `\\` is a line break
+        .{ "$$\nx^2\n$", "x^2" }, // `$$` cut after one `$`
+    };
+    for (cases) |case| {
+        var doc = try md.parseWith(std.testing.allocator, case[0], .{ .latex_delimiters = true });
+        defer doc.deinit();
+        try std.testing.expect(doc.blocks[0] == .math);
+        try std.testing.expect(!doc.blocks[0].math.closed);
+        try std.testing.expectEqualStrings(case[1], doc.blocks[0].math.source);
+    }
+    // through the streaming pipeline (remend + block cache) as an app sees it
+    var cache = md.Cache.init(std.testing.allocator);
+    defer cache.deinit();
+    const entries = try cache.update("代回：\n\n\\[\nf(x) = a + c\\", .{ .mode = .streaming, .parse = .{ .latex_delimiters = true } });
+    try std.testing.expect(entries[entries.len - 1].doc.blocks[0] == .math);
+    try std.testing.expectEqualStrings("f(x) = a + c", entries[entries.len - 1].doc.blocks[0].math.source);
+}

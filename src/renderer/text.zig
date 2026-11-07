@@ -96,6 +96,7 @@ pub const layout_stats = struct {
 
 extern fn zant_text_layout_create(text: [*]const u8, length: usize, style: *const NativeStyle, max_width: f32) ?*anyopaque;
 extern fn zant_text_layout_destroy(layout: ?*anyopaque) void;
+extern fn zant_text_layout_relayout(layout: ?*anyopaque, max_width: f32) void;
 extern fn zant_text_layout_metrics(layout: ?*anyopaque) NativeMetrics;
 extern fn zant_text_layout_caret_rect(layout: ?*anyopaque, byte_offset: usize, rect: *NativeRect) bool;
 extern fn zant_text_layout_index_at(layout: ?*anyopaque, x: f32, y: f32) usize;
@@ -130,6 +131,20 @@ pub const TextLayout = struct {
                 .first_baseline = m.first_baseline,
                 .line_count = @intCast(@max(m.line_count, 0)),
             },
+        };
+    }
+
+    /// Re-wraps at another width, reusing the shaped text.
+    pub fn relayout(self: *TextLayout, max_width: f32) void {
+        zant_text_layout_relayout(self.handle, max_width);
+        const m = zant_text_layout_metrics(self.handle);
+        self.metrics = .{
+            .width = m.width,
+            .height = m.height,
+            .intrinsic_width = m.max_intrinsic_width,
+            .longest_line = m.longest_line,
+            .first_baseline = m.first_baseline,
+            .line_count = @intCast(@max(m.line_count, 0)),
         };
     }
 

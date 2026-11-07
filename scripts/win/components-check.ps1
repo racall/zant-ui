@@ -130,6 +130,19 @@ if ($track) {
     Double-Click-At $app ($track.X + $track.W / 2) ($track.Y + $track.H / 2)
     Assert-Event $app "pointer double" "pointer area double click"
 } else { Write-Result $false "find 'track'" }
+# virtual list: the wheel scrolls 10 000 rows (only visible ones exist)
+$vl = Find-Key $app "vlist"
+if ($vl) {
+    Wheel-At $app ($vl.X + $vl.W / 2) ($vl.Y + $vl.H / 2) -20
+    Assert-Event $app "list scrolled" "virtual list scrolls with the wheel"
+    Start-Sleep -Milliseconds 300
+    # rows scrolled away are released, rows further down now exist
+    $gone = (Find-Key $app "vlist-i0") -eq $null
+    $later = $false
+    foreach ($k in 20..60) { if (Find-Key $app "vlist-i$k") { $later = $true; break } }
+    Write-Result ($gone -and $later) "virtual list builds only the rows in view (row 1 released, rows 20+ built)"
+    Shot $app "09c-list"
+} else { Write-Result $false "find 'vlist'" }
 # selectable text: drag across both paragraphs, Ctrl+C
 $sel = Find-Key $app "select-text"
 if ($sel) {

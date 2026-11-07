@@ -137,6 +137,9 @@ ZantTextLayout *zant_rich_text_layout_create(const ZantRichSpan *spans, size_t c
 ZantTextLayout *zant_text_layout_create(const char *utf8, size_t length,
                                         const ZantTextStyle *style, float max_width);
 void zant_text_layout_destroy(ZantTextLayout *layout);
+/* Lays an existing layout out again at another width: line breaking only,
+ * the shaped text is reused (much cheaper than creating a new layout). */
+void zant_text_layout_relayout(ZantTextLayout *layout, float max_width);
 ZantTextMetrics zant_text_layout_metrics(ZantTextLayout *layout);
 /* UTF-8 byte offsets in, logical caret geometry out (relative to the text origin). */
 bool zant_text_layout_caret_rect(ZantTextLayout *layout, size_t byte_offset, ZantRect *out_rect);

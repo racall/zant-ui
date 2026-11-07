@@ -254,6 +254,22 @@ pub fn build(b: *std.Build) void {
     run_stream.step.dependOn(b.getInstallStep());
     b.step("run-md-stream", "Streaming Markdown benchmark (chat with history, SSE replay or stdin)").dependOn(&run_stream.step);
 
+    const bench = b.addExecutable(.{
+        .name = "zant-bench",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("examples/bench.zig"),
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+            .link_libcpp = is_macos,
+            .imports = &.{.{ .name = "zant", .module = zant_mod }},
+        }),
+    });
+    b.installArtifact(bench);
+    const run_bench = b.addRunArtifact(bench);
+    run_bench.step.dependOn(b.getInstallStep());
+    b.step("bench", "Headless frame benchmark (open, stream, typing, caret, hover, resize, scroll)").dependOn(&run_bench.step);
+
     const pdf_demo = b.addExecutable(.{
         .name = "zant-pdf",
         .root_module = b.createModule(.{

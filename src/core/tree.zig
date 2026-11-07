@@ -37,6 +37,9 @@ pub const Tree = struct {
     root: NodeId = 0,
     focused: ?NodeId = null,
     theme: Theme,
+    /// Node by key (the most recently keyed node for a key); lookups fall
+    /// back to a scan when the indexed node is not usable.
+    key_index: std.StringHashMapUnmanaged(NodeId) = .empty,
     /// Fill behind selected text (`Node.text_sel`).
     selection_color: u32 = 0x401677ff,
 
@@ -54,6 +57,7 @@ pub const Tree = struct {
             self.allocator.destroy(node);
         }
         self.nodes.deinit(self.allocator);
+        self.key_index.deinit(self.allocator);
         self.free_ids.deinit(self.allocator);
         self.animating.deinit(self.allocator);
     }
@@ -300,6 +304,10 @@ pub const Tree = struct {
 
     /// Window-space box of the laid-out node with `key` (null when absent).
     pub fn boundsOfKey(self: *const Tree, key: []const u8) ?geometry.Rect {
+        if (self.key_index.get(key)) |id| {
+            const node = self.nodes.items[id];
+            if (node.alive and node.inFlow() and node.key != null and std.mem.eql(u8, node.key.?, key)) return node.bounds;
+        }
         for (self.nodes.items) |node| {
             if (!node.alive or !node.inFlow()) continue;
             const k = node.key orelse continue;
@@ -310,8 +318,34 @@ pub const Tree = struct {
 
     pub fn setKey(self: *Tree, id: NodeId, key: ?[]const u8) void {
         const node = self.get(id);
+        self.unindexKey(id);
         if (node.key) |old| self.allocator.free(old);
         node.key = if (key) |value| self.allocator.dupe(u8, value) catch null else null;
+        const k = node.key orelse return;
+        const gop = self.key_index.getOrPut(self.allocator, k) catch return;
+        // the map's key slice must be this node's (another node's may be freed)
+        gop.key_ptr.* = k;
+        gop.value_ptr.* = id;
+    }
+
+    /// Live, non-exiting node with `key` (index first, scan as fallback).
+    pub fn idOfKey(self: *const Tree, key: []const u8) ?NodeId {
+        if (self.key_index.get(key)) |id| {
+            const node = self.nodes.items[id];
+            if (node.alive and !node.exiting and node.key != null and std.mem.eql(u8, node.key.?, key)) return id;
+        }
+        for (self.nodes.items) |node| {
+            if (!node.alive or node.exiting) continue;
+            if (node.key) |k| if (std.mem.eql(u8, k, key)) return node.id;
+        }
+        return null;
+    }
+
+    fn unindexKey(self: *Tree, id: NodeId) void {
+        const k = self.nodes.items[id].key orelse return;
+        if (self.key_index.getEntry(k)) |e| {
+            if (e.value_ptr.* == id) self.key_index.removeByPtr(e.key_ptr);
+        }
     }
 
     /// Releases `id` and its whole subtree: owned memory is freed and the
@@ -325,6 +359,7 @@ pub const Tree = struct {
         if (node.anim_queued) {
             if (std.mem.indexOfScalar(NodeId, self.animating.items, id)) |i| _ = self.animating.swapRemove(i);
         }
+        self.unindexKey(id);
         node.deinit(self.allocator);
         node.* = .{ .id = id, .data = .{ .container = .{} }, .visible = false, .alive = false };
         self.free_ids.append(self.allocator, id) catch {};
@@ -485,8 +520,17 @@ pub const Tree = struct {
             .button, .input, .select => true,
             else => false,
         };
-        if (node.visual.background != null and !self_filled) {
-            const color = node.visual.background.?;
+        var hover_fill: ?u32 = null;
+        var hover_border: ?u32 = null;
+        switch (node.data) {
+            .container => |*d| if (d.hover_visual) |hv| if (d.hover_t > 0.001) {
+                if (hv.background) |bg| hover_fill = motion.mixColor(node.visual.background orelse (bg & 0x00ffffff), bg, d.hover_t);
+                if (hv.border_color) |bc| hover_border = motion.mixColor(node.visual.border_color orelse (bc & 0x00ffffff), bc, d.hover_t);
+            },
+            else => {},
+        }
+        if ((node.visual.background != null or hover_fill != null) and !self_filled) {
+            const color = hover_fill orelse node.visual.background.?;
             if (node.visual.radius > 0) {
                 canvas.fillRoundRect(rect, node.visual.radius, color);
             } else {
@@ -537,7 +581,7 @@ pub const Tree = struct {
         }
         // borders frame the content: drawn after children so filled children
         // (headers, cells) never cover them
-        if (node.visual.border_color) |border| {
+        if (hover_border orelse node.visual.border_color) |border| {
             if (node.visual.border_width > 0) {
                 canvas.strokeRoundRect(
                     geometry.Rect.init(rect.x + 0.5, rect.y + 0.5, @max(0, rect.width - 1), @max(0, rect.height - 1)),
@@ -618,6 +662,24 @@ pub const Tree = struct {
             if (node.data.container.content_height > node.bounds.height + 0.5) return node.id;
         }
         return null;
+    }
+
+    /// Innermost container with a hover look under `(x, y)`.
+    pub fn hoverBoxAt(self: *Tree, x: f32, y: f32) ?NodeId {
+        return self.hoverBoxNode(self.get(self.root), x, y);
+    }
+
+    fn hoverBoxNode(self: *Tree, node: *Node, x: f32, y: f32) ?NodeId {
+        if (!node.inFlow() or !node.bounds.contains(x, y)) return null;
+        var i = node.children.items.len;
+        while (i > 0) {
+            i -= 1;
+            if (self.hoverBoxNode(self.get(node.children.items[i]), x, y)) |hit| return hit;
+        }
+        return switch (node.data) {
+            .container => |*d| if (d.hover_visual != null) node.id else null,
+            else => null,
+        };
     }
 
     /// Innermost node under `(x, y)` that takes wheel input: a scroll
@@ -718,19 +780,39 @@ pub const Tree = struct {
         }
     }
 
+    /// The topmost (last painted) focus scope shown, if any.
+    fn activeFocusScope(self: *Tree, node: *Node) ?NodeId {
+        if (!node.inFlow()) return null;
+        var i = node.children.items.len;
+        while (i > 0) {
+            i -= 1;
+            if (self.activeFocusScope(self.get(node.children.items[i]))) |hit| return hit;
+        }
+        return if (node.visual.focus_scope) node.id else null;
+    }
+
     pub fn tabFocus(self: *Tree, backwards: bool) void {
         var focusables: std.ArrayListUnmanaged(NodeId) = .empty;
         defer focusables.deinit(self.allocator);
-        self.collectFocusables(self.get(self.root), &focusables) catch return;
+        // inside an open dialog Tab cycles through the dialog only
+        const scope = self.activeFocusScope(self.get(self.root)) orelse self.root;
+        self.collectFocusables(self.get(scope), &focusables) catch return;
         if (focusables.items.len == 0) return;
         var index: usize = 0;
+        var found = false;
         if (self.focused) |focused_id| {
             for (focusables.items, 0..) |id, i| {
                 if (id == focused_id) {
                     index = i;
+                    found = true;
                     break;
                 }
             }
+        }
+        if (!found) {
+            // focus outside the scope (or none): enter at its first / last
+            self.setFocus(focusables.items[if (backwards) focusables.items.len - 1 else 0]);
+            return;
         }
         if (self.focused != null) {
             if (backwards) {
