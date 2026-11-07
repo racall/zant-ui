@@ -43,6 +43,7 @@ fn configureMacosSkia(b: *std.Build, target: std.Build.ResolvedTarget, mod: *std
     const frameworks = [_][]const u8{
         "AppKit",       "Metal", "MetalKit", "QuartzCore", "CoreText",               "CoreFoundation",
         "CoreGraphics", "IOKit", "Security", "CoreVideo",  "UniformTypeIdentifiers", "PDFKit",
+        "Carbon",
     };
     for (frameworks) |framework| {
         mod.linkFramework(framework, .{});
@@ -213,6 +214,8 @@ pub fn build(b: *std.Build) void {
 
     b.installArtifact(exe);
 
+    // PNG read / resize / write (src/core/png.zig): shared by the CLI tools
+    const png_mod = b.createModule(.{ .root_source_file = b.path("src/core/png.zig") });
     const tool_options = b.addOptions();
     tool_options.addOption([]const u8, "zant_root", b.root.root_dir.path orelse ".");
     const zant_tool = b.addExecutable(.{
@@ -221,7 +224,7 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("tools/zant/main.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = &.{.{ .name = "build_options", .module = tool_options.createModule() }},
+            .imports = &.{ .{ .name = "build_options", .module = tool_options.createModule() }, .{ .name = "png", .module = png_mod } },
         }),
     });
     b.installArtifact(zant_tool);
@@ -233,6 +236,7 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("tools/zant/icon.zig"),
             .target = b.graph.host,
             .optimize = .ReleaseSafe,
+            .imports = &.{.{ .name = "png", .module = png_mod }},
         }),
     });
     b.installArtifact(icon_tool);
@@ -381,8 +385,6 @@ pub fn build(b: *std.Build) void {
     // the `zant` CLI's own tests (app identifier rules, ...)
     const tool_tests = b.addTest(.{ .root_module = zant_tool.root_module });
     test_step.dependOn(&b.addRunArtifact(tool_tests).step);
-    const icon_tests = b.addTest(.{ .root_module = b.createModule(.{ .root_source_file = b.path("tools/zant/png.zig"), .target = target, .optimize = optimize }) });
-    test_step.dependOn(&b.addRunArtifact(icon_tests).step);
 
     if (target.result.os.tag == .windows) {
         for ([_]*std.Build.Step.Compile{ exe, demo, math_demo, md_demo, pdf_demo, components_demo }) |app| {

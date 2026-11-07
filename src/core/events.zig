@@ -22,6 +22,8 @@ pub const Key = union(enum) {
     enter,
     page_up,
     page_down,
+    /// F1 … F12 (1 … 12)
+    function: u8,
 };
 
 pub const Modifiers = packed struct {
@@ -70,8 +72,11 @@ pub const Event = union(enum) {
     window_focus,
     window_blur,
     window_close,
-    /// The user asked to close the window or quit; the app may veto it.
+    /// The user asked to close the window; the app may veto it.
     window_close_request,
+    /// The user asked to quit the app (⌘Q, the Dock menu, logout); sent to
+    /// the main window, the app may veto it.
+    app_quit_request,
     scroll: struct { x: f32, y: f32, dx: f32, dy: f32, modifiers: Modifiers },
 };
 
@@ -100,6 +105,7 @@ pub fn keyFromPlatform(key: c_int) Key {
         platform.Key.enter => .enter,
         platform.Key.page_up => .page_up,
         platform.Key.page_down => .page_down,
+        platform.Key.f1...platform.Key.f12 => .{ .function = @intCast(key - platform.Key.f1 + 1) },
         else => .{ .character = if (key >= 0) @intCast(key) else 0 },
     };
 }
@@ -145,7 +151,7 @@ pub fn translate(raw: *const platform.Event) Event {
         platform.EventType.window_focus => .window_focus,
         platform.EventType.window_blur => .window_blur,
         platform.EventType.window_close => .window_close,
-        platform.EventType.window_close_request => .window_close_request,
+        platform.EventType.window_close_request => if (raw.button == 1) .app_quit_request else .window_close_request,
         platform.EventType.scroll => .{ .scroll = .{
             .x = raw.x,
             .y = raw.y,

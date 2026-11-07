@@ -33,6 +33,10 @@ pub const Key = struct {
     pub const enter: c_int = 0x110B;
     pub const page_up: c_int = 0x110C;
     pub const page_down: c_int = 0x110D;
+    pub const space: c_int = 0x20;
+    /// F1 … F12 = f1 + 0 … 11
+    pub const f1: c_int = 0x1110;
+    pub const f12: c_int = 0x111B;
 };
 
 pub const Mod = struct {
@@ -57,12 +61,31 @@ pub const WindowOptions = struct {
     /// `.hidden_titlebar` only: height of the app's own title bar; the
     /// traffic lights are vertically centred in it (0 = system default).
     titlebar_height: f32 = 0,
+    /// Create the window without showing it (show it later).
+    hidden: bool = false,
 };
 
 pub const WindowStyle = enum(c_int) {
     native = 0,
     hidden_titlebar = 1,
     borderless = 2,
+    /// Floating panel (quick-access popup): no title bar, system rounded
+    /// corners and shadow, above other windows, no Dock / taskbar entry; on
+    /// macOS it takes the keyboard without bringing the app forward.
+    panel = 3,
+};
+
+/// Where `place` puts a window, in the work area of the screen under the
+/// pointer.
+pub const Place = enum(c_int) {
+    center = 0,
+    top_left = 1,
+    top_right = 2,
+    bottom_left = 3,
+    bottom_right = 4,
+    /// By the status bar / tray icons: top right on macOS (under the menu
+    /// bar), bottom right on Windows (above the taskbar, wherever it is).
+    tray_corner = 5,
 };
 
 pub const PointerButton = struct {
@@ -175,6 +198,7 @@ const NativeWindowOptions = extern struct {
     movable_by_background: c_int,
     center: c_int,
     titlebar_height: f32,
+    hidden: c_int,
 };
 
 extern fn zant_window_create(title: [*:0]const u8, options: *const NativeWindowOptions, host: *const Host) ?*Window;
@@ -194,6 +218,19 @@ extern fn zant_window_is_maximized(window: *Window) c_int;
 extern fn zant_window_close(window: *Window) void;
 extern fn zant_window_is_active(window: *Window) c_int;
 
+extern fn zant_window_set_visible(window: *Window, visible: c_int) void;
+extern fn zant_window_is_visible(window: *Window) c_int;
+extern fn zant_window_activate(window: *Window) void;
+extern fn zant_window_place(window: *Window, place: c_int, margin: f32) void;
+extern fn zant_app_quit() void;
+extern fn zant_app_set_dock_visible(visible: c_int) void;
+extern fn zant_app_set_handler(handler: ?*const fn (?*anyopaque, *const AppEvent) callconv(.c) void, userdata: ?*anyopaque) void;
+extern fn zant_tray_set(rgba: ?[*]const u8, width: c_int, height: c_int, scale: f32, template_image: c_int, tooltip: ?[*:0]const u8, items: ?[*]const TrayItem, count: c_int) c_int;
+extern fn zant_tray_remove() void;
+extern fn zant_tray_icon_pixels() c_int;
+extern fn zant_hotkey_register(id: c_int, key: c_int, modifiers: c_int) c_int;
+extern fn zant_hotkey_unregister(id: c_int) void;
+extern fn zant_clipboard_change_count() u64;
 extern fn zant_clipboard_set_text(text: [*]const u8, length: usize) c_int;
 extern fn zant_clipboard_get_text(out: ?[*]u8, capacity: usize) usize;
 
@@ -211,6 +248,7 @@ pub fn createWindow(title: [:0]const u8, options: WindowOptions, host: *const Ho
         .movable_by_background = if (options.movable_by_background) 1 else 0,
         .center = if (options.center) 1 else 0,
         .titlebar_height = options.titlebar_height,
+        .hidden = if (options.hidden) 1 else 0,
     };
     return zant_window_create(title.ptr, &native, host) orelse error.WindowCreationFailed;
 }
@@ -277,6 +315,86 @@ pub fn close(window: ?*Window) void {
 
 pub fn isActive(window: ?*Window) bool {
     return if (window) |w| zant_window_is_active(w) != 0 else true;
+}
+
+pub fn setVisible(window: ?*Window, visible: bool) void {
+    if (window) |w| zant_window_set_visible(w, @intFromBool(visible));
+}
+
+pub fn isVisible(window: ?*Window) bool {
+    return if (window) |w| zant_window_is_visible(w) != 0 else false;
+}
+
+/// Shows the window, brings it forward and gives it the keyboard.
+pub fn activate(window: ?*Window) void {
+    if (window) |w| zant_window_activate(w);
+}
+
+pub fn place(window: ?*Window, where: Place, margin: f32) void {
+    if (window) |w| zant_window_place(w, @backingInt(where), margin);
+}
+
+/// Ends the app (all windows) without asking again.
+pub fn quit() void {
+    if (supported) zant_app_quit();
+}
+
+/// macOS: Dock icon and menu bar (regular app) or neither (status bar app).
+/// Windows: no-op.
+pub fn setDockVisible(visible: bool) void {
+    if (supported) zant_app_set_dock_visible(@intFromBool(visible));
+}
+
+pub const AppEventType = struct {
+    pub const tray_click: c_int = 1;
+    pub const tray_menu: c_int = 2;
+    pub const hotkey: c_int = 3;
+    pub const reopen: c_int = 4;
+};
+
+pub const AppEvent = extern struct { type: c_int, id: c_int };
+
+pub fn setAppHandler(handler: ?*const fn (?*anyopaque, *const AppEvent) callconv(.c) void, userdata: ?*anyopaque) void {
+    if (supported) zant_app_set_handler(handler, userdata);
+}
+
+pub const TrayItem = extern struct {
+    title: ?[*:0]const u8 = null,
+    id: c_int = 0,
+    separator: c_int = 0,
+    checked: c_int = 0,
+    disabled: c_int = 0,
+};
+
+/// Straight-alpha RGBA icon, `scale` pixels per point (macOS).
+pub fn setTray(rgba: []const u8, width: u32, height: u32, scale: f32, template_image: bool, tooltip: ?[*:0]const u8, items: []const TrayItem) bool {
+    if (!supported) return false;
+    return zant_tray_set(if (rgba.len > 0) rgba.ptr else null, @intCast(width), @intCast(height), scale, @intFromBool(template_image), tooltip, if (items.len > 0) items.ptr else null, @intCast(items.len)) != 0;
+}
+
+pub fn removeTray() void {
+    if (supported) zant_tray_remove();
+}
+
+/// Pixel size the tray / status bar icon should have on this display.
+pub fn trayIconPixels() u32 {
+    if (!supported) return 16;
+    return @intCast(@max(zant_tray_icon_pixels(), 8));
+}
+
+pub fn registerHotkey(id: c_int, key: c_int, modifiers: c_int) bool {
+    if (!supported) return false;
+    return zant_hotkey_register(id, key, modifiers) != 0;
+}
+
+pub fn unregisterHotkey(id: c_int) void {
+    if (supported) zant_hotkey_unregister(id);
+}
+
+/// Changes whenever any app writes to the clipboard.
+pub fn clipboardChangeCount() u64 {
+    if (!supported) return 0;
+    return zant_clipboard_change_count();
 }
 
 /// Monotonic clock in microseconds.

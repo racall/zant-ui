@@ -35,6 +35,13 @@ pub const Config = struct {
     /// Asked before the window closes or the app quits (close button, ⌘W,
     /// ⌘Q). Return false to keep it open (e.g. unsaved changes).
     close_fn: ?*const fn (userdata: *anyopaque) bool = null,
+    /// Asked when the user quits the app (⌘Q, Dock menu); main window only.
+    /// Defaults to `close_fn`.
+    quit_fn: ?*const fn (userdata: *anyopaque) bool = null,
+    /// The window lost / gained the keyboard (e.g. hide a panel on blur).
+    focus_fn: ?*const fn (userdata: *anyopaque, focused: bool) bool = null,
+    /// Once, after the window exists and before the event loop starts.
+    start_fn: ?*const fn (userdata: *anyopaque) void = null,
 };
 
 pub const Runtime = struct {
@@ -155,6 +162,41 @@ pub const Runtime = struct {
         platform.requestRedraw(self.window, 0);
     }
 
+    /// Rebuilds every open window (they may render the same app state).
+    pub fn invalidateAll() void {
+        for (open_runtimes.items) |runtime| runtime.invalidate();
+    }
+
+    fn register(self: *Runtime) void {
+        open_runtimes.append(std.heap.c_allocator, self) catch {};
+    }
+
+    fn unregister(self: *Runtime) void {
+        for (open_runtimes.items, 0..) |runtime, i| {
+            if (runtime == self) {
+                _ = open_runtimes.swapRemove(i);
+                return;
+            }
+        }
+    }
+
+    /// A second window of the app (panel, tool window) on the running event
+    /// loop. It shares the app state through `userdata`; state changes in any
+    /// window rebuild all of them.
+    pub fn openWindow(self: *Runtime) !void {
+        const host = makeHost(self);
+        self.window = try platform.createWindow(self.config.title, self.config.window, &host);
+        self.register();
+    }
+
+    /// Closes a window opened with `openWindow` and frees the runtime.
+    pub fn closeWindow(self: *Runtime) void {
+        self.unregister();
+        if (self.window) |window| platform.destroy(window);
+        self.window = null;
+        self.deinit();
+    }
+
     pub fn invalidateCallback(ctx: *anyopaque) void {
         const self: *Runtime = @ptrCast(@alignCast(ctx));
         self.invalidate();
@@ -169,7 +211,9 @@ pub const Runtime = struct {
         const window = try platform.createWindow(self.config.title, self.config.window, &host);
         self.window = window;
         ui.wake_window.store(window, .release);
+        self.register();
         defer {
+            self.unregister();
             ui.wake_window.store(null, .release);
             platform.destroy(window);
             self.window = null;
@@ -186,6 +230,7 @@ pub const Runtime = struct {
             self.allocator.free(path);
             self.layout_file = null;
         };
+        if (self.config.start_fn) |start_fn| start_fn(self.userdata);
         if (platform.getenv("ZANT_SNAPSHOT")) |path| {
             const copy = try self.allocator.dupeSentinel(u8, path, 0);
             defer self.allocator.free(copy);
@@ -1292,6 +1337,12 @@ pub const Runtime = struct {
         self.sampleClock();
         const result = self.dispatchEvent(event);
         self.reportSelection();
+        // the app's state may have changed: other windows rebuild too
+        if (self.needs_build and open_runtimes.items.len > 1) {
+            for (open_runtimes.items) |runtime| {
+                if (runtime != self) runtime.invalidate();
+            }
+        }
         return switch (event) {
             // pointer / wheel events: non-zero only when something must be
             // redrawn, so plain mouse movement over static UI paints nothing
@@ -1355,6 +1406,9 @@ pub const Runtime = struct {
                 return result;
             },
             .window_blur => {
+                if (self.config.focus_fn) |focus_fn| {
+                    if (focus_fn(self.userdata, false)) self.needs_build = true;
+                }
                 self.active = false;
                 self.sel_dragging = false;
                 self.releasePointerCapture(.{ .x = self.last_click_x, .y = self.last_click_y });
@@ -1368,6 +1422,9 @@ pub const Runtime = struct {
                 return 0;
             },
             .window_focus => {
+                if (self.config.focus_fn) |focus_fn| {
+                    if (focus_fn(self.userdata, true)) self.needs_build = true;
+                }
                 self.active = true;
                 if (self.drawsCaptionButtons()) self.needs_build = true;
                 return 0;
@@ -1382,7 +1439,15 @@ pub const Runtime = struct {
             .window_close => return 0,
             .window_close_request => {
                 const close_fn = self.config.close_fn orelse return 0;
-                return @intFromBool(!close_fn(self.userdata));
+                const allowed = close_fn(self.userdata);
+                self.needs_build = true;
+                return @intFromBool(!allowed);
+            },
+            .app_quit_request => {
+                const quit_fn = self.config.quit_fn orelse self.config.close_fn orelse return 0;
+                const allowed = quit_fn(self.userdata);
+                self.needs_build = true;
+                return @intFromBool(!allowed);
             },
             .scroll => |scroll_event| {
                 if (self.tree.wheelTargetAt(scroll_event.x, scroll_event.y)) |wid| {
@@ -2524,7 +2589,14 @@ fn titlebarHitCallback(userdata: ?*anyopaque, x: f32, y: f32) callconv(.c) c_int
 fn wakeCallback(userdata: ?*anyopaque) callconv(.c) void {
     const self: *Runtime = @ptrCast(@alignCast(userdata orelse return));
     self.needs_build = true;
+    // background results (ui.postWake) concern the app state: all windows
+    for (open_runtimes.items) |runtime| {
+        if (runtime != self) runtime.invalidate();
+    }
 }
+
+/// Windows of the app on the UI thread (main window first).
+var open_runtimes: std.ArrayListUnmanaged(*Runtime) = .empty;
 
 fn makeHost(runtime: *Runtime) platform.Host {
     return .{

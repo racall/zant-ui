@@ -53,7 +53,7 @@
 
 /* zant_window_post_wake: hands background results to the UI thread. */
 #define ZANT_WM_WAKE (WM_APP + 7)
-static volatile LONG g_wake_pending = 0;
+#define ZANT_WM_TRAY (WM_APP + 8)
 
 struct ZantWindow {
     ZantHost host;
@@ -87,9 +87,13 @@ struct ZantWindow {
     wchar_t title[512];
     char backend_name[64];
     char snapshot_path[1024];
+    volatile LONG wake_pending;
+    ZantWindow *next;
 };
 
-static ZantWindow *g_window = NULL;
+/* The first window: closing it ends the app; dialogs are owned by it. */
+static ZantWindow *g_main = NULL;
+static ZantWindow *g_windows = NULL;
 
 /* ---------- strings ---------- */
 
@@ -148,6 +152,9 @@ static int zant_frame_y(ZantWindow *w) {
 
 static DWORD zant_window_style_bits(ZantWindow *w) {
     if (w->style == ZANT_WINDOW_BORDERLESS) return WS_POPUP | (w->resizable ? WS_THICKFRAME : 0) | WS_MINIMIZEBOX;
+    /* panel: no caption; the thick frame (hidden by WM_NCCALCSIZE) gives the
+       DWM shadow, DWMWA_WINDOW_CORNER_PREFERENCE the rounded corners */
+    if (w->style == ZANT_WINDOW_PANEL) return WS_POPUP | WS_THICKFRAME;
     DWORD style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
     if (w->resizable) style |= WS_THICKFRAME | WS_MAXIMIZEBOX;
     return style;
@@ -225,6 +232,7 @@ static int zant_key_from_vk(WPARAM vk) {
         case VK_DECIMAL: return '.';
         default: break;
     }
+    if (vk >= VK_F1 && vk <= VK_F12) return ZANT_KEY_F1 + (int)(vk - VK_F1);
     if (vk >= 'A' && vk <= 'Z') return (int)(vk - 'A' + 'a');
     if (vk >= '0' && vk <= '9') return (int)vk;
     if (vk >= VK_NUMPAD0 && vk <= VK_NUMPAD9) return (int)('0' + (vk - VK_NUMPAD0));
@@ -506,6 +514,8 @@ static LRESULT CALLBACK zant_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) 
 
     switch (msg) {
         case WM_NCCALCSIZE:
+            /* panel: the whole window is client area */
+            if (wp && w->style == ZANT_WINDOW_PANEL) return 0;
             if (wp && w->custom_frame) {
                 /* keep the system's left/right/bottom resize borders, drop the
                    caption (Windows Terminal's approach) */
@@ -519,6 +529,7 @@ static LRESULT CALLBACK zant_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) 
             break;
 
         case WM_NCHITTEST:
+            if (w->style == ZANT_WINDOW_PANEL) return HTCLIENT;
             if (w->custom_frame || w->movable_by_background || w->style == ZANT_WINDOW_BORDERLESS) {
                 LRESULT hit = DefWindowProcW(hwnd, msg, wp, lp);
                 if (hit != HTCLIENT) return hit;
@@ -573,7 +584,7 @@ static LRESULT CALLBACK zant_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) 
         }
 
         case ZANT_WM_WAKE:
-            InterlockedExchange(&g_wake_pending, 0);
+            InterlockedExchange(&w->wake_pending, 0);
             if (!w->closing && w->host.wake) w->host.wake(w->host.userdata);
             zant_request(w);
             return 0;
@@ -805,7 +816,8 @@ static LRESULT CALLBACK zant_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) 
             KillTimer(hwnd, ZANT_TIMER_REDRAW);
             KillTimer(hwnd, ZANT_TIMER_MODAL);
             zant_send_simple(w, ZANT_EVENT_WINDOW_CLOSE);
-            PostQuitMessage(0);
+            /* the main window ends the app; other windows just close */
+            if (w == g_main) PostQuitMessage(0);
             return 0;
 
         default:
@@ -886,11 +898,15 @@ ZantWindow *zant_window_create(const char *title, const ZantWindowOptions *optio
     const float width = options->width > 0 ? options->width : 900;
     const float height = options->height > 0 ? options->height : 640;
     const DWORD style = zant_window_style_bits(w);
-    const DWORD ex_style = options->always_on_top ? WS_EX_TOPMOST : 0;
+    DWORD ex_style = options->always_on_top ? WS_EX_TOPMOST : 0;
+    /* panel: above other windows, no taskbar button */
+    if (options->style == ZANT_WINDOW_PANEL) ex_style |= WS_EX_TOPMOST | WS_EX_TOOLWINDOW;
     RECT rc = {0, 0, (LONG)lroundf(width * w->scale), (LONG)lroundf(height * w->scale)};
     if (w->custom_frame) {
         rc.right += zant_frame_x(w) * 2;
         rc.bottom += zant_frame_y(w);
+    } else if (w->style == ZANT_WINDOW_PANEL) {
+        /* no non-client area (WM_NCCALCSIZE) */
     } else {
         AdjustWindowRectExForDpi(&rc, style, FALSE, ex_style, w->dpi);
     }
@@ -911,10 +927,14 @@ ZantWindow *zant_window_create(const char *title, const ZantWindowOptions *optio
         return NULL;
     }
     w->hwnd = hwnd;
-    g_window = w;
     SetWindowLongPtrW(hwnd, GWLP_USERDATA, (LONG_PTR)w);
     zant_set_dpi(w, GetDpiForWindow(hwnd));
     zant_apply_dark_frame(w);
+    if (w->style == ZANT_WINDOW_PANEL) {
+        const DWORD round = 2; /* DWMWCP_ROUND (Windows 11; ignored before) */
+        DwmSetWindowAttribute(hwnd, 33 /* DWMWA_WINDOW_CORNER_PREFERENCE */, &round, sizeof(round));
+        SetWindowPos(hwnd, NULL, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER);
+    }
     if (w->custom_frame) {
         /* recompute the frame with the caption removed */
         SetWindowPos(hwnd, NULL, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER);
@@ -929,19 +949,26 @@ ZantWindow *zant_window_create(const char *title, const ZantWindowOptions *optio
     }
     if (!w->renderer) w->renderer = zant_renderer_create_raster(w->width_px, w->height_px);
     if (!w->renderer) {
+        SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
         DestroyWindow(hwnd);
-        g_window = NULL;
         free(w);
         return NULL;
     }
     snprintf(w->backend_name, sizeof(w->backend_name), "%s", zant_renderer_backend_name(w->renderer));
 
-    ShowWindow(hwnd, SW_SHOW);
-    SetForegroundWindow(hwnd);
-    SetFocus(hwnd);
+    w->next = g_windows;
+    g_windows = w;
+    if (!g_main) g_main = w;
+    if (!options->hidden) {
+        ShowWindow(hwnd, SW_SHOW);
+        SetForegroundWindow(hwnd);
+        SetFocus(hwnd);
+    }
     zant_request(w);
     return w;
 }
+
+void zant_tray_remove(void);
 
 void zant_window_run(ZantWindow *window) {
     (void)window;
@@ -952,6 +979,7 @@ void zant_window_run(ZantWindow *window) {
     }
     /* like [NSApp terminate:] on macOS: closing the window ends the process
        here, so both platforms behave the same after run() */
+    zant_tray_remove();
     fflush(stdout);
     fflush(stderr);
     exit((int)msg.wParam);
@@ -968,7 +996,13 @@ void zant_window_destroy(ZantWindow *window) {
         SetWindowLongPtrW(window->hwnd, GWLP_USERDATA, 0);
         DestroyWindow(window->hwnd);
     }
-    if (g_window == window) g_window = NULL;
+    for (ZantWindow **it = &g_windows; *it; it = &(*it)->next) {
+        if (*it == window) {
+            *it = window->next;
+            break;
+        }
+    }
+    if (g_main == window) g_main = NULL;
     free(window);
 }
 
@@ -976,8 +1010,8 @@ void zant_window_destroy(ZantWindow *window) {
 void zant_window_post_wake(ZantWindow *window) {
     if (!window || !window->hwnd) return;
     /* coalesce: one message per burst of wakes */
-    if (InterlockedExchange(&g_wake_pending, 1)) return;
-    if (!PostMessageW(window->hwnd, ZANT_WM_WAKE, 0, 0)) InterlockedExchange(&g_wake_pending, 0);
+    if (InterlockedExchange(&window->wake_pending, 1)) return;
+    if (!PostMessageW(window->hwnd, ZANT_WM_WAKE, 0, 0)) InterlockedExchange(&window->wake_pending, 0);
 }
 
 void zant_window_request_redraw(ZantWindow *window, int delay_ms) {
@@ -1078,7 +1112,7 @@ int zant_clipboard_set_text(const char *text, size_t length) {
     dst[n] = 0;
     GlobalUnlock(memory);
     free(wide);
-    HWND owner = g_window ? g_window->hwnd : NULL;
+    HWND owner = g_main ? g_main->hwnd : NULL;
     for (int attempt = 0; attempt < 5; attempt++) {
         if (OpenClipboard(owner)) {
             EmptyClipboard();
@@ -1094,7 +1128,7 @@ int zant_clipboard_set_text(const char *text, size_t length) {
 }
 
 size_t zant_clipboard_get_text(char *out, size_t capacity) {
-    HWND owner = g_window ? g_window->hwnd : NULL;
+    HWND owner = g_main ? g_main->hwnd : NULL;
     size_t required = 1;
     bool opened = false;
     for (int attempt = 0; attempt < 5 && !opened; attempt++) {
@@ -1194,7 +1228,7 @@ static char *zant_dialog_result(IFileDialog *dialog) {
 }
 
 static HWND zant_dialog_owner(void) {
-    return g_window ? g_window->hwnd : NULL;
+    return g_main ? g_main->hwnd : NULL;
 }
 
 char *zant_open_file_dialog_ext(const char *extensions) {
@@ -1259,7 +1293,7 @@ int zant_confirm_dialog(const char *title, const char *message, const char *firs
     wchar_t *w_title = zant_widen(title ? title : "");
     wchar_t *w_message = zant_widen(message ? message : "");
     wchar_t *labels[3] = {zant_widen(first), zant_widen(second), zant_widen(third)};
-    wchar_t *caption = g_window ? g_window->title : L"";
+    wchar_t *caption = g_main ? g_main->title : L"";
     int answer = 2;
 
     /* comctl32 v6 (the framework's manifest) has TaskDialogIndirect */
@@ -1326,4 +1360,274 @@ int zant_open_url(const char *url) {
     const HINSTANCE r = ShellExecuteW(zant_dialog_owner(), L"open", wide, NULL, NULL, SW_SHOWNORMAL);
     free(wide);
     return (INT_PTR)r > 32 ? 1 : 0;
+}
+
+/* ---------- showing, hiding and placing windows ---------- */
+
+void zant_window_set_visible(ZantWindow *window, int visible) {
+    if (!window || !window->hwnd || window->closing) return;
+    ShowWindow(window->hwnd, visible ? SW_SHOWNOACTIVATE : SW_HIDE);
+    if (visible) zant_request(window);
+}
+
+int zant_window_is_visible(ZantWindow *window) {
+    return window && window->hwnd && IsWindowVisible(window->hwnd) ? 1 : 0;
+}
+
+void zant_window_activate(ZantWindow *window) {
+    if (!window || !window->hwnd || window->closing) return;
+    ShowWindow(window->hwnd, IsIconic(window->hwnd) ? SW_RESTORE : SW_SHOW);
+    /* allowed: the call follows a hotkey, a tray click or our own input */
+    SetForegroundWindow(window->hwnd);
+    SetFocus(window->hwnd);
+    zant_request(window);
+}
+
+void zant_window_place(ZantWindow *window, int place, float margin) {
+    if (!window || !window->hwnd) return;
+    POINT cursor;
+    GetCursorPos(&cursor);
+    HMONITOR monitor = MonitorFromPoint(cursor, MONITOR_DEFAULTTOPRIMARY);
+    MONITORINFO mi = {sizeof(mi)};
+    if (!GetMonitorInfoW(monitor, &mi)) return;
+    const RECT area = mi.rcWork;
+    if (place == ZANT_PLACE_TRAY_CORNER) {
+        /* the notification area sits at the end of the taskbar */
+        if (area.top > mi.rcMonitor.top) place = ZANT_PLACE_TOP_RIGHT;
+        else if (area.left > mi.rcMonitor.left) place = ZANT_PLACE_BOTTOM_LEFT;
+        else place = ZANT_PLACE_BOTTOM_RIGHT;
+    }
+    RECT wr;
+    GetWindowRect(window->hwnd, &wr);
+    const int width = wr.right - wr.left, height = wr.bottom - wr.top;
+    const int m = (int)lroundf(margin * window->scale);
+    int x = area.left + ((area.right - area.left) - width) / 2;
+    int y = area.top + ((area.bottom - area.top) - height) / 2;
+    if (place == ZANT_PLACE_TOP_LEFT || place == ZANT_PLACE_BOTTOM_LEFT) x = area.left + m;
+    if (place == ZANT_PLACE_TOP_RIGHT || place == ZANT_PLACE_BOTTOM_RIGHT) x = area.right - width - m;
+    if (place == ZANT_PLACE_TOP_LEFT || place == ZANT_PLACE_TOP_RIGHT) y = area.top + m;
+    if (place == ZANT_PLACE_BOTTOM_LEFT || place == ZANT_PLACE_BOTTOM_RIGHT) y = area.bottom - height - m;
+    SetWindowPos(window->hwnd, NULL, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+}
+
+/* ---------- app ---------- */
+
+static void (*g_app_handler)(void *, const ZantAppEvent *) = NULL;
+static void *g_app_handler_userdata = NULL;
+
+void zant_app_set_handler(void (*handler)(void *userdata, const ZantAppEvent *event), void *userdata) {
+    g_app_handler = handler;
+    g_app_handler_userdata = userdata;
+}
+
+static void zant_app_emit(int type, int id) {
+    if (!g_app_handler) return;
+    ZantAppEvent event = {type, id};
+    g_app_handler(g_app_handler_userdata, &event);
+}
+
+void zant_app_quit(void) {
+    PostQuitMessage(0);
+}
+
+void zant_app_set_dock_visible(int visible) {
+    (void)visible; /* the taskbar shows visible windows */
+}
+
+uint64_t zant_clipboard_change_count(void) {
+    return (uint64_t)GetClipboardSequenceNumber();
+}
+
+/* ---------- tray icon and hotkeys: a hidden message window ---------- */
+
+#define ZANT_APP_CLASS_NAME L"ZantAppMessages"
+static HWND g_app_hwnd = NULL;
+static UINT g_taskbar_created = 0;
+static NOTIFYICONDATAW g_tray;
+static bool g_tray_added = false;
+static HMENU g_tray_menu = NULL;
+
+static void zant_tray_show_menu(void) {
+    if (!g_tray_menu) return;
+    POINT pt;
+    GetCursorPos(&pt);
+    /* the menu closes when the user clicks elsewhere only if our window is
+       foreground (documented TrackPopupMenu quirk) */
+    SetForegroundWindow(g_app_hwnd);
+    const UINT flags = TPM_RETURNCMD | TPM_RIGHTBUTTON | TPM_NONOTIFY |
+                       (GetSystemMetrics(SM_MENUDROPALIGNMENT) ? TPM_RIGHTALIGN : TPM_LEFTALIGN);
+    const int cmd = (int)TrackPopupMenu(g_tray_menu, flags, pt.x, pt.y, 0, g_app_hwnd, NULL);
+    PostMessageW(g_app_hwnd, WM_NULL, 0, 0);
+    if (cmd > 0) zant_app_emit(ZANT_APP_EVENT_TRAY_MENU, cmd - 1);
+}
+
+static LRESULT CALLBACK zant_app_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+    if (msg == WM_HOTKEY) {
+        zant_app_emit(ZANT_APP_EVENT_HOTKEY, (int)wp);
+        return 0;
+    }
+    if (msg == ZANT_WM_TRAY) {
+        switch (LOWORD(lp)) {
+            case WM_LBUTTONUP: zant_app_emit(ZANT_APP_EVENT_TRAY_CLICK, 0); break;
+            case WM_RBUTTONUP:
+            case WM_CONTEXTMENU: zant_tray_show_menu(); break;
+            default: break;
+        }
+        return 0;
+    }
+    /* Explorer restarted: the notification area forgot our icon */
+    if (g_taskbar_created && msg == g_taskbar_created && g_tray_added) {
+        Shell_NotifyIconW(NIM_ADD, &g_tray);
+        return 0;
+    }
+    return DefWindowProcW(hwnd, msg, wp, lp);
+}
+
+static HWND zant_app_window(void) {
+    if (g_app_hwnd) return g_app_hwnd;
+    zant_process_setup();
+    WNDCLASSEXW wc;
+    memset(&wc, 0, sizeof(wc));
+    wc.cbSize = sizeof(wc);
+    wc.lpfnWndProc = zant_app_wndproc;
+    wc.hInstance = GetModuleHandleW(NULL);
+    wc.lpszClassName = ZANT_APP_CLASS_NAME;
+    RegisterClassExW(&wc);
+    /* a hidden top-level window (not HWND_MESSAGE): TrackPopupMenu needs a
+       window that can be foreground */
+    g_app_hwnd = CreateWindowExW(WS_EX_TOOLWINDOW, ZANT_APP_CLASS_NAME, L"", WS_POPUP, 0, 0, 0, 0, NULL, NULL,
+                                 wc.hInstance, NULL);
+    g_taskbar_created = RegisterWindowMessageW(L"TaskbarCreated");
+    return g_app_hwnd;
+}
+
+int zant_tray_icon_pixels(void) {
+    zant_process_setup();
+    return GetSystemMetricsForDpi(SM_CXSMICON, GetDpiForSystem());
+}
+
+static HICON zant_icon_from_rgba(const uint8_t *rgba, int width, int height) {
+    BITMAPV5HEADER bi;
+    memset(&bi, 0, sizeof(bi));
+    bi.bV5Size = sizeof(bi);
+    bi.bV5Width = width;
+    bi.bV5Height = -height; /* top-down */
+    bi.bV5Planes = 1;
+    bi.bV5BitCount = 32;
+    bi.bV5Compression = BI_BITFIELDS;
+    bi.bV5RedMask = 0x00FF0000;
+    bi.bV5GreenMask = 0x0000FF00;
+    bi.bV5BlueMask = 0x000000FF;
+    bi.bV5AlphaMask = 0xFF000000;
+    void *bits = NULL;
+    HDC dc = GetDC(NULL);
+    HBITMAP color = CreateDIBSection(dc, (BITMAPINFO *)&bi, DIB_RGB_COLORS, &bits, NULL, 0);
+    ReleaseDC(NULL, dc);
+    if (!color || !bits) return NULL;
+    uint8_t *dst = (uint8_t *)bits;
+    for (int i = 0; i < width * height; i++) { /* RGBA -> BGRA, straight alpha */
+        dst[i * 4 + 0] = rgba[i * 4 + 2];
+        dst[i * 4 + 1] = rgba[i * 4 + 1];
+        dst[i * 4 + 2] = rgba[i * 4 + 0];
+        dst[i * 4 + 3] = rgba[i * 4 + 3];
+    }
+    HBITMAP mask = CreateBitmap(width, height, 1, 1, NULL);
+    ICONINFO info = {TRUE, 0, 0, mask, color};
+    HICON icon = CreateIconIndirect(&info);
+    DeleteObject(color);
+    DeleteObject(mask);
+    return icon;
+}
+
+int zant_tray_set(const uint8_t *rgba, int width, int height, float scale, int template_image,
+                  const char *tooltip, const ZantTrayItem *items, int count) {
+    (void)scale;
+    (void)template_image;
+    HWND hwnd = zant_app_window();
+    if (!hwnd) return 0;
+    if (!g_tray_added) {
+        memset(&g_tray, 0, sizeof(g_tray));
+        g_tray.cbSize = sizeof(g_tray);
+        g_tray.hWnd = hwnd;
+        g_tray.uID = 1;
+        g_tray.uCallbackMessage = ZANT_WM_TRAY;
+    }
+    g_tray.uFlags = NIF_MESSAGE | NIF_TIP;
+    if (rgba && width > 0 && height > 0) {
+        HICON icon = zant_icon_from_rgba(rgba, width, height);
+        if (icon) {
+            if (g_tray.hIcon) DestroyIcon(g_tray.hIcon);
+            g_tray.hIcon = icon;
+        }
+    }
+    if (g_tray.hIcon) g_tray.uFlags |= NIF_ICON;
+    g_tray.szTip[0] = 0;
+    if (tooltip) MultiByteToWideChar(CP_UTF8, 0, tooltip, -1, g_tray.szTip, (int)(sizeof(g_tray.szTip) / sizeof(WCHAR)) - 1);
+    if (g_tray_menu) DestroyMenu(g_tray_menu);
+    g_tray_menu = count > 0 ? CreatePopupMenu() : NULL;
+    for (int i = 0; i < count; i++) {
+        const ZantTrayItem *it = &items[i];
+        if (it->separator) {
+            AppendMenuW(g_tray_menu, MF_SEPARATOR, 0, NULL);
+            continue;
+        }
+        wchar_t *text = zant_widen(it->title ? it->title : "");
+        UINT flags = MF_STRING | (it->checked ? MF_CHECKED : 0) | (it->disabled ? MF_GRAYED : 0);
+        AppendMenuW(g_tray_menu, flags, (UINT_PTR)(it->id + 1), text ? text : L"");
+        free(text);
+    }
+    const BOOL ok = Shell_NotifyIconW(g_tray_added ? NIM_MODIFY : NIM_ADD, &g_tray);
+    if (ok) g_tray_added = true;
+    return ok ? 1 : 0;
+}
+
+void zant_tray_remove(void) {
+    if (g_tray_added) Shell_NotifyIconW(NIM_DELETE, &g_tray);
+    g_tray_added = false;
+    if (g_tray.hIcon) DestroyIcon(g_tray.hIcon);
+    g_tray.hIcon = NULL;
+    if (g_tray_menu) DestroyMenu(g_tray_menu);
+    g_tray_menu = NULL;
+}
+
+static UINT zant_vk_from_key(int key) {
+    if (key >= 'a' && key <= 'z') return (UINT)('A' + (key - 'a'));
+    if (key >= 'A' && key <= 'Z') return (UINT)key;
+    if (key >= '0' && key <= '9') return (UINT)key;
+    if (key >= ZANT_KEY_F1 && key <= ZANT_KEY_F12) return (UINT)(VK_F1 + (key - ZANT_KEY_F1));
+    switch (key) {
+        case ZANT_KEY_SPACE: return VK_SPACE;
+        case ZANT_KEY_ENTER: return VK_RETURN;
+        case ZANT_KEY_TAB: return VK_TAB;
+        case ZANT_KEY_ESCAPE: return VK_ESCAPE;
+        case ZANT_KEY_LEFT: return VK_LEFT;
+        case ZANT_KEY_RIGHT: return VK_RIGHT;
+        case ZANT_KEY_UP: return VK_UP;
+        case ZANT_KEY_DOWN: return VK_DOWN;
+        default: break;
+    }
+    if (key > 0x20 && key < 0x7f) {
+        const SHORT scan = VkKeyScanW((WCHAR)key);
+        if (scan != -1 && !(scan & 0x0100)) return (UINT)(scan & 0xff); /* no Shift needed */
+    }
+    return 0;
+}
+
+int zant_hotkey_register(int id, int key, int modifiers) {
+    HWND hwnd = zant_app_window();
+    if (!hwnd) return 0;
+    UnregisterHotKey(hwnd, id);
+    if (!(modifiers & (ZANT_MOD_CONTROL | ZANT_MOD_ALT | ZANT_MOD_META))) return 0;
+    const UINT vk = zant_vk_from_key(key);
+    if (!vk) return 0;
+    UINT mods = MOD_NOREPEAT;
+    if (modifiers & ZANT_MOD_CONTROL) mods |= MOD_CONTROL;
+    if (modifiers & ZANT_MOD_ALT) mods |= MOD_ALT;
+    if (modifiers & ZANT_MOD_SHIFT) mods |= MOD_SHIFT;
+    if (modifiers & ZANT_MOD_META) mods |= MOD_WIN;
+    return RegisterHotKey(hwnd, id, mods, vk) ? 1 : 0;
+}
+
+void zant_hotkey_unregister(int id) {
+    if (g_app_hwnd) UnregisterHotKey(g_app_hwnd, id);
 }

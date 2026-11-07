@@ -32,6 +32,9 @@ pub const select = @import("components/select.zig");
 pub const store = @import("store.zig");
 pub const default_theme = @import("theme/default.zig");
 pub const launch = @import("launch.zig");
+/// Extra windows (panels), tray / status bar icon, global hotkeys, quit,
+/// Dock visibility, clipboard change detection.
+pub const desktop = @import("desktop.zig");
 
 pub const WindowOptions = platform.WindowOptions;
 
@@ -44,6 +47,7 @@ test {
     _ = math;
     _ = keys;
     _ = paths;
+    _ = desktop;
 }
 
 pub const math = @import("math/mod.zig");

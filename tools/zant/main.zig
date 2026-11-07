@@ -3,7 +3,7 @@ const build_options = @import("build_options");
 const Io = std.Io;
 const Dir = Io.Dir;
 const is_windows = @import("builtin").os.tag == .windows;
-const png = @import("png.zig");
+const png = @import("png");
 
 var child_environ: ?*std.process.Environ.Map = null;
 

@@ -1,7 +1,7 @@
 //! Build-time icon tool (run by `configureApp` in Zant UI's build.zig):
 //!   zant-icon ico <app-windows.png> <out.ico>   Windows app .ico (16–256)
 const std = @import("std");
-const png = @import("png.zig");
+const png = @import("png");
 
 pub fn main(init: std.process.Init) !void {
     const gpa = init.gpa;

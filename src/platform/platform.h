@@ -1,6 +1,9 @@
-/* Zant UI platform C ABI: one window per process, implemented by
- * src/platform/macos/window.m (AppKit) and src/platform/windows/window.c
- * (Win32). Coordinates are logical points; dpr converts to pixels. */
+/* Zant UI platform C ABI, implemented by src/platform/macos/window.m
+ * (AppKit) and src/platform/windows/window.c (Win32). An app has a main
+ * window (the first one created; closing it ends the app) and may open more
+ * (panels, tool windows) on the UI thread; zant_window_run runs the event
+ * loop for all of them. Coordinates are logical points; dpr converts to
+ * pixels. */
 #ifndef ZANT_PLATFORM_H
 #define ZANT_PLATFORM_H
 
@@ -29,7 +32,9 @@ enum {
     ZANT_EVENT_WINDOW_BLUR = 12,
     ZANT_EVENT_WINDOW_CLOSE = 13,
     ZANT_EVENT_SCROLL = 14,
-    /* Close button / ⌘W / Quit / Alt+F4: the handler returns non-zero to veto. */
+    /* Close button / ⌘W / Quit / Alt+F4: the handler returns non-zero to veto.
+       ZantEvent.button is 1 when the whole app is asked to quit (⌘Q, the
+       Dock menu, logout) rather than this window closed. */
     ZANT_EVENT_WINDOW_CLOSE_REQUEST = 15,
 };
 
@@ -47,6 +52,9 @@ enum {
     ZANT_KEY_ENTER = 0x110B,
     ZANT_KEY_PAGE_UP = 0x110C,
     ZANT_KEY_PAGE_DOWN = 0x110D,
+    ZANT_KEY_SPACE = 0x20, /* also delivered as ' ' */
+    ZANT_KEY_F1 = 0x1110,  /* F1 … F12 = ZANT_KEY_F1 + 0 … 11 */
+    ZANT_KEY_F12 = 0x111B,
 };
 
 enum {
@@ -67,6 +75,25 @@ enum {
     ZANT_WINDOW_NATIVE = 0,
     ZANT_WINDOW_HIDDEN_TITLEBAR = 1,
     ZANT_WINDOW_BORDERLESS = 2,
+    /* Floating panel (a quick-access popup): no title bar, system rounded
+       corners and shadow, above normal windows, no Dock / taskbar entry; on
+       macOS it takes keyboard focus without activating the app, so the app
+       the user was in stays frontmost. */
+    ZANT_WINDOW_PANEL = 3,
+};
+
+/* zant_window_place: where in the work area (screen minus menu bar, Dock and
+   taskbar) of the screen under the pointer. */
+enum {
+    ZANT_PLACE_CENTER = 0,
+    ZANT_PLACE_TOP_LEFT = 1,
+    ZANT_PLACE_TOP_RIGHT = 2,
+    ZANT_PLACE_BOTTOM_LEFT = 3,
+    ZANT_PLACE_BOTTOM_RIGHT = 4,
+    /* the corner by the status bar / tray icons: top right on macOS (under
+       the menu bar), bottom right on Windows (above the taskbar; follows a
+       taskbar moved to another edge) */
+    ZANT_PLACE_TRAY_CORNER = 5,
 };
 
 enum {
@@ -103,6 +130,8 @@ typedef struct ZantWindowOptions {
        default); the traffic lights are centred in it on macOS, the drawn
        caption buttons fill it on Windows. */
     float titlebar_height;
+    /* create without showing it (zant_window_set_visible / activate later) */
+    int hidden;
 } ZantWindowOptions;
 
 typedef struct ZantEvent {
@@ -166,7 +195,64 @@ void zant_window_close(ZantWindow *window);
 /* 1 while the window is the active (key) window. */
 int zant_window_is_active(ZantWindow *window);
 
+/* Shown / hidden without closing (the window keeps its state). */
+void zant_window_set_visible(ZantWindow *window, int visible);
+int zant_window_is_visible(ZantWindow *window);
+/* Shows the window, brings it to the front and gives it keyboard focus
+   (activating the app, except for ZANT_WINDOW_PANEL on macOS). */
+void zant_window_activate(ZantWindow *window);
+/* Moves the window to a ZANT_PLACE_* spot, `margin` points from the edges. */
+void zant_window_place(ZantWindow *window, int place, float margin);
+
+/* Ends the event loop (all windows close) without asking the app again. */
+void zant_app_quit(void);
+/* macOS: Dock icon and menu bar (regular app) or neither (status bar app);
+   Windows: no-op (the taskbar shows visible windows). */
+void zant_app_set_dock_visible(int visible);
+
+/* App-level events, delivered on the UI thread. */
+enum {
+    ZANT_APP_EVENT_TRAY_CLICK = 1, /* Windows: left click on the tray icon */
+    ZANT_APP_EVENT_TRAY_MENU = 2,  /* a tray / status bar menu item: id */
+    ZANT_APP_EVENT_HOTKEY = 3,     /* a global hotkey: id */
+    ZANT_APP_EVENT_REOPEN = 4,     /* macOS: Dock icon clicked (or app reopened) */
+};
+typedef struct ZantAppEvent {
+    int type;
+    int id;
+} ZantAppEvent;
+void zant_app_set_handler(void (*handler)(void *userdata, const ZantAppEvent *event), void *userdata);
+
+/* Tray icon (Windows notification area) / status bar item (macOS menu bar).
+   rgba: straight-alpha RGBA, width × height pixels, `scale` pixels per
+   point (macOS draws it `width / scale` points wide). template_image
+   (macOS): only alpha is used, tinted for the menu bar. Items make the menu
+   (macOS: shown on click; Windows: on right click; a left click sends
+   ZANT_APP_EVENT_TRAY_CLICK). Calling it again replaces icon and menu. */
+typedef struct ZantTrayItem {
+    const char *title; /* UTF-8; NULL or "" with separator */
+    int id;
+    int separator;
+    int checked;
+    int disabled;
+} ZantTrayItem;
+int zant_tray_set(const uint8_t *rgba, int width, int height, float scale, int template_image,
+                  const char *tooltip, const ZantTrayItem *items, int count);
+void zant_tray_remove(void);
+/* Pixel size of the tray icon on this display (Windows: the small icon
+   size, 16 at 100%; macOS: 44, a 22 pt menu bar icon at @2x). */
+int zant_tray_icon_pixels(void);
+
+/* System-wide hotkey (works while other apps are frontmost): key is a
+   ZANT_KEY_* or a lowercase ASCII letter / digit, modifiers ZANT_MOD_*
+   (at least one of control / alt / meta). Returns 0 when the combination is
+   taken by another app or not supported. */
+int zant_hotkey_register(int id, int key, int modifiers);
+void zant_hotkey_unregister(int id);
+
 int zant_clipboard_set_text(const char *text, size_t length);
+/* Changes each time anything (any app) writes to the clipboard. */
+uint64_t zant_clipboard_change_count(void);
 /* Returns the number of UTF-8 bytes required, including the trailing NUL. When
  * out is non-NULL, copies up to capacity bytes including the NUL. */
 size_t zant_clipboard_get_text(char *out, size_t capacity);
