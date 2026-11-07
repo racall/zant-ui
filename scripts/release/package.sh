@@ -8,7 +8,8 @@
 #   bin/zant                 the CLI (finds zant-ui/ next to bin/)
 #   zant-ui/                 the committed sources (git archive), plus
 #   zant-ui/third_party/     the pinned Skia libraries and headers
-#   zant-ui/VERSION
+#   zant-ui/.zant-version    (not VERSION: the root is an include path, and
+#                            macOS would find it for C++ <version>)
 set -euo pipefail
 
 VERSION="${1:?usage: package.sh <version> [out-dir]}"
@@ -31,7 +32,7 @@ cp zig-out/bin/zant "$stage/bin/zant"
 git archive --format=tar HEAD | tar -x -C "$stage/zant-ui"
 cp -R third_party/skia "$stage/zant-ui/third_party/skia"
 rsync -a --exclude .git third_party/skia-headers/ "$stage/zant-ui/third_party/skia-headers/"
-echo "$VERSION" >"$stage/zant-ui/VERSION"
+echo "$VERSION" >"$stage/zant-ui/.zant-version"
 
 mkdir -p "$OUT"
 tar -czf "$OUT/$NAME" -C "$stage" bin zant-ui

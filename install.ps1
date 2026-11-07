@@ -86,7 +86,7 @@ try {
     $ui = Join-Path $ZantHome 'zant-ui'
     $bin = Join-Path $ZantHome 'bin'
     $exe = Join-Path $bin 'zant.exe'
-    $installed = if (Test-Path (Join-Path $ui 'VERSION')) { (Get-Content -Raw (Join-Path $ui 'VERSION')).Trim() } else { '' }
+    $installed = if (Test-Path (Join-Path $ui '.zant-version')) { (Get-Content -Raw (Join-Path $ui '.zant-version')).Trim() } else { '' }
     if ($installed -eq $latest -and (Test-Path $exe) -and $env:ZANT_FORCE -ne '1') {
         Ok "zant $latest 已经是最新"
     } else {

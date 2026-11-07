@@ -86,7 +86,7 @@ fi
 latest="$(curl -fsSL --retry 3 "$DOWNLOAD/version.txt" 2>/dev/null | tr -d '[:space:]')" ||
   die "无法获取版本信息：$DOWNLOAD/version.txt"
 [ -n "$latest" ] || die "无法获取版本信息：$DOWNLOAD/version.txt"
-installed="$(tr -d '[:space:]' <"$ZANT_HOME/zant-ui/VERSION" 2>/dev/null || true)"
+installed="$(cat "$ZANT_HOME/zant-ui/.zant-version" 2>/dev/null | tr -d '[:space:]' || true)"
 if [ "$installed" = "$latest" ] && [ -x "$ZANT_HOME/bin/zant" ] && [ "${ZANT_FORCE:-0}" != 1 ]; then
   ok "zant ${latest} 已经是最新"
 else

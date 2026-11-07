@@ -10,7 +10,7 @@
 #   zant-ui/third_party/                 Skia, headers, PDFium, fonts and
 #   zant-ui/third_party/zant-skia-prebuilt/  zant_skia.dll built here with the
 #                                        MSVC runtime, so app developers need no Visual Studio
-#   zant-ui/VERSION
+#   zant-ui/.zant-version
 param([Parameter(Mandatory = $true)][string]$Version, [string]$Out = 'dist')
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -46,7 +46,7 @@ try {
     foreach ($dll in 'vcruntime140.dll', 'vcruntime140_1.dll', 'msvcp140.dll') {
         Copy-Item (Join-Path $env:SystemRoot "System32/$dll") $prebuilt
     }
-    Set-Content -NoNewline -Path (Join-Path $ui 'VERSION') -Value $Version
+    Set-Content -NoNewline -Path (Join-Path $ui '.zant-version') -Value $Version
 
     New-Item -ItemType Directory -Force $Out | Out-Null
     $zip = Join-Path (Resolve-Path $Out) $Name

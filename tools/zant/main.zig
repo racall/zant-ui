@@ -1127,8 +1127,12 @@ fn cmdCreate(allocator: std.mem.Allocator, io: Io, args: []const [:0]const u8) !
     ok("app.config.json / src/app_config.zig 已生成", .{});
     ok("项目已生成: {s}", .{target});
     std.debug.print("  " ++ Color.dim ++ "macOS 专属设置（沙盒、签名）在 Mac 上首次 zant run / zant package 时补充到 app.config.json" ++ Color.reset ++ "\n", .{});
-    const sep = if (is_windows) "\\" else "/";
-    std.debug.print("\n下一步：\n  cd {s}\n  {s}{s}zig-out{s}bin{s}zant run\n\n", .{ name, zroot, sep, sep, sep });
+    if (release_home != null) {
+        std.debug.print("\n下一步：\n  cd {s}\n  zant run\n\n", .{name});
+    } else {
+        const sep = if (is_windows) "\\" else "/";
+        std.debug.print("\n下一步：\n  cd {s}\n  {s}{s}zig-out{s}bin{s}zant run\n\n", .{ name, zroot, sep, sep, sep });
+    }
 }
 
 /// Path of Zant UI for build.zig.zon, which only accepts paths relative to
