@@ -68,6 +68,7 @@ fn ok(comptime fmt: []const u8, args: anytype) void {
 
 fn fail(comptime fmt: []const u8, args: anytype) noreturn {
     std.debug.print("\n  " ++ Color.red ++ "✗" ++ Color.reset ++ " " ++ fmt ++ "\n\n", args);
+    console.deinit();
     std.process.exit(1);
 }
 
@@ -108,31 +109,89 @@ fn runCapture(allocator: std.mem.Allocator, io: Io, argv: []const []const u8) !s
     });
 }
 
-/// One byte from stdin (0 at end of input).
-fn readStdin(buf: []u8) usize {
-    if (is_windows) {
-        const win = struct {
-            extern "kernel32" fn GetStdHandle(id: u32) callconv(.winapi) ?*anyopaque;
-            extern "kernel32" fn ReadFile(file: ?*anyopaque, buffer: [*]u8, len: u32, read: *u32, overlapped: ?*anyopaque) callconv(.winapi) c_int;
-        };
-        var read: u32 = 0;
-        const STD_INPUT_HANDLE: u32 = @bitCast(@as(i32, -10));
-        if (win.ReadFile(win.GetStdHandle(STD_INPUT_HANDLE), buf.ptr, @intCast(buf.len), &read, null) == 0) return 0;
-        return read;
+/// Windows console: UTF-8 output (the console default is the OEM code page,
+/// e.g. 936 on Chinese systems, which shows UTF-8 text as mojibake) and ANSI
+/// colors (off by default in conhost). Restored on exit: the code page belongs
+/// to the console window, not to this process.
+const console = struct {
+    const win = struct {
+        extern "kernel32" fn GetStdHandle(id: u32) callconv(.winapi) ?*anyopaque;
+        extern "kernel32" fn GetConsoleOutputCP() callconv(.winapi) u32;
+        extern "kernel32" fn SetConsoleOutputCP(cp: u32) callconv(.winapi) c_int;
+        extern "kernel32" fn GetConsoleMode(h: ?*anyopaque, mode: *u32) callconv(.winapi) c_int;
+        extern "kernel32" fn SetConsoleMode(h: ?*anyopaque, mode: u32) callconv(.winapi) c_int;
+        extern "kernel32" fn ReadConsoleW(h: ?*anyopaque, buf: [*]u16, len: u32, read: *u32, control: ?*anyopaque) callconv(.winapi) c_int;
+        extern "kernel32" fn SetConsoleCtrlHandler(handler: ?*const fn (u32) callconv(.winapi) c_int, add: c_int) callconv(.winapi) c_int;
+        extern "kernel32" fn ReadFile(file: ?*anyopaque, buffer: [*]u8, len: u32, read: *u32, overlapped: ?*anyopaque) callconv(.winapi) c_int;
+    };
+    const STD_INPUT_HANDLE: u32 = @bitCast(@as(i32, -10));
+    const STD_OUTPUT_HANDLE: u32 = @bitCast(@as(i32, -11));
+    const STD_ERROR_HANDLE: u32 = @bitCast(@as(i32, -12));
+    const ENABLE_VIRTUAL_TERMINAL_PROCESSING: u32 = 0x0004;
+    var saved_cp: u32 = 0;
+
+    fn init() void {
+        if (!is_windows) return;
+        saved_cp = win.GetConsoleOutputCP();
+        if (saved_cp != 0 and saved_cp != 65001) _ = win.SetConsoleOutputCP(65001);
+        for ([_]u32{ STD_OUTPUT_HANDLE, STD_ERROR_HANDLE }) |id| {
+            const h = win.GetStdHandle(id);
+            var mode: u32 = 0;
+            if (win.GetConsoleMode(h, &mode) != 0) _ = win.SetConsoleMode(h, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+        }
+        // Ctrl+C (`zant run --watch` ends that way) skips deferred cleanup
+        _ = win.SetConsoleCtrlHandler(onCtrl, 1);
     }
-    return std.posix.read(std.posix.STDIN_FILENO, buf) catch 0;
-}
+
+    fn onCtrl(_: u32) callconv(.winapi) c_int {
+        deinit();
+        return 0; // default handling (exit) continues
+    }
+
+    fn deinit() void {
+        if (!is_windows) return;
+        if (saved_cp != 0 and saved_cp != 65001) _ = win.SetConsoleOutputCP(saved_cp);
+    }
+
+    /// One line of input (without the line break) as UTF-8. A console is read
+    /// as UTF-16 (ReadFile returns no bytes for non-ASCII input under code
+    /// page 65001 and OEM bytes otherwise); pipes are read as UTF-8 bytes.
+    fn readLine(buf: []u8) []const u8 {
+        if (is_windows) {
+            const h = win.GetStdHandle(STD_INPUT_HANDLE);
+            var mode: u32 = 0;
+            if (win.GetConsoleMode(h, &mode) != 0) {
+                var wide: [512]u16 = undefined;
+                var read: u32 = 0;
+                if (win.ReadConsoleW(h, &wide, wide.len, &read, null) == 0) return buf[0..0];
+                var line: []const u16 = wide[0..read];
+                while (line.len > 0 and (line[line.len - 1] == '\n' or line[line.len - 1] == '\r')) line = line[0 .. line.len - 1];
+                const n = std.unicode.utf16LeToUtf8(buf, line) catch 0;
+                return buf[0..n];
+            }
+        }
+        var n: usize = 0;
+        while (n < buf.len) {
+            if (readByte(buf[n .. n + 1]) == 0 or buf[n] == '\n') break;
+            n += 1;
+        }
+        return std.mem.trimEnd(u8, buf[0..n], "\r");
+    }
+
+    fn readByte(buf: []u8) usize {
+        if (is_windows) {
+            var read: u32 = 0;
+            if (win.ReadFile(win.GetStdHandle(STD_INPUT_HANDLE), buf.ptr, @intCast(buf.len), &read, null) == 0) return 0;
+            return read;
+        }
+        return std.posix.read(std.posix.STDIN_FILENO, buf) catch 0;
+    }
+};
 
 fn prompt(allocator: std.mem.Allocator, label: []const u8, default: []const u8) ![]u8 {
     std.debug.print("{s} [{s}]: ", .{ label, default });
-    var buf: [1024]u8 = undefined;
-    var n: usize = 0;
-    while (n < buf.len) {
-        const r = readStdin(buf[n .. n + 1]);
-        if (r == 0 or buf[n] == '\n') break;
-        n += 1;
-    }
-    const value = std.mem.trimEnd(u8, buf[0..n], "\r");
+    var buf: [2048]u8 = undefined;
+    const value = std.mem.trim(u8, console.readLine(&buf), " ");
     return allocator.dupe(u8, if (value.len == 0) default else value);
 }
 
@@ -140,14 +199,8 @@ fn promptYesNo(allocator: std.mem.Allocator, label: []const u8, default: bool) !
     const def = if (default) "Y/n" else "y/N";
     while (true) {
         std.debug.print("{s} [{s}]: ", .{ label, def });
-        var buf: [16]u8 = undefined;
-        var n: usize = 0;
-        while (n < buf.len) {
-            const r = readStdin(buf[n .. n + 1]);
-            if (r == 0 or buf[n] == '\n') break;
-            n += 1;
-        }
-        const v = std.mem.trim(u8, buf[0..n], " \r\n");
+        var buf: [64]u8 = undefined;
+        const v = std.mem.trim(u8, console.readLine(&buf), " \r\n");
         if (v.len == 0) return default;
         if (std.ascii.eqlIgnoreCase(v, "y") or std.ascii.eqlIgnoreCase(v, "yes")) return true;
         if (std.ascii.eqlIgnoreCase(v, "n") or std.ascii.eqlIgnoreCase(v, "no")) return false;
@@ -970,6 +1023,8 @@ pub fn main(init: std.process.Init) !void {
     defer arena.deinit();
     const allocator = arena.allocator();
     const io = init.io;
+    console.init();
+    defer console.deinit();
     child_environ = init.environ_map;
     if (init.environ_map.get("ZIG_GLOBAL_CACHE_DIR") == null) {
         const cache = try std.fmt.allocPrint(allocator, "{s}/.zig-global-cache", .{build_options.zant_root});
