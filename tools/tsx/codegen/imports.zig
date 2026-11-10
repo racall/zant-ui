@@ -91,6 +91,8 @@ pub fn process(g: *Generator, module: ast.Module, project: []const NamedModule) 
                 try importComponent(g, n, f, scope, @import("stateful.zig").stateful(project, target, f));
             } else if (@import("stores.zig").exported(target, n.imported.name)) |store| {
                 try @import("stores.zig").import(g, n, store, scope);
+            } else if (@import("windows.zig").exported(target, n.imported.name) != null) {
+                try @import("windows.zig").import(g, n, scope);
             } else {
                 return core.fail(g, n.imported.loc, "`{s}` is not exported by `{s}`", .{ n.imported.name, imp.source });
             }

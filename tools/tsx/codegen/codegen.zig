@@ -85,6 +85,8 @@ pub const Generator = struct {
     functions: std.ArrayList(@import("functions.zig").Function) = .empty,
     /// Stores declared in or imported into this file (`stores.zig`).
     stores: std.ArrayList(@import("stores.zig").Store) = .empty,
+    /// Windows declared in or imported into this file (`windows.zig`).
+    windows: std.ArrayList(@import("windows.zig").Window) = .empty,
     /// Scrolling containers around the element being emitted (`nesting.zig`).
     scroll_depth: usize = 0,
     /// Array callbacks / list rows around the element being emitted: a
@@ -284,7 +286,8 @@ pub fn generate(
             const hook_import = zig_text.eq(n.imported.name, "useState") or zig_text.eq(n.imported.name, "useTheme") or
                 zig_text.eq(n.imported.name, "List") or @import("hooks.zig").extraHook(n.imported.name) or
                 zig_text.eq(n.imported.name, "createStore") or zig_text.eq(n.imported.name, "useStore") or
-                @import("app_hooks.zig").isAppHook(n.imported.name) or zig_text.eq(n.imported.name, "KeyEvent");
+                @import("app_hooks.zig").isAppHook(n.imported.name) or zig_text.eq(n.imported.name, "KeyEvent") or
+                zig_text.eq(n.imported.name, "createWindow");
             if (!hook_import and tag == null and !types.numericName(n.imported.name)) return core.fail(
                 &g,
                 n.imported.loc,
@@ -343,6 +346,7 @@ pub fn generate(
     const globals = try std.mem.concat(arena, u8, &.{ try @import("globals.zig").collect(&g, plain), store_code });
     try @import("functions.zig").collect(&g, module);
     try components.collect(&g, module, root);
+    const window_code = try @import("windows.zig").collect(&g, module.consts);
     const function_code = try @import("functions.zig").emitAll(&g);
     // children first, then the root; the header needs every compound type
     var bodies: std.ArrayList(u8) = .empty;
@@ -365,6 +369,7 @@ pub fn generate(
         try @import("globals.zig").declarations(&g),
         globals,
     }));
+    try out.appendSlice(arena, window_code);
     try out.appendSlice(arena, function_code);
     try out.appendSlice(arena, bodies.items);
     return scope.renameModules(&g, out.items);

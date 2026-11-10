@@ -463,6 +463,27 @@ useKeyDown((e: KeyEvent) => {      // 全局按键，在获得焦点的控件之
   `mod` 是平台的命令键（macOS ⌘、Windows Ctrl），另有 `shift` `alt` `ctrl` `meta` `repeat`。
 - 回调像事件处理函数一样运行（读状态快照、调 setter、读写 store），不能读渲染体里的局部变量。
 
+### 多窗口：`createWindow`
+
+```tsx
+// App.tsx
+export const panel = createWindow(Panel, { title: "剪贴板", style: "panel", width: 380, height: 480, resizable: false });
+panel.toggle();                      // 也有 show / hide / activate / visible() / place("trayCorner", 12) / focus("search")
+
+// Panel.tsx：没有 props 的组件；可以 import { panel } from "./App"
+export function Panel() {
+  useKeyDown((e: KeyEvent) => { if (e.key === "Escape") { panel.hide(); return true; } return false; });
+  useWindowFocus((focused: boolean) => { if (!focused) panel.hide(); });
+  …
+}
+```
+
+- 窗口在第一次使用时打开（开始是隐藏的），之后一直保留，组件的状态也跟着保留；窗口之间用 store 共享数据。
+- 窗口组件里的 `useKeyDown`、`useCloseRequest`、`useWindowFocus` 就是这个窗口的（`useWindowFocus` 只在窗口组件里有效）。
+- 选项：`title`、`style`（`"native"` `"hidden-titlebar"` `"borderless"` `"panel"`）、`width` `height` `minWidth` `minHeight`、
+  `background`、`resizable`、`alwaysOnTop`、`movableByBackground`、`center`、`titlebarHeight`。
+  位置：`"center"` `"topLeft"` `"topRight"` `"bottomLeft"` `"bottomRight"` `"trayCorner"`（菜单栏 / 托盘图标旁边）。
+
 ### 从 Zig 导入函数
 
 项目里的 TSX 可以从相对路径的 `.zig` 文件按名导入顶层 `pub fn`，也支持 `as` 别名：

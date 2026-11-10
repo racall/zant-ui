@@ -56,6 +56,7 @@ test {
     _ = @import("tsx_hooks.zig");
     _ = @import("tsx_text.zig");
     _ = @import("tsx_app.zig");
+    _ = @import("tsx_window.zig");
     _ = @import("tsx_strings.zig");
 }
 

@@ -281,6 +281,7 @@ pub fn callValue(g: *Generator, c: *Context, loc: ast.Loc, call: ast.Call, expec
     if (try @import("components.zig").tryCall(g, c, loc, call)) |value| return value;
     if (try @import("zig_imports.zig").tryCall(g, c, loc, call)) |value| return value;
     if (try @import("stores.zig").tryCall(g, c, loc, call)) |value| return value;
+    if (try @import("windows.zig").tryCall(g, c, loc, call)) |value| return value;
     if (try @import("functions.zig").tryCall(g, c, loc, call)) |value| return value;
     if (try @import("builtins.zig").tryCall(g, c, loc, call)) |value| return value;
     if (call.callee.data == .member) {

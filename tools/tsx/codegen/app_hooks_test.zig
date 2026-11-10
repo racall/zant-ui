@@ -7,9 +7,9 @@ const End = "  return <View/>;\n}\n";
 test "app hook diagnostics" {
     const cases = [_][2][]const u8{
         .{
-            "function Child() {\n  ~useCloseRequest(() => true);\n  return <View/>;\n}\n" ++
-                App ++ "  return <Child/>;\n}\n",
-            "useCloseRequest belongs to the root component",
+            "function Child({ n }: { n: number }) {\n  ~useCloseRequest(() => true);\n  return <View/>;\n}\n" ++
+                App ++ "  return <Child n={1}/>;\n}\n",
+            "useCloseRequest belongs to the root component or a window's component",
         },
         .{ App ++ "  ~useKeyDown(1);\n" ++ End, "useKeyDown takes one function" },
         .{

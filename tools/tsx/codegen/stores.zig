@@ -40,7 +40,10 @@ fn isCreate(e: *const ast.Expr) bool {
 /// The file-level constants that are not stores (for `globals.collect`).
 pub fn plainConstants(g: *Generator, constants: []const ast.TopConst) Error![]const ast.TopConst {
     var plain: std.ArrayList(ast.TopConst) = .empty;
-    for (constants) |constant| if (!isCreate(constant.value)) try plain.append(g.a, constant);
+    for (constants) |constant| {
+        if (isCreate(constant.value) or @import("windows.zig").isCreate(constant.value)) continue;
+        try plain.append(g.a, constant);
+    }
     return plain.items;
 }
 

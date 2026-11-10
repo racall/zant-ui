@@ -21,6 +21,7 @@ pub fn run(init: std.process.Init, comptime Root: type, comptime config: type) !
     }
     const App = Shell(Root);
     const forced = forcedTheme(init.environ_map);
+    forced_theme = forced;
     try launch.run(init.gpa, App{ .forced = forced }, App.render, .{
         .title = if (@hasDecl(config, "title")) config.title else "Zant UI",
         .window = if (@hasDecl(config, "window")) config.window else .{},
@@ -110,6 +111,14 @@ fn keyName(key: events.Key) []const u8 {
         .page_down => "PageDown",
         .function => |n| std.fmt.allocPrint(ui.frameAllocator(), "F{d}", .{n}) catch "F",
     };
+}
+
+/// `ZANT_THEME` as read by `run`, for the app's other windows.
+var forced_theme: ?tokens.Theme = null;
+
+/// The theme every window of the app uses now.
+pub fn currentTheme() tokens.Theme {
+    return forced_theme orelse systemTheme();
 }
 
 pub fn systemTheme() tokens.Theme {

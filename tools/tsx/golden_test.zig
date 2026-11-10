@@ -4,9 +4,9 @@ const compiler = @import("compile.zig");
 
 test "TSX golden files match formatted compiler output" {
     inline for (.{
-        "counter",  "layout",    "text",  "events",      "conditional", "components", "todos", "arrays",
-        "children", "theme",     "list",  "local_state", "hooks",       "strings",    "store", "nesting",
-        "widgets",  "functions", "loops", "spread",      "app_hooks",   "builtins",
+        "counter",  "layout",    "text",  "events",      "conditional", "components", "todos",   "arrays",
+        "children", "theme",     "list",  "local_state", "hooks",       "strings",    "store",   "nesting",
+        "widgets",  "functions", "loops", "spread",      "app_hooks",   "builtins",   "windows",
     }) |name| {
         var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
         defer arena.deinit();

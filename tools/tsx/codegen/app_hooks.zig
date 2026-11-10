@@ -23,14 +23,16 @@ const Error = core.Error;
 const Hook = struct {
     name: []const u8,
     method: []const u8,
-    /// Takes the key event.
-    key: bool = false,
+    /// What the callback takes.
+    param: enum { none, key, focused } = .none,
+    returns: Type = .boolean,
 };
 
 const hooks = [_]Hook{
     .{ .name = "useCloseRequest", .method = "onCloseRequest" },
     .{ .name = "useQuitRequest", .method = "onQuitRequest" },
-    .{ .name = "useKeyDown", .method = "onKey", .key = true },
+    .{ .name = "useKeyDown", .method = "onKey", .param = .key },
+    .{ .name = "useWindowFocus", .method = "onFocus", .param = .focused, .returns = .void_ },
 };
 
 fn find(name: []const u8) ?Hook {
@@ -60,21 +62,27 @@ pub fn keyEventType(g: *Generator) Error!Type {
 pub fn collect(g: *Generator, e: *ast.Expr) Error!void {
     const call = e.data.call;
     const hook = find(call.callee.data.ident).?;
-    if (g.current_component != null) return core.fail(
-        g,
-        e.loc,
-        "{s} belongs to the root component (the app); call it there",
-        .{hook.name},
-    );
+    if (g.current_component) |comp| if (comp.props != null and model.info(g, comp.props.?).?.fields.len > 0) {
+        return core.fail(
+            g,
+            e.loc,
+            "{s} belongs to the root component or a window's component (no props); call it there",
+            .{hook.name},
+        );
+    };
     if (call.args.len != 1 or call.args[0].data != .arrow) {
         return core.fail(g, e.loc, "{s} takes one function", .{hook.name});
     }
     const f = call.args[0].data.arrow;
-    if (f.params.len > @intFromBool(hook.key)) return core.fail(
+    if (f.params.len > @intFromBool(hook.param != .none)) return core.fail(
         g,
         f.loc,
         "the {s} callback takes {s}",
-        .{ hook.name, if (hook.key) "(e: KeyEvent)" else "no parameters" },
+        .{ hook.name, switch (hook.param) {
+            .none => "no parameters",
+            .key => "(e: KeyEvent)",
+            .focused => "(focused: boolean)",
+        } },
     );
     if (scope.methodIndex(g, hook.method) != null) return core.fail(
         g,
@@ -82,11 +90,15 @@ pub fn collect(g: *Generator, e: *ast.Expr) Error!void {
         "{s} is used twice, or `{s}` is also a function of this component",
         .{ hook.name, hook.method },
     );
-    const params: ?[]const Type = if (hook.key) try g.a.dupe(Type, &.{try keyEventType(g)}) else null;
+    const params: ?[]const Type = switch (hook.param) {
+        .none => null,
+        .key => try g.a.dupe(Type, &.{try keyEventType(g)}),
+        .focused => try g.a.dupe(Type, &.{.boolean}),
+    };
     try g.methods.append(g.a, .{
         .name = hook.method,
         .func = f,
-        .ret = .boolean,
+        .ret = hook.returns,
         .callback_params = params,
     });
 }
