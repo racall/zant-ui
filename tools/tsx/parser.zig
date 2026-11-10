@@ -158,7 +158,14 @@ pub const Parser = struct {
                 return self.fail(self.cur.start, "only imports, functions, constants and types are supported at the top level", .{});
             }
         }
-        return .{ .imports = m.imports.items, .functions = m.functions.items, .types = m.types.items, .consts = m.consts.items };
+        const module: ast.Module = .{
+            .imports = m.imports.items,
+            .functions = m.functions.items,
+            .types = m.types.items,
+            .consts = m.consts.items,
+        };
+        @import("react_compat.zig").normalize(module);
+        return module;
     }
 
     const ModuleBuilder = struct {
@@ -228,46 +235,9 @@ pub const Parser = struct {
         try m.functions.append(self.arena, .{ .func = func, .exported = exported, .default = false });
     }
 
+    /// Parse a named import or React's default / namespace import.
     pub fn parseImport(self: *Parser) Error!ast.Import {
-        const loc = self.cur.start;
-        self.advance(); // import
-        var type_only = false;
-        if (self.isKw("type")) {
-            type_only = true;
-            self.advance();
-        }
-        var names: std.ArrayList(ast.ImportName) = .empty;
-        if (self.cur.kind == .identifier and !self.isKw("from")) {
-            return self.fail(self.cur.start, "default imports are not supported; use `import {{ ... }} from \"zant\"`", .{});
-        }
-        if (self.isP("*")) return self.fail(self.cur.start, "namespace imports are not supported; use `import {{ ... }} from \"zant\"`", .{});
-        try self.expectP("{");
-        while (!self.isP("}")) {
-            var name_type_only = false;
-            if (self.isKw("type")) {
-                // `import { type Foo }`: retain the modifier for Zig imports
-                const s = self.save();
-                self.advance();
-                if (self.cur.kind != .identifier) self.restore(s) else name_type_only = true;
-            }
-            const imported = try self.expectIdent("an imported name");
-            var local = imported;
-            if (self.isKw("as")) {
-                self.advance();
-                local = try self.expectIdent("a local name");
-            }
-            try names.append(self.arena, .{ .imported = imported, .local = local, .type_only = name_type_only });
-            if (!self.eatP(",")) break;
-        }
-        try self.expectP("}");
-        if (!self.isKw("from")) return self.unexpected("from");
-        self.advance();
-        if (self.cur.kind != .string) return self.unexpected("a module name");
-        const source_loc = self.cur.start;
-        const source = lexer.decodeString(self.arena, self.text()) catch return self.fail(source_loc, "invalid escape in string", .{});
-        self.advance();
-        try self.endStatement();
-        return .{ .loc = loc, .source = source, .source_loc = source_loc, .type_only = type_only, .names = names.items };
+        return @import("import_parser.zig").parse(self);
     }
 
     // ── functions and types ─────────────────────────────────────────────

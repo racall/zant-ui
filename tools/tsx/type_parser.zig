@@ -71,6 +71,9 @@ fn parsePrimary(p: *Parser) Error!ast.TypeRef {
         p.advance();
     }
     const name = p.src[loc..end];
+    if (std.mem.endsWith(u8, name, ".FC")) {
+        return p.fail(loc, "write a function component: function X(props: P)", .{});
+    }
     if (!p.isP("<")) return .{ .name = name, .loc = loc };
     // generics: only Array<T> / ReadonlyArray<T>
     if (!std.mem.eql(u8, name, "Array") and !std.mem.eql(u8, name, "ReadonlyArray")) {

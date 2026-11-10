@@ -22,11 +22,11 @@
 
 | # | 内容 | 负责 | 状态 |
 |---|---|---|---|
-| A7 | 兼容 `import React from "react"` / `import * as React from "react"`（接受并忽略，复制来的 React 代码常带） | Codex | ⬜ |
+| A7 | 兼容 `import React from "react"` / `import * as React from "react"`（接受并忽略，复制来的 React 代码常带） | Codex | ✅ |
 | A8 | 参数默认值：`function f(n = 1)`、解构 props 的默认值 `({ size = 14 }: Props)` | Codex | ⬜ |
 | A9 | JSX 展开属性：`<Button {...common} onClick={…} />`（对象的字段必须是这个标签 / 组件的属性，按源码顺序合并） | Claude | ✅ |
 | A10 | `enum Kind { Text, Image }` / `enum Kind { Text = "text" }` → Zig 枚举 | Codex | ⬜ |
-| A11 | JSX 实体：完整 XHTML 实体表、数字实体规则与 SWC / Babel 一致（`&#x` 小写、码点范围） | Codex | ⬜ |
+| A11 | JSX 实体：完整 XHTML 实体表、数字实体规则与 SWC / Babel 一致（`&#x` 小写、码点范围） | Codex | ✅ |
 | A13 | 可选值当条件用并收窄类型：`peer ? peer.name : "none"`、`if (peer) { peer.name }`（TS 里很常见） | Codex | ⬜ |
 | A12 | 泛型函数 `function first<T>(xs: T[]): T`（ClipHop 不需要，排在最后） | — | ⬜ |
 

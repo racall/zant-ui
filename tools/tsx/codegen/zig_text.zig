@@ -40,10 +40,11 @@ pub fn id(g: *Generator, n: []const u8) Error![]const u8 {
     return zig_text.fmt(g, "{f}", .{std.zig.fmtId(n)});
 }
 
-/// Escape Zig string bytes while preserving UTF-8 text.
+/// Escape Zig string bytes while preserving UTF-8 text (WTF-8 uses byte escapes).
 pub fn quote(g: *Generator, s: []const u8) Error![]const u8 {
     var out: std.ArrayList(u8) = .empty;
     try out.append(g.a, '"');
+    const valid_utf8 = std.unicode.utf8ValidateSlice(s);
     for (s) |ch| switch (ch) {
         '"' => try out.appendSlice(g.a, "\\\""),
         '\\' => try out.appendSlice(g.a, "\\\\"),
@@ -51,6 +52,10 @@ pub fn quote(g: *Generator, s: []const u8) Error![]const u8 {
         '\r' => try out.appendSlice(g.a, "\\r"),
         '\t' => try out.appendSlice(g.a, "\\t"),
         0...8, 11, 12, 14...31, 127 => try out.appendSlice(g.a, try zig_text.fmt(g, "\\x{x:0>2}", .{ch})),
+        128...255 => if (valid_utf8)
+            try out.append(g.a, ch)
+        else
+            try out.appendSlice(g.a, try zig_text.fmt(g, "\\x{x:0>2}", .{ch})),
         else => try out.append(g.a, ch),
     };
     try out.append(g.a, '"');

@@ -129,9 +129,7 @@ pub fn typeRef(g: *Generator, ref: ast.TypeRef, allow_void: bool) Error!Type {
     }
     if (try model.named(g, ref.name)) |ty| return ty;
     // React element types: a prop holding an element (`children`, `icon`)
-    inline for (.{ "JSX.Element", "React.ReactNode", "ReactNode", "React.ReactElement", "ReactElement" }) |name| {
-        if (zig_text.eq(ref.name, name)) return .node;
-    }
+    if (nodeName(ref.name) or @import("../react_compat.zig").nodeType(g.react_imports, ref.name)) return .node;
     if (zig_text.eq(ref.name, "number")) return .f64;
     if (zig_text.eq(ref.name, "boolean")) return .boolean;
     if (zig_text.eq(ref.name, "string")) return .string;
@@ -470,4 +468,12 @@ fn memberHint(g: *Generator, c: *Context, member: ast.Member) ?Type {
         if (zig_text.eq(member.name.name, field.name)) return field.ty;
     };
     return null;
+}
+
+/// Element type names accepted both in annotations and Zant / React named imports.
+pub fn nodeName(name: []const u8) bool {
+    inline for (.{ "JSX.Element", "React.ReactNode", "ReactNode", "React.ReactElement", "ReactElement" }) |n| {
+        if (zig_text.eq(name, n)) return true;
+    }
+    return false;
 }

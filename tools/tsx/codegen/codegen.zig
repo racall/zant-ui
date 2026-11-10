@@ -53,6 +53,8 @@ pub const Generator = struct {
     managed_strings: bool = false,
     compounds: std.ArrayList(model.Info) = .empty,
     type_decls: []const ast.TypeDecl = &.{},
+    /// React bindings used for qualified element type annotations.
+    react_imports: []const ast.Import = &.{},
     resolving: []bool = &.{},
     resolved_types: std.ArrayList(struct { detail: *const ast.TypeDetail, ty: Type }) = .empty,
     constants: std.ArrayList(struct { name: []const u8, value: types.Value }) = .empty,
@@ -276,14 +278,19 @@ pub fn generate(
     var g = Generator{ .a = arena, .diag = diag, .project = options.project };
     g.zig_sources = options.zig_sources;
     g.type_decls = module.types;
+    g.react_imports = module.imports;
     g.resolving = try arena.alloc(bool, module.types.len);
     @memset(g.resolving, false);
     for (module.imports) |imp| {
         if (@import("imports.zig").isRelative(imp.source)) continue;
-        if (!zig_text.eq(
-            imp.source,
-            "zant",
-        )) return core.fail(&g, imp.source_loc, "imports come from \"zant\" or another .tsx file (\"./Name\")", .{});
+        if (!zig_text.eq(imp.source, "zant") and !zig_text.eq(imp.source, "react")) {
+            return core.fail(
+                &g,
+                imp.source_loc,
+                "imports come from \"zant\", \"react\" or a relative .tsx / .zig file",
+                .{},
+            );
+        }
         for (imp.names) |n| {
             const tag = tags.find(n.imported.name);
             const hook_import = zig_text.eq(n.imported.name, "useState") or zig_text.eq(n.imported.name, "useTheme") or
@@ -292,10 +299,11 @@ pub fn generate(
                 @import("app_hooks.zig").isAppHook(n.imported.name) or zig_text.eq(n.imported.name, "KeyEvent") or
                 zig_text.eq(n.imported.name, "createWindow") or @import("desktop_hooks.zig").isHook(n.imported.name) or
                 zig_text.eq(n.imported.name, "Image");
-            if (!hook_import and tag == null and !types.numericName(n.imported.name)) return core.fail(
+            if (!hook_import and tag == null and !types.numericName(n.imported.name) and
+                !types.nodeName(n.imported.name)) return core.fail(
                 &g,
                 n.imported.loc,
-                "unknown import `{s}`; import useState, a tag, or a numeric type from zant",
+                "unknown import `{s}`; this name is not supported by Zant",
                 .{n.imported.name},
             );
             if (!zig_text.eq(n.imported.name, n.local.name)) {
@@ -404,7 +412,9 @@ fn emitComponent(g: *Generator, f: *ast.Function, comp: ?*components.Component) 
     if (f.ret) |ref| if (!zig_text.eq(
         ref.name,
         "JSX.Element",
-    ) and !zig_text.eq(ref.name, "React.ReactNode") and !zig_text.eq(ref.name, "ReactNode")) {
+    ) and !zig_text.eq(ref.name, "React.ReactNode") and !zig_text.eq(ref.name, "ReactNode") and
+        !@import("../react_compat.zig").nodeType(g.react_imports, ref.name))
+    {
         return core.fail(g, ref.loc, "component return type must be JSX.Element, React.ReactNode, or ReactNode", .{});
     };
     g.name = f.name;

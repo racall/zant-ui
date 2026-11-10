@@ -86,12 +86,14 @@ test {
     _ = @import("lexer.zig");
     _ = @import("parser.zig");
     _ = @import("parser_test.zig");
+    _ = @import("jsx_entities_test.zig");
     _ = @import("tags.zig");
     _ = @import("codegen.zig");
     _ = @import("codegen/errors_test.zig");
     _ = @import("codegen/emission_test.zig");
     _ = @import("codegen/stateful.zig");
     _ = @import("codegen/hooks_test.zig");
+    _ = @import("codegen/react_compat_test.zig");
     _ = @import("codegen/builtins_test.zig");
     _ = @import("codegen/loops_test.zig");
     _ = @import("codegen/widgets_test.zig");

@@ -284,6 +284,9 @@ pub const Import = struct {
     source_loc: Loc,
     type_only: bool,
     names: []const ImportName,
+    /// React's default / namespace binding; ignored except for qualified hooks and Fragment.
+    default_name: ?Name = null,
+    namespace_name: ?Name = null,
 };
 
 pub const ImportName = struct {
