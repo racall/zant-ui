@@ -43,6 +43,9 @@ pub fn statement(g: *Generator, c: *Context, s: *ast.Stmt, top: bool) Error![]co
         .ret => |e| return returnStatement(g, c, s.loc, e),
         .expr => |e| {
             if (core.hook(g, e)) {
+                if (@import("app_hooks.zig").isAppHook(e.data.call.callee.data.ident)) {
+                    return @import("app_hooks.zig").statement(g, c, e, top);
+                }
                 if (!zig_text.eq(e.data.call.callee.data.ident, "useEffect")) {
                     return core.fail(g, e.loc, "keep the value of this hook: const x = …", .{});
                 }

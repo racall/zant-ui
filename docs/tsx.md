@@ -417,6 +417,25 @@ PDF 的 `src` 必填（空字符串显示提示），不接受子节点。`passw
 本机 ReleaseFast（640×900 CPU 光栅、8208 字节、每帧追加 24 字节、各 1368 帧）：
 TSX 平均 0.348 ms，手写 0.339 ms，差距 2.61%。
 
+### 应用 hooks（只在根组件里用）
+
+```tsx
+useCloseRequest(() => {            // 点关闭按钮 / ⌘W：返回 false 不关（比如先弹确认框、隐藏到托盘）
+  if (dirty) { setAsk(true); return false; }
+  return true;
+});
+useQuitRequest(() => true);        // ⌘Q / Dock 退出；不写时问 useCloseRequest
+useKeyDown((e: KeyEvent) => {      // 全局按键，在获得焦点的控件之前；返回 true 表示处理了
+  if (e.key === "Escape") { closeDialogs(); return true; }
+  if (e.mod && e.key === "f") { focusSearch(); return true; }
+  return false;
+});
+```
+
+- `KeyEvent`：`key` 和 DOM 的 `KeyboardEvent.key` 一样（`"Escape"` `"Enter"` `"Tab"` `"ArrowUp"` `"F1"` … 或输入的字符），
+  `mod` 是平台的命令键（macOS ⌘、Windows Ctrl），另有 `shift` `alt` `ctrl` `meta` `repeat`。
+- 回调像事件处理函数一样运行（读状态快照、调 setter、读写 store），不能读渲染体里的局部变量。
+
 ### 从 Zig 导入函数
 
 项目里的 TSX 可以从相对路径的 `.zig` 文件按名导入顶层 `pub fn`，也支持 `as` 别名：

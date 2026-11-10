@@ -7,6 +7,8 @@ const ui = @import("ui.zig");
 pub const strings = @import("tsx_strings.zig");
 /// The entry of a TS + TSX app (the generated `main.zig`).
 pub const app = @import("tsx_app.zig");
+/// `KeyEvent` in TSX (`useKeyDown`).
+pub const KeyEvent = app.KeyEvent;
 /// Nested `<Text>` spans and inline `<Link>`s.
 pub const text = @import("tsx_text.zig");
 

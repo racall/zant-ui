@@ -43,7 +43,7 @@
 | # | 内容 | 负责 | 状态 |
 |---|---|---|---|
 | C1 | 入口：TS 项目不写 `main.zig`，工具链按 `app.config.json` 和 `App.tsx` 的默认导出生成入口 | Claude | ✅ |
-| C2 | 应用 hooks：`useCloseRequest`、`useQuitRequest`、`useKeyDown`、主题跟随系统 | Claude | ⬜ |
+| C2 | 应用 hooks：`useCloseRequest`、`useQuitRequest`、`useKeyDown`、主题跟随系统 | Claude | ✅ |
 | C3 | 桌面事件：`useClipboardChange`、`useHotkey`、`useTray`（图标、菜单、点击）、`useReopen` | Claude | ⬜ |
 | C4 | `useWake`：原生模块在后台线程完成后 `ui.postWake()`，TS 在 UI 线程取结果 | Claude | ⬜ |
 | C5 | 多窗口：`createWindow(Panel, { … })`，句柄 `show` / `hide` / `toggle` / `place` / `focus`，窗口自己的按键、关闭、失焦 | Claude | ⬜ |

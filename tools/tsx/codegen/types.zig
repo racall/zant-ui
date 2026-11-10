@@ -135,6 +135,7 @@ pub fn typeRef(g: *Generator, ref: ast.TypeRef, allow_void: bool) Error!Type {
     if (zig_text.eq(ref.name, "number")) return .f64;
     if (zig_text.eq(ref.name, "boolean")) return .boolean;
     if (zig_text.eq(ref.name, "string")) return .string;
+    if (zig_text.eq(ref.name, "KeyEvent")) return @import("app_hooks.zig").keyEventType(g);
     // bytes (clipboard images, file contents): `[]const u8` as an array of u8
     if (zig_text.eq(ref.name, "Uint8Array")) return model.array(g, .u8);
     if (allow_void and zig_text.eq(ref.name, "void")) return .void_;

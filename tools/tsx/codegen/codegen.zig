@@ -108,6 +108,7 @@ pub fn contextualize(g: *Generator, prefix: []const u8) Error!void {
 
 pub fn hookName(g: *Generator, n: []const u8) bool {
     if (zig_text.eq(n, "useState") or @import("hooks.zig").extraHook(n) or zig_text.eq(n, "useStore")) return true;
+    if (@import("app_hooks.zig").isAppHook(n)) return true;
     for (g.hook_names.items) |name| if (zig_text.eq(n, name)) return true;
     return false;
 }
@@ -137,8 +138,9 @@ pub fn collect(g: *Generator, f: *ast.Function) Error!void {
     for (f.body.block) |s| switch (s.data) {
         .decl => |d| try collectDeclaration(g, s.loc, d),
         .func => |func| try core.collectMethod(g, func.name, func),
-        .expr => |e| if (@import("hooks.zig").callName(e)) |n| if (zig_text.eq(n, "useEffect")) {
-            try @import("hooks.zig").collectEffect(g, e);
+        .expr => |e| if (@import("hooks.zig").callName(e)) |n| {
+            if (zig_text.eq(n, "useEffect")) try @import("hooks.zig").collectEffect(g, e);
+            if (@import("app_hooks.zig").isAppHook(n)) try @import("app_hooks.zig").collect(g, e);
         },
         else => {},
     };
@@ -280,7 +282,8 @@ pub fn generate(
             const tag = tags.find(n.imported.name);
             const hook_import = zig_text.eq(n.imported.name, "useState") or zig_text.eq(n.imported.name, "useTheme") or
                 zig_text.eq(n.imported.name, "List") or @import("hooks.zig").extraHook(n.imported.name) or
-                zig_text.eq(n.imported.name, "createStore") or zig_text.eq(n.imported.name, "useStore");
+                zig_text.eq(n.imported.name, "createStore") or zig_text.eq(n.imported.name, "useStore") or
+                @import("app_hooks.zig").isAppHook(n.imported.name) or zig_text.eq(n.imported.name, "KeyEvent");
             if (!hook_import and tag == null and !types.numericName(n.imported.name)) return core.fail(
                 &g,
                 n.imported.loc,
