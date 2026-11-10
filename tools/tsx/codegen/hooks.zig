@@ -229,6 +229,12 @@ pub fn collectEffect(g: *Generator, e: *ast.Expr) Error!void {
 /// `return () => { … }` in an effect body (also inside `if`s).
 fn collectCleanups(g: *Generator, s: *const ast.Stmt) Error!void {
     switch (s.data) {
+        .for_ => |v| try collectCleanups(g, v.body),
+        .for_of => |v| try collectCleanups(g, v.body),
+        .while_ => |v| try collectCleanups(g, v.body),
+        .switch_ => |v| for (v.cases) |case| {
+            for (case.body) |child| try collectCleanups(g, child);
+        },
         .ret => |r| if (r) |value| if (value.data == .arrow) {
             const f = value.data.arrow;
             if (f.params.len != 0) return core.fail(g, f.loc, "the cleanup function takes no parameters", .{});
@@ -322,6 +328,20 @@ fn changesState(g: *Generator, body: ast.Body) bool {
 
 fn stmtChanges(g: *Generator, s: *const ast.Stmt) bool {
     return switch (s.data) {
+        .for_ => |v| (if (v.init) |init| stmtChanges(g, init) else false) or
+            (if (v.cond) |cond| exprChanges(g, cond) else false) or
+            (if (v.update) |update| exprChanges(g, update) else false) or stmtChanges(g, v.body),
+        .for_of => |v| exprChanges(g, v.iterable) or stmtChanges(g, v.body),
+        .while_ => |v| exprChanges(g, v.cond) or stmtChanges(g, v.body),
+        .switch_ => |v| blk: {
+            if (exprChanges(g, v.value)) break :blk true;
+            for (v.cases) |case| {
+                if (case.value) |value| if (exprChanges(g, value)) break :blk true;
+                for (case.body) |child| if (stmtChanges(g, child)) break :blk true;
+            }
+            break :blk false;
+        },
+        .break_, .continue_ => false,
         .decl => |d| if (d.init) |e| exprChanges(g, e) else false,
         .func => false,
         .ret => |e| if (e) |v| exprChanges(g, v) else false,

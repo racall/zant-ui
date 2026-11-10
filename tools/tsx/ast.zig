@@ -210,9 +210,51 @@ pub const Stmt = struct {
         func: *Function,
         ret: ?*Expr,
         if_: If,
+        for_: For,
+        for_of: ForOf,
+        while_: While,
+        switch_: Switch,
+        break_,
+        continue_,
         expr: *Expr,
         block: []const *Stmt,
     };
+};
+
+/// C-style loop; omitted condition means true.
+pub const For = struct {
+    init: ?*Stmt,
+    cond: ?*Expr,
+    update: ?*Expr,
+    body: *Stmt,
+};
+
+/// Array iteration with a fresh binding for each element.
+pub const ForOf = struct {
+    name: Name,
+    is_const: bool,
+    iterable: *Expr,
+    body: *Stmt,
+};
+
+/// Pre-test while or post-test do/while.
+pub const While = struct {
+    cond: *Expr,
+    body: *Stmt,
+    do_first: bool = false,
+};
+
+/// Cases retain source order; a null test is the default clause.
+pub const Switch = struct {
+    value: *Expr,
+    cases: []const Case,
+};
+
+/// Empty case bodies group with the following clause.
+pub const Case = struct {
+    loc: Loc,
+    value: ?*Expr,
+    body: []const *Stmt,
 };
 
 pub const Decl = struct {

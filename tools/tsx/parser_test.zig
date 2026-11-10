@@ -264,3 +264,66 @@ test "a parenthesized expression is not taken for an arrow" {
     const c = m.functions[0].func.body.block[0].data.ret.?.data.cond;
     try std.testing.expect(c.then.data == .ident);
 }
+
+test "loop headers, single statements and switch groups" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const m = try parseOk(arena.allocator(),
+        \\function f() {
+        \\  for (let i: number = 0; i < 4; i++) total += i;
+        \\  for (i = 0; ; --i) { break; }
+        \\  for (;;) break;
+        \\  for (const x of xs) { continue; }
+        \\  for (let y of [1, 2]) y++;
+        \\  while (ok) count++;
+        \\  do { count--; } while (ok)
+        \\  next()
+        \\  switch (value) { case 1: break; case 2: case 3: return 4; default: return 0; }
+        \\}
+    );
+    const ss = m.functions[0].func.body.block;
+    try std.testing.expectEqual(@as(usize, 9), ss.len);
+    const classic = ss[0].data.for_;
+    try std.testing.expectEqualStrings("i", classic.init.?.data.decl.pattern.ident.name);
+    try std.testing.expectEqualStrings("number", classic.init.?.data.decl.ty.?.name);
+    try std.testing.expect(classic.cond.?.data == .binary);
+    try std.testing.expect(classic.update.?.data == .update);
+    try std.testing.expect(classic.body.data == .expr);
+    try std.testing.expect(ss[1].data.for_.cond == null);
+    try std.testing.expect(ss[1].data.for_.init.?.data == .expr);
+    try std.testing.expect(ss[2].data.for_.init == null and ss[2].data.for_.update == null);
+    try std.testing.expect(ss[3].data.for_of.is_const);
+    try std.testing.expect(!ss[4].data.for_of.is_const);
+    try std.testing.expect(!ss[5].data.while_.do_first);
+    try std.testing.expect(ss[6].data.while_.do_first);
+    const cases = ss[8].data.switch_.cases;
+    try std.testing.expectEqual(@as(usize, 4), cases.len);
+    try std.testing.expect(cases[0].body[0].data == .break_);
+    try std.testing.expectEqual(@as(usize, 0), cases[1].body.len);
+    try std.testing.expect(cases[3].value == null);
+}
+
+test "loop syntax diagnostics and jump ASI" {
+    try expectSyntaxError("function f() { while (true {} }", "expected `)`, found `{`", "{}");
+    try expectSyntaxError("function f() { for (let i=0; i<3; i++ {} }", "expected `)`, found `{`", "{}");
+    try expectSyntaxError("function f() { do count++; while (true }", "expected `)`, found `}`", "}");
+    try expectSyntaxError("function f() { break label; }", "labeled break and continue are not supported", "label");
+    try expectSyntaxError("function f() { continue label; }", "labeled break and continue are not supported", "label");
+    try expectSyntaxError("function f() { for (const i=0;;) {} }", "C-style for initializer must use let", "const");
+    try expectSyntaxError(
+        "function f() { for (;; step()) {} }",
+        "for update must be an assignment, ++ or --",
+        "step()",
+    );
+    try expectSyntaxError(
+        "function f() { switch (x) { default: default: } }",
+        "switch has more than one default",
+        "default: }",
+    );
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const m = try parseOk(arena.allocator(), "function f() { break\nnext(); continue\nother(); }");
+    const ss = m.functions[0].func.body.block;
+    try std.testing.expectEqual(@as(usize, 4), ss.len);
+    try std.testing.expect(ss[0].data == .break_ and ss[2].data == .continue_);
+}

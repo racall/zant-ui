@@ -117,6 +117,42 @@ exe.root_module.addImport("notes_tsx", notes);
 字符串 `+` 拼接、`str.length`、调用组件里的函数、`console.log(...)`（生成 `std.debug.print`）。
 事件处理函数里还可以给 `let` 局部变量赋值（`=`、`+=` 等）以及使用 `x++`。
 
+### 循环与分支语句
+
+事件处理函数、effect、组件内函数和数组方法的块体回调支持以下语句，循环体也可以不加花括号：
+
+```tsx
+function sum(n: number): number {
+  let total = 0;
+  for (let i = 0; i < n; i++) {
+    if (i === 2) continue;
+    if (i === 10) break;
+    total += i;
+  }
+  return total;
+}
+const selected = items.filter(item => {
+  for (const id of selectedIds) if (id === item.id) return true;
+  return false;
+});
+```
+
+- `for (let i = 0; 条件; i++)`：初始化只接受一个 `let` 声明、赋值或留空；条件必须为布尔值，
+  留空等于 `true`；更新接受赋值、`++`、`--` 或留空。循环变量只在循环内可见。
+- `for (const x of xs)` / `for (let x of xs)`：遍历数组（状态、局部变量、props 或函数返回值），
+  数组表达式只求值一次。元素类型自动推断；`const` 不可重新赋值，`let` 可赋值；暂不支持解构。
+- `while (条件)`、`do { … } while (条件);`：条件为布尔值；`do` 至少执行一次，
+  `continue` 仍会检查条件。
+- `break` 退出最近的循环或 `switch`，`continue` 进入最近循环的下一轮；不接受标签，不能跨越回调边界。
+  循环、`switch` 中的 `return` 返回当前函数或数组回调。
+- `switch (值)` 支持数字、字符串、布尔值和字符串字面量联合；字符串按内容比较。
+  判别值只求值一次，`case` 表达式按顺序比较，未命中时执行 `default`（位置不限）。
+  相邻空 `case` 可以共用一个分支；非空分支进入下一个 `case` 前必须用 `break`、`return`
+  或其他跳转结束，不支持隐式贯穿。最后一个分支可以省略 `break`。
+
+组件的 render 体保持声明式，不能直接写循环或 `switch`；渲染列表使用 `.map` / `.filter`，
+计算循环放进函数或块体数组回调。`let` 若从未重新赋值，生成的 Zig 仍用 `const`。
+
 ### JSX
 
 - 文本按 React 的空白规则处理（相当于 Babel 的 `cleanJSXElementLiteralChild`）；支持 `&amp;` 等 HTML 实体。

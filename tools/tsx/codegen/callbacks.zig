@@ -26,11 +26,17 @@ pub fn emit(
     // elements built here repeat once per item (`nesting.zig`: keys)
     g.loop_depth += 1;
     defer g.loop_depth -= 1;
+    const previous_break = c.break_label;
+    const previous_continue = c.continue_label;
+    c.break_label = null;
+    c.continue_label = null;
     const previous_ret = c.ret;
     const previous_label = c.return_label;
     const previous_values = c.return_values;
     defer {
         c.active.shrinkRetainingCapacity(depth);
+        c.break_label = previous_break;
+        c.continue_label = previous_continue;
         c.ret = previous_ret;
         c.return_label = previous_label;
         c.return_values = previous_values;

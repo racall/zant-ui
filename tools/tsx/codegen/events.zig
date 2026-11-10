@@ -113,6 +113,28 @@ pub fn scanBody(g: *Generator, body: ast.Body) Error!void {
 
 pub fn scanStmt(g: *Generator, s: *ast.Stmt) Error!void {
     switch (s.data) {
+        .for_ => |v| {
+            if (v.init) |init| try scanStmt(g, init);
+            if (v.cond) |cond| try scanExpr(g, cond);
+            if (v.update) |update| try scanExpr(g, update);
+            try scanStmt(g, v.body);
+        },
+        .for_of => |v| {
+            try scanExpr(g, v.iterable);
+            try scanStmt(g, v.body);
+        },
+        .while_ => |v| {
+            try scanExpr(g, v.cond);
+            try scanStmt(g, v.body);
+        },
+        .switch_ => |v| {
+            try scanExpr(g, v.value);
+            for (v.cases) |case| {
+                if (case.value) |value| try scanExpr(g, value);
+                for (case.body) |child| try scanStmt(g, child);
+            }
+        },
+        .break_, .continue_ => {},
         .decl => |d| {
             if (d.init) |e| try events.scanExpr(g, e);
         },
