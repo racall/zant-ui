@@ -255,6 +255,69 @@ pub fn addTsxProject(
     });
 }
 
+pub const TsxAppOptions = struct {
+    /// Every `.tsx` / `.zig` under this directory (relative to the build
+    /// root, any depth) is part of the app.
+    src: []const u8 = "src",
+    /// The file whose default export is the root component (`App.tsx`).
+    entry: []const u8 = "App",
+    target: std.Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+};
+
+/// A TS + TSX app (`zant create`, language ts): compiles every file under
+/// `options.src` and returns the module whose root is the generated
+/// `main.zig` (it runs the entry's default export with `zant.tsx.app.run`).
+///
+///     const app = zant_build.addTsxApp(b, zant_dep, .{ .target = target, .optimize = optimize });
+///     const exe = b.addExecutable(.{ .name = "app", .root_module = app });
+pub fn addTsxApp(b: *std.Build, zant_dep: *std.Build.Dependency, options: TsxAppOptions) *std.Build.Module {
+    return tsxApp(b, zant_dep.artifact("zant-tsx"), zant_dep.module("zant"), options);
+}
+
+fn tsxApp(
+    b: *std.Build,
+    tool: *std.Build.Step.Compile,
+    zant_mod: *std.Build.Module,
+    options: TsxAppOptions,
+) *std.Build.Module {
+    const run = b.addRunArtifact(tool);
+    run.addArg("--out");
+    const out = run.addOutputDirectoryArg("tsx");
+    run.addArgs(&.{ "--main", options.entry, "--src" });
+    run.addDirectoryArg(b.path(options.src));
+    // a directory argument isn't hashed by content: list its files as inputs
+    addSourceInputs(b, run, options.src, 0);
+    return b.createModule(.{
+        .root_source_file = out.path(b, "main.zig"),
+        .target = options.target,
+        .optimize = options.optimize,
+        .link_libc = true,
+        .link_libcpp = options.target.result.os.tag == .macos,
+        .imports = &.{.{ .name = "zant", .module = zant_mod }},
+    });
+}
+
+fn addSourceInputs(b: *std.Build, run: *std.Build.Step.Run, sub_path: []const u8, depth: usize) void {
+    if (depth > 16) return;
+    const io = b.graph.io;
+    const full = b.root.joinString(b.allocator, sub_path) catch return;
+    var dir = std.Io.Dir.cwd().openDir(io, full, .{ .iterate = true }) catch return;
+    defer dir.close(io);
+    var it = dir.iterate();
+    while (it.next(io) catch null) |entry| {
+        if (entry.name.len == 0 or entry.name[0] == '.') continue;
+        const child = b.pathJoin(&.{ sub_path, entry.name });
+        switch (entry.kind) {
+            .directory => addSourceInputs(b, run, child, depth + 1),
+            .file => if (std.mem.endsWith(u8, entry.name, ".tsx") or std.mem.endsWith(u8, entry.name, ".zig")) {
+                run.addFileInput(b.path(child));
+            },
+            else => {},
+        }
+    }
+}
+
 /// Golden files of the TSX compiler (`tools/tsx/testdata/<name>.tsx` → `.zig`).
 const tsx_golden = [_][]const u8{
     "counter",  "layout",    "text",  "events",      "conditional", "components", "todos", "arrays",
@@ -555,6 +618,19 @@ pub fn build(b: *std.Build) void {
     run_tsx_reader.addPassthruArgs();
     b.step("run-tsx-reader", "Run the TSX Markdown and PDF reader").dependOn(&run_tsx_reader.step);
 
+    // a TS + TSX app built the way `zant create` (language ts) builds one
+    const tsx_app_mod = tsxApp(b, tsx_tool, zant_mod, .{
+        .src = "examples/tsx/app",
+        .target = target,
+        .optimize = optimize,
+    });
+    const tsx_app_demo = b.addExecutable(.{ .name = "zant-tsx-app", .root_module = tsx_app_mod });
+    b.installArtifact(tsx_app_demo);
+    const run_tsx_app = b.addRunArtifact(tsx_app_demo);
+    run_tsx_app.step.dependOn(b.getInstallStep());
+    run_tsx_app.addPassthruArgs();
+    b.step("run-tsx-app", "Run the TS + TSX app example (examples/tsx/app)").dependOn(&run_tsx_app.step);
+
     const tsx_notes = addTsxProject(b, tsx_tool, &.{
         b.path("examples/tsx/notes/App.tsx"),
         b.path("examples/tsx/notes/NoteCard.tsx"),
@@ -673,6 +749,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "counter_tsx", .module = tsx_counter },
             .{ .name = "notes_tsx", .module = tsx_notes },
             .{ .name = "zig_types_tsx", .module = tsx_zig_types },
+            .{ .name = "tsx_app", .module = tsx_app_mod },
         },
     });
     // every golden output of the TSX compiler must compile against zant

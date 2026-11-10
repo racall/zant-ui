@@ -47,6 +47,16 @@ exe.root_module.addImport("counter_tsx", counter);
 
 `addTsx`（`build.zig`）在构建时运行 `zant-tsx`，把输出作为导入 `zant` 的模块。
 
+**整个应用用 TS + TSX 写**（`zant create` 选 TS，不写 Zig）时用 `addTsxApp`：`src/` 下所有 `.tsx` 和 `.zig`
+（原生模块）一起编译，入口 `main.zig` 由 `zant-tsx --main App` 生成，运行 `App.tsx` 的默认导出；窗口标题、尺寸等配置来自
+`app_config.zig`（`zant sync` 从 `app.config.json` 生成）。主题默认跟随系统，`ZANT_THEME=light|dark` 可以固定。
+示例 `examples/tsx/app/`（`zig build run-tsx-app`）。
+
+```zig
+const app = zant_build.addTsxApp(b, zant_dep, .{ .target = target, .optimize = optimize });
+const exe = b.addExecutable(.{ .name = "app", .root_module = app });
+```
+
 多文件项目用 `addTsxProject`：所有 `.tsx` 一起编译，每个文件生成同名的 `.zig`，放在同一个输出目录里，
 文件之间的 `import { NoteCard, type Note } from "./NoteCard"` 变成 `const _NoteCard = @import("NoteCard.zig");`。
 入口文件导出根组件，其他文件只导出子组件和类型。

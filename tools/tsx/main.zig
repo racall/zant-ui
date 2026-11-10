@@ -6,6 +6,7 @@
 //! `file:line:col: error: ...` and exit with status 1.
 const std = @import("std");
 const compile = @import("compile.zig");
+const entry = @import("entry.zig");
 
 pub fn main(init: std.process.Init) !void {
     const io = init.io;
@@ -15,7 +16,11 @@ pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(arena);
     if (args.len >= 4 and std.mem.eql(u8, args[1], "--out")) return project(io, arena, args[2], args[3..]);
     if (args.len != 3) {
-        std.debug.print("用法: zant-tsx <in.tsx> <out.zig>\n      zant-tsx --out <dir> <a.tsx> <b.tsx>...\n", .{});
+        std.debug.print(
+            \\用法: zant-tsx <in.tsx> <out.zig>
+            \\      zant-tsx --out <dir> [--main <App>] [--src <dir>] [<a.tsx> <b.zig>...]
+            \\
+        , .{});
         std.process.exit(2);
     }
     const in_path = args[1];
@@ -29,16 +34,37 @@ pub fn main(init: std.process.Init) !void {
     }
 }
 
-/// `--out <dir> files...`: compile TSX and copy Zig into one output directory.
-fn project(io: std.Io, arena: std.mem.Allocator, out_dir: []const u8, paths: []const [:0]const u8) !void {
-    const files = try arena.alloc(compile.File, paths.len);
-    for (paths, 0..) |path, i| files[i] = .{ .path = path, .src = read(io, arena, path) };
+/// `--out <dir> [--main <App>] [--src <dir>] files...`: compile TSX and copy
+/// Zig into one output directory. `--src` adds every `.tsx` / `.zig` under a
+/// directory; `--main App` also writes the app's entry `main.zig`
+/// (`entry.zig`).
+fn project(io: std.Io, arena: std.mem.Allocator, out_dir: []const u8, rest: []const [:0]const u8) !void {
+    var paths: std.ArrayList([]const u8) = .empty;
+    var main_entry: ?[]const u8 = null;
+    var i: usize = 0;
+    while (i < rest.len) : (i += 1) {
+        const arg: []const u8 = rest[i];
+        if ((std.mem.eql(u8, arg, "--main") or std.mem.eql(u8, arg, "--src")) and i + 1 < rest.len) {
+            i += 1;
+            if (std.mem.eql(u8, arg, "--main")) main_entry = rest[i] else try entry.collect(io, arena, rest[i], &paths);
+        } else try paths.append(arena, arg);
+    }
+    const files = try arena.alloc(compile.File, paths.items.len);
+    for (paths.items, 0..) |path, k| files[k] = .{ .path = path, .src = read(io, arena, path) };
     switch (try compile.compileProject(arena, files)) {
         .ok => |outputs| {
             try std.Io.Dir.cwd().createDirPath(io, out_dir);
             for (files, outputs) |file, zig| {
                 const out = try std.fs.path.join(arena, &.{ out_dir, try file.outputName(arena) });
                 try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = out, .data = zig });
+            }
+            if (main_entry) |name| {
+                const source = entry.mainSource(arena, files, name) catch |err| {
+                    std.debug.print("zant-tsx: --main {s}: {s}\n", .{ name, entry.describe(err) });
+                    std.process.exit(1);
+                };
+                const out = try std.fs.path.join(arena, &.{ out_dir, "main.zig" });
+                try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = out, .data = source });
             }
         },
         .err => |e| {
@@ -75,6 +101,7 @@ test {
     _ = @import("codegen/strings_test.zig");
     _ = compile;
     _ = @import("project_test.zig");
+    _ = entry;
     _ = @import("codegen/zig_imports.zig");
     _ = @import("golden_test.zig");
 }

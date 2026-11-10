@@ -5,6 +5,8 @@ const ui = @import("ui.zig");
 
 /// String.prototype helpers for generated TSX code.
 pub const strings = @import("tsx_strings.zig");
+/// The entry of a TS + TSX app (the generated `main.zig`).
+pub const app = @import("tsx_app.zig");
 /// Nested `<Text>` spans and inline `<Link>`s.
 pub const text = @import("tsx_text.zig");
 
