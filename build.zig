@@ -197,6 +197,9 @@ fn addWindowsIcon(b: *std.Build, zant_dep: *std.Build.Dependency, exe: *std.Buil
 }
 
 fn installRuntime(b: *std.Build, dir: std.Build.LazyPath, prebuilt: bool, runs: []const *std.Build.Step.Run) void {
+    // an app may configure several executables (an app and its preview):
+    // one runtime step, every run step depends on it
+    if (b.top_level_steps.get("zant-runtime")) |existing| return addRuntimePath(b, &existing.step, runs);
     const runtime = b.step("zant-runtime", "Install zant_skia.dll and pdfium.dll");
     for ([_][]const u8{ "zant_skia.dll", "pdfium.dll" }) |name| {
         runtime.dependOn(&b.addInstallBinFile(dir.path(b, name), name).step);
@@ -207,6 +210,10 @@ fn installRuntime(b: *std.Build, dir: std.Build.LazyPath, prebuilt: bool, runs: 
         runtime.dependOn(&b.addInstallBinFile(dir.path(b, name), name).step);
     };
     b.getInstallStep().dependOn(runtime);
+    addRuntimePath(b, runtime, runs);
+}
+
+fn addRuntimePath(b: *std.Build, runtime: *std.Build.Step, runs: []const *std.Build.Step.Run) void {
     // the install prefix is only known when the build runs; this assumes the
     // default (zig-out) for the PATH of run steps
     const bin = b.pathJoin(&.{ b.root.root_dir.path orelse ".", "zig-out", "bin" });

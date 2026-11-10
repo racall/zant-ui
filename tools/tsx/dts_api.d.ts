@@ -128,6 +128,8 @@
   export function keyLabel(spec: string): string;
   /** A shortcut string ("ctrl+cmd+v") as the platform shows it ("⌃⌘V"); "" when invalid. */
   export function shortcutLabel(shortcut: string): string;
+  /** An imported image asset as an Image for <Image image>: decoded once, kept. */
+  export function assetImage(png: Uint8Array): Image | null;
   export const isMacos: boolean;
   export const isWindows: boolean;
   export function titlebarInsets(): { left: number; right: number };

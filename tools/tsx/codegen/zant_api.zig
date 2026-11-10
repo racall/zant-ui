@@ -21,7 +21,7 @@ const Value = types.Value;
 const Type = types.Type;
 const Error = core.Error;
 
-const Kind = enum { void_, string, boolean, number, bytes, opt_string, opt_bytes };
+const Kind = enum { void_, string, boolean, number, bytes, opt_string, opt_bytes, opt_image };
 
 const Function = struct {
     name: []const u8,
@@ -78,6 +78,7 @@ const namespaces = [_]Namespace{
 const functions = [_]Function{
     .{ .name = "wakeAfter", .zig = "tsx.platform.wakeAfter", .params = &.{.number} },
     .{ .name = "shortcutLabel", .zig = "tsx.platform.shortcutLabel", .params = &.{.string}, .ret = .string },
+    .{ .name = "assetImage", .zig = "tsx.platform.assetImage", .params = &.{.bytes}, .ret = .opt_image },
 };
 
 const constants = [_][2][]const u8{
@@ -170,6 +171,7 @@ fn typeOf(g: *Generator, kind: Kind) Error!Type {
         .bytes => try model.array(g, .u8),
         .opt_string => try model.optional(g, .string),
         .opt_bytes => try model.optional(g, try model.array(g, .u8)),
+        .opt_image => try model.optional(g, try @import("jsx.zig").imageType(g)),
     };
 }
 

@@ -647,6 +647,7 @@ useTray({ icon: trayIcon, template: true, tooltip: "ClipHop" });
   路径相对于写导入的那个文件，可以在 `src/` 外面（比如项目的 `assets/`）。
 - `zant-tsx` 把文件复制到生成目录的 `_assets/`，生成 `const trayIcon: []const u8 = @embedFile(...)`；
   构建会记录这些文件，改了图片会自动重新生成。文件不存在时报错指向那条 import。
+- 要显示成图片时用 `assetImage(bytes)`：第一次调用时解码，之后一直复用，返回 `Image | null`，给 `<Image image>`。
 - 只在项目构建里可用（`addTsxApp` / `addTsxProject`，或 `zant-tsx --out`）。字节也可以传给 Zig 原生模块
   （参数类型 `zant.tsx.Bytes`）。编辑器类型里 `.png` / `.jpg` / `.svg` / `.txt` 等的默认导出是 `Uint8Array`。
 
