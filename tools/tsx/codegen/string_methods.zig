@@ -14,7 +14,7 @@ const Method = struct {
     min: usize,
     max: usize,
     numeric: bool = false,
-    result: enum { string, boolean, index, array, optional } = .string,
+    result: enum { string, boolean, index, array, optional, number, optional_number } = .string,
 };
 const methods = std.StaticStringMap(Method).initComptime(.{
     .{ "includes", Method{ .min = 1, .max = 1, .result = .boolean } },
@@ -37,6 +37,8 @@ const methods = std.StaticStringMap(Method).initComptime(.{
     .{ "split", Method{ .min = 1, .max = 1, .result = .array } },
     .{ "charAt", Method{ .min = 1, .max = 1, .numeric = true } },
     .{ "at", Method{ .min = 1, .max = 1, .numeric = true, .result = .optional } },
+    .{ "charCodeAt", Method{ .min = 1, .max = 1, .numeric = true, .result = .number } },
+    .{ "codePointAt", Method{ .min = 1, .max = 1, .numeric = true, .result = .optional_number } },
 });
 
 /// Lower one known-string receiver, evaluating it and each argument exactly once in source order.
@@ -85,6 +87,8 @@ pub fn emit(
         .index => .isize,
         .array => try model.array(g, .string),
         .optional => try model.optional(g, .string),
+        .number => .f64,
+        .optional_number => try model.optional(g, .f64),
     };
     return .{ .ty = ty, .code = try text.fmt(g, "{s}: {{\n{s}\nbreak :{s} tsx.strings.{s}({s});\n}}", .{
         label, try std.mem.join(g.a, "\n", setup.items), label, name.name, try std.mem.join(g.a, ", ", args.items),

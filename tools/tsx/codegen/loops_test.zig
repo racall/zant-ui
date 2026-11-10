@@ -18,7 +18,7 @@ test "loop and switch diagnostics point at the offending statement or value" {
             Handler ++ "switch (1) { ~case 1: console.log(1); case 2: break; }" ++ End,
             "add `break`; falling through to the next case is not supported",
         },
-        .{ Handler ++ "for (const x of ~3) {}" ++ End, "for...of requires an array" },
+        .{ Handler ++ "for (const x of ~3) {}" ++ End, "for...of requires an array or a string" },
         .{ Handler ++ "for (const x of [1]) ~x++;" ++ End, "`x` is const" },
         .{ Handler ++ "switch (~[1]) {}" ++ End, "switch requires a number, string, boolean or string-literal union" },
         .{ Handler ++ "const v: {n: number} = {n: 1}; switch (~v) {}" ++ End, "switch requires a number" },

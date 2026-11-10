@@ -102,7 +102,8 @@ Zant 的静态子集及精确的嵌套限制，最终仍由 `zant-tsx` 检查；
 
 多文件项目用 `addTsxProject`：所有 `.tsx` 一起编译，每个文件生成同名的 `.zig`，放在同一个输出目录里，
 文件之间的 `import { NoteCard, type Note } from "./NoteCard"` 变成 `const _NoteCard = @import("NoteCard.zig");`。
-入口文件导出根组件，其他文件只导出子组件和类型。
+入口文件导出根组件，其他文件只导出子组件和类型，也可以导出常量（`export const promptMs = 8000;`，
+导入的一方按注解或字面量得到类型）。
 
 ```zig
 const notes = addTsxProject(b, tsx_tool, &.{
@@ -199,6 +200,7 @@ const selected = items.filter(item => {
   留空等于 `true`；更新接受赋值、`++`、`--` 或留空。循环变量只在循环内可见。
 - `for (const x of xs)` / `for (let x of xs)`：遍历数组（状态、局部变量、props 或函数返回值），
   数组表达式只求值一次。元素类型自动推断；`const` 不可重新赋值，`let` 可赋值；暂不支持解构。
+  遍历字符串时和 JS 一样按码点（`for (const ch of name)`，每个 `ch` 是一个字符的字符串）。
 - `while (条件)`、`do { … } while (条件);`：条件为布尔值；`do` 至少执行一次，
   `continue` 仍会检查条件。
 - `break` 退出最近的循环或 `switch`，`continue` 进入最近循环的下一轮；不接受标签，不能跨越回调边界。
@@ -710,6 +712,8 @@ const dark = useStore(settings, (s) => s.dark);   // 选择器可省略：useSto
   不把 emoji 拆成两个 UTF-16 码元。
 - 取字符：`charAt(i)` 越界返回 `""`；`at(i)` 支持负索引，返回可选字符串 `?[]const u8`，
   越界为 `null`（TS 的 `undefined` 在此沿用可选值模型），可用 `??` / `!`。
+- 字符编码：`charCodeAt(i)` 返回第 i 个 UTF-16 码元（越界为 NaN），`codePointAt(i)` 返回从那里开始的码点
+  （可选值，越界为 `null`）。
 
 所有返回的新字符串和数组在当前帧内有效，与 `tsx.fmt` 相同；存入状态时会深拷贝。
 位置落在代理对内部时沿用 `unicode.utf16ToByte` **向前取 UTF-8 码点边界**，始终保持合法 UTF-8。

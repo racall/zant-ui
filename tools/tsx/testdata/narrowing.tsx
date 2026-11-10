@@ -6,6 +6,20 @@ interface Peer {
   files: string[];
 }
 
+interface Session {
+  peer: Peer | null;
+}
+
+/// Member paths narrow too; a string iterates by code point.
+function describe(s: Session): string {
+  if (s.peer === null) return "alone";
+  let initials = "";
+  for (const ch of s.peer.name) {
+    if (ch.charCodeAt(0) >= 97) initials += ch.toUpperCase();
+  }
+  return s.peer.files.length > 0 ? `${initials}+files` : initials;
+}
+
 function PeerCard({ peer, note }: { peer: Peer | null; note?: string }) {
   if (!peer) return <Text>No peer</Text>;
   const count = peer.files.length;
@@ -53,6 +67,7 @@ export default function App() {
         Connect
       </Button>
       <Text key="picked">{picked}</Text>
+      <Text key="describe">{describe({ peer: peer })}</Text>
     </View>
   );
 }

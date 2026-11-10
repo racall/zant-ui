@@ -9,6 +9,39 @@ fn copy(s: []const u8) []const u8 {
     return out;
 }
 
+/// `for (const ch of s)`: the code points of `s` as strings (like JS, which
+/// iterates a string by code point); an invalid byte is its own element.
+pub fn chars(s: []const u8) []const []const u8 {
+    var n: usize = 0;
+    var i: usize = 0;
+    while (i < s.len) : (n += 1) i += charLen(s, i);
+    const out = tsx.alloc([]const u8, n);
+    i = 0;
+    for (out) |*ch| {
+        const len = charLen(s, i);
+        ch.* = s[i .. i + len];
+        i += len;
+    }
+    return out;
+}
+
+fn charLen(s: []const u8, i: usize) usize {
+    const len = std.unicode.utf8ByteSequenceLength(s[i]) catch return 1;
+    if (i + len > s.len) return 1;
+    _ = std.unicode.utf8Decode(s[i .. i + len]) catch return 1;
+    return len;
+}
+
+test chars {
+    @import("ui.zig").beginFrame();
+    defer @import("ui.zig").endFrame();
+    const got = chars("a剪\xffb😀");
+    try std.testing.expectEqual(@as(usize, 5), got.len);
+    try std.testing.expectEqualStrings("剪", got[1]);
+    try std.testing.expectEqualStrings("\xff", got[2]);
+    try std.testing.expectEqualStrings("😀", got[4]);
+}
+
 /// Allocation-free substring search.
 pub fn includes(s: []const u8, needle: []const u8) bool {
     return std.mem.indexOf(u8, s, needle) != null;
@@ -277,6 +310,55 @@ pub fn charAt(s: []const u8, position: f64) []const u8 {
 /// Negative indices count from the end; absent positions use the compiler's optional model.
 pub fn at(s: []const u8, position: f64) ?[]const u8 {
     return character(s, position, true);
+}
+
+/// The UTF-16 code unit at `position` (NaN outside the string, like JS).
+pub fn charCodeAt(s: []const u8, position: f64) f64 {
+    const unit = utf16Unit(s, position) orelse return std.math.nan(f64);
+    return @floatFromInt(unit);
+}
+
+/// The code point starting at UTF-16 `position` (a trailing surrogate's own
+/// value in the middle of a pair, like JS); null outside the string.
+pub fn codePointAt(s: []const u8, position: f64) ?f64 {
+    const unit = utf16Unit(s, position) orelse return null;
+    if (unit < 0xd800 or unit > 0xdbff) return @floatFromInt(unit);
+    const low = utf16Unit(s, @trunc(position) + 1) orelse return @floatFromInt(unit);
+    if (low < 0xdc00 or low > 0xdfff) return @floatFromInt(unit);
+    return @floatFromInt(0x10000 + ((@as(u32, unit) - 0xd800) << 10) + (low - 0xdc00));
+}
+
+fn utf16Unit(s: []const u8, position: f64) ?u16 {
+    if (std.math.isNan(position)) return utf16Unit(s, 0);
+    const p = @trunc(position);
+    if (p < 0) return null;
+    var index: f64 = 0;
+    var view = std.unicode.Utf8View.init(s) catch return null;
+    var it = view.iterator();
+    while (it.nextCodepoint()) |cp| {
+        if (cp >= 0x10000) {
+            const v = cp - 0x10000;
+            if (index == p) return @intCast(0xd800 + (v >> 10));
+            if (index + 1 == p) return @intCast(0xdc00 + (v & 0x3ff));
+            index += 2;
+        } else {
+            if (index == p) return @intCast(cp);
+            index += 1;
+        }
+    }
+    return null;
+}
+
+test charCodeAt {
+    try std.testing.expectEqual(@as(f64, 97), charCodeAt("a|", 0));
+    try std.testing.expectEqual(@as(f64, 124), charCodeAt("a|", 1));
+    try std.testing.expect(std.math.isNan(charCodeAt("a", 3)));
+    try std.testing.expectEqual(@as(f64, 0x526a), charCodeAt("剪", 0));
+    try std.testing.expectEqual(@as(f64, 0xd83d), charCodeAt("😀", 0));
+    try std.testing.expectEqual(@as(f64, 0xde00), charCodeAt("😀", 1));
+    try std.testing.expectEqual(@as(?f64, 0x1f600), codePointAt("😀", 0));
+    try std.testing.expectEqual(@as(?f64, 0xde00), codePointAt("😀", 1));
+    try std.testing.expectEqual(@as(?f64, null), codePointAt("a", 1));
 }
 
 test {

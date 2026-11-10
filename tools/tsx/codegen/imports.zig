@@ -12,6 +12,7 @@ const std = @import("std");
 const ast = @import("../ast.zig");
 const core = @import("codegen.zig");
 const types = @import("types.zig");
+const expr = @import("expr.zig");
 const model = @import("model.zig");
 const components = @import("components.zig");
 const zig_text = @import("zig_text.zig");
@@ -95,6 +96,8 @@ pub fn process(g: *Generator, module: ast.Module, project: []const NamedModule) 
                 try @import("stores.zig").import(g, n, store, scope);
             } else if (@import("windows.zig").exported(target, n.imported.name) != null) {
                 try @import("windows.zig").import(g, n, scope);
+            } else if (exportedConstant(target, n.imported.name)) |constant| {
+                try importConstant(g, n, constant, scope);
             } else {
                 return core.fail(g, n.imported.loc, "`{s}` is not exported by `{s}`", .{ n.imported.name, imp.source });
             }
@@ -104,6 +107,40 @@ pub fn process(g: *Generator, module: ast.Module, project: []const NamedModule) 
 
 fn addHeader(g: *Generator, line: []const u8) Error!void {
     if (std.mem.indexOf(u8, g.header.items, line) == null) try g.header.appendSlice(g.a, line);
+}
+
+/// A plain exported constant (not a store or a window).
+fn exportedConstant(module: ast.Module, name: []const u8) ?ast.TopConst {
+    for (module.consts) |constant| {
+        if (!constant.exported or !zig_text.eq(constant.name.name, name)) continue;
+        const special = @import("windows.zig").isCreate(constant.value) or
+            @import("stores.zig").exported(module, name) != null;
+        if (!special) return constant;
+    }
+    return null;
+}
+
+/// `import { promptMs } from "./AppStore"`: `_AppStore.promptMs`, typed by
+/// its annotation or its literal value (resolved in the declaring file).
+fn importConstant(g: *Generator, n: ast.ImportName, constant: ast.TopConst, scope: *const Scope) Error!void {
+    const previous = g.type_scope;
+    g.type_scope = scope;
+    defer g.type_scope = previous;
+    const ty = if (constant.ty) |ref| try types.typeRef(g, ref, false) else blk: {
+        var c = @import("scope.zig").Context{ .g = g, .render = true, .ret = .void_, .constant = true };
+        const v = expr.emit(g, &c, constant.value, null, false) catch |err| switch (err) {
+            error.Tsx => return core.fail(g, n.imported.loc, "give `{s}` a type annotation to import it", .{
+                n.imported.name,
+            }),
+            else => return err,
+        };
+        break :blk v.ty.concrete();
+    };
+    try g.constants.append(g.a, .{ .name = n.local.name, .value = .{
+        .ty = ty,
+        .code = try zig_text.fmt(g, "{s}.{s}", .{ try zig_text.id(g, scope.alias), try zig_text.id(g, n.imported.name) }),
+        .inference = .known,
+    } });
 }
 
 fn exportedType(module: ast.Module, name: []const u8) bool {

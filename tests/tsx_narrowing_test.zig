@@ -49,6 +49,7 @@ test "tsx optional narrowing" {
     try std.testing.expectEqualStrings("untitled 0 empty", text(runtime, "title"));
     // `<PeerCard key="card">` keys the child's root: here its early-return text
     try std.testing.expectEqualStrings("No peer", text(runtime, "card"));
+    try std.testing.expectEqualStrings("alone", text(runtime, "describe"));
     try std.testing.expect(runtime.tree.idOfKey("files") == null);
     try click(runtime, &renderer, "connect"); // returns early: label stays null
     try std.testing.expectEqualStrings("untitled 0 empty", text(runtime, "title"));
@@ -56,6 +57,7 @@ test "tsx optional narrowing" {
     try click(runtime, &renderer, "add");
     try std.testing.expectEqualStrings("untitled 2 has files", text(runtime, "title"));
     try std.testing.expectEqualStrings("mac (2)", text(runtime, "name"));
+    try std.testing.expectEqualStrings("MAC+files", text(runtime, "describe"));
     try std.testing.expect(runtime.tree.idOfKey("note") == null);
     // an arrow made in the narrowed branch captured `current`
     try click(runtime, &renderer, "b.png");

@@ -6,7 +6,7 @@ test "string methods diagnose names, arity, argument types and optional receiver
     const cases = [_][2][]const u8{
         .{ App ++ "const x = \"a\".~normalize(); return <View/>; }", "unknown string method `normalize`; supported:" },
         .{ App ++ "const x = \"a\".~localeCompare(\"b\"); return <View/>; }", "unknown string method" },
-        .{ App ++ "const x = \"a\".~codePointAt(0); return <View/>; }", "unknown string method" },
+        .{ App ++ "const x = \"a\".~normalize(); return <View/>; }", "unknown string method" },
         .{ App ++ "const x = ~\"a\".trim(1); return <View/>; }", "expects 0..0 arguments" },
         .{ App ++ "const x = ~\"a\".replace(\"b\"); return <View/>; }", "expects 2..2 arguments" },
         .{ App ++ "const x = \"a\".includes(~1); return <View/>; }", "cannot convert f64 to []const u8" },

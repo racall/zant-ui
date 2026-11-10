@@ -3,7 +3,7 @@
 import { useState, View, Text } from "zant";
 import type { i64 } from "zant";
 import { sample } from "./data.zig";
-import { Row } from "./Row";
+import { Row, rowPrefix, maxLabel } from "./Row";
 import { Rows } from "./Rows";
 export default function App() {
   const [picked, setPicked] = useState<i64>(0);
@@ -12,6 +12,10 @@ export default function App() {
       <Row key="first" entry={sample()[0]} onPick={(r) => setPicked(r)} />
       <Rows key="all" items={sample()} onPick={(r) => setPicked(r)} />
       <Text key="picked">{picked}</Text>
+      <Text key="consts">
+        {rowPrefix}
+        {maxLabel}
+      </Text>
     </View>
   );
 }

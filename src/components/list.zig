@@ -435,8 +435,11 @@ pub fn list(state: *ListState, options: ListOptions) ui.Node {
     state.setCount(options.count);
     if (!options.follow_tail) state.following = false;
 
-    // the viewport as laid out last time (on_resize rebuilds when it changes)
-    if (ui.keyBounds(options.key)) |b| {
+    // the viewport as laid out last time (on_resize rebuilds when it changes),
+    // read from a child: the list's own key may be replaced by its parent
+    // (`ui.withKey`, a TSX component whose root is a list)
+    const viewport_key = std.fmt.allocPrint(arena, "{s}-viewport", .{options.key}) catch "";
+    if (ui.keyBounds(viewport_key)) |b| {
         if (@abs(b.width - state.viewport.width) > 0.5 and state.viewport.width > 0 and state.uniform == null) {
             // heights depend on the width: measure again as items show
             state.invalidateAll();
@@ -452,6 +455,14 @@ pub fn list(state: *ListState, options: ListOptions) ui.Node {
     }
 
     var children: std.ArrayListUnmanaged(ui.Node) = .empty;
+    // an empty box filling the list: its bounds are the viewport
+    children.append(arena, ui.styled(ui.column(.{ .key = viewport_key }), .{
+        .absolute = true,
+        .left = 0,
+        .top = 0,
+        .width_percent = 100,
+        .height_percent = 100,
+    })) catch {};
     const n = state.count();
     const vp_h = state.viewport.height;
     if (vp_h > 0 and n > 0) {

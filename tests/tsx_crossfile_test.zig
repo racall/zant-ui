@@ -46,8 +46,11 @@ test "tsx types across files" {
     defer renderer.deinit();
     frame(runtime, &renderer);
     try std.testing.expectEqualStrings("0", text(runtime, "picked"));
-    // the second row comes through Rows (another file) with the Zig type;
-    // `<Row key={d.row}>` keys the row's root: "2"
-    try click(runtime, &renderer, "2");
+    try std.testing.expectEqualStrings("#12", text(runtime, "consts"));
+    // the second row comes through Rows (another file, a virtual list) with
+    // the Zig type, and Rows forwards its own callback prop
+    // the list is Rows' root and gets Rows' key ("all"): it still finds its viewport
+    frame(runtime, &renderer);
+    try click(runtime, &renderer, "pick-2");
     try std.testing.expectEqualStrings("2", text(runtime, "picked"));
 }

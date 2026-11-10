@@ -148,6 +148,12 @@ pub fn coalesce(g: *Generator, c: *Context, loc: ast.Loc, binary: ast.Binary, ex
 
 /// Optional access evaluates its receiver once and preserves null through the member.
 pub fn member(g: *Generator, c: *Context, m: ast.Member) Error!Value {
+    if (c.narrowed.items.len > 0 and !m.optional) {
+        // `s.prompt` narrowed by `s.prompt !== null && …`
+        const narrowing = @import("narrowing.zig");
+        const self_expr = ast.Expr{ .loc = m.name.loc, .data = .{ .member = m } };
+        if (try narrowing.path(g, &self_expr)) |p| if (narrowing.findPath(c, p, narrowing.base(&self_expr))) |v| return v;
+    }
     if (try @import("builtins.zig").member(g, c, m)) |value| return value;
     if (try @import("hooks.zig").refRead(g, c, m)) |ref| return ref;
     const value = try expr.emit(g, c, m.object, null, false);

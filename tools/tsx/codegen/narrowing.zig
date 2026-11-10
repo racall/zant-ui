@@ -4,6 +4,7 @@
 //!     if (label) { label.length }                  // label: string | null
 //!     {peer && <Text>{peer.name}</Text>}
 //!     if (!entry) return <Empty/>;  entry.text      // the rest of the block
+//!     s.prompt !== null && s.prompt.row == row      // member paths too
 //!
 //! A condition yields facts "this name is non-null when the condition is
 //! true / false"; while a branch is emitted, reading the name gives the
@@ -25,6 +26,7 @@ const Type = types.Type;
 const Error = core.Error;
 
 pub const Narrow = struct {
+    /// The name, or a member path (`s.prompt`).
     name: []const u8,
     /// The local it narrows (null: a prop, state or constant), so an inner
     /// local with the same name is not narrowed.
@@ -35,7 +37,15 @@ pub const Narrow = struct {
 
 /// The narrowed value of `n`, if a condition around this point narrowed it.
 pub fn find(c: *Context, n: []const u8) ?Value {
-    const b = scope.local(c, n);
+    return findPath(c, n, n);
+}
+
+/// The narrowed value of the member path `path` (`s.prompt`) whose base
+/// name is `base`.
+pub fn findPath(c: *Context, member_path: []const u8, base_name: []const u8) ?Value {
+    if (c.narrowed.items.len == 0) return null;
+    const n = member_path;
+    const b = scope.local(c, base_name);
     var i = c.narrowed.items.len;
     while (i > 0) {
         i -= 1;
@@ -58,7 +68,7 @@ pub fn restore(c: *Context, mark: usize) void {
 
 fn facts(g: *Generator, c: *Context, e: *const ast.Expr, positive: bool) Error!void {
     switch (e.data) {
-        .ident => |n| if (positive) try candidate(g, c, n, e.loc),
+        .ident, .member => if (positive) try candidate(g, c, e),
         .unary => |u| if (text.eq(u.op, "!")) try facts(g, c, u.operand, !positive),
         .binary => |b| {
             if (text.eq(b.op, "&&") and positive or text.eq(b.op, "||") and !positive) {
@@ -70,7 +80,7 @@ fn facts(g: *Generator, c: *Context, e: *const ast.Expr, positive: bool) Error!v
             const equal = text.eq(b.op, "==") or text.eq(b.op, "===");
             if (!(not_equal and positive) and !(equal and !positive)) return;
             const other = if (isNull(b.rhs)) b.lhs else if (isNull(b.lhs)) b.rhs else return;
-            if (other.data == .ident) try candidate(g, c, other.data.ident, other.loc);
+            try candidate(g, c, other);
         },
         else => {},
     }
@@ -80,10 +90,32 @@ fn isNull(e: *const ast.Expr) bool {
     return e.data == .null_lit or (e.data == .ident and text.eq(e.data.ident, "undefined"));
 }
 
-fn candidate(g: *Generator, c: *Context, n: []const u8, loc: ast.Loc) Error!void {
-    const b = scope.local(c, n);
+/// `peer` → "peer", `s.prompt` → "s.prompt" (plain member chains only).
+pub fn path(g: *Generator, e: *const ast.Expr) Error!?[]const u8 {
+    return switch (e.data) {
+        .ident => |n| n,
+        .member => |m| blk: {
+            if (m.optional) break :blk null;
+            const object = (try path(g, m.object)) orelse break :blk null;
+            break :blk try text.fmt(g, "{s}.{s}", .{ object, m.name.name });
+        },
+        else => null,
+    };
+}
+
+pub fn base(e: *const ast.Expr) []const u8 {
+    return switch (e.data) {
+        .member => |m| base(m.object),
+        .ident => |n| n,
+        else => "",
+    };
+}
+
+fn candidate(g: *Generator, c: *Context, e: *const ast.Expr) Error!void {
+    const n = (try path(g, e)) orelse return;
+    const b = scope.local(c, base(e));
     if (b) |binding| if (binding.mutable) return;
-    const value = scope.read(g, c, n, loc) catch |err| switch (err) {
+    const value = expr.emit(g, c, @constCast(e), null, false) catch |err| switch (err) {
         // not a name this condition can narrow (an error is reported where it is read)
         error.Tsx => {
             g.diag.* = null;

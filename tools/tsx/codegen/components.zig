@@ -545,12 +545,20 @@ fn callbackValue(g: *Generator, c: *Context, entry: *const model.Info, value: *a
                 );
             }
         },
-        else => return core.fail(
-            g,
-            value.loc,
-            "callback props take a component function, an inline arrow or a callback prop",
-            .{},
-        ),
+        // `props.onPick` (or any value of the callback's type): forwarded as is
+        else => {
+            const v = try expr.emit(g, c, value, null, false);
+            const same = callbackInfo(g, v.ty) orelse return core.fail(
+                g,
+                value.loc,
+                "callback props take a component function, an inline arrow or a callback prop",
+                .{},
+            );
+            if (!std.mem.eql(Type, same.params, entry.params)) {
+                return core.fail(g, value.loc, "this callback has a different signature", .{});
+            }
+            return v.code;
+        },
     }
     const m = g.methods.items[method_index];
     const receiver = if (m.captures.items.len > 0) try captures.value(g, m) else "self";

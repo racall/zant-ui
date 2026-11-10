@@ -9,15 +9,45 @@ pub const Peer = struct {
     files: []const []const u8,
 };
 
-pub const _Object2 = struct {
+pub const Session = struct {
+    peer: ?Peer,
+};
+
+pub const _Object4 = struct {
     peer: ?Peer,
     note: ?[]const u8 = null,
 };
 
+pub fn describe(s: Session) []const u8 {
+    if (s.peer == null) {
+        return "alone";
+    }
+    var initials: []const u8 = "";
+    {
+        const _items: []const []const u8 = tsx.strings.chars(s.peer.?.name);
+        for (_items) |_item| {
+            const ch: []const u8 = _item;
+            {
+                if (_string: {
+                    const _text: []const u8 = ch;
+                    const _arg: f64 = 0;
+                    break :_string tsx.strings.charCodeAt(_text, _arg);
+                } >= 97) {
+                    initials = tsx.fmt("{s}{s}", .{ initials, _string_2: {
+                        const _text_2: []const u8 = ch;
+                        break :_string_2 tsx.strings.toUpperCase(_text_2);
+                    } });
+                }
+            }
+        }
+    }
+    return if (s.peer.?.files.len > 0) tsx.fmt("{s}+files", .{initials}) else initials;
+}
+
 pub const PeerCard = struct {
     props: Props,
 
-    pub const Props = _Object2;
+    pub const Props = _Object4;
 
     pub fn render(self: *PeerCard) ui.Node {
         if (!(self.props.peer != null)) {
@@ -111,6 +141,11 @@ pub const App = struct {
                 }),
                 ui.text(self.picked.get(), .{
                     .key = "picked",
+                }),
+                ui.text(describe(Session{
+                    .peer = self.peer.get(),
+                }), .{
+                    .key = "describe",
                 }),
             }),
         });

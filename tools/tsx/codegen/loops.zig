@@ -65,11 +65,15 @@ fn forStatement(g: *Generator, c: *Context, v: ast.For, label: []const u8) Error
 }
 
 fn forOf(g: *Generator, c: *Context, v: ast.ForOf, label: []const u8) Error![]const u8 {
-    const iterable = try expr.emit(g, c, v.iterable, null, false);
+    var iterable = try expr.emit(g, c, v.iterable, null, false);
+    if (iterable.ty == .string) {
+        // by code point, like JS: `for (const ch of name)`
+        iterable = .{ .ty = try model.array(g, .string), .code = try text.fmt(g, "tsx.strings.chars({s})", .{iterable.code}) };
+    }
     const element = model.element(g, iterable.ty) orelse return core.fail(
         g,
         v.iterable.loc,
-        "for...of requires an array",
+        "for...of requires an array or a string",
         .{},
     );
     const source = try aggregate.temporary(c, "_items");
