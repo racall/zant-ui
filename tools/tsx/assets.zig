@@ -83,12 +83,18 @@ pub fn collect(arena: std.mem.Allocator, files: []const @import("compile.zig").F
     return list.items;
 }
 
-/// A Makefile-style dep file for the build (`addDepFileOutputArg`): editing
-/// an asset reruns zant-tsx.
-pub fn depFile(arena: std.mem.Allocator, target: []const u8, list: []const Asset) ![]const u8 {
+/// A Makefile-style dep file for the build (`addDepFileOutputArg`): every
+/// source read (`sources`) and asset embedded; editing one reruns zant-tsx,
+/// and a deleted one is only a cache miss (unlike inputs listed when the
+/// build is configured, which go stale).
+pub fn depFile(arena: std.mem.Allocator, target: []const u8, sources: []const []const u8, list: []const Asset) ![]const u8 {
     var out: std.ArrayList(u8) = .empty;
     try out.appendSlice(arena, try escape(arena, target));
     try out.append(arena, ':');
+    for (sources) |source| {
+        try out.appendSlice(arena, " \\\n  ");
+        try out.appendSlice(arena, try escape(arena, source));
+    }
     for (list) |asset| {
         try out.appendSlice(arena, " \\\n  ");
         try out.appendSlice(arena, try escape(arena, asset.from));
@@ -106,5 +112,5 @@ test "dep file lists the assets" {
     defer arena_state.deinit();
     const a = arena_state.allocator();
     const list = [_]Asset{.{ .importer = "", .importer_src = "", .loc = 0, .from = "my app/tray.png", .key = "" }};
-    try std.testing.expectEqualStrings("out: \\\n  my\\ app/tray.png\n", try depFile(a, "out", &list));
+    try std.testing.expectEqualStrings("out: \\\n  src/App.tsx \\\n  my\\ app/tray.png\n", try depFile(a, "out", &.{"src/App.tsx"}, &list));
 }

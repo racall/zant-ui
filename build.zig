@@ -298,8 +298,8 @@ fn tsxApp(
     _ = run.addDepFileOutputArg("tsx.d");
     run.addArgs(&.{ "--main", options.entry, "--src" });
     run.addDirectoryArg(b.path(options.src));
-    // a directory argument isn't hashed by content: list its files as inputs
-    addSourceInputs(b, run, options.src, 0);
+    // a directory argument isn't hashed by content: zant-tsx lists every
+    // file it read in the dep file (a deleted one is then just a cache miss)
     return b.createModule(.{
         .root_source_file = out.path(b, "main.zig"),
         .target = options.target,
@@ -308,26 +308,6 @@ fn tsxApp(
         .link_libcpp = options.target.result.os.tag == .macos,
         .imports = &.{.{ .name = "zant", .module = zant_mod }},
     });
-}
-
-fn addSourceInputs(b: *std.Build, run: *std.Build.Step.Run, sub_path: []const u8, depth: usize) void {
-    if (depth > 16) return;
-    const io = b.graph.io;
-    const full = b.root.joinString(b.allocator, sub_path) catch return;
-    var dir = std.Io.Dir.cwd().openDir(io, full, .{ .iterate = true }) catch return;
-    defer dir.close(io);
-    var it = dir.iterate();
-    while (it.next(io) catch null) |entry| {
-        if (entry.name.len == 0 or entry.name[0] == '.') continue;
-        const child = b.pathJoin(&.{ sub_path, entry.name });
-        switch (entry.kind) {
-            .directory => addSourceInputs(b, run, child, depth + 1),
-            .file => if (std.mem.endsWith(u8, entry.name, ".tsx") or std.mem.endsWith(u8, entry.name, ".zig")) {
-                run.addFileInput(b.path(child));
-            },
-            else => {},
-        }
-    }
 }
 
 /// Golden files of the TSX compiler (`tools/tsx/testdata/<name>.tsx` → `.zig`).

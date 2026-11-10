@@ -105,7 +105,12 @@ fn copyAssets(
         try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = out, .data = data });
     }
     if (dep_file) |dep| {
-        try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = dep, .data = try assets.depFile(arena, out_dir, list) });
+        const sources = try arena.alloc([]const u8, files.len);
+        for (files, sources) |file, *source| source.* = file.path;
+        try std.Io.Dir.cwd().writeFile(io, .{
+            .sub_path = dep,
+            .data = try assets.depFile(arena, out_dir, sources, list),
+        });
     }
 }
 
