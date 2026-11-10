@@ -81,6 +81,8 @@ pub const Generator = struct {
     hook_fields: std.ArrayList(@import("hooks.zig").Field) = .empty,
     effects: std.ArrayList(@import("hooks.zig").Effect) = .empty,
     cleanups: std.ArrayList(@import("hooks.zig").Cleanup) = .empty,
+    /// Callbacks of `useTray` / `useHotkey` (`desktop_hooks.zig`).
+    desktop_callbacks: std.ArrayList(@import("desktop_hooks.zig").Callback) = .empty,
     /// Plain functions of this file and imported ones (`functions.zig`).
     functions: std.ArrayList(@import("functions.zig").Function) = .empty,
     /// Stores declared in or imported into this file (`stores.zig`).
@@ -110,7 +112,7 @@ pub fn contextualize(g: *Generator, prefix: []const u8) Error!void {
 
 pub fn hookName(g: *Generator, n: []const u8) bool {
     if (zig_text.eq(n, "useState") or @import("hooks.zig").extraHook(n) or zig_text.eq(n, "useStore")) return true;
-    if (@import("app_hooks.zig").isAppHook(n)) return true;
+    if (@import("app_hooks.zig").isAppHook(n) or @import("desktop_hooks.zig").isHook(n)) return true;
     for (g.hook_names.items) |name| if (zig_text.eq(n, name)) return true;
     return false;
 }
@@ -143,6 +145,7 @@ pub fn collect(g: *Generator, f: *ast.Function) Error!void {
         .expr => |e| if (@import("hooks.zig").callName(e)) |n| {
             if (zig_text.eq(n, "useEffect")) try @import("hooks.zig").collectEffect(g, e);
             if (@import("app_hooks.zig").isAppHook(n)) try @import("app_hooks.zig").collect(g, e);
+            if (@import("desktop_hooks.zig").isHook(n)) try @import("desktop_hooks.zig").collect(g, e);
         },
         else => {},
     };
@@ -287,7 +290,7 @@ pub fn generate(
                 zig_text.eq(n.imported.name, "List") or @import("hooks.zig").extraHook(n.imported.name) or
                 zig_text.eq(n.imported.name, "createStore") or zig_text.eq(n.imported.name, "useStore") or
                 @import("app_hooks.zig").isAppHook(n.imported.name) or zig_text.eq(n.imported.name, "KeyEvent") or
-                zig_text.eq(n.imported.name, "createWindow");
+                zig_text.eq(n.imported.name, "createWindow") or @import("desktop_hooks.zig").isHook(n.imported.name);
             if (!hook_import and tag == null and !types.numericName(n.imported.name)) return core.fail(
                 &g,
                 n.imported.loc,
@@ -389,6 +392,7 @@ fn resetComponent(g: *Generator) void {
     g.hook_fields.clearRetainingCapacity();
     g.effects.clearRetainingCapacity();
     g.cleanups.clearRetainingCapacity();
+    g.desktop_callbacks.clearRetainingCapacity();
 }
 
 /// One component as a struct: the root with its state fields, or a child
@@ -549,6 +553,7 @@ fn collectDeclaration(g: *Generator, loc: ast.Loc, declaration: ast.Decl) Error!
         if (zig_text.eq(n, "useRef")) return @import("hooks.zig").collectRef(g, loc, declaration, init.data.call);
         if (zig_text.eq(n, "useMemo") or zig_text.eq(n, "useStore")) return; // render locals (stmt.declaration)
         if (zig_text.eq(n, "useEffect")) return core.fail(g, loc, "useEffect returns nothing", .{});
+        if (@import("desktop_hooks.zig").isHook(n)) return @import("desktop_hooks.zig").collect(g, init);
         return core.collectState(g, loc, declaration, init.data.call);
     }
     if (init.data == .arrow and declaration.pattern == .ident) {

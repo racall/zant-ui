@@ -9,6 +9,8 @@ pub const strings = @import("tsx_strings.zig");
 pub const app = @import("tsx_app.zig");
 /// `KeyEvent` in TSX (`useKeyDown`).
 pub const KeyEvent = app.KeyEvent;
+/// `useTray` / `useHotkey`.
+pub const desktop = @import("tsx_desktop.zig");
 /// `createWindow(Component, { … })`.
 pub const Window = @import("tsx_window.zig").Window;
 /// JavaScript numeric built-ins for generated TSX code.

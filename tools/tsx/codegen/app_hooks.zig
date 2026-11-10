@@ -26,6 +26,8 @@ const Hook = struct {
     /// What the callback takes.
     param: enum { none, key, focused } = .none,
     returns: Type = .boolean,
+    /// App events: the root component only (not windows).
+    root_only: bool = false,
 };
 
 const hooks = [_]Hook{
@@ -33,6 +35,8 @@ const hooks = [_]Hook{
     .{ .name = "useQuitRequest", .method = "onQuitRequest" },
     .{ .name = "useKeyDown", .method = "onKey", .param = .key },
     .{ .name = "useWindowFocus", .method = "onFocus", .param = .focused, .returns = .void_ },
+    .{ .name = "useClipboardChange", .method = "onClipboard", .returns = .void_, .root_only = true },
+    .{ .name = "useReopen", .method = "onReopen", .returns = .void_, .root_only = true },
 };
 
 fn find(name: []const u8) ?Hook {
@@ -62,6 +66,12 @@ pub fn keyEventType(g: *Generator) Error!Type {
 pub fn collect(g: *Generator, e: *ast.Expr) Error!void {
     const call = e.data.call;
     const hook = find(call.callee.data.ident).?;
+    if (hook.root_only and g.current_component != null) return core.fail(
+        g,
+        e.loc,
+        "{s} belongs to the root component (the app); call it there",
+        .{hook.name},
+    );
     if (g.current_component) |comp| if (comp.props != null and model.info(g, comp.props.?).?.fields.len > 0) {
         return core.fail(
             g,

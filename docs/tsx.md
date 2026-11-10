@@ -463,6 +463,26 @@ useKeyDown((e: KeyEvent) => {      // 全局按键，在获得焦点的控件之
   `mod` 是平台的命令键（macOS ⌘、Windows Ctrl），另有 `shift` `alt` `ctrl` `meta` `repeat`。
 - 回调像事件处理函数一样运行（读状态快照、调 setter、读写 store），不能读渲染体里的局部变量。
 
+### 托盘、全局快捷键、剪贴板
+
+```tsx
+const shown = useTray({                      // 一个应用一个托盘 / 菜单栏图标；内容变了才更新
+  icon: trayIcon, iconLight: trayIconLight, template: true, tooltip: "ClipHop",
+  items: [
+    { title: "打开", onSelect: () => showMain() },
+    { separator: true },
+    { title: "同步", checked: sync, onSelect: () => setSync(!sync) },
+  ],
+  onClick: () => showMain(),                 // Windows：左键点击图标（菜单在右键）
+});
+const ok = useHotkey(hotkey, () => panel.toggle());   // "ctrl+cmd+v"；"" 表示不注册；返回是否注册成功
+useClipboardChange(() => record());          // 任何应用复制了东西（只在根组件）
+useReopen(() => showMain());                 // macOS 点了 Dock 图标（只在根组件；不写时把主窗口带到前面）
+```
+
+- 托盘和快捷键在渲染时应用，只有内容变化才调用系统接口；回调像事件处理函数一样运行，可以读渲染体里的局部变量。
+- 图标是 PNG 字节（`Uint8Array`），来自导入的图片文件或 Zig 原生模块。`useHotkey` 被别的应用占用时返回 false。
+
 ### 多窗口：`createWindow`
 
 ```tsx

@@ -395,7 +395,7 @@ fn registerArrow(g: *Generator, prop: *const tags.Prop, e: *ast.Expr) Error!usiz
 }
 
 /// `fn` passed as a handler, as the arrow `() => fn()` / `(v) => fn(v)`.
-fn functionArrow(g: *Generator, e: *ast.Expr, kind: tags.Kind) Error!*ast.Expr {
+pub fn functionArrow(g: *Generator, e: *ast.Expr, kind: tags.Kind) Error!*ast.Expr {
     const callee = try g.a.create(ast.Expr);
     callee.* = e.*;
     const takes_value = kind != .action;

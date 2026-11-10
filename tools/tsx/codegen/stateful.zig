@@ -130,7 +130,7 @@ const Walker = struct {
     /// `useRef`, `useMemo`, `useEffect`, `useState` or the local name it is
     /// imported under.
     fn isHook(w: *const Walker, name: []const u8) bool {
-        if (@import("hooks.zig").extraHook(name)) return true;
+        if (@import("hooks.zig").extraHook(name) or std.mem.eql(u8, name, "useHotkey")) return true;
         for (w.module.imports) |imp| for (imp.names) |n| {
             if (std.mem.eql(u8, n.imported.name, "useState") and std.mem.eql(u8, n.local.name, name)) return true;
         };

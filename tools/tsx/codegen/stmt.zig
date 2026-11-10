@@ -46,6 +46,10 @@ pub fn statement(g: *Generator, c: *Context, s: *ast.Stmt, top: bool) Error![]co
                 if (@import("app_hooks.zig").isAppHook(e.data.call.callee.data.ident)) {
                     return @import("app_hooks.zig").statement(g, c, e, top);
                 }
+                if (@import("desktop_hooks.zig").isHook(e.data.call.callee.data.ident)) {
+                    const v = try @import("desktop_hooks.zig").value(g, c, e, top);
+                    return zig_text.fmt(g, "_ = {s};\n", .{v.code});
+                }
                 if (!zig_text.eq(e.data.call.callee.data.ident, "useEffect")) {
                     return core.fail(g, e.loc, "keep the value of this hook: const x = …", .{});
                 }
@@ -66,6 +70,13 @@ fn declaration(g: *Generator, c: *Context, loc: ast.Loc, d: ast.Decl, top: bool)
     }
     if (core.hook(g, e) and zig_text.eq(e.data.call.callee.data.ident, "useStore")) {
         return @import("stores.zig").use(g, c, loc, d, top);
+    }
+    if (core.hook(g, e) and @import("desktop_hooks.zig").isHook(e.data.call.callee.data.ident)) {
+        if (d.pattern != .ident) return core.fail(g, loc, "const ok = {s}(…)", .{e.data.call.callee.data.ident});
+        const v = try @import("desktop_hooks.zig").value(g, c, e, top);
+        const b = try scope.bind(c, d.pattern.ident.name, v.ty, !d.is_const);
+        b.init = v.code;
+        return zig_text.fmt(g, "\x01{d}\x02", .{b.serial});
     }
     if (core.hook(g, e)) {
         if (c.render and top) return "";

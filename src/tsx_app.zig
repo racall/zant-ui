@@ -12,6 +12,7 @@ const tokens = @import("theme/tokens.zig");
 const launch = @import("launch.zig");
 const desktop = @import("desktop.zig");
 const events = @import("core/events.zig");
+const tsx_desktop = @import("tsx_desktop.zig");
 
 /// Runs the app until its last window closes.
 pub fn run(init: std.process.Init, comptime Root: type, comptime config: type) !void {
@@ -54,6 +55,27 @@ pub fn Shell(comptime Root: type) type {
         /// `useKeyDown`: true when the app handled the key.
         pub fn onKey(self: *Self, key: events.KeyEvent) bool {
             return if (@hasDecl(Root, "onKey")) self.root.onKey(keyEvent(key)) else false;
+        }
+
+        /// `useClipboardChange` needs the clipboard watched.
+        pub fn onStart(self: *Self) void {
+            _ = self;
+            if (@hasDecl(Root, "onClipboard")) desktop.watchClipboard(true);
+        }
+
+        /// Clipboard, Dock, tray and hotkey events to the hooks; every
+        /// window rebuilds afterwards.
+        pub fn onAppEvent(self: *Self, event: desktop.AppEvent) bool {
+            switch (event) {
+                .clipboard => if (@hasDecl(Root, "onClipboard")) self.root.onClipboard(),
+                .reopen => if (@hasDecl(Root, "onReopen")) {
+                    self.root.onReopen();
+                } else if (desktop.mainWindow()) |w| w.activate(),
+                .tray_click => tsx_desktop.tray.click(),
+                .tray_menu => |id| tsx_desktop.tray.select(id),
+                .hotkey => |id| _ = tsx_desktop.hotkeyPressed(id),
+            }
+            return true;
         }
 
         /// Light or dark with the system, before every build.
