@@ -7,6 +7,7 @@ macOS 与 Windows 共用同一套 API；快捷键文字一律用 `zant.keys.labe
 
 | 组件 | 文档 |
 |---|---|
+| 通用容器（`ui.view`，类似 RN View / div） | [view.md](view.md) |
 | 布局 | [layout.md](layout.md) |
 | 文本、标题、段落 | [text.md](text.md) |
 | 按钮、链接 | [button.md](button.md), [link.md](link.md) |

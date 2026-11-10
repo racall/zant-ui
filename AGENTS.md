@@ -168,7 +168,7 @@ ui.styled(node, .{
 
 ## 布局规范
 
-- 使用 `ui.column` / `ui.row` / `ui.card`，不要手写绝对坐标。
+- 使用 `ui.view`（通用容器，类似 RN View / div，`docs/components/view.md`）/ `ui.column` / `ui.row` / `ui.card`，不要手写绝对坐标。
 - 支持单行 Flex、横向 wrap、百分比宽高、order、align-self、align-content。
 - 纵向 wrap、wrap-reverse、auto/calc 仍未支持。
 - 固定高度控件（input/button/card）默认 `shrink = 0`，避免窗口缩小时被压扁。

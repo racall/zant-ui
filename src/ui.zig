@@ -1842,3 +1842,8 @@ pub const HotkeyAction = hotkey_input_mod.HotkeyAction;
 /// Shortcut recorder for a global hotkey (`zant.desktop.Shortcut`).
 pub const hotkeyInput = hotkey_input_mod.hotkeyInput;
 pub const hotkeyAction = hotkey_input_mod.hotkeyAction;
+const view_mod = @import("components/view.zig");
+pub const ViewOptions = view_mod.ViewOptions;
+/// General-purpose container like React Native `View` / HTML `div`
+/// (`docs/components/view.md`).
+pub const view = view_mod.view;

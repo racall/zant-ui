@@ -17,6 +17,7 @@ test {
 
 test {
     _ = @import("ui_test.zig");
+    _ = @import("view_test.zig");
 }
 
 test {
