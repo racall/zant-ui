@@ -31,6 +31,9 @@ pub const Context = struct {
     params: std.ArrayList(*Binding) = .empty,
     constant: bool = false,
     return_label: ?[]const u8 = null,
+    /// Nearest statement control targets; callbacks start a fresh control scope.
+    break_label: ?[]const u8 = null,
+    continue_label: ?[]const u8 = null,
     return_values: ?*std.ArrayList(ReturnValue) = null,
     capture_source: ?*Context = null,
     capture_method: ?usize = null,

@@ -416,7 +416,10 @@ pub const Parser = struct {
             const body = try self.parseBlock();
             return self.new(ast.Stmt, .{ .loc = loc, .data = .{ .block = body } });
         }
-        inline for (.{ "for", "while", "do", "switch", "try", "throw", "class", "async", "await" }) |kw| {
+        inline for (.{ "for", "while", "do", "switch", "break", "continue" }) |kw| {
+            if (self.isKw(kw)) return @import("loop_parser.zig").parse(self);
+        }
+        inline for (.{ "try", "throw", "class", "async", "await" }) |kw| {
             if (self.isKw(kw)) return self.fail(loc, "`{s}` is not supported yet", .{kw});
         }
         const e = try expr_parser.parseExpr(self);

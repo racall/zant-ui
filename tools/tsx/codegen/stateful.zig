@@ -39,6 +39,28 @@ const Walker = struct {
     fn stmt(w: *Walker, s: *const ast.Stmt) void {
         if (w.found) return;
         switch (s.data) {
+            .for_ => |v| {
+                if (v.init) |init| w.stmt(init);
+                if (v.cond) |cond| w.expr(cond);
+                if (v.update) |update| w.expr(update);
+                w.stmt(v.body);
+            },
+            .for_of => |v| {
+                w.expr(v.iterable);
+                w.stmt(v.body);
+            },
+            .while_ => |v| {
+                w.expr(v.cond);
+                w.stmt(v.body);
+            },
+            .switch_ => |v| {
+                w.expr(v.value);
+                for (v.cases) |case| {
+                    if (case.value) |value| w.expr(value);
+                    for (case.body) |child| w.stmt(child);
+                }
+            },
+            .break_, .continue_ => {},
             .decl => |d| if (d.init) |e| w.expr(e),
             .func => |f| w.body(f.body),
             .ret => |e| if (e) |v| w.expr(v),

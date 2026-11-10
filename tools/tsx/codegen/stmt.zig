@@ -17,7 +17,7 @@ pub fn statements(g: *Generator, c: *Context, ss: []const *ast.Stmt, top: bool) 
     var out: std.ArrayList(u8) = .empty;
     for (ss) |s| {
         try out.appendSlice(g.a, try stmt.statement(g, c, s, top));
-        if (stmt.stmtReturns(s)) break;
+        if (@import("loops.zig").exits(s)) break;
     }
     return out.items;
 }
@@ -34,6 +34,7 @@ pub fn scoped(g: *Generator, c: *Context, s: *ast.Stmt) Error![]const u8 {
 
 pub fn statement(g: *Generator, c: *Context, s: *ast.Stmt, top: bool) Error![]const u8 {
     switch (s.data) {
+        .for_, .for_of, .while_, .switch_, .break_, .continue_ => return @import("loops.zig").emit(g, c, s),
         .decl => |d| return declaration(g, c, s.loc, d, top),
         .func => {
             if (c.render and top) return "";
@@ -222,6 +223,11 @@ pub fn stateWrite(g: *Generator, field: []const u8, t: Type, v: []const u8) Erro
 pub fn stmtReturns(s: *ast.Stmt) bool {
     return switch (s.data) {
         .ret => true,
+        .switch_ => |v| @import("loops.zig").returns(v),
+        .for_ => |v| (v.cond == null or (v.cond.?.data == .boolean and v.cond.?.data.boolean)) and
+            !@import("loops.zig").jumps(v.body) and stmt.stmtReturns(v.body),
+        .while_ => |v| (v.do_first or (v.cond.data == .boolean and v.cond.data.boolean)) and
+            !@import("loops.zig").jumps(v.body) and stmt.stmtReturns(v.body),
         .block => |ss| stmt.returnsAll(ss),
         .if_ => |v| if (v.else_) |el| stmt.stmtReturns(v.then) and stmt.stmtReturns(el) else false,
         else => false,
@@ -229,6 +235,9 @@ pub fn stmtReturns(s: *ast.Stmt) bool {
 }
 
 pub fn returnsAll(ss: []const *ast.Stmt) bool {
-    for (ss) |s| if (stmt.stmtReturns(s)) return true;
+    for (ss) |s| {
+        if (stmt.stmtReturns(s)) return true;
+        if (@import("loops.zig").exits(s)) return false;
+    }
     return false;
 }
