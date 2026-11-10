@@ -280,6 +280,7 @@ pub fn template(g: *Generator, c: *Context, t: ast.Template) Error!Value {
 pub fn callValue(g: *Generator, c: *Context, loc: ast.Loc, call: ast.Call, expected: ?Type) Error!Value {
     if (try @import("components.zig").tryCall(g, c, loc, call)) |value| return value;
     if (try @import("zig_imports.zig").tryCall(g, c, loc, call)) |value| return value;
+    if (try @import("stores.zig").tryCall(g, c, loc, call)) |value| return value;
     if (call.callee.data == .member) {
         return @import("array_methods.zig").emit(g, c, loc, call, expected);
     }

@@ -79,6 +79,8 @@ pub const Generator = struct {
     hook_fields: std.ArrayList(@import("hooks.zig").Field) = .empty,
     effects: std.ArrayList(@import("hooks.zig").Effect) = .empty,
     cleanups: std.ArrayList(@import("hooks.zig").Cleanup) = .empty,
+    /// Stores declared in or imported into this file (`stores.zig`).
+    stores: std.ArrayList(@import("stores.zig").Store) = .empty,
 };
 
 pub fn fail(g: *Generator, loc: ast.Loc, comptime f: []const u8, args: anytype) Error {
@@ -96,7 +98,7 @@ pub fn contextualize(g: *Generator, prefix: []const u8) Error!void {
 }
 
 pub fn hookName(g: *Generator, n: []const u8) bool {
-    if (zig_text.eq(n, "useState") or @import("hooks.zig").extraHook(n)) return true;
+    if (zig_text.eq(n, "useState") or @import("hooks.zig").extraHook(n) or zig_text.eq(n, "useStore")) return true;
     for (g.hook_names.items) |name| if (zig_text.eq(n, name)) return true;
     return false;
 }
@@ -268,7 +270,8 @@ pub fn generate(
         for (imp.names) |n| {
             const tag = tags.find(n.imported.name);
             const hook_import = zig_text.eq(n.imported.name, "useState") or zig_text.eq(n.imported.name, "useTheme") or
-                zig_text.eq(n.imported.name, "List") or @import("hooks.zig").extraHook(n.imported.name);
+                zig_text.eq(n.imported.name, "List") or @import("hooks.zig").extraHook(n.imported.name) or
+                zig_text.eq(n.imported.name, "createStore") or zig_text.eq(n.imported.name, "useStore");
             if (!hook_import and tag == null and !types.numericName(n.imported.name)) return core.fail(
                 &g,
                 n.imported.loc,
@@ -322,7 +325,9 @@ pub fn generate(
             return core.fail(&g, f.loc, "component name `{s}` is reserved; rename it", .{f.name});
         }
     }
-    const globals = try @import("globals.zig").collect(&g, module.consts);
+    const store_code = try @import("stores.zig").collect(&g, module.consts);
+    const plain = try @import("stores.zig").plainConstants(&g, module.consts);
+    const globals = try std.mem.concat(arena, u8, &.{ try @import("globals.zig").collect(&g, plain), store_code });
     try components.collect(&g, module, root);
     // children first, then the root; the header needs every compound type
     var bodies: std.ArrayList(u8) = .empty;
@@ -521,7 +526,7 @@ fn collectDeclaration(g: *Generator, loc: ast.Loc, declaration: ast.Decl) Error!
     if (core.hook(g, init)) {
         const n = init.data.call.callee.data.ident;
         if (zig_text.eq(n, "useRef")) return @import("hooks.zig").collectRef(g, loc, declaration, init.data.call);
-        if (zig_text.eq(n, "useMemo")) return; // a render local (stmt.declaration)
+        if (zig_text.eq(n, "useMemo") or zig_text.eq(n, "useStore")) return; // render locals (stmt.declaration)
         if (zig_text.eq(n, "useEffect")) return core.fail(g, loc, "useEffect returns nothing", .{});
         return core.collectState(g, loc, declaration, init.data.call);
     }

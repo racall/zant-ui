@@ -307,10 +307,32 @@ import { plural } from "./format.zig";
 生成文件旁边；`format.tsx` 和 `format.zig` 输出重名会报错。单文件模式（`addTsx` / `in.tsx out.zig`）
 不支持 Zig 导入。完整用法见 `examples/tsx/notes/`。
 
+### 共享状态：`createStore` / `useStore`
+
+跨组件、跨文件的应用状态，写法接近 Zustand（框架的 `zant.store` 是同一思路的 Zig 版）：
+
+```tsx
+// store.tsx
+export interface Settings { dark: boolean; fontSize: u32; }
+export const settings = createStore<Settings>({ dark: false, fontSize: 14 });
+
+// 任意组件（import { settings } from "./store"）
+const dark = useStore(settings, (s) => s.dark);   // 选择器可省略：useStore(settings)
+<Switch checked={dark} onChange={(on) => settings.update({ dark: on })} />
+```
+
+- `createStore<T>(初始值)` 写在文件顶层（类型参数必填），生成文件级的 `pub var settings: tsx.Store(T)`；
+  其他文件像导入组件一样导入它。
+- `useStore(store, selector?)` 是 hook，在组件顶层调用，得到渲染时的值（和状态一样，事件处理函数读到的是这一帧的快照）。
+- 在事件处理函数和 effect 里修改：`store.update({ 字段: 值 })` 按字段浅合并，`store.set(新值)` 整体替换，
+  `store.get()` 读当前值（任何地方都能调用）。修改会让所有窗口重建。
+- 和根组件的状态一样，旧值在下一次读取它的构建开始时释放；多个窗口共用时，一个窗口在另一个窗口重建之前
+  收到事件、并且回调里用到旧值，是目前已知的边界情况。
+
 ### 待做
 
 - 编译期自动 memo（不依赖状态的子树跳过比对，参考 Solid / React Compiler）、
-  字符串方法（`includes`、`startsWith`、`trim` …）、`zant.store`。
+  字符串方法（`includes`、`startsWith`、`trim` …）。
 
 ## 后续阶段
 

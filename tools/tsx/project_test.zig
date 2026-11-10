@@ -134,3 +134,27 @@ test "project validates Zig syntax even for unimported files" {
     try std.testing.expectEqual(@as(usize, 0), result.err.file);
     try contains(result.err.diag.msg, "expected");
 }
+
+test "a store exported by one file is shared by the files importing it" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const result = try compile.compileProject(arena.allocator(), &.{
+        .{ .path = "src/store.tsx", .src =
+        \\export interface Prefs { dark: boolean; name: string; }
+        \\export const prefs = createStore<Prefs>({ dark: false, name: "" });
+        },
+        .{ .path = "src/App.tsx", .src =
+        \\import { prefs as shared } from "./store";
+        \\export default function App() {
+        \\  const dark = useStore(shared, (p) => p.dark);
+        \\  return <Switch checked={dark} onChange={(on) => shared.update({ dark: on })} />;
+        \\}
+        },
+    });
+    if (result == .err) std.debug.print("{s}\n", .{result.err.diag.msg});
+    try std.testing.expect(result == .ok);
+    try contains(result.ok[0], "pub var prefs: tsx.Store(Prefs)");
+    try contains(result.ok[1], "const _store = @import(\"store.zig\");");
+    try contains(result.ok[1], "const p: _store.Prefs = _store.prefs.read();");
+    try contains(result.ok[1], "_store.prefs.update(.{");
+}

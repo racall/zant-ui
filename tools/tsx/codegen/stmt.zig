@@ -60,6 +60,9 @@ fn declaration(g: *Generator, c: *Context, loc: ast.Loc, d: ast.Decl, top: bool)
     if (core.hook(g, e) and zig_text.eq(e.data.call.callee.data.ident, "useMemo")) {
         return @import("hooks.zig").memo(g, c, loc, d, top);
     }
+    if (core.hook(g, e) and zig_text.eq(e.data.call.callee.data.ident, "useStore")) {
+        return @import("stores.zig").use(g, c, loc, d, top);
+    }
     if (core.hook(g, e)) {
         if (c.render and top) return "";
         return core.fail(g, e.loc, "hooks must be called at the top level of the component", .{});

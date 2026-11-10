@@ -7,5 +7,6 @@ test {
     _ = @import("tsx_project_test.zig");
     _ = @import("tsx_local_state_test.zig");
     _ = @import("tsx_hooks_test.zig");
+    _ = @import("tsx_store_test.zig");
     _ = @import("tsx_golden_test.zig");
 }

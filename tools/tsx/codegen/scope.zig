@@ -191,6 +191,7 @@ pub fn globalName(g: *Generator, n: []const u8) bool {
     for (g.compounds.items) |entry| if (entry.declaration != null and zig_text.eq(entry.zig, n)) return true;
     for (g.type_aliases.items) |alias| if (zig_text.eq(alias.name, n)) return true;
     for (g.constants.items) |constant| if (zig_text.eq(constant.name, n)) return true;
+    for (g.stores.items) |store| if (zig_text.eq(store.name, n)) return true;
     for (g.components.items) |comp| if (zig_text.eq(comp.name, n) or zig_text.eq(comp.builder, n)) return true;
     return zig_text.eq(n, g.name) or scope.methodIndex(g, n) != null;
 }

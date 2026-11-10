@@ -163,6 +163,54 @@ pub const Memo = hooks.Memo;
 pub const Effect = hooks.Effect;
 pub const deepEql = hooks.deepEql;
 
+/// `createStore<T>(initial)`: app state shared by components and files. Values
+/// are copied in like `State`; a change rebuilds every window.
+pub fn Store(comptime T: type) type {
+    return struct {
+        const Self = @This();
+        state: State(T),
+
+        pub fn get(self: *const Self) T {
+            return self.state.get();
+        }
+
+        /// `useStore`: frees the values earlier changes replaced (their frames
+        /// are gone), then reads.
+        pub fn read(self: *Self) T {
+            self.state.sweep();
+            return self.state.get();
+        }
+
+        pub fn set(self: *Self, value: T) void {
+            self.state.set(value);
+            ui.requestRebuild();
+            @import("ui_runtime.zig").Runtime.invalidateAll();
+        }
+
+        /// Replaces the fields listed in `changes` (a shallow merge).
+        pub fn update(self: *Self, changes: anytype) void {
+            var next = self.get();
+            inline for (@typeInfo(@TypeOf(changes)).@"struct".field_names) |name| {
+                @field(next, name) = @field(changes, name);
+            }
+            self.set(next);
+        }
+    };
+}
+
+test Store {
+    const Settings = struct { dark: bool, name: []const u8 };
+    var store: Store(Settings) = .{ .state = .{ .initial = .{ .dark = false, .name = "a" } } };
+    defer store.state.deinit();
+    var name = [_]u8{ 'b', 'c' };
+    store.update(.{ .name = @as([]const u8, &name) });
+    name[0] = 'x';
+    try std.testing.expectEqualStrings("bc", store.read().name);
+    store.update(.{ .dark = true });
+    try std.testing.expect(store.get().dark);
+    try std.testing.expectEqualStrings("bc", store.get().name);
+}
+
 /// Only immutable value types produced by the compiler participate in state copies.
 pub fn deepCopy(comptime T: type, a: std.mem.Allocator, value: T) std.mem.Allocator.Error!T {
     return switch (@typeInfo(T)) {
