@@ -106,6 +106,9 @@ pub fn mapIn(g: *Generator, tree: *const Ast, file: ?File, node: Ast.Node.Index,
             // `tsx.Bytes` / `zant.tsx.Bytes`: a Uint8Array
             const source = tree.getNodeSource(node);
             if (text.eq(source, "tsx.Bytes") or text.eq(source, "zant.tsx.Bytes")) return try model.array(g, .u8);
+            if (text.eq(source, "zant.image.Image") or text.eq(source, "image.Image")) {
+                return try @import("jsx.zig").imageType(g);
+            }
             return null;
         },
         else => {},

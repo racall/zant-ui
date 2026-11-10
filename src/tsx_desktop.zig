@@ -117,6 +117,28 @@ pub const Tray = struct {
 
 pub var tray: Tray = .{};
 
+// ---------------------------------------------------------------- shortcuts
+
+/// `<HotkeyInput value="ctrl+cmd+v">`: null for "" or an invalid string.
+pub fn parseShortcut(text: []const u8) ?desktop.Shortcut {
+    return desktop.Shortcut.parse(text);
+}
+
+/// `<HotkeyInput onRecord={(shortcut: string) => …}>`: the recorded
+/// shortcut as its string form ("ctrl+cmd+v", what `useHotkey` takes).
+pub fn shortcutAction(target: actions.TextAction) ui.HotkeyAction {
+    const Adapter = struct {
+        target: actions.TextAction,
+        fn call(self: *@This(), shortcut: desktop.Shortcut) void {
+            var buf: [64]u8 = undefined;
+            self.target.func(self.target.ctx, ui.frameString(shortcut.format(&buf)));
+        }
+    };
+    const adapter = ui.frameAllocator().create(Adapter) catch @panic("Zant UI: out of memory");
+    adapter.* = .{ .target = target };
+    return ui.hotkeyAction(adapter, Adapter.call);
+}
+
 // ---------------------------------------------------------------- hotkeys
 
 /// One `useHotkey`: its shortcut, registered while it is valid.
@@ -232,4 +254,25 @@ test "hotkey events reach the hook with that id" {
     try std.testing.expect(hotkeyPressed(h.id));
     try std.testing.expect(!hotkeyPressed(h.id + 100));
     try std.testing.expectEqual(@as(u32, 1), Probe.hits);
+}
+
+test "a recorded shortcut reaches TSX as its string" {
+    const Probe = struct {
+        var got: [64]u8 = undefined;
+        var len: usize = 0;
+        fn record(_: *u8, text: []const u8) void {
+            @memcpy(got[0..text.len], text);
+            len = text.len;
+        }
+    };
+    ui.beginFrame();
+    defer ui.endFrame();
+    var ctx: u8 = 0;
+    const action = shortcutAction(ui.textAction(&ctx, Probe.record));
+    const shortcut = parseShortcut("ctrl+alt+k").?;
+    action.func(action.ctx, shortcut);
+    var buf: [64]u8 = undefined;
+    try std.testing.expectEqualStrings(shortcut.format(&buf), Probe.got[0..Probe.len]);
+    try std.testing.expect(parseShortcut(Probe.got[0..Probe.len]).?.eql(shortcut));
+    try std.testing.expect(parseShortcut("") == null);
 }

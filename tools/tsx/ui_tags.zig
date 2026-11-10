@@ -687,6 +687,7 @@ pub const all: []const Tag = &.{
     .{ .name = "Image", .builder = "ui.image", .content = .none, .props = &.{
         .{ .name = "key", .field = "key", .kind = .string, .required = false },
         .{ .name = "src", .field = "src", .kind = .string, .required = false },
+        .{ .name = "image", .field = "image", .kind = .image, .required = false },
         .{ .name = "width", .field = "width", .kind = .number, .required = false },
         .{ .name = "height", .field = "height", .kind = .number, .required = false },
         .{ .name = "fit", .field = "fit", .kind = .enumeration, .required = false, .values = &.{
@@ -1377,12 +1378,14 @@ pub const all: []const Tag = &.{
     } },
     .{ .name = "HotkeyInput", .builder = "ui.hotkeyInput", .content = .none, .props = &.{
         .{ .name = "key", .field = "key", .kind = .string, .required = false },
+        .{ .name = "value", .field = "value", .kind = .shortcut, .required = false },
         .{ .name = "recording", .field = "recording", .kind = .boolean, .required = false },
         .{ .name = "width", .field = "width", .kind = .number, .required = false },
         .{ .name = "height", .field = "height", .kind = .number, .required = false },
         .{ .name = "placeholder", .field = "placeholder", .kind = .string, .required = false },
         .{ .name = "recordingText", .field = "recording_text", .kind = .string, .required = false },
         .{ .name = "onStart", .field = "on_start", .kind = .action, .required = false },
+        .{ .name = "onRecord", .field = "on_record", .kind = .shortcut_action, .required = false },
         .{ .name = "onCancel", .field = "on_cancel", .kind = .action, .required = false },
         .{ .name = "onClear", .field = "on_clear", .kind = .action, .required = false },
     } },
@@ -1643,15 +1646,12 @@ pub const theme: []const tags.Prop = &.{
 // ui.input.on_selection: unsupported type ?core.actions.RangeAction
 // ui.input.on_key: unsupported type ?core.actions.InputKeyAction
 // ui.withKey: tag omitted: adapter / generic helper, not an options builder
-// ui.image.image: unsupported type ?image.Image
 // ui.vector.drawing: unsupported type *const core.vector.Drawing (required)
 // ui.vector: tag omitted: options have unsupported required fields (see omitted props)
 // ui.memo: tag omitted: adapter / generic helper, not an options builder
 // ui.richText.spans: unsupported type []const core.node.RichSpan
 // ui.windowControls: tag omitted: runtime-only window controls
 // ui.list: tag omitted: List uses *ListState and a compiler special case
-// ui.hotkeyInput.value: unsupported type ?desktop.Shortcut
-// ui.hotkeyInput.on_record: unsupported type ?components.hotkey_input.HotkeyAction
 // ui.view.style: unsupported type ?ui.Style
 // ui.markdown.theme: unsupported type ?markdown.theme.Theme
 // ui.markdown.policy: unsupported type markdown.safety.Policy

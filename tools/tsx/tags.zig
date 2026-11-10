@@ -52,6 +52,14 @@ pub const Kind = enum {
     /// keys are `item_props` (emits `&.{ .{ ... }, ... }`, element type
     /// `item_type`).
     struct_list,
+    /// `?zant.image.Image`: an in-memory image (TSX type `Image`, from a Zig
+    /// module such as a thumbnail cache).
+    image,
+    /// `?desktop.Shortcut`: a shortcut string ("ctrl+cmd+v"; "" / null for
+    /// none).
+    shortcut,
+    /// `?ui.HotkeyAction`: `(shortcut: string) => void`.
+    shortcut_action,
 };
 
 pub const Sides = packed struct(u4) {

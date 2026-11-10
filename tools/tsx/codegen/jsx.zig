@@ -173,7 +173,31 @@ pub fn property(
             const action = try events.eventValue(g, c, e, prop.kind);
             try fields.put(prop.field, action);
         },
+        .shortcut_action => {
+            const action = try events.eventValue(g, c, e, .text_action);
+            try fields.put(prop.field, try zig_text.fmt(g, "tsx.desktop.shortcutAction({s})", .{action}));
+        },
+        .shortcut => {
+            const v = try expr.emit(g, c, e, null, false);
+            const code = if (v.ty == .null_) "null" else blk: {
+                const s = try types.coerce(g, v, .string, e.loc);
+                break :blk try zig_text.fmt(g, "tsx.desktop.parseShortcut({s})", .{s.code});
+            };
+            try fields.put(prop.field, code);
+        },
+        .image => {
+            const image = try @import("model.zig").optional(g, try imageType(g));
+            try fields.put(prop.field, (try expr.emit(g, c, e, image, false)).code);
+        },
     }
+}
+
+/// `Image` (`zant.image.Image`): an opaque in-memory image.
+pub fn imageType(g: *Generator) Error!types.Type {
+    for (g.compounds.items, 0..) |entry, i| if (zig_text.eq(entry.zig, "zant.image.Image")) {
+        return @fromBackingInt(@intCast(types.compound_base + i));
+    };
+    return @import("model.zig").add(g, .{ .kind = .object, .zig = "zant.image.Image" });
 }
 
 /// Require an integer expression and coerce it to the field integer type.

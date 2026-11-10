@@ -54,6 +54,9 @@ fn kind(comptime T: type) ?[]const u8 {
     if (T == ?zant.actions.BoolAction) return "bool_action";
     if (T == ?zant.actions.TextAction) return "text_action";
     if (T == ?zant.actions.IndexAction) return "index_action";
+    if (T == ?zant.image.Image) return "image";
+    if (T == ?zant.desktop.Shortcut) return "shortcut";
+    if (T == ?ui.HotkeyAction) return "shortcut_action";
     const U = unwrap(T);
     if (U == ui.Node) return if (T == ?ui.Node) "optional_node" else "node";
     if (U == f32) return "number";

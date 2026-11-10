@@ -290,7 +290,8 @@ pub fn generate(
                 zig_text.eq(n.imported.name, "List") or @import("hooks.zig").extraHook(n.imported.name) or
                 zig_text.eq(n.imported.name, "createStore") or zig_text.eq(n.imported.name, "useStore") or
                 @import("app_hooks.zig").isAppHook(n.imported.name) or zig_text.eq(n.imported.name, "KeyEvent") or
-                zig_text.eq(n.imported.name, "createWindow") or @import("desktop_hooks.zig").isHook(n.imported.name);
+                zig_text.eq(n.imported.name, "createWindow") or @import("desktop_hooks.zig").isHook(n.imported.name) or
+                zig_text.eq(n.imported.name, "Image");
             if (!hook_import and tag == null and !types.numericName(n.imported.name)) return core.fail(
                 &g,
                 n.imported.loc,

@@ -354,6 +354,12 @@ pub fn parameterType(g: *Generator, param: ast.Param, kind: ?tags.Kind) Error!Ty
 
 /// Item actions use their own schema; JSX nested in any supported prop is scanned too.
 fn scanProperty(g: *Generator, prop: *const tags.Prop, value: *ast.Expr, loc: ast.Loc) Error!void {
+    if (prop.kind == .shortcut_action) {
+        // `(shortcut: string) => void`: a text action behind an adapter
+        var text_prop = prop.*;
+        text_prop.kind = .text_action;
+        return events.event(g, value, &text_prop, loc);
+    }
     if (events.isAction(prop.kind)) try events.event(g, value, prop, loc);
     if (prop.kind != .struct_list or value.data != .array) return events.scanExpr(g, value);
     const schema = tags.Tag{ .name = prop.name, .builder = "", .content = .none, .props = prop.item_props };

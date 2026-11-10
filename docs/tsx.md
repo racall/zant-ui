@@ -251,6 +251,10 @@ const selected = items.filter(item => {
 | 嵌套的选项结构体（`ClickableOptions.box`） | 展开成同一层的属性 |
 | `?actions.Action` / `BoolAction` / `TextAction` / `IndexAction` | `() => void` / `(on: boolean) => void` / `(text: string) => void` / `(index: usize) => void` |
 
+| `?zant.image.Image`（`<Image image>`） | `Image` 类型的值（`import type { Image } from "zant"`），来自 Zig 原生模块（比如缩略图缓存） |
+| `?desktop.Shortcut`（`<HotkeyInput value>`） | 快捷键字符串：`"ctrl+cmd+v"`，`""` 表示没有 |
+| `?ui.HotkeyAction`（`<HotkeyInput onRecord>`） | `(shortcut: string) => void`，得到的字符串可以直接交给 `useHotkey` |
+
 没有默认值的字段是必填属性，缺了会在标签处报错。暂不支持的字段类型（指针回调等）不出现在标签表里。
 
 ### 语言

@@ -17,6 +17,7 @@ test {
     _ = @import("tsx_app_test.zig");
     _ = @import("tsx_app_hooks_test.zig");
     _ = @import("tsx_wake_test.zig");
+    _ = @import("tsx_media_test.zig");
     _ = @import("tsx_strings_test.zig");
     _ = @import("tsx_golden_test.zig");
     _ = @import("tsx_widgets_test.zig");

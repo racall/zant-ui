@@ -34,8 +34,8 @@
 
 | # | 内容 | 负责 | 状态 |
 |---|---|---|---|
-| B1 | `<Image image={img}>`：内存图片类型 `Image`（`import type { Image } from "zant"`） | Codex | ⬜ |
-| B2 | `<HotkeyInput value onRecord>`：快捷键用字符串表示（`"ctrl+cmd+v"`），回调 `(shortcut: string) => void` | Codex | ⬜ |
+| B1 | `<Image image={img}>`：内存图片类型 `Image`（`import type { Image } from "zant"`） | Claude | ✅ |
+| B2 | `<HotkeyInput value onRecord>`：快捷键用字符串表示（`"ctrl+cmd+v"`），回调 `(shortcut: string) => void` | Claude | ✅ |
 | B3 | 平台信息：`isMacos` / `isWindows`、`keyLabel("mod+f")`、`titlebarInsets()`、`monotonicMs()`、`wakeAfter(ms)` | Codex | ⬜ |
 
 ## C. 应用运行时
