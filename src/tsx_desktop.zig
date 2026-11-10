@@ -8,6 +8,9 @@ const desktop = @import("desktop.zig");
 const actions = @import("core/actions.zig");
 
 const gpa = std.heap.c_allocator;
+/// Tests drive TSX apps headless: they must not add a tray icon or take
+/// global hotkeys on the machine running them.
+const system = !@import("builtin").is_test;
 
 // ---------------------------------------------------------------- tray
 
@@ -74,6 +77,7 @@ pub const Tray = struct {
             .items = items,
         };
         self.applied = applied;
+        if (!system) return true;
         desktop.setTray(.{
             .icon = applied.icon,
             .icon_light = applied.icon_light,
@@ -157,18 +161,18 @@ pub const Hotkey = struct {
         if (self.id == 0) register(self);
         const same = std.mem.eql(u8, self.shortcut[0..self.shortcut_len], shortcut);
         if (same and self.shortcut_len > 0) return self.registered;
-        if (self.registered) desktop.unregisterHotkey(self.id);
+        if (self.registered and system) desktop.unregisterHotkey(self.id);
         self.registered = false;
         const n = @min(shortcut.len, self.shortcut.len);
         @memcpy(self.shortcut[0..n], shortcut[0..n]);
         self.shortcut_len = n;
         const parsed = desktop.Shortcut.parse(shortcut) orelse return false;
-        self.registered = desktop.registerHotkey(self.id, parsed);
+        self.registered = !system or desktop.registerHotkey(self.id, parsed);
         return self.registered;
     }
 
     pub fn deinit(self: *Hotkey) void {
-        if (self.registered) desktop.unregisterHotkey(self.id);
+        if (self.registered and system) desktop.unregisterHotkey(self.id);
         self.registered = false;
         unregister(self);
     }
