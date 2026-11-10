@@ -64,8 +64,10 @@ pub fn measureWidth(node: *Node, theme: Theme, max_width: f32) f32 {
     // same colour as paint, so measuring does not re-shape the label
     const color = if (node.enabled) data.text_color orelse textColor(data, true, theme) else textColor(data, false, theme);
     const layout = data.ensureLayout(color) catch return controlHeight(data.size) * 2;
+    // antd: an icon before the label, 8px apart
+    const icon = if (hasIconAndLabel(data)) labelIconSize(data) + icon_gap else 0;
     return @min(
-        layout.metrics.longest_line + horizontalPadding(data.size, data.button_type) * 2,
+        icon + layout.metrics.longest_line + horizontalPadding(data.size, data.button_type) * 2,
         if (node.style.max_width) |m| m else std.math.inf(f32),
     );
 }
@@ -189,7 +191,9 @@ pub fn paint(node: *Node, canvas: Canvas, theme: Theme) void {
     var color = if (enabled) data.text_color orelse textColor(data, true, theme) else textColor(data, false, theme);
     // the close glyph turns white on its red fill
     if (data.button_type == .caption_close) color = tokens.lerp(color, 0xffffffff, @max(hover_t, press_t));
-    if (data.icon != .none) {
+    if (hasIconAndLabel(data)) {
+        paintIconLabel(node, canvas, color);
+    } else if (data.icon != .none) {
         paintIcon(node, canvas, color);
     } else if (data.ensureLayout(color)) |layout| {
         const x = switch (data.text_align) {
@@ -256,6 +260,34 @@ pub fn setEnabled(node: *Node, enabled: bool, theme: Theme) void {
     }
     const color = textColor(data, enabled, theme);
     data.ensureLayout(color) catch {};
+}
+
+const icon_gap: f32 = 8;
+
+fn hasIconAndLabel(data: *const node_mod.ButtonData) bool {
+    return data.icon != .none and data.label.len > 0 and !isCaption(data.button_type);
+}
+
+/// Next to a label the icon matches the text (antd: the button font size).
+fn labelIconSize(data: *const node_mod.ButtonData) f32 {
+    return @min(data.icon_size, data.font_size + 2);
+}
+
+/// Icon and label as one group, aligned like a plain label.
+fn paintIconLabel(node: *Node, canvas: Canvas, color: u32) void {
+    const rect = node.bounds;
+    const data = &node.data.button;
+    const layout = data.ensureLayout(color) catch return;
+    const size = labelIconSize(data);
+    const width = size + icon_gap + layout.metrics.longest_line;
+    const padding = if (data.label_padding > 0) data.label_padding else horizontalPadding(data.size, data.button_type);
+    const x = switch (data.text_align) {
+        .left => rect.x + padding,
+        .right => rect.right() - width - padding,
+        .center => rect.x + (rect.width - width) * 0.5,
+    };
+    icons.paint(canvas.ptr, data.icon, x + size * 0.5, rect.y + rect.height * 0.5, size, color, null);
+    layout.paint(canvas, x + size + icon_gap, rect.y + (rect.height - layout.metrics.height) * 0.5);
 }
 
 fn paintIcon(node: *Node, canvas: Canvas, color: u32) void {

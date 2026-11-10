@@ -1523,6 +1523,7 @@ pub const all: []const Tag = &.{
 
 /// Builders intentionally excluded from the generated table.
 pub const skipped = [_]struct { builder: []const u8, reason: []const u8 }{
+    .{ .builder = "ui.portal", .reason = "adapter / generic helper, not an options builder" },
     .{ .builder = "ui.appendChildren", .reason = "adapter / generic helper, not an options builder" },
     .{ .builder = "ui.styled", .reason = "adapter / generic helper, not an options builder" },
     .{ .builder = "ui.pointerArea", .reason = "options have unsupported required fields (see omitted props)" },
@@ -1585,6 +1586,7 @@ pub const theme: []const tags.Prop = &.{
 };
 
 // Omitted props and tags (in declaration / field order):
+// ui.portal: tag omitted: adapter / generic helper, not an options builder
 // ui.appendChildren: tag omitted: adapter / generic helper, not an options builder
 // ui.styled: tag omitted: adapter / generic helper, not an options builder
 // ui.pointerArea.on_pointer: unsupported type core.actions.PointerAction (required)

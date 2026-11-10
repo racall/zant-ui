@@ -231,6 +231,38 @@ exe.root_module.addImport("notes_tsx", notes);
   （React Native 的 `FlatList` 写法）编译成虚拟列表 `ui.list`，只构建看得见的行；
   `estimatedItemHeight`、`itemHeight`、`followTail`、`gap`、`padding` 同 `ui.ListOptions`。
 
+### 嵌套规则
+
+每个标签有自己的“内容模型”（和 HTML 一样）：合法的嵌套直接能用，不合法的在编译时报错，
+错误里说明这个标签能放什么。
+
+| 标签 | 可以放 | 不可以 |
+|---|---|---|
+| 容器：`View` `Row` `Column` `Card` `Clickable` `Space`、带 `children` 的子组件 | 任意元素、`{表达式}`、片段 `<>…</>` | 直接写文字（要包在 `<Text>` 里） |
+| `Text` | 文字、`{值}`、`{cond && "…"}`、嵌套的 `<Text>`（局部样式）、行内 `<Link onClick>` | 块级元素（`View`、`Button` …） |
+| `Heading` `Title` `Paragraph` | 文字和 `{值}` | 元素（局部样式用 `<Text>`） |
+| 标签类：`Button` `Link` `Checkbox` `Switch` `Tag` | 文字和 `{值}`（就是它的文字）；`Button` 还可以放一个 `<Icon name>` | 其他元素 |
+| 单子元素：`Tooltip` `Modal` | 恰好一个元素（或用 `child` / `content` 属性） | 多个元素、文字 |
+| 叶子：`Input` `Image` `Icon` `Divider` `PdfPreview` … | 无 | 任何子节点 |
+
+```tsx
+<Text size={16}>
+  读 <Text weight="bold">这里</Text>，或者 <Link onClick={openDocs}>打开文档</Link>{count > 0 && `（${count}）`}
+</Text>
+<Button variant="primary" onClick={save}><Icon name="check" /> 保存</Button>
+```
+
+- 嵌套的 `<Text>` 编译成一个 `ui.richText`：每段文字一个 span，样式继承外层（`size` `weight` `color` `family`，
+  另外 span 可以用 `italic` `underline` `strike` `background`）；行内 `<Link>` 只接受 `onClick`，颜色取主题主色。
+  带 span 的文字不能用 `maxLines` / `textAlign` / `wrap`。
+- 点击只给最里层的可点击元素（不冒泡），所以 `<Clickable>` 卡片里放 `<Button>` 是安全的：点按钮只触发按钮。
+- `Modal`、`Message` 可以写在任何位置，渲染时放到窗口根节点（`ui.portal`，同 React portal），总是盖住整个窗口。
+- 会自己滚动的元素（`<List>`）不能放进滚动容器（`scroll` / `overflow="scroll"`）里，也不能放进另一个 `<List>` 的行里：
+  给它一个高度有限的普通容器。
+- 同一层的字面量 `key` 不能重复；`.map` 和 `<List>` 行里的**有状态子组件必须有 `key`**，否则它们的状态会混在一起。
+  子组件的 `key` 会覆盖它根元素上的 `key`（和 React 一样，`key` 属于组件实例）。
+- 整数属性（`page`、`maxLines` …）也接受 TS 的 `number`：向零取整，并钳到字段的取值范围。
+
 ### 性能
 
 生成的代码与手写 Zig 一样：没有虚拟 DOM、没有运行时解释，状态是 struct 字段，事件是函数指针。

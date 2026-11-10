@@ -1,6 +1,6 @@
 // Zant components written in TSX and compiled to Zig at build time
 // (docs/tsx.md). Run it with `zig build run-tsx-gallery`.
-import { useState } from "zant";
+import { useState, useTheme } from "zant";
 import type { usize } from "zant";
 
 export default function Gallery() {
@@ -13,6 +13,10 @@ export default function Gallery() {
   const [progress, setProgress] = useState(40);
   const [open, setOpen] = useState(false);
   const [saved, setSaved] = useState<u32>(0);
+  const [docs, setDocs] = useState(0);
+  const [cardClicks, setCardClicks] = useState(0);
+
+  const theme = useTheme();
 
   function save() {
     setSaved(saved + 1);
@@ -75,6 +79,40 @@ export default function Gallery() {
             </Text>
           </Card>
         </Row>
+        <Card key="nesting" title="Nesting" width={856} gap={12}>
+          <Text key="rich" size={15}>
+            Text can hold <Text weight="bold">bold</Text>, <Text italic>italic</Text>,{" "}
+            <Text color={theme.colorError} underline>
+              colored
+            </Text>{" "}
+            spans and an inline <Link onClick={() => setDocs(docs + 1)}>link</Link>
+            {docs > 0 && ` (opened ${docs}×)`}.
+          </Text>
+          <Row gap={8} alignItems="center">
+            <Button key="save-icon" variant="primary" onClick={() => setOpen(true)}>
+              <Icon name="check" /> Save
+            </Button>
+            <Button key="copy-icon">
+              <Icon name="copy" /> Copy
+            </Button>
+            <Tag>label as children</Tag>
+          </Row>
+          <Clickable key="clickable-card" onClick={() => setCardClicks(cardClicks + 1)}>
+            <View
+              padding={12}
+              gap={8}
+              radius={8}
+              borderWidth={1}
+              borderColor={theme.colorBorder}
+              hoverBackground={theme.colorFillTertiary}
+            >
+              <Text>Clickable card: clicked {cardClicks} {cardClicks === 1 ? "time" : "times"}</Text>
+              <Button key="inner" size="small" onClick={() => setDocs(docs + 1)}>
+                Inner button (doesn't click the card)
+              </Button>
+            </View>
+          </Clickable>
+        </Card>
         <Tabs
           key="tabs"
           items={[

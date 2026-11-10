@@ -131,4 +131,6 @@ pub const all: []const Alias = &.{
     .{ .name = "Button", .props = button_props, .content = .text_field, .content_field = "text" },
     .{ .name = "Checkbox", .props = &.{}, .content = .text_field, .content_field = "label" },
     .{ .name = "Switch", .props = &.{}, .content = .text_field, .content_field = "label" },
+    .{ .name = "Link", .props = &.{}, .content = .text_field, .content_field = "text" },
+    .{ .name = "Tag", .props = &.{}, .content = .text_field, .content_field = "text" },
 };

@@ -23,6 +23,9 @@ pub fn emit(
         return core.fail(g, callback.loc, "array callback expects at most {d} parameters", .{arguments.len});
     }
     const depth = c.active.items.len;
+    // elements built here repeat once per item (`nesting.zig`: keys)
+    g.loop_depth += 1;
+    defer g.loop_depth -= 1;
     const previous_ret = c.ret;
     const previous_label = c.return_label;
     const previous_values = c.return_values;

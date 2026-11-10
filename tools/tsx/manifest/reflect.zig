@@ -153,7 +153,7 @@ fn props(comptime T: type, comptime path: []const u8, comptime parent: []const u
 fn skipReason(comptime name: []const u8) ?[]const u8 {
     if (std.mem.eql(u8, name, "windowControls")) return "runtime-only window controls";
     if (std.mem.eql(u8, name, "list")) return "List uses *ListState and a compiler special case";
-    for ([_][]const u8{ "styled", "withKey", "appendChildren", "textFmt", "memo" }) |skip| {
+    for ([_][]const u8{ "styled", "withKey", "appendChildren", "textFmt", "memo", "portal" }) |skip| {
         if (std.mem.eql(u8, name, skip)) return "adapter / generic helper, not an options builder";
     }
     return null;

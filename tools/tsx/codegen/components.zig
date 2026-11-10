@@ -357,6 +357,12 @@ pub fn emitCall(g: *Generator, c: *Context, j: *ast.Jsx, comp: *const Component)
         } else return core.fail(g, j.loc, "<{s}> needs the prop `{s}`", .{ comp.name, f.name });
     }
     const builder = if (comp.external) comp.builder else try zig_text.id(g, comp.builder);
+    if (comp.stateful and raw_key == null and g.loop_depth > 0) return core.fail(
+        g,
+        j.loc,
+        "<{s}> keeps its own state; give each one in a list a key (key={{item.id}}) so the state follows the item",
+        .{comp.name},
+    );
     const id = if (comp.stateful) try instanceId(g, comp, raw_key) else "";
     var node = try zig_text.fmt(g, "{s}(.{{\n{s}}}{s})", .{ builder, try std.mem.join(g.a, "", parts.items), id });
     if (key) |k| node = try zig_text.fmt(g, "ui.withKey({s}, {s})", .{ node, k });

@@ -327,3 +327,32 @@ test "segmented is as wide as its options unless block" {
     try std.testing.expect(inline_track.width < 200);
     try std.testing.expectEqual(@as(f32, 500), block_track.width);
 }
+
+test "a button with an icon and a label is wider by the icon and its gap" {
+    const Buttons = struct {
+        fn render(_: *anyopaque) ui.Node {
+            const a = ui.frameAllocator();
+            return ui.row(.{ .gap = 8, .children = a.dupe(ui.Node, &.{
+                ui.button(.{ .key = "plain", .text = "Save" }),
+                ui.button(.{ .key = "icon", .text = "Save", .icon = .check }),
+                ui.button(.{ .key = "only", .icon = .check }),
+            }) catch unreachable });
+        }
+    };
+    zant.motion.enabled = false;
+    defer zant.motion.enabled = true;
+    var state: u8 = 0;
+    const config: zant.ui_runtime.Config = .{ .window = .{ .width = 500, .height = 120 } };
+    const runtime = try zant.ui_runtime.Runtime.init(std.testing.allocator, &state, Buttons.render, config);
+    defer runtime.deinit();
+    var renderer = try zant.renderer.Renderer.createRaster(500, 120);
+    defer renderer.deinit();
+    const canvas = renderer.begin(1.0).?;
+    runtime.renderFrame(canvas, 500, 120, 1.0);
+    renderer.end();
+    const plain = runtime.tree.boundsOfKey("plain").?;
+    const icon = runtime.tree.boundsOfKey("icon").?;
+    // a 16px icon (font size 14 + 2) and the 8px gap
+    try std.testing.expectApproxEqAbs(plain.width + 24, icon.width, 0.5);
+    try std.testing.expect(runtime.tree.boundsOfKey("only").?.width < plain.width);
+}

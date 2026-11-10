@@ -5,6 +5,8 @@ const ui = @import("ui.zig");
 
 /// String.prototype helpers for generated TSX code.
 pub const strings = @import("tsx_strings.zig");
+/// Nested `<Text>` spans and inline `<Link>`s.
+pub const text = @import("tsx_text.zig");
 
 /// Heap memory of string state; it lives as long as the state value.
 const allocator = std.heap.smp_allocator;
@@ -116,6 +118,24 @@ pub fn State(comptime T: type) type {
             self.retired = .empty;
         }
     };
+}
+
+/// A TS `number` passed to an integer field (`page={n}`): truncated toward
+/// zero and clamped to `T`'s range (NaN is 0).
+pub fn toInt(comptime T: type, value: anytype) T {
+    const v: f64 = @floatCast(value);
+    if (std.math.isNan(v)) return 0;
+    const lo: f64 = @floatFromInt(std.math.minInt(T));
+    const hi: f64 = @floatFromInt(std.math.maxInt(T));
+    return @intFromFloat(std.math.clamp(@trunc(v), lo, hi));
+}
+
+test toInt {
+    try std.testing.expectEqual(@as(usize, 2), toInt(usize, @as(f64, 2.9)));
+    try std.testing.expectEqual(@as(usize, 0), toInt(usize, @as(f64, -3)));
+    try std.testing.expectEqual(@as(i32, -3), toInt(i32, @as(f64, -3.7)));
+    try std.testing.expectEqual(@as(u8, 255), toInt(u8, @as(f64, 1e9)));
+    try std.testing.expectEqual(@as(u8, 0), toInt(u8, std.math.nan(f64)));
 }
 
 /// `str.length` with TypeScript's meaning: UTF-16 code units, not bytes

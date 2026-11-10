@@ -155,6 +155,25 @@ pub fn localSlot(comptime T: type, id: u64) local_state.Slot(T) {
 }
 
 threadlocal var pending_effects: std.ArrayList(actions.Action) = .empty;
+threadlocal var pending_portals: std.ArrayList(Node) = .empty;
+
+/// Renders `node` as the last child of the window root instead of here (a
+/// React portal): overlays such as `ui.modal` and `ui.message` cover the
+/// window wherever they are built. Returns an empty placeholder for this
+/// position. Give the node a key.
+pub fn portal(node: Node) Node {
+    pending_portals.append(frameArena().allocator(), node) catch
+        @panic("Zant UI: out of memory while building a frame");
+    return make(.{ .kind = .container, .layout = .{ .width = 0, .height = 0, .shrink = 0 } });
+}
+
+/// The nodes `portal` moved out of this build, in build order (the runtime
+/// appends them to the root).
+pub fn takePortals() []const Node {
+    const nodes = pending_portals.items;
+    pending_portals = .empty;
+    return nodes;
+}
 threadlocal var rebuild_requested = false;
 
 /// Runs `action` after this build has been reconciled (React's `useEffect`):
@@ -402,6 +421,7 @@ pub fn beginFrameIn(arena: ?*std.heap.ArenaAllocator) void {
     frame_arena_ptr = arena;
     _ = frameArena().reset(.retain_capacity);
     pending_effects = .empty;
+    pending_portals = .empty;
     pending_wake_ms = null;
     pending_edited = null;
     frame_active = true;

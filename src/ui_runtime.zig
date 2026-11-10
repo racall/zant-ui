@@ -321,6 +321,8 @@ pub const Runtime = struct {
         const prev_owner = ui.setCommandOwner(self);
         defer _ = ui.setCommandOwner(prev_owner);
         var root = self.render_fn(self.userdata);
+        const portals = ui.takePortals();
+        if (portals.len > 0 and root.element.kind == .container) root = ui.appendChildren(root, portals);
         if (self.drawsCaptionButtons() and root.element.kind == .container) {
             root = ui.appendChildren(root, &.{ui.windowControls(.{
                 .height = self.captionHeight(),

@@ -228,7 +228,7 @@ pub const Components = struct {
                     .selected = self.index,
                     .on_change = ui.indexAction(self, Components._setReal),
                 }),
-                ui.modal(.{
+                ui.portal(ui.modal(.{
                     .title = "Child content",
                     .footer = if (self.enabled) ui.button(.{
                         .text = "OK",
@@ -236,13 +236,13 @@ pub const Components = struct {
                     }) else null,
                     .on_close = ui.action(self, Components.action),
                     .content = ui.text("Dialog body", .{}),
-                }),
-                ui.modal(.{
+                })),
+                ui.portal(ui.modal(.{
                     .title = "Explicit content",
                     .content = content,
                     .footer = null,
                     .on_close = ui.action(self, Components.action),
-                }),
+                })),
                 ui.shortcutList(.{
                     .groups = &[_]ui.ShortcutGroup{
                         .{
@@ -261,10 +261,10 @@ pub const Components = struct {
                     },
                     .columns = 2,
                 }),
-                ui.message(.{
+                ui.portal(ui.message(.{
                     .text = "Generated tags",
                     .kind = .success,
-                }),
+                })),
                 ui.hotkeyInput(.{
                     .recording = self.enabled,
                     .placeholder = "Record shortcut",

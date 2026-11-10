@@ -130,7 +130,12 @@ pub fn emit(g: *Generator, c: *Context, j: *ast.Jsx) Error!Value {
         .ty = data.ty,
         .source = data.code,
     });
+    // rows repeat (keys) and scroll inside the list (no nested scrolling lists)
+    g.loop_depth += 1;
+    g.scroll_depth += 1;
     g.methods.items[info.item_method].emitted = try itemMethod(g, c, info, element);
+    g.loop_depth -= 1;
+    g.scroll_depth -= 1;
     if (info.id_method) |id| g.methods.items[id].emitted = try idMethod(g, c, info, element);
     const cap = try zig_text.fmt(g, "_cap_{s}", .{info.field});
     var fields = Fields{ .g = g };

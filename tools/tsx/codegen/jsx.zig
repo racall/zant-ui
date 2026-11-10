@@ -18,6 +18,7 @@ const Fields = @import("jsx_fields.zig").Fields;
 const ChildList = @import("jsx_children.zig").ChildList;
 const values = @import("jsx_values.zig");
 const edges = @import("jsx_edges.zig");
+const nesting = @import("nesting.zig");
 
 pub fn validTags(g: *Generator) Error![]const u8 {
     var names: std.ArrayList([]const u8) = .empty;
@@ -149,6 +150,11 @@ fn integerProp(g: *Generator, c: *Context, prop: *const tags.Prop, e: *ast.Expr,
     const t = try types.typeRef(g, .{ .name = prop.int_type, .loc = e.loc }, false);
     try types.checkLiteral(g, e, t);
     const v = try expr.emit(g, c, e, if (types.numericLiterals(e) and e.data != .number) t else null, false);
+    if (v.ty == .f64 or v.ty == .f32) {
+        // TS numbers: truncated and clamped to the field's range
+        try fields.put(prop.field, try zig_text.fmt(g, "tsx.toInt({s}, {s})", .{ t.zig(g), v.code }));
+        return;
+    }
     if (!v.ty.integer() and v.ty != .int_literal) {
         return core.fail(g, e.loc, "`{s}` requires an integer expression", .{prop.name});
     }
@@ -181,17 +187,29 @@ fn dimensionProp(g: *Generator, c: *Context, prop: *const tags.Prop, e: *ast.Exp
 pub fn emit(g: *Generator, c: *Context, j: *ast.Jsx) Error!Value {
     if (j.name.len == 0) return core.fail(g, j.loc, "a fragment is only allowed as a child; wrap it in <View>", .{});
     if (@import("components.zig").find(g, j.name)) |comp| return @import("components.zig").emitCall(g, c, j, comp);
-    if (zig_text.eq(j.name, "List")) return @import("list.zig").emit(g, c, j);
+    if (zig_text.eq(j.name, "List")) {
+        try nesting.notInScroll(g, j);
+        return @import("list.zig").emit(g, c, j);
+    }
     const tag = tags.find(j.name) orelse return core.fail(
         g,
         j.loc,
         "unknown tag <{s}>; valid tags: {s}",
         .{ j.name, try jsx.validTags(g) },
     );
+    if (zig_text.eq(j.name, "Text") and @import("rich_text.zig").hasElements(j)) {
+        return @import("rich_text.zig").emit(g, c, j);
+    }
+    try nesting.uniqueKeys(g, j.children);
     var fields = Fields{ .g = g };
     var child_list = ChildList{ .g = g, .c = c };
     for (j.attrs) |attr| try jsx.attribute(g, c, tag, &fields, attr);
     var text_arg: []const u8 = "";
+    const scrolls = nesting.scrolls(j);
+    if (scrolls) g.scroll_depth += 1;
+    defer if (scrolls) {
+        g.scroll_depth -= 1;
+    };
     switch (tag.content) {
         .children => try nodeChildren(g, j, tag, &fields, &child_list),
         .text_arg, .text_field => text_arg = try textContent(g, c, j, tag, &fields),
@@ -201,7 +219,9 @@ pub fn emit(g: *Generator, c: *Context, j: *ast.Jsx) Error!Value {
     const owner = try zig_text.fmt(g, "<{s}>", .{j.name});
     try values.required(g, tag.props, &fields, j.loc, owner, "prop");
     if (tag.content == .text_field) fields.contentFirst(tag.content_field);
-    const node = try zig_text.fmt(g, "{s}({s}{s})", .{ tag.builder, text_arg, try fields.emit() });
+    var node = try zig_text.fmt(g, "{s}({s}{s})", .{ tag.builder, text_arg, try fields.emit() });
+    // overlays cover the window wherever they are written
+    if (nesting.overlay(j.name)) node = try zig_text.fmt(g, "ui.portal({s})", .{node});
     return .{ .ty = .node, .code = try child_list.wrap(node) };
 }
 
@@ -273,16 +293,24 @@ fn singleChild(
 fn textContent(g: *Generator, c: *Context, j: *ast.Jsx, tag: *const tags.Tag, fields: *Fields) Error![]const u8 {
     var f = Format{ .g = g };
     var content = false;
-    for (j.children) |ch| switch (ch) {
+    for (j.children, 0..) |ch, i| switch (ch) {
         .text => |t| {
-            try f.text(t.value);
+            // the button spaces its icon from the label itself
+            var value = t.value;
+            if (i > 0 and isIcon(j.children[i - 1])) value = std.mem.trimStart(u8, value, " ");
+            if (i + 1 < j.children.len and isIcon(j.children[i + 1])) value = std.mem.trimEnd(u8, value, " ");
+            try f.text(value);
             content = true;
         },
         .expr => |x| if (x) |e| {
-            try f.expression(c, e);
+            try f.expression(c, try nesting.textExpression(g, e));
             content = true;
         },
-        .element => |el| return core.fail(g, el.loc, "text content cannot contain elements", .{}),
+        .element => |el| {
+            // `<Button><Icon name="check" /> Save</Button>`
+            if (!zig_text.eq(tag.name, "Button") or !zig_text.eq(el.name, "Icon")) return nesting.misplaced(g, tag, el);
+            try buttonIcon(g, c, el, fields);
+        },
     };
     if (tag.content == .text_arg) return zig_text.fmt(g, "{s}, ", .{try f.finish(false)}) else if (content) {
         if (fields.has(tag.content_field)) return core.fail(
@@ -300,11 +328,31 @@ fn textContent(g: *Generator, c: *Context, j: *ast.Jsx, tag: *const tags.Tag, fi
 fn noChildren(g: *Generator, j: *ast.Jsx, tag: *const tags.Tag) Error!void {
     for (j.children) |ch| switch (ch) {
         .expr => |e| {
-            if (e != null) return core.fail(g, e.?.loc, "<{s}> does not accept children", .{tag.name});
+            if (e != null) return core.fail(g, e.?.loc, "<{s}> has no children", .{tag.name});
         },
-        .text => |t| return core.fail(g, t.loc, "<{s}> does not accept children", .{tag.name}),
-        .element => |el| return core.fail(g, el.loc, "<{s}> does not accept children", .{tag.name}),
+        .text => |t| return core.fail(g, t.loc, "<{s}> has no children", .{tag.name}),
+        .element => |el| return nesting.misplaced(g, tag, el),
     };
+}
+
+fn isIcon(child: ast.Child) bool {
+    return child == .element and zig_text.eq(child.element.name, "Icon");
+}
+
+/// One `<Icon>` inside a `<Button>` sets its `icon` (and `iconSize`).
+fn buttonIcon(g: *Generator, c: *Context, el: *const ast.Jsx, fields: *Fields) Error!void {
+    if (fields.has("icon")) return core.fail(g, el.loc, "a <Button> has one icon", .{});
+    const button = tags.find("Button").?;
+    for (el.attrs) |a| {
+        const target = if (zig_text.eq(a.name.name, "name"))
+            "icon"
+        else if (zig_text.eq(a.name.name, "size"))
+            "iconSize"
+        else
+            return core.fail(g, a.name.loc, "an icon in a <Button> takes `name` and `size`", .{});
+        try jsx.attribute(g, c, button, fields, .{ .name = .{ .name = target, .loc = a.name.loc }, .value = a.value });
+    }
+    if (!fields.has("icon")) return core.fail(g, el.loc, "<Icon> needs `name`", .{});
 }
 
 /// Numeric keys use the same formatting rules as text substitutions.

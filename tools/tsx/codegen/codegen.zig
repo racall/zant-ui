@@ -81,6 +81,11 @@ pub const Generator = struct {
     cleanups: std.ArrayList(@import("hooks.zig").Cleanup) = .empty,
     /// Stores declared in or imported into this file (`stores.zig`).
     stores: std.ArrayList(@import("stores.zig").Store) = .empty,
+    /// Scrolling containers around the element being emitted (`nesting.zig`).
+    scroll_depth: usize = 0,
+    /// Array callbacks / list rows around the element being emitted: a
+    /// stateful component there needs a key.
+    loop_depth: usize = 0,
 };
 
 pub fn fail(g: *Generator, loc: ast.Loc, comptime f: []const u8, args: anytype) Error {

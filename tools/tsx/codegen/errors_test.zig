@@ -180,11 +180,11 @@ test "codegen diagnostics include precise source positions" {
         },
         .{
             "export default function App() { return <Input>~text</Input>; }",
-            "<Input> does not accept children",
+            "<Input> has no children",
         },
         .{
             "export default function App() { return <Text>~<View/></Text>; }",
-            "text content cannot contain elements",
+            "<View> can't be inside <Text>; it holds text, {values}, <Text> spans and <Link>",
         },
         .{
             "export default function App() { return ~<Button text=\"a\">b</Button>; }",
