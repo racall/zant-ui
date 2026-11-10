@@ -17,6 +17,18 @@
 | A5 | 从 Zig 导入类型：`import type { Peer } from "./sync.zig"`（结构体、枚举），Zig 函数的参数和返回值可以是它们和它们的切片 | Claude | ⬜ |
 | A6 | 资源导入：`import trayIcon from "../assets/tray.png"`（编译期嵌入，`Uint8Array`） | Codex | ⬜ |
 
+以下几项来自 SWC 解析器测试集的统计（`scripts/tsx/swc-corpus.sh`：981 个 TS / TSX / JSX 输入，0 崩溃、0 卡死，
+按被拒绝的原因排序，就是真实代码里最常见、我们还不支持的写法）：
+
+| # | 内容 | 负责 | 状态 |
+|---|---|---|---|
+| A7 | 兼容 `import React from "react"` / `import * as React from "react"`（接受并忽略，复制来的 React 代码常带） | Codex | ⬜ |
+| A8 | 参数默认值：`function f(n = 1)`、解构 props 的默认值 `({ size = 14 }: Props)` | Codex | ⬜ |
+| A9 | JSX 展开属性：`<Button {...common} onClick={…} />`（对象的字段必须是这个标签 / 组件的属性，按源码顺序合并） | Claude | ⬜ |
+| A10 | `enum Kind { Text, Image }` / `enum Kind { Text = "text" }` → Zig 枚举 | Codex | ⬜ |
+| A11 | JSX 实体：完整 XHTML 实体表、数字实体规则与 SWC / Babel 一致（`&#x` 小写、码点范围） | Codex | ⬜ |
+| A12 | 泛型函数 `function first<T>(xs: T[]): T`（ClipHop 不需要，排在最后） | — | ⬜ |
+
 ## B. 组件属性
 
 | # | 内容 | 负责 | 状态 |
@@ -55,8 +67,8 @@
 
 ## 顺序
 
-1. A1（Claude）‖ A2 → A3（Codex）
-2. A4、A5（Claude）‖ B1 → B2 → B3 → A6（Codex）
+1. A1（Claude）‖ A2 → A3 → A7 → A11（Codex）
+2. A4、A5、A9（Claude）‖ B1 → B2 → B3 → A6 → A8 → A10（Codex）
 3. C1、C2、C5（Claude）‖ D1 → D2 → D3 → C6（Codex）
 4. C3、C4（Claude）‖ E1（Codex）
 5. E2（Codex）‖ E3（Claude），最后 E4
