@@ -30,8 +30,12 @@ test "dropdown menu, segmented and dismiss layer" {
     } });
     try std.testing.expectEqual(@as(usize, 4), menu.element.children.len);
     const seg = ui.segmented(.{ .options = &.{ .{ .label = "A" }, .{ .label = "B" } }, .selected = 1 });
-    // sliding thumb + 2 options
-    try std.testing.expectEqual(@as(usize, 3), seg.element.children.len);
+    // inline (antd default): a wrapper row around the track; the track holds
+    // the sliding thumb + 2 options
+    try std.testing.expectEqual(@as(usize, 1), seg.element.children.len);
+    try std.testing.expectEqual(@as(usize, 3), seg.element.children[0].element.children.len);
+    const block = ui.segmented(.{ .options = &.{ .{ .label = "A" }, .{ .label = "B" } }, .block = true });
+    try std.testing.expectEqual(@as(usize, 3), block.element.children.len);
     const layer = ui.dismissLayer(.{ .on_dismiss = ui.action(&state, State.click) });
     try std.testing.expect(layer.element.layout.absolute);
     try std.testing.expectEqual(zant.node.ButtonType.plain, layer.element.button_type);
@@ -295,4 +299,31 @@ test "image thumbnail and PNG round trip" {
     const same = zant.image.Image.thumbnail(png_bytes, 100).?;
     defer same.deinit();
     try std.testing.expectEqual(@as(u32, 40), same.width);
+}
+
+test "segmented is as wide as its options unless block" {
+    const Seg = struct {
+        fn render(_: *anyopaque) ui.Node {
+            const a = ui.frameAllocator();
+            return ui.column(.{ .key = "col", .align_items = .stretch, .gap = 8, .children = a.dupe(ui.Node, &.{
+                ui.segmented(.{ .key = "inline", .options = &.{ .{ .label = "Small" }, .{ .label = "Large" } } }),
+                ui.segmented(.{ .key = "block", .block = true, .options = &.{ .{ .label = "Small" }, .{ .label = "Large" } } }),
+            }) catch unreachable });
+        }
+    };
+    zant.motion.enabled = false;
+    defer zant.motion.enabled = true;
+    var state: u8 = 0;
+    const runtime = try zant.ui_runtime.Runtime.init(std.testing.allocator, &state, Seg.render, .{ .window = .{ .width = 500, .height = 200 } });
+    defer runtime.deinit();
+    var renderer = try zant.renderer.Renderer.createRaster(500, 200);
+    defer renderer.deinit();
+    const canvas = renderer.begin(1.0).?;
+    runtime.renderFrame(canvas, 500, 200, 1.0);
+    renderer.end();
+    const inline_track = runtime.tree.boundsOfKey("inline").?;
+    const block_track = runtime.tree.boundsOfKey("block").?;
+    // the root column fills the 500px window
+    try std.testing.expect(inline_track.width < 200);
+    try std.testing.expectEqual(@as(f32, 500), block_track.width);
 }

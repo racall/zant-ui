@@ -23,6 +23,10 @@ pub const SegmentedOptions = struct {
     height: f32 = 28,
     font_size: f32 = 13,
     item_width: ?f32 = null,
+    /// Fill the parent's width (antd `block`). Otherwise the control is as
+    /// wide as its options, even in a column that stretches its children
+    /// (antd's default `inline-block`).
+    block: bool = false,
 };
 
 pub fn segmented(o: SegmentedOptions) ui.Node {
@@ -73,7 +77,7 @@ pub fn segmented(o: SegmentedOptions) ui.Node {
         });
         items.append(arena, item) catch {};
     }
-    return ui.row(.{
+    const track = ui.row(.{
         .key = base,
         .height = o.height,
         .padding = ui.inset(2),
@@ -83,4 +87,7 @@ pub fn segmented(o: SegmentedOptions) ui.Node {
         .align_items = .center,
         .children = items.items,
     });
+    if (o.block) return track;
+    // inline: a transparent row takes the stretch, the track keeps its width
+    return ui.row(.{ .children = arena.dupe(ui.Node, &.{track}) catch &.{} });
 }

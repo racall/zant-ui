@@ -255,9 +255,15 @@ pub const TextData = struct {
             defer tmp.deinit();
             break :blk tmp.metrics.longest_line;
         };
+        // Round up: a paragraph laid out exactly as wide as its longest line
+        // can wrap that line's last word (float error between measuring and
+        // breaking), so "Terms" became "Term / s". Flutter rounds intrinsic
+        // widths up for the same reason; the small margin covers a width that
+        // is already a whole number.
+        const rounded = @ceil(w + 0.01);
         self.measure_avail = max_width;
-        self.measure_width = w;
-        return w;
+        self.measure_width = rounded;
+        return rounded;
     }
 };
 

@@ -201,3 +201,33 @@ test "clickable view: on_click, index_action and inner buttons keep their clicks
     clickAt(runtime, runtime.tree.boundsOfKey("row-3").?);
     try expectEqual(@as(?usize, 3), state.picked);
 }
+
+test "wrapped text at its natural width stays on one line (start-aligned columns)" {
+    const Wrap = struct {
+        fn render(_: *anyopaque) ui.Node {
+            const a = ui.frameAllocator();
+            return ui.view(.{ .padding = ui.inset(24), .gap = 16, .align_items = .start, .children = a.dupe(ui.Node, &.{
+                ui.text("Terms", .{ .key = "word", .size = 14, .weight = .medium, .wrap = true }),
+                ui.withKey(ui.paragraph("Every component on this page is written in TSX and compiled to native Zig.", .{}), "para"),
+                ui.view(.{ .width = 420, .padding = ui.inset(20), .align_items = .start, .children = a.dupe(ui.Node, &.{
+                    ui.withKey(ui.alert(.{ .title = "Terms", .description = "State flows from TSX into native Zant components." }), "alert"),
+                }) catch unreachable }),
+            }) catch unreachable });
+        }
+    };
+    var state: u8 = 0;
+    const runtime = try Runtime.init(std.testing.allocator, &state, Wrap.render, .{ .window = .{ .width = 960, .height = 700 } });
+    defer runtime.deinit();
+    var renderer = try Renderer.createRaster(960, 700);
+    defer renderer.deinit();
+    renderFrame(runtime, &renderer, 960, 700);
+    // one line each: a wrapped "Term / s" or a dropped last word doubles the height
+    for (runtime.tree.nodes.items) |n| {
+        if (!n.alive or n.kind() != .text) continue;
+        const one_line = n.data.text.style.font_size * 1.6;
+        if (n.bounds.height > one_line) {
+            std.debug.print("text \"{s}\" wrapped: {d:.1}x{d:.1}\n", .{ n.data.text.content, n.bounds.width, n.bounds.height });
+            return error.TextWrapped;
+        }
+    }
+}
