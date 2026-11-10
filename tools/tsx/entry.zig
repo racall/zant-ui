@@ -1,7 +1,7 @@
 //! A TS + TSX app's generated entry (`zant-tsx --main App`): `main.zig`
 //! runs the default export of `App.tsx` with `zant.tsx.app.run`, using the
-//! project's `app_config.zig` (generated from `app.config.json` by
-//! `zant sync`) when it is one of the inputs.
+//! project's `app_config.zig`: generated from `app.config.json` while
+//! building (`--app-config`), or one of the inputs (older projects).
 const std = @import("std");
 const compile = @import("compile.zig");
 const parser = @import("parser.zig");
@@ -18,9 +18,14 @@ pub fn describe(err: Error) []const u8 {
 }
 
 /// The source of `main.zig` for the entry file `<name>.tsx`.
-pub fn mainSource(arena: std.mem.Allocator, files: []const compile.File, name: []const u8) Error![]const u8 {
+pub fn mainSource(
+    arena: std.mem.Allocator,
+    files: []const compile.File,
+    name: []const u8,
+    generated_config: bool,
+) Error![]const u8 {
     var entry: ?compile.File = null;
-    var config = false;
+    var config = generated_config;
     for (files) |file| {
         const output = try file.outputName(arena);
         if (std.ascii.eqlIgnoreCase(output, "main.zig")) return error.NameTaken;
@@ -91,12 +96,12 @@ test "the entry runs the default export with the project's config" {
     const a = arena.allocator();
     const app = compile.File{ .path = "src/App.tsx", .src = "export default function Clips() { return <View/>; }" };
     const config = compile.File{ .path = "src/app_config.zig", .src = "pub const title = \"x\";" };
-    const with = try mainSource(a, &.{ app, config }, "App");
+    const with = try mainSource(a, &.{ app, config }, "App", false);
     try std.testing.expect(std.mem.indexOf(u8, with, "pub const config = @import(\"app_config.zig\");") != null);
     try std.testing.expect(std.mem.indexOf(u8, with, "zant.tsx.app.run(init, entry.Clips, config)") != null);
-    const without = try mainSource(a, &.{app}, "App");
+    const without = try mainSource(a, &.{app}, "App", false);
     try std.testing.expect(std.mem.indexOf(u8, without, "pub const title: [:0]const u8 = \"Clips\";") != null);
-    try std.testing.expectError(error.NoEntry, mainSource(a, &.{app}, "Main"));
+    try std.testing.expectError(error.NoEntry, mainSource(a, &.{app}, "Main", false));
     const main_zig = compile.File{ .path = "src/main.zig", .src = "" };
-    try std.testing.expectError(error.NameTaken, mainSource(a, &.{ app, main_zig }, "App"));
+    try std.testing.expectError(error.NameTaken, mainSource(a, &.{ app, main_zig }, "App", false));
 }

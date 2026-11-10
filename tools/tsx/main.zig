@@ -8,6 +8,7 @@ const std = @import("std");
 const compile = @import("compile.zig");
 const entry = @import("entry.zig");
 const assets = @import("assets.zig");
+const app_config = @import("app_config");
 
 pub fn main(init: std.process.Init) !void {
     const io = init.io;
@@ -44,16 +45,33 @@ fn project(io: std.Io, arena: std.mem.Allocator, out_dir: []const u8, rest: []co
     var paths: std.ArrayList([]const u8) = .empty;
     var main_entry: ?[]const u8 = null;
     var dep_file: ?[]const u8 = null;
+    var app_config_path: ?[]const u8 = null;
+    var os: app_config.Os = .other;
     var i: usize = 0;
     while (i < rest.len) : (i += 1) {
         const arg: []const u8 = rest[i];
         if (std.mem.eql(u8, arg, "--dep") and i + 1 < rest.len) {
             i += 1;
             dep_file = rest[i];
+        } else if (std.mem.eql(u8, arg, "--app-config") and i + 1 < rest.len) {
+            i += 1;
+            app_config_path = rest[i];
+        } else if (std.mem.eql(u8, arg, "--os") and i + 1 < rest.len) {
+            i += 1;
+            os = std.meta.stringToEnum(app_config.Os, rest[i]) orelse .other;
         } else if ((std.mem.eql(u8, arg, "--main") or std.mem.eql(u8, arg, "--src")) and i + 1 < rest.len) {
             i += 1;
             if (std.mem.eql(u8, arg, "--main")) main_entry = rest[i] else try entry.collect(io, arena, rest[i], &paths);
         } else try paths.append(arena, arg);
+    }
+    // the app.config.json given replaces a hand-written / stale app_config.zig
+    if (app_config_path != null) {
+        var k: usize = 0;
+        while (k < paths.items.len) {
+            if (std.mem.eql(u8, std.fs.path.basename(paths.items[k]), "app_config.zig")) {
+                _ = paths.orderedRemove(k);
+            } else k += 1;
+        }
     }
     const files = try arena.alloc(compile.File, paths.items.len);
     for (paths.items, 0..) |path, k| files[k] = .{ .path = path, .src = read(io, arena, path) };
@@ -65,8 +83,9 @@ fn project(io: std.Io, arena: std.mem.Allocator, out_dir: []const u8, rest: []co
                 try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = out, .data = zig });
             }
             try copyAssets(io, arena, out_dir, files, dep_file);
+            if (app_config_path) |path| try writeAppConfig(io, arena, out_dir, path, os);
             if (main_entry) |name| {
-                const source = entry.mainSource(arena, files, name) catch |err| {
+                const source = entry.mainSource(arena, files, name, app_config_path != null) catch |err| {
                     std.debug.print("zant-tsx: --main {s}: {s}\n", .{ name, entry.describe(err) });
                     std.process.exit(1);
                 };
@@ -112,6 +131,24 @@ fn copyAssets(
             .data = try assets.depFile(arena, out_dir, sources, list),
         });
     }
+}
+
+/// `app_config.zig` from app.config.json, for the platform being built.
+fn writeAppConfig(io: std.Io, arena: std.mem.Allocator, out_dir: []const u8, path: []const u8, os: app_config.Os) !void {
+    const data = read(io, arena, path);
+    var why: []const u8 = "";
+    const cfg = app_config.parse(arena, data, os, &why) catch |err| {
+        const what = switch (err) {
+            error.OutOfMemory => "out of memory",
+            error.InvalidJson => "不是有效的 JSON",
+            error.InvalidEntitlements => "macos.entitlements 要是对象",
+            error.InvalidBundleId => "bundle_id 不符合规范",
+        };
+        std.debug.print("{s}: error: {s} {s}\n", .{ path, what, why });
+        std.process.exit(1);
+    };
+    const out = try std.fs.path.join(arena, &.{ out_dir, "app_config.zig" });
+    try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = out, .data = try app_config.source(arena, &cfg) });
 }
 
 fn read(io: std.Io, arena: std.mem.Allocator, path: []const u8) []const u8 {

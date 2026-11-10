@@ -49,7 +49,7 @@ exe.root_module.addImport("counter_tsx", counter);
 
 **整个应用用 TS + TSX 写**（`zant create` 选 TS，不写 Zig）时用 `addTsxApp`：`src/` 下所有 `.tsx` 和 `.zig`
 （原生模块）一起编译，入口 `main.zig` 由 `zant-tsx --main App` 生成，运行 `App.tsx` 的默认导出；窗口标题、尺寸等配置来自
-`app_config.zig`（`zant sync` 从 `app.config.json` 生成）。主题默认跟随系统，`ZANT_THEME=light|dark` 可以固定。
+`app.config.json`（构建时按目标平台生成 `app_config.zig`，项目里没有这个文件，直接 `zig build` 也行）。主题默认跟随系统，`ZANT_THEME=light|dark` 可以固定。
 示例 `examples/tsx/app/`（`zig build run-tsx-app`）。
 
 ```zig
@@ -71,9 +71,9 @@ TS 模板在 `scaffold/template-ts/`：`src/App.tsx` 是根组件，`src/compone
 回调；根组件持有输入值和计数，子组件只发事件。图标与 Zig 模板相同，主题通过 `useTheme()` 跟随系统。
 `src/App.tsx` 存在且没有 `src/main.zig` 时，CLI 将它识别为 TS 项目；可在同一 src/ 内放 Zig 原生模块。
 
-`zant sync` 会生成 `src/app_config.zig`（已加入 TS 模板的 `.gitignore`）。`zant run` / `compile` /
-`package` / `build` 也会先同步配置，再调用 `zig build`；`addTsxApp` 调用 `zant-tsx --main App` 生成
-入口，使用 `zant.tsx.app.run` 启动，应用无需编写 Zig 入口。直接 `zig build` 前先执行 `zant sync`。
+`app.config.json` 在构建时由 `addTsxApp` 按目标平台转成 `app_config.zig`（放在构建缓存里，项目里看不到）；
+`zant sync` 只生成 macOS 打包用的 Info.plist 等。`addTsxApp` 调用 `zant-tsx --main App` 生成入口，使用
+`zant.tsx.app.run` 启动，应用无需编写 Zig 入口，直接 `zig build` 也能构建。
 发布和签名沿用 [构建文档](build.md)，不因项目语言改变。
 
 `zant run --watch` 监听 src/ 任意深度的 `.tsx`、`.zig` 及配置文件，改动后重新编译并重启，内存状态会重建。

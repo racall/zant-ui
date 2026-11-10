@@ -86,7 +86,7 @@ zant create my-ts-app --lang ts --yes
 
 TS 项目使用 `src/App.tsx` 的默认导出作为根组件，`src/components/*.tsx` 放业务组件；不需要手写
 `src/main.zig`。`build.zig` 使用 `addTsxApp` 和 `configureApp`，TSX 在编译期转成原生 Zig。
-两种模板共用默认图标和窗口配置，`zant sync` 都会生成 `src/app_config.zig`，TS 模板已忽略该生成文件。
+两种模板共用默认图标和窗口配置。Zig 项目由 `zant sync` 生成 `src/app_config.zig`；TS 项目在构建时生成，项目里没有这个文件。
 TS 模板还带 `zant.d.ts` / `tsconfig.json`，为 `import … from "zant"` 提供补全和严格类型检查，
 不需要 npm 或 React。详见 [TSX：新建 TS 项目与编辑器类型](tsx.md#新建-ts-项目)。
 

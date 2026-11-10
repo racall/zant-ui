@@ -296,6 +296,17 @@ fn tsxApp(
     const out = run.addOutputDirectoryArg("tsx");
     run.addArg("--dep");
     _ = run.addDepFileOutputArg("tsx.d");
+    // the app's config for the target platform (no src/app_config.zig)
+    const config_path = b.root.joinString(b.allocator, "app.config.json") catch @panic("OOM");
+    if (std.Io.Dir.cwd().access(b.graph.io, config_path, .{})) |_| {
+        run.addArg("--app-config");
+        run.addFileArg(b.path("app.config.json"));
+        run.addArgs(&.{ "--os", switch (options.target.result.os.tag) {
+            .macos => "macos",
+            .windows => "windows",
+            else => "other",
+        } });
+    } else |_| {}
     run.addArgs(&.{ "--main", options.entry, "--src" });
     run.addDirectoryArg(b.path(options.src));
     // a directory argument isn't hashed by content: zant-tsx lists every
@@ -393,6 +404,10 @@ pub fn build(b: *std.Build) void {
             .optimize = .ReleaseSafe,
         }),
     });
+    // app.config.json → app_config.zig while building TS apps (shared with zant)
+    tsx_tool.root_module.addImport("app_config", b.createModule(.{
+        .root_source_file = b.path("tools/zant/app_config.zig"),
+    }));
     b.installArtifact(tsx_tool);
 
     // the generated tag table (tools/tsx/ui_tags.zig) comes from reflecting

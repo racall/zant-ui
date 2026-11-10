@@ -11,13 +11,12 @@ cd "$work"
 cd demo
 test -f src/App.tsx
 test ! -f src/main.zig
-test -f src/app_config.zig
+test ! -f src/app_config.zig # the build generates it from app.config.json
 test -f assets/icons/app-macos.png
 test -f zant.d.ts
 test -f tsconfig.json
-rm src/app_config.zig
 "$repo/zig-out/bin/zant" sync
-test -f src/app_config.zig
+test ! -f src/app_config.zig
 "$repo/zig-out/bin/zant" compile
 "$zig" build
 if test -f zig-out/bin/app || test -f zig-out/bin/app.exe; then
