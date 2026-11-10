@@ -66,7 +66,7 @@ pub fn paint(node: *Node, canvas: Canvas, theme: Theme) void {
             const cy = box.y + box.height * 0.5;
             canvas.fillRoundRect(geometry.Rect.init(cx - dot, cy - dot, dot * 2, dot * 2), dot, theme.color_primary);
         }
-        if (data.focused and enabled) {
+        if (data.focus_visible and enabled) {
             canvas.strokeRoundRect(
                 geometry.Rect.init(box.x - 2, box.y - 2, box.width + 4, box.height + 4),
                 checkbox_size * 0.5 + 2,
@@ -101,7 +101,7 @@ pub fn paint(node: *Node, canvas: Canvas, theme: Theme) void {
             canvas.drawLine(cx - 3.5 * k, cy, cx - 1 * k, cy + 2.5 * k, check_color, 1.8);
             canvas.drawLine(cx - 1 * k, cy + 2.5 * k, cx + 4 * k, cy - 3 * k, check_color, 1.8);
         }
-        if (data.focused and enabled) {
+        if (data.focus_visible and enabled) {
             canvas.strokeRoundRect(
                 geometry.Rect.init(box.x - 2, box.y - 2, box.width + 4, box.height + 4),
                 theme.border_radius_sm,
@@ -132,7 +132,7 @@ pub fn paint(node: *Node, canvas: Canvas, theme: Theme) void {
         const knob = geometry.Rect.init(knob_x, track.y + 2, knob_w, base);
         // the handle is always white (antd handleBg)
         canvas.fillRoundRect(knob, base * 0.5, 0xffffffff);
-        if (data.focused and enabled) {
+        if (data.focus_visible and enabled) {
             canvas.strokeRoundRect(
                 geometry.Rect.init(track.x - 2, track.y - 2, track.width + 4, track.height + 4),
                 (track.height + 4) * 0.5,

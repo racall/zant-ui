@@ -1379,6 +1379,7 @@ pub const Runtime = struct {
                 return 1;
             },
             .pointer_down => |p| {
+                self.tree.keyboard_modality = false;
                 self.handlePointerDown(p);
                 self.needs_build = true;
                 return 1;
@@ -1401,6 +1402,7 @@ pub const Runtime = struct {
                 return 1;
             },
             .key_down => |k| {
+                self.tree.keyboard_modality = true;
                 if (self.config.key_fn) |key_fn| {
                     if (!self.focusedHasComposition() and key_fn(self.userdata, k)) {
                         self.needs_build = true;

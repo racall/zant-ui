@@ -100,6 +100,8 @@ third_party/            Skia 预编译依赖（不提交到 Git）
     `fill_tertiary` .04 / `fill_quaternary` .02，深色为白色 .18/.12/.08/.04），
     不要改成不透明色，否则叠在不同底色上会出现两种色调。
   - 文字/图标按钮：悬停 `fill_secondary`、按下 `fill`（不要用蓝色 `primary_bg`）；
+  - 焦点环按 antd 的 `:focus-visible`：按钮、开关只在**键盘**聚焦（Tab）时画焦点环，鼠标点击聚焦不画
+    （`Tree.keyboard_modality`，按键置位、指针按下清除）；输入框、下拉框聚焦时的激活边框照常显示；
     `primary_bg` 只用于菜单/列表的“选中项”。
   - 绝对定位元素的 `height_percent` / `width_percent` 优先于组件自带的固定尺寸
     （例如 `ui.styled(ui.button(..), .{ .height_percent = 100 })` 会填满父容器）。

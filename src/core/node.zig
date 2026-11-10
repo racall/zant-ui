@@ -450,6 +450,9 @@ pub const ButtonData = struct {
     hovered: bool = false,
     pressed: bool = false,
     focused: bool = false,
+    /// Focused from the keyboard: paint the focus ring (antd / CSS
+    /// `:focus-visible`; a mouse click focuses without a ring).
+    focus_visible: bool = false,
     // transitions (targets follow the booleans above) and their sampled
     // values for paint
     hover: Animated = .{},
@@ -570,6 +573,8 @@ pub const ToggleData = struct {
     hovered: bool = false,
     pressed: bool = false,
     focused: bool = false,
+    /// Focused from the keyboard (see `ButtonData.focus_visible`).
+    focus_visible: bool = false,
     hover: Animated = .{},
     press: Animated = .{},
     /// Fill / border / track / knob position.

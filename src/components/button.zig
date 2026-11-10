@@ -201,7 +201,7 @@ pub fn paint(node: *Node, canvas: Canvas, theme: Theme) void {
         layout.paint(canvas, x, y);
     } else |_| {}
 
-    if (data.focused and enabled) {
+    if (data.focus_visible and enabled) {
         const ring = geometry.Rect.init(rect.x - 2, rect.y - 2, rect.width + 4, rect.height + 4);
         canvas.strokeRoundRect(ring, node.visual.radius + 2, tokens.withAlpha(theme.color_primary, 0x66), 2);
     }

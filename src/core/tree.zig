@@ -36,6 +36,11 @@ pub const Tree = struct {
     flip_enabled: bool = true,
     root: NodeId = 0,
     focused: ?NodeId = null,
+    /// The last input was the keyboard, so focus changes show a focus ring
+    /// on buttons and toggles (the browser's `:focus-visible` heuristic that
+    /// antd relies on). The runtime sets it on key presses and clears it on
+    /// pointer presses.
+    keyboard_modality: bool = false,
     theme: Theme,
     /// Node by key (the most recently keyed node for a key); lookups fall
     /// back to a scan when the indexed node is not usable.
@@ -761,14 +766,20 @@ pub const Tree = struct {
         for (self.nodes.items) |node| {
             if (!node.alive) continue;
             switch (node.data) {
-                .button => |*data| data.focused = false,
+                .button => |*data| {
+                    data.focused = false;
+                    data.focus_visible = false;
+                },
                 .input => |*data| {
                     if (data.focused) self.poke(node.id);
                     data.focused = false;
                     data.blink_on = true;
                     data.next_blink_ms = 0;
                 },
-                .toggle => |*data| data.focused = false,
+                .toggle => |*data| {
+                    data.focused = false;
+                    data.focus_visible = false;
+                },
                 .select => |*data| {
                     if (data.focused or data.open) self.poke(node.id);
                     data.focused = false;
@@ -784,13 +795,19 @@ pub const Tree = struct {
             if (!target.enabled or !target.inFlow() or !target.focusable) return;
             self.focused = target_id;
             switch (target.data) {
-                .button => |*data| data.focused = true,
+                .button => |*data| {
+                    data.focused = true;
+                    data.focus_visible = self.keyboard_modality;
+                },
                 .input => |*data| {
                     data.focused = true;
                     data.blink_on = true;
                     data.next_blink_ms = 0;
                 },
-                .toggle => |*data| data.focused = true,
+                .toggle => |*data| {
+                    data.focused = true;
+                    data.focus_visible = self.keyboard_modality;
+                },
                 .select => |*data| data.focused = true,
                 else => {},
             }

@@ -199,3 +199,63 @@ test "styled overrides common visual properties" {
     try std.testing.expectEqual(@as(f32, 5), node.element.visual.radius);
     try std.testing.expectEqual(@as(f32, 3), node.element.layout.padding.left);
 }
+
+test "focus rings follow :focus-visible: keyboard focus shows one, a click does not" {
+    const Focus = struct {
+        clicks: u32 = 0,
+        fn hit(self: *@This()) void {
+            self.clicks += 1;
+        }
+        fn render(ctx: *anyopaque) ui.Node {
+            const self: *@This() = @ptrCast(@alignCast(ctx));
+            return ui.column(.{ .padding = ui.inset(10), .gap = 10, .children = ui.frameAllocator().dupe(ui.Node, &.{
+                ui.button(.{ .key = "a", .text = "A", .on_click = ui.action(self, hit) }),
+                ui.@"switch"(.{ .key = "s", .label = "S" }),
+            }) catch unreachable });
+        }
+    };
+    zant.motion.enabled = false;
+    defer zant.motion.enabled = true;
+    var state = Focus{};
+    const runtime = try Runtime.init(std.testing.allocator, &state, Focus.render, .{ .window = .{ .width = 300, .height = 200 } });
+    defer runtime.deinit();
+    var renderer = try Renderer.createRaster(300, 200);
+    defer renderer.deinit();
+    const frame = struct {
+        fn f(r: *Runtime, ren: *Renderer) void {
+            const canvas = ren.begin(1.0).?;
+            r.renderFrame(canvas, 300, 200, 1.0);
+            ren.end();
+        }
+    }.f;
+    frame(runtime, &renderer);
+    const node = struct {
+        fn byKey(r: *Runtime, key: []const u8) *zant.node.Node {
+            for (r.tree.nodes.items) |n| {
+                if (n.alive and n.key != null and std.mem.eql(u8, n.key.?, key)) return n;
+            }
+            unreachable;
+        }
+    }.byKey;
+
+    // mouse: focused (Space still activates it) but no ring
+    click(runtime, node(runtime, "a"));
+    frame(runtime, &renderer);
+    try std.testing.expectEqual(@as(u32, 1), state.clicks);
+    try std.testing.expect(node(runtime, "a").data.button.focused);
+    try std.testing.expect(!node(runtime, "a").data.button.focus_visible);
+    _ = runtime.dispatch(.{ .key_down = .{ .key = .{ .character = ' ' } } });
+    try std.testing.expectEqual(@as(u32, 2), state.clicks);
+
+    // keyboard: Tab moves focus with a ring
+    _ = runtime.dispatch(.{ .key_down = .{ .key = .tab } });
+    frame(runtime, &renderer);
+    try std.testing.expect(node(runtime, "s").data.toggle.focused);
+    try std.testing.expect(node(runtime, "s").data.toggle.focus_visible);
+    try std.testing.expect(!node(runtime, "a").data.button.focus_visible);
+
+    // clicking the switch drops the ring again
+    click(runtime, node(runtime, "s"));
+    frame(runtime, &renderer);
+    try std.testing.expect(!node(runtime, "s").data.toggle.focus_visible);
+}
