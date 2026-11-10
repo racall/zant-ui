@@ -93,3 +93,19 @@ test "root shorthand fragments and React fragments emit the same native root" {
     try std.testing.expect(plain == .ok and react == .ok);
     try std.testing.expectEqualStrings(plain.ok, react.ok);
 }
+
+test "children typed one element or several take one child or many" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const src =
+        \\interface GroupProps { title: string; children: JSX.Element | JSX.Element[] }
+        \\function Group(props: GroupProps) { return <Column>{props.children}</Column>; }
+        \\export default function App() {
+        \\  return <View><Group title="a"><Text>one</Text></Group><Group title="b"><Text>1</Text><Text>2</Text></Group></View>;
+        \\}
+    ;
+    const result = try compiler.compile(a, src, "group.tsx");
+    try std.testing.expect(result == .ok);
+    try std.testing.expect(std.mem.indexOf(u8, result.ok, "children: []const ui.Node") != null);
+}

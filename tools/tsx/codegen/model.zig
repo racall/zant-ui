@@ -166,6 +166,7 @@ fn unionType(g: *Generator, loc: ast.Loc, members: []const ast.TypeRef, name: ?[
         } else try nonnull.append(g.a, member);
     }
     if (nonnull.items.len == 0) return .null_;
+    if (try nodeOrNodes(g, nonnull.items)) |list| return if (nullable) optional(g, list) else list;
     var ty: Type = undefined;
     if (nonnull.items.len == 1) {
         ty = if (nonnull.items[0].detail != null)
@@ -183,6 +184,21 @@ fn unionType(g: *Generator, loc: ast.Loc, members: []const ast.TypeRef, name: ?[
         ty = try enumeration(g, names.items, name);
     }
     return if (nullable) optional(g, ty) else ty;
+}
+
+/// `JSX.Element | JSX.Element[]` (React's `children` that is one element or
+/// several): a list of elements, which one child also fills.
+fn nodeOrNodes(g: *Generator, members: []const ast.TypeRef) Error!?Type {
+    if (members.len != 2) return null;
+    for (members, 0..) |member, i| {
+        const other = members[1 - i];
+        const detail = other.detail orelse continue;
+        if (member.detail != null or detail.* != .array) continue;
+        if (try types.typeRef(g, member, false) != .node) return null;
+        const list = try types.typeRef(g, other, false);
+        return if (element(g, list) == .node) list else null;
+    }
+    return null;
 }
 
 fn enumeration(g: *Generator, members: []const []const u8, name: ?[]const u8) Error!Type {
