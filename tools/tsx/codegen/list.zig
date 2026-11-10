@@ -144,9 +144,10 @@ pub fn emit(g: *Generator, c: *Context, j: *ast.Jsx) Error!Value {
     var fields = Fields{ .g = g };
     for (j.attrs) |a| {
         const special = zig_text.eq(a.name.name, "data") or zig_text.eq(a.name.name, "renderItem") or
-            zig_text.eq(a.name.name, "keyExtractor");
+            zig_text.eq(a.name.name, "keyExtractor") or isScrollProp(a.name.name);
         if (!special) try jsx.attribute(g, c, &list_tag, &fields, a);
     }
+    const follow = try scrolling(g, c, j, try scope.stateField(g, info.field));
     const struct_name = try zig_text.id(g, g.name);
     try fields.put("count", try zig_text.fmt(g, "{s}._data.len", .{cap}));
     try fields.put("item", try zig_text.fmt(g, "ui.listItem({s}, {s}.{s})", .{
@@ -158,9 +159,44 @@ pub fn emit(g: *Generator, c: *Context, j: *ast.Jsx) Error!Value {
     const capture = try captures.value(g, g.methods.items[info.item_method]);
     return .{ .ty = .node, .code = try zig_text.fmt(
         g,
-        "{s}: {{\nconst {s} = {s};\nbreak :{s} ui.list(&self.{s}, {s});\n}}",
-        .{ info.field, cap, capture, info.field, try scope.stateField(g, info.field), try fields.emit() },
+        "{s}: {{\nconst {s} = {s};\n{s}break :{s} ui.list(&self.{s}, {s});\n}}",
+        .{ info.field, cap, capture, follow, info.field, try scope.stateField(g, info.field), try fields.emit() },
     ) };
+}
+
+fn isScrollProp(name: []const u8) bool {
+    return zig_text.eq(name, "scrollToIndex") or zig_text.eq(name, "scrollAlign") or zig_text.eq(name, "layoutKey");
+}
+
+/// `scrollToIndex` / `scrollAlign` / `layoutKey` → `self._list1.follow(…);`
+/// (`ui.ListState.follow`: scrolls when the index or the key changed).
+fn scrolling(g: *Generator, c: *Context, j: *ast.Jsx, field: []const u8) Error![]const u8 {
+    const index = attr(j, "scrollToIndex");
+    const key = attr(j, "layoutKey");
+    const align_attr = attr(j, "scrollAlign");
+    if (index == null and key == null) {
+        if (align_attr) |a| return core.fail(g, a.name.loc, "scrollAlign goes with scrollToIndex", .{});
+        return "";
+    }
+    const index_code = if (index) |a| blk: {
+        const v = a.value orelse return core.fail(g, a.name.loc, "scrollToIndex needs a number", .{});
+        const value = try types.coerce(g, try expr.emit(g, c, v, .f64, false), .f64, v.loc);
+        break :blk try zig_text.fmt(g, "tsx.listIndex({s})", .{value.code});
+    } else "null";
+    const key_code = if (key) |a| blk: {
+        const v = a.value orelse return core.fail(g, a.name.loc, "layoutKey needs a number", .{});
+        const value = try types.coerce(g, try expr.emit(g, c, v, .f64, false), .f64, v.loc);
+        break :blk try zig_text.fmt(g, "tsx.listKey({s})", .{value.code});
+    } else "0";
+    var position: []const u8 = ".start";
+    if (align_attr) |a| {
+        const v = a.value orelse return core.fail(g, a.name.loc, "scrollAlign is \"start\", \"center\" or \"end\"", .{});
+        const ok = v.data == .string and (zig_text.eq(v.data.string, "start") or zig_text.eq(v.data.string, "center") or
+            zig_text.eq(v.data.string, "end"));
+        if (!ok) return core.fail(g, v.loc, "scrollAlign is \"start\", \"center\" or \"end\"", .{});
+        position = try zig_text.fmt(g, ".{s}", .{v.data.string});
+    }
+    return zig_text.fmt(g, "self.{s}.follow({s}, {s}, {s});\n", .{ field, key_code, index_code, position });
 }
 
 /// Binds `renderItem`'s / `keyExtractor`'s params to `cap._data[index]` and

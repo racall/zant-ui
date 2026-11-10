@@ -328,7 +328,7 @@ const tsx_golden = [_][]const u8{
     "counter",      "layout",    "text",     "events",         "conditional", "components", "todos",   "arrays",
     "children",     "theme",     "list",     "local_state",    "hooks",       "strings",    "store",   "nesting",
     "widgets",      "functions", "loops",    "spread",         "app_hooks",   "builtins",   "windows", "desktop",
-    "react_compat", "entities",  "platform", "named_handlers", "narrowing",   "defaults",   "timers",
+    "react_compat", "entities",  "platform", "named_handlers", "narrowing",   "defaults",   "timers",  "list_scroll",
 };
 
 pub fn build(b: *std.Build) void {

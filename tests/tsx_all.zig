@@ -16,6 +16,7 @@ test {
     _ = @import("tsx_defaults_test.zig");
     _ = @import("tsx_timers_test.zig");
     _ = @import("tsx_crossfile_test.zig");
+    _ = @import("tsx_list_scroll_test.zig");
     _ = @import("tsx_named_handlers_test.zig");
     _ = @import("tsx_zig_types_test.zig");
     _ = @import("tsx_spread_test.zig");

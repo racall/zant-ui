@@ -141,5 +141,10 @@
     gap?: number; padding?: Edges; background?: Color;
     width?: number; height?: number; grow?: number;
     selectable?: boolean; focusable?: boolean; scrollbar?: boolean; alignment?: "top" | "bottom";
+    /** Brings this item into view whenever it changes (e.g. the selected row). */
+    scrollToIndex?: number;
+    scrollAlign?: "start" | "center" | "end";
+    /** A number that changes when the rows did (a new search, a delete): re-measures them and scrolls to scrollToIndex again. */
+    layoutKey?: number;
   }
   export function List<T>(props: ListProps<T>): JSX.Element;

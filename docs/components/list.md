@@ -76,3 +76,9 @@ const State = struct {
 - 屏幕外条目的状态（输入框内容、展开状态）要由应用保存在自己的数据里。
 
 示例：`zig build run-components`（交互区的一万行列表）、`zig build run-md-stream`（聊天）。
+
+## 声明式滚动（TSX）
+
+`ListState.follow(layout_key, index, position)`：`index` 和上次不同时调用 `scrollToItem(index, position)`；
+`layout_key` 变了时先 `invalidateAll()` 再滚动一次。TSX 的 `<List scrollToIndex scrollAlign layoutKey>`
+每次构建都调用它，所以只在值真正变化时滚动，用户手动滚开后不会被拉回去。

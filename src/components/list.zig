@@ -127,6 +127,9 @@ pub const ListState = struct {
     gap: f32 = 0,
     padding: geometry.Edges = .{},
     pending_scroll: ?struct { index: usize, position: ScrollPosition } = null,
+    /// What `follow` last applied (declarative scrolling from TSX).
+    followed_key: u64 = 0,
+    followed_index: ?usize = null,
     bar_drag: ?struct { start: f32, top: f32 } = null,
     options_key: []const u8 = "",
     item_id: ?ItemId = null,
@@ -318,6 +321,22 @@ pub const ListState = struct {
     pub fn scrollToItem(self: *ListState, index: usize, position: ScrollPosition) void {
         self.pending_scroll = .{ .index = index, .position = position };
         self.following = false;
+    }
+
+    /// Declarative scrolling (TSX `<List scrollToIndex layoutKey>`): brings
+    /// `index` into view when it changed since the last call; a new
+    /// `layout_key` (the rows changed: a search, a delete) re-measures every
+    /// row and applies `index` again.
+    pub fn follow(self: *ListState, layout_key: u64, index: ?usize, position: ScrollPosition) void {
+        var again = false;
+        if (layout_key != self.followed_key) {
+            self.followed_key = layout_key;
+            self.invalidateAll();
+            again = true;
+        }
+        const changed = if (index) |i| (self.followed_index == null or self.followed_index.? != i) else false;
+        self.followed_index = index;
+        if (index) |i| if (changed or again) self.scrollToItem(i, position);
     }
 
     /// Scrolls to the end and resumes following the tail.

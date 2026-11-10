@@ -7,7 +7,7 @@ test "TSX golden files match formatted compiler output" {
         "counter",      "layout",    "text",     "events",         "conditional", "components", "todos",   "arrays",
         "children",     "theme",     "list",     "local_state",    "hooks",       "strings",    "store",   "nesting",
         "widgets",      "functions", "loops",    "spread",         "app_hooks",   "builtins",   "windows", "desktop",
-        "react_compat", "entities",  "platform", "named_handlers", "narrowing",   "defaults",   "timers",
+        "react_compat", "entities",  "platform", "named_handlers", "narrowing",   "defaults",   "timers",  "list_scroll",
     }) |name| {
         var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
         defer arena.deinit();

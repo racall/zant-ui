@@ -138,6 +138,17 @@ pub fn State(comptime T: type) type {
 
 /// A TS `number` passed to an integer field (`page={n}`): truncated toward
 /// zero and clamped to `T`'s range (NaN is 0).
+/// `<List scrollToIndex={i}>`: a negative / NaN index scrolls nowhere.
+pub fn listIndex(value: f64) ?usize {
+    if (!(value >= 0)) return null;
+    return toInt(usize, value);
+}
+
+/// `<List layoutKey={n}>`: any number, compared by value.
+pub fn listKey(value: f64) u64 {
+    return @bitCast(value);
+}
+
 pub fn toInt(comptime T: type, value: anytype) T {
     const v: f64 = @floatCast(value);
     if (std.math.isNan(v)) return 0;

@@ -355,6 +355,9 @@ const selected = items.filter(item => {
 - **长列表**：`<List data={todos} renderItem={(t, i) => <Row …/>} keyExtractor={(t) => t.id} />`
   （React Native 的 `FlatList` 写法）编译成虚拟列表 `ui.list`，只构建看得见的行；
   `estimatedItemHeight`、`itemHeight`、`followTail`、`gap`、`padding` 同 `ui.ListOptions`。
+  滚动是声明式的：`scrollToIndex={selected}`（配 `scrollAlign="start" | "center" | "end"`）在值变化时把那一行滚进视野
+  （面板里 ↑↓ 选择）；`layoutKey={epoch}` 是一个数字，行变了（新的搜索、删除、上限变化）时换一个值，列表重新测量
+  所有行并再滚到 `scrollToIndex`（`ui.ListState.follow`）。
 
 ### 内置对象
 
