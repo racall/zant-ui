@@ -74,6 +74,8 @@ declare module "zant" {
   export function useClipboardChange(callback: () => void): void;
   export function useReopen(callback: () => void): void;
   export function useWake(callback: () => void): void;
+  /** Root only: the app is about to end (quit, main window closed); stop workers and save. */
+  export function useAppExit(callback: () => void): void;
 
   export interface TrayItem {
     title?: string; checked?: boolean; disabled?: boolean; separator?: boolean;

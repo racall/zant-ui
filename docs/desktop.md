@@ -11,6 +11,7 @@
 | `onStart(self)` | 主窗口创建后、第一帧前：打开面板、设置托盘、注册快捷键、启动后台线程 |
 | `onAppEvent(self, AppEvent) bool` | 托盘点击 / 菜单项、全局快捷键、程序坞点击、剪贴板变化；返回 true 重建所有窗口 |
 | `onWake(self)` | 后台线程 `ui.postWake()` 之后，在 UI 线程取结果 |
+| `onExit(self)` | 应用马上结束（退出、主窗口关闭）：停后台线程、保存；返回后进程退出 |
 | `onCloseRequest(self) bool` | 关闭主窗口；返回 false 保持打开（例如改为隐藏到托盘） |
 | `onQuitRequest(self) bool` | ⌘Q / 程序坞“退出”；未定义时用 `onCloseRequest` |
 | `theme(self)` | 跟随系统：`if (zant.desktop.systemDarkMode()) antDark() else antLight()`，系统切换外观时自动重建 |

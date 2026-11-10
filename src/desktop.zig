@@ -329,6 +329,10 @@ var app_handler_ctx: ?*anyopaque = null;
 var app_handler_fn: ?*const fn (*anyopaque, AppEvent) bool = null;
 
 fn appCallback(_: ?*anyopaque, raw: *const platform.AppEvent) callconv(.c) void {
+    if (raw.type == platform.AppEventType.exit) {
+        if (exit_handler_fn) |f| f(exit_handler_ctx.?);
+        return;
+    }
     const handler = app_handler_fn orelse return;
     const ctx = app_handler_ctx orelse return;
     const event: AppEvent = switch (raw.type) {
@@ -340,6 +344,25 @@ fn appCallback(_: ?*anyopaque, raw: *const platform.AppEvent) callconv(.c) void 
         else => return,
     };
     if (handler(ctx, event)) Runtime.invalidateAll();
+}
+
+var exit_handler_ctx: ?*anyopaque = null;
+var exit_handler_fn: ?*const fn (*anyopaque) void = null;
+
+/// Calls `handler(state)` when the app is about to end (quit, the main
+/// window closed): the last chance to stop workers and save; the process
+/// exits right after it returns. `zant.launch.run` installs the state's
+/// `onExit` hook automatically.
+pub fn setExitHandler(state: anytype, comptime handler: fn (@TypeOf(state)) void) void {
+    const Ptr = @TypeOf(state);
+    const Adapter = struct {
+        fn call(ctx: *anyopaque) void {
+            handler(@as(Ptr, @ptrCast(@alignCast(ctx))));
+        }
+    };
+    exit_handler_ctx = @ptrCast(state);
+    exit_handler_fn = Adapter.call;
+    platform.setAppHandler(appCallback, null);
 }
 
 /// Routes app events to `handler(state, event)`; it returns true when state

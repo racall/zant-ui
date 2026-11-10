@@ -40,6 +40,9 @@ pub const Options = struct {
 /// - `pub fn onStart(self: *State) void` — once, after the main window
 ///   exists and before the first frame: open panels, set the tray icon,
 ///   register hotkeys, start background work.
+/// - `pub fn onExit(self: *State) void` — the app is about to end (quit,
+///   main window closed): stop background work and save; the process exits
+///   right after it returns (`zant.desktop.setExitHandler`).
 ///
 /// For shared/asynchronous state use `ui_runtime.Runtime` + `store.Store`.
 pub fn run(
@@ -99,5 +102,6 @@ pub fn run(
     desktop.setMainRuntime(runtime);
     defer desktop.setMainRuntime(null);
     if (@hasDecl(State, "onAppEvent")) desktop.setAppEventHandler(state, State.onAppEvent);
+    if (@hasDecl(State, "onExit")) desktop.setExitHandler(state, State.onExit);
     try runtime.run();
 }

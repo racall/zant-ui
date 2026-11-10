@@ -99,6 +99,11 @@ pub fn Shell(comptime Root: type) type {
             return true;
         }
 
+        /// `useAppExit`: the app is about to end; the process exits after it.
+        pub fn onExit(self: *Self) void {
+            if (@hasDecl(Root, "onExit")) self.root.onExit();
+        }
+
         /// `useWake`: after `ui.postWake()` from a background thread (a
         /// native module finished work); every window rebuilds afterwards.
         pub fn onWake(self: *Self) void {

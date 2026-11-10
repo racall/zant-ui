@@ -235,6 +235,7 @@ enum {
     ZANT_APP_EVENT_HOTKEY = 3,     /* a global hotkey: id */
     ZANT_APP_EVENT_REOPEN = 4,     /* macOS: Dock icon clicked (or app reopened) */
     ZANT_APP_EVENT_CLIPBOARD = 5,  /* the clipboard changed (zant_clipboard_watch) */
+    ZANT_APP_EVENT_EXIT = 6,       /* the app is about to end (the process exits after it) */
 };
 typedef struct ZantAppEvent {
     int type;

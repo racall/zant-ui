@@ -38,6 +38,7 @@ const hooks = [_]Hook{
     .{ .name = "useClipboardChange", .method = "onClipboard", .returns = .void_, .root_only = true },
     .{ .name = "useReopen", .method = "onReopen", .returns = .void_, .root_only = true },
     .{ .name = "useWake", .method = "onWake", .returns = .void_, .root_only = true },
+    .{ .name = "useAppExit", .method = "onExit", .returns = .void_, .root_only = true },
 };
 
 fn find(name: []const u8) ?Hook {

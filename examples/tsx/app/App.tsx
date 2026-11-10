@@ -2,7 +2,7 @@
 // (`addTsxApp`) compiles every .tsx here and generates the entry from this
 // file's default export and app_config.zig. Run it with `zig build run-tsx-app`.
 import { createStore, createWindow, useState, useStore, useKeyDown, View, Row, Heading, Paragraph, Button } from "zant";
-import { clipboard, keyLabel, wakeAfter, useTray, app, mainWindow, isMacos } from "zant";
+import { clipboard, keyLabel, wakeAfter, useTray, useAppExit, app, mainWindow, isMacos } from "zant";
 import type { KeyEvent } from "zant";
 import { Counter } from "./components/Counter";
 import { Panel } from "./components/Panel";
@@ -40,6 +40,8 @@ export default function App() {
     ],
     onClick: () => mainWindow.show(),
   });
+  // the last chance to stop native workers and save (a real app: session.stop())
+  useAppExit(() => console.log(`TSX App: exiting with total ${counts.get().total}`));
   useKeyDown((e: KeyEvent) => {
     if (!e.mod || e.key !== "p") return false;
     panel.toggle();

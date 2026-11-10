@@ -548,6 +548,8 @@ useClipboardChange(() => record());          // 任何应用复制了东西（�
 useReopen(() => showMain());                 // macOS 点了 Dock 图标（只在根组件；不写时把主窗口带到前面）
 ```
 
+- `useAppExit(() => { … })`（只在根组件）：应用马上要结束（退出、主窗口关闭）时调用，用来停后台线程、保存数据；
+  回调返回后进程就退出（macOS 的 `applicationWillTerminate`、Windows 消息循环结束后）。
 - `useWake(() => { … })`（只在根组件）：原生模块在后台线程做完事后调用 `zant.ui.postWake()`，回调在 UI 线程运行，
   从模块里取结果（`const got = take(); if (got > 0) setValue(got);`），之后所有窗口重建。
 - 托盘和快捷键在渲染时应用，只有内容变化才调用系统接口；回调像事件处理函数一样运行，可以读渲染体里的局部变量。

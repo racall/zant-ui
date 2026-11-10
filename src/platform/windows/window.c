@@ -981,6 +981,7 @@ ZantWindow *zant_window_create(const char *title, const ZantWindowOptions *optio
 }
 
 void zant_tray_remove(void);
+static void zant_app_emit(int type, int id);
 
 void zant_window_run(ZantWindow *window) {
     (void)window;
@@ -990,7 +991,9 @@ void zant_window_run(ZantWindow *window) {
         DispatchMessageW(&msg);
     }
     /* like [NSApp terminate:] on macOS: closing the window ends the process
-       here, so both platforms behave the same after run() */
+       here, so both platforms behave the same after run(); the app hears
+       it first (ZANT_APP_EVENT_EXIT) to stop its workers and save */
+    zant_app_emit(ZANT_APP_EVENT_EXIT, 0);
     zant_tray_remove();
     fflush(stdout);
     fflush(stderr);

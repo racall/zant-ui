@@ -410,6 +410,7 @@ pub const AppEventType = struct {
     pub const hotkey: c_int = 3;
     pub const reopen: c_int = 4;
     pub const clipboard: c_int = 5;
+    pub const exit: c_int = 6;
 };
 
 pub const AppEvent = extern struct { type: c_int, id: c_int };

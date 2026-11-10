@@ -816,6 +816,13 @@ static bool zant_close_vetoed(ZantWindow *window, int quit) {
     return NO;
 }
 
+/* [NSApp terminate:] exits the process after this: the app's last chance to
+   stop its workers and save (ZANT_APP_EVENT_EXIT, like Windows after its loop). */
+- (void)applicationWillTerminate:(NSNotification *)notification {
+    (void)notification;
+    zant_app_emit(ZANT_APP_EVENT_EXIT, 0);
+}
+
 - (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)sender {
     (void)sender;
     if (g_quitting) return NSTerminateNow;
