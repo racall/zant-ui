@@ -87,6 +87,9 @@ pub const Generator = struct {
     cleanups: std.ArrayList(@import("hooks.zig").Cleanup) = .empty,
     /// Callbacks of `useTray` / `useHotkey` (`desktop_hooks.zig`).
     desktop_callbacks: std.ArrayList(@import("desktop_hooks.zig").Callback) = .empty,
+    /// `const _X = @import("X.zig");` lines of the file header (`imports.zig`),
+    /// also added later for types reached through another file's imports.
+    header: std.ArrayList(u8) = .empty,
     /// Plain functions of this file and imported ones (`functions.zig`).
     functions: std.ArrayList(@import("functions.zig").Function) = .empty,
     /// Stores declared in or imported into this file (`stores.zig`).
@@ -363,8 +366,9 @@ pub fn generate(
             }
         }
     }
+    // imports first: this file's types may use imported ones (`entry: ListEntry`)
+    try @import("imports.zig").process(&g, module, options.project);
     for (module.types) |decl| _ = try model.named(&g, decl.name.name);
-    const import_header = try @import("imports.zig").process(&g, module, options.project);
     // the root is the default export without props (the app's state); a
     // file of a project may hold child components only
     var root: ?*ast.Function = null;
@@ -417,7 +421,7 @@ pub fn generate(
         "@import(\"std\");\nconst zant = @import(\"zant\");\nconst ui = " ++
         "zant.ui;\nconst tsx = zant.tsx;\n{s}\n{s}{s}", .{
         source_name,
-        import_header,
+        g.header.items,
         try @import("globals.zig").declarations(&g),
         globals,
     }));

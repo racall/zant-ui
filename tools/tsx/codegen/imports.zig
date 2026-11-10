@@ -25,10 +25,12 @@ pub const NamedModule = struct {
     module: ast.Module,
 };
 
-/// The declarations of another file and the Zig name it is imported under.
+/// The declarations of another file and the Zig name it is imported under;
+/// its imports, for the types its declarations use from elsewhere.
 pub const Scope = struct {
     decls: []const ast.TypeDecl,
     alias: []const u8,
+    imports: []const ast.Import = &.{},
 };
 
 /// A type imported by name into this file.
@@ -58,12 +60,12 @@ pub fn findModule(project: []const NamedModule, source: []const u8) ?ast.Module 
 
 /// Handles the relative imports of `module`: registers imported types and
 /// components and returns the `@import` lines for the file header.
-pub fn process(g: *Generator, module: ast.Module, project: []const NamedModule) Error![]const u8 {
-    var header: std.ArrayList(u8) = .empty;
+pub fn process(g: *Generator, module: ast.Module, project: []const NamedModule) Error!void {
+    const header = &g.header;
     for (module.imports) |imp| {
         if (!isRelative(imp.source) or @import("../assets.zig").isAsset(imp.source)) continue;
         if (std.mem.endsWith(u8, imp.source, ".zig")) {
-            try @import("zig_imports.zig").process(g, imp, &header);
+            try @import("zig_imports.zig").process(g, imp, header);
             continue;
         }
         const name = stem(imp.source);
@@ -72,8 +74,8 @@ pub fn process(g: *Generator, module: ast.Module, project: []const NamedModule) 
         };
         const alias = try zig_text.fmt(g, "_{s}", .{name});
         const scope = try g.a.create(Scope);
-        scope.* = .{ .decls = target.types, .alias = alias };
-        try header.appendSlice(g.a, try zig_text.fmt(g, "const {s} = @import(\"{s}.zig\");\n", .{
+        scope.* = .{ .decls = target.types, .alias = alias, .imports = target.imports };
+        try addHeader(g, try zig_text.fmt(g, "const {s} = @import(\"{s}.zig\");\n", .{
             try zig_text.id(g, alias), name,
         }));
         for (imp.names) |n| {
@@ -98,7 +100,10 @@ pub fn process(g: *Generator, module: ast.Module, project: []const NamedModule) 
             }
         }
     }
-    return header.items;
+}
+
+fn addHeader(g: *Generator, line: []const u8) Error!void {
+    if (std.mem.indexOf(u8, g.header.items, line) == null) try g.header.appendSlice(g.a, line);
 }
 
 fn exportedType(module: ast.Module, name: []const u8) bool {
@@ -175,7 +180,35 @@ fn resolve(g: *Generator, scope: *const Scope, name: []const u8) Error!?Type {
         try g.type_aliases.append(g.a, .{ .name = key, .ty = ty });
         return ty;
     }
+    // a type that file imports (`entry: ListEntry` from a .zig, or another .tsx's)
+    for (scope.imports) |imp| for (imp.names) |n| {
+        if (zig_text.eq(n.local.name, name)) return throughImport(g, imp, n.imported.name);
+    };
     return null;
+}
+
+/// A type another file imported: this file imports the same module (one
+/// output directory, so the same alias) and names it the same way.
+fn throughImport(g: *Generator, imp: ast.Import, name: []const u8) Error!?Type {
+    if (!isRelative(imp.source) or @import("../assets.zig").isAsset(imp.source)) return null;
+    const base = std.fs.path.basename(imp.source);
+    if (std.mem.endsWith(u8, imp.source, ".zig")) {
+        const stem_ = base[0 .. base.len - 4];
+        const source = for (g.zig_sources) |*source| {
+            if (zig_text.eq(source.name, stem_)) break source;
+        } else return null;
+        const alias = try zig_text.id(g, try zig_text.fmt(g, "_{s}", .{stem_}));
+        try addHeader(g, try zig_text.fmt(g, "const {s} = @import({s});\n", .{ alias, try zig_text.quote(g, base) }));
+        return @import("zig_types.zig").resolve(g, .{ .tree = &source.tree, .alias = alias }, name);
+    }
+    const target = findModule(g.project, imp.source) orelse return null;
+    const alias = try zig_text.fmt(g, "_{s}", .{stem(imp.source)});
+    try addHeader(g, try zig_text.fmt(g, "const {s} = @import(\"{s}.zig\");\n", .{
+        try zig_text.id(g, alias), stem(imp.source),
+    }));
+    const scope = try g.a.create(Scope);
+    scope.* = .{ .decls = target.types, .alias = alias, .imports = target.imports };
+    return resolve(g, scope, name);
 }
 
 /// The Zig name and alias key of a named compound declared in the current
