@@ -316,6 +316,9 @@ const selected = items.filter(item => {
 - **数组**：字面量和展开 `[...todos, item]`、`.length`、`a[i]`、`.map((x, i) => …)`、`.filter(x => …)`、
   `.find`、`.some`、`.every`、`.indexOf`、`.includes`、`.slice`、`.join`（字符串数组）。
 - **对象**：字面量、展开 `{ ...todo, done: true }`、成员访问、`?.`、`??`。
+- **默认值**：参数 `function label(n: number, unit = "item")`（调用时可以省略，类型取注解或默认值的类型）；
+  组件的可选 prop `function Badge({ size = 14 }: BadgeProps)`（`size?: number`，父组件没传时读到 14）。
+  默认值是常量表达式（字面量、文件里的常量），给必填 prop 写默认值会报错。
 - **可选值收窄**（和 TS 一样）：可选值可以直接当条件，条件成立的分支里它就是非空类型：
   `peer ? peer.name : "none"`、`if (label) { label.length }`、`{peer && <Text>{peer.name}</Text>}`、
   `peer !== null && peer.online`、`!peer || peer.files.length == 0`；`if (!entry) return <Empty/>;` 之后整段代码里

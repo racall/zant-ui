@@ -43,13 +43,12 @@ pub fn signature(g: *Generator, f: *ast.Function, zig: []const u8, external: boo
     var params: std.ArrayList(Type) = .empty;
     for (f.params) |p| {
         if (p.destructure.len > 0) return core.fail(g, p.name.loc, "function parameters are plain names", .{});
-        const ref = p.ty orelse return core.fail(
+        var ty = (try @import("defaults.zig").paramType(g, p, f.name)) orelse return core.fail(
             g,
             p.name.loc,
             "parameter `{s}` of `{s}` needs a type",
             .{ p.name.name, f.name },
         );
-        var ty = try types.typeRef(g, ref, false);
         if (p.optional) ty = try @import("model.zig").optional(g, ty);
         try params.append(g.a, ty);
     }
@@ -88,20 +87,14 @@ pub fn tryCall(g: *Generator, c: *Context, loc: ast.Loc, call: ast.Call) Error!?
     if (scope.local(c, name) != null) return null;
     const f = find(g, name) orelse return null;
     if (call.type_args.len != 0) return core.fail(g, loc, "`{s}` takes no type arguments", .{name});
-    const required = blk: {
-        var n: usize = 0;
-        for (f.func.params) |p| {
-            if (!p.optional) n += 1;
-        }
-        break :blk n;
-    };
+    const required = @import("defaults.zig").required(f.func.params);
     if (call.args.len < required or call.args.len > f.params.len) {
         return core.fail(g, loc, "`{s}` takes {d} arguments", .{ name, f.params.len });
     }
     var args: std.ArrayList([]const u8) = .empty;
     for (f.params, 0..) |ty, i| {
         if (i >= call.args.len) {
-            try args.append(g.a, "null");
+            try args.append(g.a, try @import("defaults.zig").missing(g, f.func.params[i], ty));
             continue;
         }
         const v = try expr.emit(g, c, call.args[i], ty, false);

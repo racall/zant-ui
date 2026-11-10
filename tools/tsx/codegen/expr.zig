@@ -328,12 +328,19 @@ pub fn callValue(g: *Generator, c: *Context, loc: ast.Loc, call: ast.Call, expec
         target = nested.target;
     }
     const f = m.func.?;
-    if (call.args.len != f.params.len) return core.fail(g, loc, "`{s}` expects {d} arguments", .{ n, f.params.len });
+    const required = @import("defaults.zig").required(f.params);
+    if (call.args.len < required or call.args.len > f.params.len) {
+        return core.fail(g, loc, "`{s}` expects {d} arguments", .{ n, f.params.len });
+    }
     var args: std.ArrayList([]const u8) = .empty;
     if (m.inline_only) try args.append(g.a, receiver);
-    for (call.args, f.params, 0..) |arg, p, index| {
+    for (f.params, 0..) |p, index| {
         const t = try events.methodParamType(g, m, index, p);
-        try args.append(g.a, (try expr.emit(g, c, arg, t, false)).code);
+        if (index >= call.args.len) {
+            try args.append(g.a, try @import("defaults.zig").missing(g, p, t));
+            continue;
+        }
+        try args.append(g.a, (try expr.emit(g, c, call.args[index], t, false)).code);
     }
     return .{
         .ty = m.ret,

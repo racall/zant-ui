@@ -265,13 +265,20 @@ pub const Parser = struct {
             if (self.isP("{")) {
                 // `{ todo, onToggle }: Props` (React props)
                 const loc = self.cur.start;
-                param = .{ .name = .{ .name = "props", .loc = loc }, .ty = null, .destructure = try self.parseDestructure() };
+                param = .{ .name = .{ .name = "props", .loc = loc }, .ty = null };
+                try self.parseDestructure(&param);
             } else {
                 param = .{ .name = try self.expectIdent("a parameter name"), .ty = null };
                 param.optional = self.eatP("?");
             }
             if (self.eatP(":")) param.ty = try self.parseType();
-            if (self.isP("=")) return self.fail(self.cur.start, "default parameter values are not supported yet", .{});
+            if (self.eatP("=")) {
+                if (param.destructure.len > 0) {
+                    return self.fail(self.cur.start, "give defaults per prop: `{{ size = 14 }}: Props`", .{});
+                }
+                if (param.optional) return self.fail(self.cur.start, "a parameter with a default is already optional; drop the `?`", .{});
+                param.default = try expr_parser.parseCond(self);
+            }
             try params.append(self.arena, param);
             if (!self.eatP(",")) break;
         }
@@ -279,21 +286,23 @@ pub const Parser = struct {
         return params.items;
     }
 
-    /// `{ a, b }` in a parameter: the names (renames and defaults are not
-    /// supported).
-    fn parseDestructure(self: *Parser) Error![]const ast.Name {
+    /// `{ a, b = 1 }` in a parameter: the names and their defaults (renames
+    /// are not supported).
+    fn parseDestructure(self: *Parser, param: *ast.Param) Error!void {
         self.advance(); // {
         var names: std.ArrayList(ast.Name) = .empty;
+        var defaults: std.ArrayList(?*ast.Expr) = .empty;
         while (!self.isP("}")) {
             if (self.isP("...")) return self.fail(self.cur.start, "rest properties are not supported", .{});
             const name = try self.expectIdent("a property name");
             if (self.isP(":")) return self.fail(self.cur.start, "renaming destructured props is not supported; read `props.{s}` instead", .{name.name});
-            if (self.isP("=")) return self.fail(self.cur.start, "default values for destructured props are not supported yet", .{});
             try names.append(self.arena, name);
+            try defaults.append(self.arena, if (self.eatP("=")) try expr_parser.parseCond(self) else null);
             if (!self.eatP(",")) break;
         }
         try self.expectP("}");
-        return names.items;
+        param.destructure = names.items;
+        param.destructure_defaults = defaults.items;
     }
 
     pub fn parseReturnType(self: *Parser) Error!?ast.TypeRef {

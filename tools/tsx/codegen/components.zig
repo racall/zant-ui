@@ -39,8 +39,10 @@ pub const Component = struct {
     props: ?Type,
     /// The parameter's name (`props`) when not destructured.
     param: []const u8 = "",
-    /// Destructured prop names (`{ todo, onToggle }`).
+    /// Destructured prop names (`{ todo, onToggle }`) and their defaults
+    /// (`{ size = 14 }`, `defaults.zig`).
     destructure: []const ast.Name = &.{},
+    destructure_defaults: []const ?*ast.Expr = &.{},
     /// Imported from another file: `builder` is already Zig code
     /// (`_TodoRow.todoRow`) and no struct is generated here.
     external: bool = false,
@@ -148,9 +150,14 @@ pub fn collect(g: *Generator, module: ast.Module, root: ?*ast.Function) Error!vo
             comp.props = ty;
             comp.param = p.name.name;
             comp.destructure = p.destructure;
-            for (p.destructure) |n| if (fieldType(g, ty, n.name) == null) {
-                return core.fail(g, n.loc, "`{s}` is not a prop of `{s}`", .{ n.name, ref.name });
-            };
+            comp.destructure_defaults = p.destructure_defaults;
+            for (p.destructure, 0..) |n, i| {
+                const field = fieldType(g, ty, n.name) orelse {
+                    return core.fail(g, n.loc, "`{s}` is not a prop of `{s}`", .{ n.name, ref.name });
+                };
+                const default = if (i < p.destructure_defaults.len) p.destructure_defaults[i] else null;
+                if (default) |d| _ = try @import("defaults.zig").prop(g, n, d, field, "");
+            }
         }
         for (g.components.items) |other| if (zig_text.eq(other.name, comp.name)) {
             return core.fail(g, f.loc, "duplicate component `{s}`", .{comp.name});
@@ -193,12 +200,13 @@ fn fields(g: *Generator, comp: *const Component) []const model.Field {
 pub fn readProp(g: *Generator, n: []const u8) Error!?Value {
     const comp = g.current_component orelse return null;
     const props = comp.props orelse return null;
-    for (comp.destructure) |d| if (zig_text.eq(d.name, n)) {
-        return .{ .ty = fieldType(g, props, n).?, .code = try zig_text.fmt(
-            g,
-            "self.props.{s}",
-            .{try zig_text.id(g, n)},
-        ) };
+    for (comp.destructure, 0..) |d, i| if (zig_text.eq(d.name, n)) {
+        const ty = fieldType(g, props, n).?;
+        const code = try zig_text.fmt(g, "self.props.{s}", .{try zig_text.id(g, n)});
+        if (i < comp.destructure_defaults.len) if (comp.destructure_defaults[i]) |default| {
+            return try @import("defaults.zig").prop(g, d, default, ty, code);
+        };
+        return .{ .ty = ty, .code = code };
     };
     if (comp.destructure.len == 0 and zig_text.eq(n, comp.param)) return .{ .ty = props, .code = "self.props" };
     return null;

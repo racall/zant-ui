@@ -350,7 +350,7 @@ pub fn parameterType(g: *Generator, param: ast.Param, kind: ?tags.Kind) Error!Ty
     if (param.optional or param.destructure.len > 0) {
         return core.fail(g, param.name.loc, "optional or destructured parameters are not supported yet", .{});
     }
-    if (param.ty) |ref| return types.typeRef(g, ref, false);
+    if (try @import("defaults.zig").paramType(g, param, "this function")) |t| return t;
     const action = kind orelse return core.fail(
         g,
         param.name.loc,

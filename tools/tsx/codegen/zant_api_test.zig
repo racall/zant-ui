@@ -25,3 +25,18 @@ test "desktop function diagnostics" {
     };
     for (cases) |case| try expectDiagnostic(case[0], case[1]);
 }
+
+test "default value diagnostics" {
+    const P = "interface P { size?: number; label: string }\n";
+    const cases = [_][2][]const u8{
+        .{
+            P ++ "function B({ size = 1, label = ~\"x\" }: P) { return <View/>; }\n" ++
+                "export default function App() { return <B label=\"a\"/>; }\n",
+            "`label` is a required prop",
+        },
+        .{ "function f(n?: number = ~1): number { return n; }\n" ++ App ++ End, "already optional" },
+        .{ "function f(n = ~null): number { return 1; }\n" ++ App ++ End, "needs a type for this default" },
+        .{ "function f(a: number, b = 2): number { return a + b; }\n" ++ App ++ "  const x = ~f();\n" ++ End, "takes 2 arguments" },
+    };
+    for (cases) |case| try expectDiagnostic(case[0], case[1]);
+}

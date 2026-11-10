@@ -186,6 +186,10 @@ pub const Param = struct {
     /// `function Row({ todo, onToggle }: Props)`: the destructured names
     /// (the param's `name` is then the whole object's, `props`).
     destructure: []const Name = &.{},
+    /// `{ size = 14 }`: a default per destructured name (null: none).
+    destructure_defaults: []const ?*Expr = &.{},
+    /// `unit = "item"`: the argument callers may leave out.
+    default: ?*Expr = null,
 };
 
 pub const Function = struct {
