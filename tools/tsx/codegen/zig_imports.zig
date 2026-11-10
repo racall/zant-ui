@@ -4,6 +4,7 @@ const ast = @import("../ast.zig");
 const core = @import("codegen.zig");
 const types = @import("types.zig");
 const model = @import("model.zig");
+const zig_types = @import("zig_types.zig");
 const scope = @import("scope.zig");
 const expr = @import("expr.zig");
 const text = @import("zig_text.zig");
@@ -33,12 +34,6 @@ pub fn process(g: *Generator, imp: ast.Import, header: *std.ArrayList(u8)) Error
         "Zig imports need a project (zant-tsx --out / addTsxProject)",
         .{},
     );
-    if (imp.type_only) return core.fail(
-        g,
-        if (imp.names.len > 0) imp.names[0].imported.loc else imp.loc,
-        "Zig imports only support functions, not import type",
-        .{},
-    );
     const base = std.fs.path.basename(imp.source);
     const name = base[0 .. base.len - 4];
     const source = for (g.zig_sources) |*source| {
@@ -47,9 +42,17 @@ pub fn process(g: *Generator, imp: ast.Import, header: *std.ArrayList(u8)) Error
     const alias = try text.id(g, try text.fmt(g, "_{s}", .{name}));
     const line = try text.fmt(g, "const {s} = @import({s});\n", .{ alias, try text.quote(g, base) });
     if (std.mem.indexOf(u8, header.items, line) == null) try header.appendSlice(g.a, line);
+    const file = zig_types.File{ .tree = &source.tree, .alias = alias };
     for (imp.names) |n| {
-        if (n.type_only) {
-            return core.fail(g, n.imported.loc, "Zig imports only support functions, not import type", .{});
+        if (n.type_only or imp.type_only) {
+            const ty = (try zig_types.resolve(g, file, n.imported.name)) orelse return core.fail(
+                g,
+                n.imported.loc,
+                "`{s}` is not a pub struct or enum of `{s}`",
+                .{ n.imported.name, imp.source },
+            );
+            try g.zig_types.append(g.a, .{ .local = n.local.name, .ty = ty });
+            continue;
         }
         const decl = find(&source.tree, n.imported.name) orelse {
             if (closest(&source.tree, n.imported.name)) |near| return core.fail(
@@ -60,7 +63,7 @@ pub fn process(g: *Generator, imp: ast.Import, header: *std.ArrayList(u8)) Error
             );
             return core.fail(g, n.imported.loc, "`{s}` is not a pub fn of `{s}`", .{ n.imported.name, imp.source });
         };
-        var function = try signature(g, &source.tree, decl, n.imported);
+        var function = try signatureIn(g, &source.tree, file, decl, n.imported);
         function.local = n.local.name;
         function.target = try text.fmt(g, "{s}.{s}", .{ alias, try text.id(g, n.imported.name) });
         try g.zig_functions.append(g.a, function);
@@ -119,6 +122,17 @@ fn closest(tree: *const std.zig.Ast, name: []const u8) ?[]const u8 {
 }
 
 fn signature(g: *Generator, tree: *const std.zig.Ast, decl: std.zig.Ast.Node.Index, n: ast.Name) Error!Function {
+    return signatureIn(g, tree, null, decl, n);
+}
+
+/// The TSX signature of a pub fn; `file` resolves the file's own types.
+fn signatureIn(
+    g: *Generator,
+    tree: *const std.zig.Ast,
+    file: ?zig_types.File,
+    decl: std.zig.Ast.Node.Index,
+    n: ast.Name,
+) Error!Function {
     var buffer: [1]std.zig.Ast.Node.Index = undefined;
     const proto = tree.fullFnProto(&buffer, decl).?;
     var params: std.ArrayList(Type) = .empty;
@@ -133,7 +147,7 @@ fn signature(g: *Generator, tree: *const std.zig.Ast, decl: std.zig.Ast.Node.Ind
             "takes",
             tree.tokenSlice(param.anytype_ellipsis3.?),
         );
-        try params.append(g.a, (try mapType(g, tree, node, false)) orelse
+        try params.append(g.a, (try zig_types.mapIn(g, tree, file, node, false)) orelse
             return unsupported(g, n, "takes", tree.getNodeSource(node)));
     }
     const ret_node = proto.ast.return_type.unwrap() orelse return unsupported(g, n, "returns", "an inferred type");
@@ -141,7 +155,7 @@ fn signature(g: *Generator, tree: *const std.zig.Ast, decl: std.zig.Ast.Node.Ind
     if (tree.tokenTag(tree.firstToken(ret_node) - 1) == .bang) {
         return unsupported(g, n, "returns", try text.fmt(g, "!{s}", .{tree.getNodeSource(ret_node)}));
     }
-    const ret = (try mapType(g, tree, ret_node, true)) orelse
+    const ret = (try zig_types.mapIn(g, tree, file, ret_node, true)) orelse
         return unsupported(g, n, "returns", tree.getNodeSource(ret_node));
     return .{ .local = n.name, .target = "", .params = params.items, .ret = ret };
 }
@@ -153,37 +167,6 @@ fn unsupported(g: *Generator, n: ast.Name, verb: []const u8, spelling: []const u
         "`{s}` {s} `{s}`; Zig functions imported into TSX use bool, string, numbers, optionals and slices of them",
         .{ n.name, verb, spelling },
     );
-}
-
-fn mapType(g: *Generator, tree: *const std.zig.Ast, node: std.zig.Ast.Node.Index, allow_void: bool) Error!?Type {
-    if (tree.nodeTag(node) == .identifier) {
-        const name = tree.tokenSlice(tree.nodeMainToken(node));
-        if (text.eq(name, "bool")) return .boolean;
-        if (allow_void and text.eq(name, "void")) return .void_;
-        if (types.numericName(name)) return std.meta.stringToEnum(Type, name).?;
-        return null;
-    }
-    if (tree.nodeTag(node) == .optional_type) {
-        const child_node = tree.nodeData(node).node;
-        const child = (try mapType(g, tree, child_node, false)) orelse return null;
-        if (model.optionalChild(g, child) != null) return null;
-        return try model.optional(g, child);
-    }
-    if (tree.nodeTag(node) == .field_access) {
-        // `tsx.Bytes` / `zant.tsx.Bytes`: a Uint8Array
-        const source = tree.getNodeSource(node);
-        if (text.eq(source, "tsx.Bytes") or text.eq(source, "zant.tsx.Bytes")) return try model.array(g, .u8);
-        return null;
-    }
-    if (tree.fullPtrType(node)) |ptr| {
-        if (ptr.size != .slice or ptr.const_token == null or ptr.allowzero_token != null or
-            ptr.volatile_token != null or ptr.ast.sentinel != .none or ptr.ast.align_node != .none or
-            ptr.ast.addrspace_node != .none) return null;
-        const child = (try mapType(g, tree, ptr.ast.child_type, false)) orelse return null;
-        if (child == .u8) return .string;
-        return try model.array(g, child);
-    }
-    return null;
 }
 
 test "Zig signatures map primitive, optional and slice types through the AST" {

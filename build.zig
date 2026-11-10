@@ -560,6 +560,10 @@ pub fn build(b: *std.Build) void {
         b.path("examples/tsx/notes/NoteCard.tsx"),
         b.path("examples/tsx/notes/format.zig"),
     }, "App", zant_mod);
+    const tsx_zig_types = addTsxProject(b, tsx_tool, &.{
+        b.path("tests/tsx/zig_types/App.tsx"),
+        b.path("tests/tsx/zig_types/devices.zig"),
+    }, "App", zant_mod);
     const tsx_notes_demo = b.addExecutable(.{
         .name = "zant-tsx-notes",
         .root_module = b.createModule(.{
@@ -668,6 +672,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "zant", .module = zant_mod },
             .{ .name = "counter_tsx", .module = tsx_counter },
             .{ .name = "notes_tsx", .module = tsx_notes },
+            .{ .name = "zig_types_tsx", .module = tsx_zig_types },
         },
     });
     // every golden output of the TSX compiler must compile against zant

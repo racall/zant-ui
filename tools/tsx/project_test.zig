@@ -89,9 +89,9 @@ test "project Zig import diagnostics point at imported names" {
         "`bad` takes `Foo`; Zig functions imported into TSX use bool, string, numbers, optionals and slices of them",
         true,
     );
-    try projectError("import type { plural } from \"./format.zig\";" ++ app, "not import type", true);
-    try projectError("import type {} from \"./format.zig\";" ++ app, "not import type", true);
-    try projectError("import { type plural } from \"./format.zig\";" ++ app, "not import type", true);
+    // a function imported as a type
+    try projectError("import type { plural } from \"./format.zig\";" ++ app, "is not a pub struct or enum", true);
+    try projectError("import { type plural } from \"./format.zig\";" ++ app, "is not a pub struct or enum", true);
     try projectError("import { plural } from \"./missing.zig\";" ++ app, "cannot find `./missing.zig`", false);
 }
 

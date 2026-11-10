@@ -218,6 +218,7 @@ pub fn named(g: *Generator, name: []const u8) Error!?Type {
     if (g.type_scope != null) return @import("imports.zig").named(g, name);
     for (g.type_aliases.items) |alias| if (text.eq(name, alias.name)) return alias.ty;
     if (try @import("imports.zig").named(g, name)) |ty| return ty;
+    if (@import("zig_types.zig").named(g, name)) |ty| return ty;
     for (g.type_decls, 0..) |decl, i| {
         if (!text.eq(name, decl.name.name)) continue;
         if (g.resolving[i]) return core.fail(g, decl.name.loc, "recursive types are not supported yet", .{});

@@ -67,6 +67,8 @@ pub const Generator = struct {
     type_scope: ?*const @import("imports.zig").Scope = null,
     zig_sources: []const @import("zig_imports.zig").Source = &.{},
     zig_functions: std.ArrayList(@import("zig_imports.zig").Function) = .empty,
+    /// Types imported from Zig files (`zig_types.zig`).
+    zig_types: std.ArrayList(@import("zig_types.zig").Imported) = .empty,
     /// `<List>`s of the component being generated.
     lists: std.ArrayList(@import("list.zig").ListInfo) = .empty,
     /// The project's files (stateful analysis of imported components).

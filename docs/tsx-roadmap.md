@@ -14,7 +14,7 @@
 | A2 | 语句：`for (let i = 0; …)`、`for (const x of xs)`、`while`、`break` / `continue`、`switch` | Codex | ⬜ |
 | A3 | 内置：`Math.*`、`Number()` / `String()`、`toFixed`、`parseInt` / `parseFloat`、`Date.now()` | Codex | ⬜ |
 | A4 | 字节：`Uint8Array` ↔ `[]const u8`（剪贴板图片、文件内容） | Claude | ✅ |
-| A5 | 从 Zig 导入类型：`import type { Peer } from "./sync.zig"`（结构体、枚举），Zig 函数的参数和返回值可以是它们和它们的切片 | Claude | ⬜ |
+| A5 | 从 Zig 导入类型：`import type { Peer } from "./sync.zig"`（结构体、枚举），Zig 函数的参数和返回值可以是它们和它们的切片 | Claude | ✅ |
 | A6 | 资源导入：`import trayIcon from "../assets/tray.png"`（编译期嵌入，`Uint8Array`） | Codex | ⬜ |
 
 以下几项来自 SWC 解析器测试集的统计（`scripts/tsx/swc-corpus.sh`：981 个 TS / TSX / JSX 输入，0 崩溃、0 卡死，
@@ -27,6 +27,7 @@
 | A9 | JSX 展开属性：`<Button {...common} onClick={…} />`（对象的字段必须是这个标签 / 组件的属性，按源码顺序合并） | Claude | ⬜ |
 | A10 | `enum Kind { Text, Image }` / `enum Kind { Text = "text" }` → Zig 枚举 | Codex | ⬜ |
 | A11 | JSX 实体：完整 XHTML 实体表、数字实体规则与 SWC / Babel 一致（`&#x` 小写、码点范围） | Codex | ⬜ |
+| A13 | 可选值当条件用并收窄类型：`peer ? peer.name : "none"`、`if (peer) { peer.name }`（TS 里很常见） | Codex | ⬜ |
 | A12 | 泛型函数 `function first<T>(xs: T[]): T`（ClipHop 不需要，排在最后） | — | ⬜ |
 
 ## B. 组件属性

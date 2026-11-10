@@ -442,6 +442,22 @@ const needle = query.trim().toLowerCase();
 const visible = notes.filter((note) => note.title.toLowerCase().includes(needle));
 ```
 
+### 从 Zig 导入类型
+
+原生模块里的结构体和枚举可以直接在 TSX 里用：
+
+```tsx
+import type { Peer, Kind } from "./sync.zig";   // pub const Peer = struct { … }; pub const Kind = enum { … };
+import { peers } from "./sync.zig";             // pub fn peers() []const Peer
+const online: Peer[] = peers().filter((p) => p.online);
+if (peer.kind === "laptop") { … }               // 枚举按字符串字面量比较
+```
+
+- 结构体变成对象类型（字段名和 Zig 一样，比如 `last_seen`），枚举变成字符串字面量联合；嵌套结构体、`?T`、`[]const T`
+  都可以。Zig 函数的参数和返回值也可以是这些类型。
+- TSX 表示不了的字段（指针、互斥锁……）不出现在 TSX 类型里，读其他字段没问题；这种结构体不要在 TSX 里新建。
+- 返回的字符串和切片的内存规则和导入的函数一样：静态内存，或者至少这一帧有效。
+
 ### 待做
 
 - 编译期自动 memo（不依赖状态的子树跳过比对，参考 Solid / React Compiler）。
