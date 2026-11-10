@@ -87,7 +87,7 @@ test "codegen diagnostics include precise source positions" {
         },
         .{
             "import { Text } from ~\"lodash\"; export default function App() { return <Text/>; }",
-            "imports come from \"zant\", \"react\" or a relative .tsx / .zig file",
+            "imports come from \"zant\", \"react\", \"native/<module>\" or a relative .tsx / .zig file",
         },
         .{
             "~function App() { return <View/>; }",

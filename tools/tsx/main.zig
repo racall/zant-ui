@@ -20,7 +20,7 @@ pub fn main(init: std.process.Init) !void {
     if (args.len != 3) {
         std.debug.print(
             \\用法: zant-tsx <in.tsx> <out.zig>
-            \\      zant-tsx --out <dir> [--main <App>] [--src <dir>] [<a.tsx> <b.zig>...]
+            \\      zant-tsx --out <dir> [--main <App>] [--src <dir>] [--native <dir>] [<a.tsx> <b.zig>...]
             \\
         , .{});
         std.process.exit(2);
@@ -47,6 +47,7 @@ fn project(io: std.Io, arena: std.mem.Allocator, out_dir: []const u8, rest: []co
     var dep_file: ?[]const u8 = null;
     var app_config_path: ?[]const u8 = null;
     var os: app_config.Os = .other;
+    var native_dir: ?[]const u8 = null;
     var i: usize = 0;
     while (i < rest.len) : (i += 1) {
         const arg: []const u8 = rest[i];
@@ -56,6 +57,9 @@ fn project(io: std.Io, arena: std.mem.Allocator, out_dir: []const u8, rest: []co
         } else if (std.mem.eql(u8, arg, "--app-config") and i + 1 < rest.len) {
             i += 1;
             app_config_path = rest[i];
+        } else if (std.mem.eql(u8, arg, "--native") and i + 1 < rest.len) {
+            i += 1;
+            native_dir = rest[i];
         } else if (std.mem.eql(u8, arg, "--os") and i + 1 < rest.len) {
             i += 1;
             os = std.meta.stringToEnum(app_config.Os, rest[i]) orelse .other;
@@ -73,8 +77,11 @@ fn project(io: std.Io, arena: std.mem.Allocator, out_dir: []const u8, rest: []co
             } else k += 1;
         }
     }
-    const files = try arena.alloc(compile.File, paths.items.len);
+    var specs: std.ArrayList([]const u8) = .empty;
+    if (native_dir) |dir| try entry.collectSpecs(io, arena, dir, &specs);
+    const files = try arena.alloc(compile.File, paths.items.len + specs.items.len);
     for (paths.items, 0..) |path, k| files[k] = .{ .path = path, .src = read(io, arena, path) };
+    for (specs.items, paths.items.len..) |path, k| files[k] = .{ .path = path, .src = read(io, arena, path), .native = true };
     switch (try compile.compileProject(arena, files)) {
         .ok => |outputs| {
             try std.Io.Dir.cwd().createDirPath(io, out_dir);
@@ -84,6 +91,10 @@ fn project(io: std.Io, arena: std.mem.Allocator, out_dir: []const u8, rest: []co
             }
             try copyAssets(io, arena, out_dir, files, dep_file);
             if (app_config_path) |path| try writeAppConfig(io, arena, out_dir, path, os);
+            if (native_dir != null) {
+                const out = try std.fs.path.join(arena, &.{ out_dir, "spec.zig" });
+                try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = out, .data = try entry.specRoot(arena, files) });
+            }
             if (main_entry) |name| {
                 const source = entry.mainSource(arena, files, name, app_config_path != null) catch |err| {
                     std.debug.print("zant-tsx: --main {s}: {s}\n", .{ name, entry.describe(err) });
@@ -184,6 +195,7 @@ test {
     _ = @import("codegen/strings_test.zig");
     _ = compile;
     _ = @import("project_test.zig");
+    _ = @import("native_test.zig");
     _ = entry;
     _ = assets;
     _ = @import("codegen/zig_imports.zig");

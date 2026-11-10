@@ -145,7 +145,13 @@ pub const Parser = struct {
                     continue;
                 }
             }
-            if (self.isKw("function")) {
+            if (!default and self.isKw("declare")) {
+                // `export declare function copy(row: i64): CopyResult;` (native module specs)
+                self.advance();
+                if (!self.isKw("function")) return self.fail(self.cur.start, "only `declare function` is supported", .{});
+                const func = try self.parseDeclaredFunction();
+                try m.declared.append(self.arena, .{ .func = func, .exported = exported, .default = false });
+            } else if (self.isKw("function")) {
                 const func = try self.parseFunction();
                 try m.functions.append(self.arena, .{ .func = func, .exported = exported, .default = default });
             } else if (!default and self.isKw("const")) {
@@ -163,6 +169,7 @@ pub const Parser = struct {
             .functions = m.functions.items,
             .types = m.types.items,
             .consts = m.consts.items,
+            .declared = m.declared.items,
         };
         @import("react_compat.zig").normalize(module);
         return module;
@@ -173,6 +180,7 @@ pub const Parser = struct {
         functions: std.ArrayList(ast.TopFunction) = .empty,
         types: std.ArrayList(ast.TypeDecl) = .empty,
         consts: std.ArrayList(ast.TopConst) = .empty,
+        declared: std.ArrayList(ast.TopFunction) = .empty,
     };
 
     /// `export default App;` marks an earlier function component.
@@ -253,6 +261,19 @@ pub const Parser = struct {
         if (!self.isP("{")) return self.unexpected("{");
         const body = try self.parseBlock();
         return self.new(ast.Function, .{ .loc = loc, .name = name.name, .params = params, .ret = ret, .body = .{ .block = body } });
+    }
+
+    /// `function copy(row: i64): CopyResult;`: a signature with no body.
+    fn parseDeclaredFunction(self: *Parser) Error!*ast.Function {
+        const loc = self.cur.start;
+        self.advance(); // function
+        const name = try self.expectIdent("a function name");
+        if (self.isP("<")) return self.fail(self.cur.start, "generic functions are not supported", .{});
+        const params = try self.parseParams();
+        const ret = try self.parseReturnType();
+        if (self.isP("{")) return self.fail(self.cur.start, "a declared function has no body", .{});
+        try self.endStatement();
+        return self.new(ast.Function, .{ .loc = loc, .name = name.name, .params = params, .ret = ret, .body = .{ .block = &.{} } });
     }
 
     pub fn parseParams(self: *Parser) Error![]const ast.Param {

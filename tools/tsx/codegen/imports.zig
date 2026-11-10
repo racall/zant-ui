@@ -24,6 +24,8 @@ const Error = core.Error;
 pub const NamedModule = struct {
     name: []const u8,
     module: ast.Module,
+    /// A native module spec (`native/<name>.ts`, `native_specs.zig`).
+    native: bool = false,
 };
 
 /// The declarations of another file and the Zig name it is imported under;
@@ -32,6 +34,9 @@ pub const Scope = struct {
     decls: []const ast.TypeDecl,
     alias: []const u8,
     imports: []const ast.Import = &.{},
+    /// A native module spec: its relative imports name other specs.
+    native: bool = false,
+    declared: []const ast.TopFunction = &.{},
 };
 
 /// A type imported by name into this file.
@@ -55,7 +60,7 @@ fn stem(source: []const u8) []const u8 {
 pub fn findModule(project: []const NamedModule, source: []const u8) ?ast.Module {
     if (std.mem.endsWith(u8, source, ".zig")) return null;
     const name = stem(source);
-    for (project) |m| if (zig_text.eq(m.name, name)) return m.module;
+    for (project) |m| if (!m.native and zig_text.eq(m.name, name)) return m.module;
     return null;
 }
 
@@ -64,6 +69,14 @@ pub fn findModule(project: []const NamedModule, source: []const u8) ?ast.Module 
 pub fn process(g: *Generator, module: ast.Module, project: []const NamedModule) Error!void {
     const header = &g.header;
     for (module.imports) |imp| {
+        if (@import("native_specs.zig").moduleName(imp.source)) |name| {
+            try @import("native_specs.zig").process(g, imp, name);
+            continue;
+        }
+        if (g.native_spec and isRelative(imp.source)) {
+            try @import("native_specs.zig").processInSpec(g, imp);
+            continue;
+        }
         if (!isRelative(imp.source) or @import("../assets.zig").isAsset(imp.source)) continue;
         if (std.mem.endsWith(u8, imp.source, ".zig")) {
             try @import("zig_imports.zig").process(g, imp, header);
@@ -219,14 +232,21 @@ fn resolve(g: *Generator, scope: *const Scope, name: []const u8) Error!?Type {
     }
     // a type that file imports (`entry: ListEntry` from a .zig, or another .tsx's)
     for (scope.imports) |imp| for (imp.names) |n| {
-        if (zig_text.eq(n.local.name, name)) return throughImport(g, imp, n.imported.name);
+        if (zig_text.eq(n.local.name, name)) return throughImport(g, imp, n.imported.name, scope.native);
     };
     return null;
 }
 
 /// A type another file imported: this file imports the same module (one
 /// output directory, so the same alias) and names it the same way.
-fn throughImport(g: *Generator, imp: ast.Import, name: []const u8) Error!?Type {
+fn throughImport(g: *Generator, imp: ast.Import, name: []const u8, in_spec: bool) Error!?Type {
+    const native = @import("native_specs.zig");
+    // another spec (`./clips` in a spec, `native/clips` in a .tsx)
+    const spec_name = if (in_spec and isRelative(imp.source)) std.fs.path.stem(imp.source) else native.moduleName(imp.source);
+    if (spec_name) |spec| {
+        if (native.find(g.project, spec) == null) return null;
+        return resolve(g, try native.scope(g, spec, imp.source_loc, imp.source), name);
+    }
     if (!isRelative(imp.source) or @import("../assets.zig").isAsset(imp.source)) return null;
     const base = std.fs.path.basename(imp.source);
     if (std.mem.endsWith(u8, imp.source, ".zig")) {

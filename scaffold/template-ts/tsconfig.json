@@ -8,7 +8,7 @@
     "strict": true,
     "noEmit": true,
     "types": [],
-    "paths": { "zant": ["./zant.d.ts"] }
+    "paths": { "zant": ["./zant.d.ts"], "native/*": ["./native/*"] }
   },
-  "include": ["src/**/*.tsx", "zant.d.ts"]
+  "include": ["src/**/*.tsx", "native/*.ts", "zant.d.ts"]
 }

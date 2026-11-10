@@ -60,6 +60,7 @@ test {
     _ = @import("tsx_desktop.zig");
     _ = @import("tsx_platform.zig");
     _ = @import("tsx_timers.zig");
+    _ = @import("tsx_native.zig");
     _ = @import("tsx_strings.zig");
 }
 

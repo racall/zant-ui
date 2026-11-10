@@ -271,6 +271,10 @@ pub const TsxAppOptions = struct {
     src: []const u8 = "src",
     /// The file whose default export is the root component (`App.tsx`).
     entry: []const u8 = "App",
+    /// Native modules (docs/tsx-native.md): `<native>/lib.zig` lists the Zig
+    /// modules, `<native>/<name>.ts` declares what each gives the app. Not
+    /// used when the directory has no `lib.zig`.
+    native: []const u8 = "native",
     target: std.Build.ResolvedTarget,
     optimize: std.builtin.OptimizeMode,
 };
@@ -278,6 +282,9 @@ pub const TsxAppOptions = struct {
 /// A TS + TSX app (`zant create`, language ts): compiles every file under
 /// `options.src` and returns the module whose root is the generated
 /// `main.zig` (it runs the entry's default export with `zant.tsx.app.run`).
+/// With native modules it imports `native` (rooted at `native/lib.zig`,
+/// which imports `zant`, `spec` and `app_config`) and `spec` (the types of
+/// `native/*.ts`); `tsxNative` returns the first, for its tests.
 ///
 ///     const app = zant_build.addTsxApp(b, zant_dep, .{ .target = target, .optimize = optimize });
 ///     const exe = b.addExecutable(.{ .name = "app", .root_module = app });
@@ -298,7 +305,10 @@ fn tsxApp(
     _ = run.addDepFileOutputArg("tsx.d");
     // the app's config for the target platform (no src/app_config.zig)
     const config_path = b.root.joinString(b.allocator, "app.config.json") catch @panic("OOM");
-    if (std.Io.Dir.cwd().access(b.graph.io, config_path, .{})) |_| {
+    const has_config = if (std.Io.Dir.cwd().access(b.graph.io, config_path, .{})) |_| true else |_| false;
+    const lib_path = b.root.joinString(b.allocator, b.fmt("{s}/lib.zig", .{options.native})) catch @panic("OOM");
+    const has_native = if (std.Io.Dir.cwd().access(b.graph.io, lib_path, .{})) |_| true else |_| false;
+    if (has_config) {
         run.addArg("--app-config");
         run.addFileArg(b.path("app.config.json"));
         run.addArgs(&.{ "--os", switch (options.target.result.os.tag) {
@@ -306,19 +316,50 @@ fn tsxApp(
             .windows => "windows",
             else => "other",
         } });
-    } else |_| {}
+    }
+    if (has_native) {
+        run.addArg("--native");
+        run.addDirectoryArg(b.path(options.native));
+    }
     run.addArgs(&.{ "--main", options.entry, "--src" });
     run.addDirectoryArg(b.path(options.src));
     // a directory argument isn't hashed by content: zant-tsx lists every
     // file it read in the dep file (a deleted one is then just a cache miss)
+    const app = tsxModule(b, options, out.path(b, "main.zig"), zant_mod);
+    // separate modules: a file belongs to one module, and native code uses the config too
+    const config = if (has_config) tsxModule(b, options, out.path(b, "app_config.zig"), zant_mod) else null;
+    if (config) |module| app.addImport("app_config", module);
+    if (has_native) {
+        const spec = tsxModule(b, options, out.path(b, "spec.zig"), zant_mod);
+        const native = tsxModule(b, options, b.path(b.fmt("{s}/lib.zig", .{options.native})), zant_mod);
+        native.addImport("spec", spec);
+        if (config) |module| native.addImport("app_config", module);
+        app.addImport("spec", spec);
+        app.addImport("native", native);
+    }
+    return app;
+}
+
+fn tsxModule(b: *std.Build, options: TsxAppOptions, root: std.Build.LazyPath, zant_mod: *std.Build.Module) *std.Build.Module {
     return b.createModule(.{
-        .root_source_file = out.path(b, "main.zig"),
+        .root_source_file = root,
         .target = options.target,
         .optimize = options.optimize,
         .link_libc = true,
         .link_libcpp = options.target.result.os.tag == .macos,
         .imports = &.{.{ .name = "zant", .module = zant_mod }},
     });
+}
+
+/// The native modules of a TS app (`native/lib.zig`, null without them),
+/// for their tests and system libraries:
+///
+///     if (zant_build.tsxNative(app)) |native| {
+///         const tests = b.addTest(.{ .root_module = native });
+///         test_step.dependOn(&b.addRunArtifact(tests).step);
+///     }
+pub fn tsxNative(app: *std.Build.Module) ?*std.Build.Module {
+    return app.import_table.get("native");
 }
 
 /// Golden files of the TSX compiler (`tools/tsx/testdata/<name>.tsx` → `.zig`).

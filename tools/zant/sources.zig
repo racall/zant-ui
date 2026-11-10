@@ -20,7 +20,8 @@ fn hashTree(allocator: std.mem.Allocator, io: Io, hash: *std.hash.Wyhash, dir_pa
         switch (entry.kind) {
             .directory => hashTree(allocator, io, hash, path),
             .file => {
-                if (std.mem.endsWith(u8, entry.name, ".zig") or std.mem.endsWith(u8, entry.name, ".tsx")) {
+                const ext = std.fs.path.extension(entry.name);
+                if (std.mem.eql(u8, ext, ".zig") or std.mem.eql(u8, ext, ".tsx") or std.mem.eql(u8, ext, ".ts")) {
                     hashFileStamp(hash, io, path);
                 }
             },
@@ -30,7 +31,8 @@ fn hashTree(allocator: std.mem.Allocator, io: Io, hash: *std.hash.Wyhash, dir_pa
 }
 
 /// Fingerprint of everything that affects the app build: the config files
-/// and every `.zig` / `.tsx` file under `src/` (any depth).
+/// and every `.zig` / `.tsx` / `.ts` file under `src/` and `native/` (TS
+/// apps' native modules and their specs), any depth.
 pub fn stamp(allocator: std.mem.Allocator, io: Io, root: []const u8) !u64 {
     var hash = std.hash.Wyhash.init(0);
     const files = [_][]const u8{ "app.config.json", "build.zig", "build.zig.zon" };
@@ -39,9 +41,11 @@ pub fn stamp(allocator: std.mem.Allocator, io: Io, root: []const u8) !u64 {
         defer allocator.free(path);
         hashFileStamp(&hash, io, path);
     }
-    const src = try std.fs.path.join(allocator, &.{ root, "src" });
-    defer allocator.free(src);
-    hashTree(allocator, io, &hash, src);
+    for ([_][]const u8{ "src", "native" }) |sub| {
+        const dir = try std.fs.path.join(allocator, &.{ root, sub });
+        defer allocator.free(dir);
+        hashTree(allocator, io, &hash, dir);
+    }
     return hash.final();
 }
 
@@ -55,9 +59,12 @@ test "watch nested TSX edits, additions, removals and native/config inputs" {
     // More than the old limit of eight levels; nested component edits must restart.
     const nested = "src/a/b/c/d/e/f/g/h/i/j/Child.tsx";
     try tmp.dir.createDirPath(io, "src/a/b/c/d/e/f/g/h/i/j");
+    try tmp.dir.createDirPath(io, "native/engine");
     var previous = try stamp(allocator, io, root);
     const inputs = [_][]const u8{
-        "src/App.tsx", nested, "src/native.zig", "app.config.json", "build.zig", "build.zig.zon",
+        "src/App.tsx",    nested,                    "src/native.zig",  "app.config.json",
+        "build.zig",      "build.zig.zon",           "native/clips.ts", "native/clips.zig",
+        "native/lib.zig", "native/engine/store.zig",
     };
     for (inputs) |file| {
         try tmp.dir.writeFile(io, .{ .sub_path = file, .data = "first" });

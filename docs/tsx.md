@@ -651,6 +651,13 @@ useTray({ icon: trayIcon, template: true, tooltip: "ClipHop" });
 - 只在项目构建里可用（`addTsxApp` / `addTsxProject`，或 `zant-tsx --out`）。字节也可以传给 Zig 原生模块
   （参数类型 `zant.tsx.Bytes`）。编辑器类型里 `.png` / `.jpg` / `.svg` / `.txt` 等的默认导出是 `Uint8Array`。
 
+### 原生模块：`native/`（推荐）
+
+`src/` 只放 TS/TSX，Zig 代码放到 `native/`：`native/clips.ts` 用 `export declare function` 和类型
+写接口规范，`native/clips.zig` 按规范实现，`native/lib.zig` 登记模块；TSX 里
+`import { copy } from "native/clips"` 直接调用，编译时检查实现和规范是否一致。
+详见 [tsx-native.md](tsx-native.md)。
+
 ### 从 Zig 导入函数
 
 项目里的 TSX 可以从相对路径的 `.zig` 文件按名导入顶层 `pub fn`，也支持 `as` 别名：

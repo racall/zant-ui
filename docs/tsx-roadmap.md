@@ -59,6 +59,7 @@
 | D1 | `zant create` 选择语言（Zig / TS + TSX），TS 模板 | Codex | ✅ |
 | D2 | `zant run` / `compile` / `build` / `run --watch` 支持 TS 项目 | Codex | ✅ |
 | D3 | 编辑器：从标签表生成 `zant.d.ts`，模板带 `tsconfig.json` | Codex | ✅ |
+| D4 | 原生模块（`docs/tsx-native.md`）：`native/<名字>.ts` 规范 + `.zig` 实现，编译期检查一致，TSX 用 `"native/<名字>"` 导入；模板带示例 | Claude | ✅ |
 
 ## E. ClipHop TS + TSX 版
 
@@ -67,6 +68,7 @@
 | E1 | 新分支，原生模块整理：同步、传输、文件、存储保留 Zig，导出 TS 能调用的函数 | Codex | ✅（cliphop `ts-port`，`docs/ts-port.md`） |
 | E2 | 界面移植：列表行、历史页、设置页、面板、同步提示、对话框、标题栏（纯组件，props 向下、事件向上） | Codex | ✅ |
 | E3 | 应用逻辑移植：`state.zig` → TS（`App.tsx` / `AppStore.tsx` / `AppActions.tsx` / `AppWindows.tsx`），旧 Zig 界面删除 | Claude | ✅ |
+| E5 | 按原生模块重组：`src/` 只留 TSX，Zig 移到 `native/`（规范 + 实现 + `engine/`），构建回到模板 | Codex + Claude | 进行中 |
 | E4 | 两版逐控件点击 + 逐像素截图对比：macOS（深色）、Windows（深色）主窗口 / 设置 / 对话框 / 托盘 / 面板一致；待做：浅色、局域网同步与询问窗（需测试机防火墙放行）、帧耗时 | Claude | 进行中 |
 
 ## 顺序

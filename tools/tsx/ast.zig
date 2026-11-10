@@ -307,6 +307,8 @@ pub const Module = struct {
     types: []const TypeDecl = &.{},
     /// Top-level `const` values that are not components.
     consts: []const TopConst = &.{},
+    /// `export declare function` signatures (native module specs, native/*.ts).
+    declared: []const TopFunction = &.{},
 };
 
 pub const TypeDecl = struct {

@@ -13,6 +13,8 @@ pub const KeyEvent = app.KeyEvent;
 pub const desktop = @import("tsx_desktop.zig");
 pub const platform = @import("tsx_platform.zig");
 pub const timers = @import("tsx_timers.zig");
+/// Native module specs: compile-time checks of `native/*.zig` (`tsx_native.zig`).
+pub const native = @import("tsx_native.zig");
 /// `createWindow(Component, { … })`.
 pub const Window = @import("tsx_window.zig").Window;
 /// JavaScript numeric built-ins for generated TSX code.

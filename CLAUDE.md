@@ -32,6 +32,7 @@
 - TSX：`tools/tsx/`（`zant-tsx`，TSX → Zig，编译期完成，无 JS 运行时），规范与进度见 `docs/tsx.md`；
   `build.zig` 的 `addTsx` / `addTsxProject`，示例 `examples/tsx/`（`run-tsx*`），对比基准 `zig build bench-tsx`。
   子组件状态用框架的 `ui.localState(T, id, initial)`（手写 Zig 也可用）。
+  TS 应用的 Zig 代码放 `native/`（`<名字>.ts` 规范 + `.zig` 实现，编译期检查），见 `docs/tsx-native.md`。
 - 原始指针输入：`ui.pointerArea`（拖动捕获、多击、滚轮、按键）；尺寸变化 `BoxOptions.on_resize`；
   内存图片 `zant.image.Image` + `ui.image(.{ .image = .. })`；后台线程唤醒 UI `ui.postWake()`。
 - Markdown：`src/markdown/`（Streamdown 移植，模块化），数学：`src/math/`（KaTeX 算法，

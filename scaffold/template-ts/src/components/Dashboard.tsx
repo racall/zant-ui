@@ -1,4 +1,5 @@
 import { Column, Row, useTheme } from "zant";
+import { info } from "native/system";
 import { StatCard } from "./StatCard";
 import { CounterCard } from "./CounterCard";
 
@@ -8,14 +9,16 @@ export interface DashboardProps {
   onReset: () => void;
 }
 
-// 父组件把同一份状态传给子组件，不复制状态。
+// 父组件把同一份状态传给子组件，不复制状态；系统信息来自原生模块。
 export function Dashboard({ count, onIncrement, onReset }: DashboardProps) {
   const theme = useTheme();
+  const sys = info();
+  const platform = sys.os === "macos" ? "macOS" : sys.os === "windows" ? "Windows" : "其他";
   return (
     <Column gap={12}>
       <Row gap={12}>
-        <StatCard label="构建次数" value="128" hint="父组件传给子组件的 props" accent={theme.colorPrimary} />
-        <StatCard label="组件" value="12" hint="由 Zant 组件组合而成" accent={theme.colorSuccess} />
+        <StatCard label="平台" value={platform} hint="native/system.zig 返回" accent={theme.colorPrimary} />
+        <StatCard label="CPU 核心" value={`${sys.cpus}`} hint={`Zig ${sys.zig}`} accent={theme.colorSuccess} />
       </Row>
       <CounterCard count={count} onIncrement={onIncrement} onReset={onReset} />
     </Column>

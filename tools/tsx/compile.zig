@@ -31,6 +31,8 @@ pub const File = struct {
     /// Path as given on the command line (diagnostics use it).
     path: []const u8,
     src: []const u8,
+    /// A native module spec (`native/<name>.ts` → `_spec_<name>.zig`).
+    native: bool = false,
 
     /// Hand-written Zig is copied, while TSX is compiled.
     pub fn isZig(self: File) bool {
@@ -40,6 +42,7 @@ pub const File = struct {
     /// Both `App.tsx` and `App.zig` produce `App.zig` in the output directory.
     pub fn outputName(self: File, arena: std.mem.Allocator) error{OutOfMemory}![]const u8 {
         const base = std.fs.path.basename(self.path);
+        if (self.native) return std.fmt.allocPrint(arena, "_spec_{s}.zig", .{std.fs.path.stem(base)});
         return if (self.isZig()) base else std.fmt.allocPrint(arena, "{s}.zig", .{std.fs.path.stem(base)});
     }
 };
@@ -86,29 +89,37 @@ pub fn compileProject(arena: std.mem.Allocator, files: []const File) error{OutOf
             error.OutOfMemory => return error.OutOfMemory,
             error.Syntax => return .{ .err = .{ .file = i, .diag = p.diag.? } },
         };
-        try modules.append(arena, .{ .name = name, .module = module });
+        const module_name = if (file.native) std.fs.path.stem(file.path) else name;
+        try modules.append(arena, .{ .name = module_name, .module = module, .native = file.native });
     }
     const out = try arena.alloc([]const u8, files.len);
-    var module_index: usize = 0;
-    for (files, 0..) |file, i| {
+    // specs first: their errors are the ones to fix before the code using them
+    const module_index = try arena.alloc(usize, files.len);
+    var next: usize = 0;
+    for (files, 0..) |file, i| if (!file.isZig()) {
+        module_index[i] = next;
+        next += 1;
+    };
+    for ([_]bool{ true, false }) |natives| for (files, 0..) |file, i| {
         if (file.isZig()) {
             out[i] = file.src;
             continue;
         }
+        if (file.native != natives) continue;
         var diag: ?Diag = null;
-        const raw = codegen.generate(arena, file.src, modules.items[module_index].module, .{
+        const raw = codegen.generate(arena, file.src, modules.items[module_index[i]].module, .{
             .source_name = std.fs.path.basename(file.path),
             .project = modules.items,
             .zig_sources = sources.items,
             .require_root = false,
             .source_path = file.path,
+            .native = file.native,
         }, &diag) catch |err| switch (err) {
             error.OutOfMemory => return error.OutOfMemory,
             error.Tsx => return .{ .err = .{ .file = i, .diag = diag.? } },
         };
-        module_index += 1;
         out[i] = try format(arena, raw);
-    }
+    };
     return .{ .ok = out };
 }
 
