@@ -119,7 +119,7 @@ pub fn property(
         .number => try fields.put(prop.field, (try expr.emit(g, c, e, .f32, false)).code),
         .integer => try integerProp(g, c, prop, e, fields),
         .boolean => try fields.put(prop.field, (try expr.emit(g, c, e, .boolean, false)).code),
-        .string => try fields.put(prop.field, (try expr.emit(g, c, e, .string, false)).code),
+        .string => try fields.put(prop.field, try stringProp(g, c, prop, e)),
         .enumeration => try fields.put(prop.field, try jsx.enumValue(g, c, prop, e)),
         .color => try fields.put(prop.field, try zig_text.color(g, c, e)),
         .dimension => try dimensionProp(g, c, prop, e, fields),
@@ -138,7 +138,7 @@ pub fn property(
             try fields.put("basis", "0");
         },
         .action, .bool_action, .text_action, .index_action => {
-            const action = try events.eventValue(g, e, prop.kind);
+            const action = try events.eventValue(g, c, e, prop.kind);
             try fields.put(prop.field, action);
         },
     }
@@ -206,6 +206,7 @@ pub fn emit(g: *Generator, c: *Context, j: *ast.Jsx) Error!Value {
 pub fn hasFragment(e: *ast.Expr) bool {
     return switch (e.data) {
         .jsx => |j| j.name.len == 0,
+        .non_null => |inner| jsx.hasFragment(inner),
         .cond => |v| jsx.hasFragment(v.then) or jsx.hasFragment(v.else_),
         .binary => |b| jsx.hasFragment(b.lhs) or jsx.hasFragment(b.rhs),
         else => false,
@@ -302,4 +303,19 @@ fn noChildren(g: *Generator, j: *ast.Jsx, tag: *const tags.Tag) Error!void {
         .text => |t| return core.fail(g, t.loc, "<{s}> does not accept children", .{tag.name}),
         .element => |el| return core.fail(g, el.loc, "<{s}> does not accept children", .{tag.name}),
     };
+}
+
+/// Numeric keys use the same formatting rules as text substitutions.
+fn stringProp(g: *Generator, c: *Context, prop: *const tags.Prop, e: *ast.Expr) Error![]const u8 {
+    if (!zig_text.eq(prop.name, "key")) return (try expr.emit(g, c, e, .string, false)).code;
+    const value = try expr.emit(g, c, e, null, false);
+    if (value.ty == .string) return value.code;
+    if (@import("model.zig").enumType(g, value.ty)) return (try types.coerce(g, value, .string, e.loc)).code;
+    if (@import("model.zig").optionalChild(g, value.ty) != null) {
+        return core.fail(g, e.loc, "optional key needs ?? or !", .{});
+    }
+    if (!value.ty.numeric()) return core.fail(g, e.loc, "key must be a string or number", .{});
+    var format = Format{ .g = g };
+    try format.value(value, e.loc);
+    return format.finish(false);
 }

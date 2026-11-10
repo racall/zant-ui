@@ -71,3 +71,217 @@ test "nodes drops null children" {
     try std.testing.expectEqual(b.element, out[1].element);
     try std.testing.expectEqualStrings("x=3 on", fmt("x={d} {s}", .{ 3, "on" }));
 }
+
+/// Immutable composite state retains every previous value until the next render.
+/// `allocator` is configurable for tests; generated state uses the process allocator.
+pub fn State(comptime T: type) type {
+    return struct {
+        const Self = @This();
+        initial: T,
+        allocator: std.mem.Allocator = std.heap.smp_allocator,
+        value: ?T = null,
+        arena: ?std.heap.ArenaAllocator = null,
+        retired: std.ArrayList(std.heap.ArenaAllocator) = .empty,
+
+        pub fn get(self: *const Self) T {
+            return self.value orelse self.initial;
+        }
+
+        /// Copy before retiring the old arena, so aliasing updates remain valid.
+        pub fn set(self: *Self, value: T) void {
+            var next = std.heap.ArenaAllocator.init(self.allocator);
+            const copy = deepCopy(T, next.allocator(), value) catch @panic("Zant UI: state allocation failed");
+            if (self.arena) |previous| {
+                self.retired.append(self.allocator, previous) catch @panic("Zant UI: state allocation failed");
+            }
+            self.arena = next;
+            self.value = copy;
+        }
+
+        /// Called at the start of render, after callbacks from the old frame finish.
+        pub fn sweep(self: *Self) void {
+            for (self.retired.items) |*previous| previous.deinit();
+            self.retired.clearRetainingCapacity();
+        }
+
+        pub fn deinit(self: *Self) void {
+            self.sweep();
+            self.retired.deinit(self.allocator);
+            if (self.arena) |*current| current.deinit();
+            self.arena = null;
+            self.value = null;
+            self.retired = .empty;
+        }
+    };
+}
+
+/// Only immutable value types produced by the compiler participate in state copies.
+fn deepCopy(comptime T: type, a: std.mem.Allocator, value: T) std.mem.Allocator.Error!T {
+    return switch (@typeInfo(T)) {
+        .pointer => |pointer| blk: {
+            if (pointer.size != .slice) @compileError("TSX state supports slices, not pointers");
+            const result = try a.alloc(pointer.child, value.len);
+            for (value, result) |item, *out| out.* = try deepCopy(pointer.child, a, item);
+            break :blk result;
+        },
+        .@"struct" => |structure| blk: {
+            var result = value;
+            inline for (structure.field_names, structure.field_types) |name, F| {
+                @field(result, name) = try deepCopy(F, a, @field(value, name));
+            }
+            break :blk result;
+        },
+        .optional => |optional| if (value) |item| try deepCopy(optional.child, a, item) else null,
+        .array => |array| blk: {
+            var result: T = undefined;
+            for (value, &result) |item, *out| out.* = try deepCopy(array.child, a, item);
+            break :blk result;
+        },
+        .@"enum", .int, .float, .bool => value,
+        else => @compileError("unsupported TSX state type " ++ @typeName(T)),
+    };
+}
+
+/// Allocate a value capture for a callback in the current frame.
+pub fn capture(value: anytype) *@TypeOf(value) {
+    const pointer = ui.frameAllocator().create(@TypeOf(value)) catch @panic("Zant UI: capture allocation failed");
+    pointer.* = value;
+    return pointer;
+}
+
+/// Concatenate immutable slices into one frame-owned result.
+pub fn concat(comptime T: type, parts: []const []const T) []const T {
+    var count: usize = 0;
+    for (parts) |part| count += part.len;
+    const result = alloc(T, count);
+    var offset: usize = 0;
+    for (parts) |part| {
+        @memcpy(result[offset..][0..part.len], part);
+        offset += part.len;
+    }
+    return result;
+}
+
+pub fn alloc(comptime T: type, count: usize) []T {
+    return ui.frameAllocator().alloc(T, count) catch @panic("Zant UI: frame allocation failed");
+}
+
+/// Numeric indexing checks negative, fractional, nonfinite, and out-of-range values.
+/// Invalid indexes panic instead of silently truncating JavaScript numbers.
+pub fn index(value: anytype) usize {
+    const T = @TypeOf(value);
+    if (@typeInfo(T) == .float or @typeInfo(T) == .comptime_float) {
+        if (!std.math.isFinite(value) or value < 0 or @trunc(value) != value) @panic("invalid TSX index");
+        return @intFromFloat(value);
+    }
+    return @intCast(value);
+}
+
+/// Slice endpoints follow JS clamping and negative-offset rules.
+pub fn sliceIndex(value: anytype, length: usize) usize {
+    const number: f64 = if (@typeInfo(@TypeOf(value)) == .int) @floatFromInt(value) else value;
+    if (std.math.isNan(number)) return 0;
+    const len: f64 = @floatFromInt(length);
+    const clamped = @min(len, @max(0, if (number < 0) len + @trunc(number) else @trunc(number)));
+    return @intFromFloat(clamped);
+}
+
+pub fn join(items: []const []const u8, separator: []const u8) []const u8 {
+    return std.mem.join(ui.frameAllocator(), separator, items) catch @panic("Zant UI: join allocation failed");
+}
+
+test "composite state copies nested strings and keeps retired snapshots until sweep" {
+    const Item = struct { title: []const u8, notes: []const ?[]const u8 };
+    var state = State([]const Item){ .initial = &.{}, .allocator = std.testing.allocator };
+    defer state.deinit();
+    var title = [_]u8{ 'o', 'l', 'd' };
+    state.set(&.{.{ .title = &title, .notes = &.{ "nested", null } }});
+    title[0] = 'x';
+    const snapshot = state.get();
+    state.set(snapshot);
+    state.set(&.{});
+    try std.testing.expectEqualStrings("old", snapshot[0].title);
+    try std.testing.expectEqualStrings("nested", snapshot[0].notes[0].?);
+    try std.testing.expectEqual(@as(usize, 2), state.retired.items.len);
+    state.sweep();
+    try std.testing.expectEqual(@as(usize, 0), state.retired.items.len);
+    for (0..1000) |_| {
+        state.set(&.{.{ .title = "cycle", .notes = &.{null} }});
+        state.set(state.get());
+        state.sweep();
+    }
+}
+
+/// Compile-time constants use array concatenation without a frame allocator.
+pub fn constantConcat(comptime T: type, comptime parts: anytype) [constantLength(parts)]T {
+    var result: [constantLength(parts)]T = undefined;
+    var offset: usize = 0;
+    inline for (parts) |part| {
+        @memcpy(result[offset..][0..part.len], part);
+        offset += part.len;
+    }
+    return result;
+}
+
+fn constantLength(comptime parts: anytype) usize {
+    comptime var length: usize = 0;
+    inline for (parts) |part| length += part.len;
+    return length;
+}
+
+test "optional object state preserves null and enum values without borrowing strings" {
+    const Item = struct { name: []const u8, mode: enum { active, done }, child: ?[]const u8 };
+    var state = State(?Item){ .initial = null, .allocator = std.testing.allocator };
+    defer state.deinit();
+    var buffer = [_]u8{ 'A', 'B' };
+    state.set(.{ .name = &buffer, .mode = .active, .child = &buffer });
+    buffer[0] = 'X';
+    const previous = state.get().?;
+    state.set(null);
+    try std.testing.expect(state.get() == null);
+    try std.testing.expectEqualStrings("AB", previous.name);
+    try std.testing.expectEqualStrings("AB", previous.child.?);
+    try std.testing.expectEqual(.active, previous.mode);
+    state.sweep();
+}
+
+test "all-null slice state preserves its length" {
+    var state = State([]const ?u8){ .initial = &.{}, .allocator = std.testing.allocator };
+    defer state.deinit();
+    state.set(&.{ null, null });
+    try std.testing.expectEqual(@as(usize, 2), state.get().len);
+    state.set(state.get());
+    state.sweep();
+    try std.testing.expectEqual(@as(usize, 2), state.get().len);
+}
+
+test "empty object state can be replaced and swept" {
+    var state = State(struct {}){ .initial = .{}, .allocator = std.testing.allocator };
+    defer state.deinit();
+    state.set(.{});
+    state.set(state.get());
+    state.sweep();
+    try std.testing.expectEqual(@as(usize, 0), state.retired.items.len);
+}
+
+/// A null-only TS value uses ?u8 in memory; preserve evaluation when lifting it to ?T.
+pub fn nullAs(comptime T: type, value: ?u8) ?T {
+    _ = value;
+    return null;
+}
+
+/// Compare a null-only value while preserving argument evaluation order.
+pub fn nullEqual(comptime left_null: bool, a: anytype, b: anytype) bool {
+    const ignored = if (left_null) a else b;
+    const optional = if (left_null) b else a;
+    _ = ignored;
+    return optional == null;
+}
+
+test "null-only values lift and compare with unrelated nullable types" {
+    const nil: ?u8 = null;
+    try std.testing.expect(nullAs(ui.Node, nil) == null);
+    try std.testing.expect(!nullEqual(true, nil, @as(?[]const u8, "text")));
+    try std.testing.expect(!nullEqual(false, @as(?[]const u8, "text"), nil));
+    try std.testing.expect(nullEqual(true, nil, @as(?[]const u8, null)));
+}

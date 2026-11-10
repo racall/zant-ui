@@ -3,6 +3,7 @@ const std = @import("std");
 const ast = @import("../ast.zig");
 const tags = @import("../tags.zig");
 const core = @import("codegen.zig");
+const model = @import("model.zig");
 const expr = @import("expr.zig");
 const jsx = @import("jsx.zig");
 const zig_text = @import("zig_text.zig");
@@ -17,7 +18,12 @@ pub fn node(g: *Generator, c: *Context, prop: *const tags.Prop, e: *ast.Expr) Er
     const value = try expr.emit(g, c, e, null, false);
     const optional = prop.kind == .optional_node;
     if (value.ty == .node) return value.code;
-    if (optional and (value.ty == .optional_node or value.ty == .null_)) return value.code;
+    if (optional and (value.ty == .optional_node or value.ty == .null_)) {
+        return (try @import("types.zig").coerce(g, value, .optional_node, e.loc)).code;
+    }
+    if (model.optionalChild(g, value.ty) != null) {
+        return core.fail(g, e.loc, "prop `{s}` needs a node; unwrap the optional with ?? or !", .{prop.name});
+    }
     return core.fail(
         g,
         e.loc,
@@ -35,13 +41,30 @@ fn array(g: *Generator, prop: *const tags.Prop, e: *ast.Expr) Error![]const *ast
 /// Reuse child flattening and optional filtering for an explicit children array.
 pub fn children(g: *Generator, c: *Context, prop: *const tags.Prop, e: *ast.Expr) Error![]const u8 {
     var list = ChildList{ .g = g, .c = c };
-    for (try array(g, prop, e)) |item| try list.expression(item, null);
+    if (e.data == .array) {
+        for (e.data.array) |item| {
+            if (item.data == .spread) {
+                const value = try expr.emit(g, c, item.data.spread, null, false);
+                if (model.element(g, value.ty) == null) return core.fail(g, item.loc, "spread needs an array", .{});
+                try list.node(value, null, item.loc);
+            } else try list.expression(item, null);
+        }
+    } else {
+        const value = try expr.emit(g, c, e, null, true);
+        if (model.element(g, value.ty) == null) {
+            return core.fail(g, e.loc, "prop `{s}` requires an array of nodes", .{prop.name});
+        }
+        try list.node(value, null, e.loc);
+    }
     return list.wrap(try childrenCode(g, &list));
 }
 
 /// Keep ordinary child arrays allocation-free; optional entries use tsx.nodes.
 pub fn childrenCode(g: *Generator, list: *ChildList) Error![]const u8 {
     if (list.values.items.len == 0) return "&.{}";
+    for (list.values.items) |value| if (model.element(g, value.ty) != null) {
+        return childSlices(g, list);
+    };
     var codes: std.ArrayList([]const u8) = .empty;
     var optional = false;
     for (list.values.items) |value| {
@@ -54,6 +77,13 @@ pub fn childrenCode(g: *Generator, list: *ChildList) Error![]const u8 {
 
 /// A string-list field gives each expression its []const u8 result location.
 pub fn strings(g: *Generator, c: *Context, prop: *const tags.Prop, e: *ast.Expr) Error![]const u8 {
+    var spread = false;
+    if (e.data == .array) for (e.data.array) |item| {
+        spread = spread or item.data == .spread;
+    };
+    if (e.data != .array or spread) {
+        return (try expr.emit(g, c, e, try model.array(g, .string), false)).code;
+    }
     var codes: std.ArrayList([]const u8) = .empty;
     for (try array(g, prop, e)) |item| {
         try codes.append(g.a, (try expr.emit(g, c, item, .string, false)).code);
@@ -129,4 +159,19 @@ pub fn required(
             return core.fail(g, loc, "{s} is missing required {s} `{s}`", .{ owner, noun, prop.name });
         }
     }
+}
+
+/// Static nodes become singleton slices only when a dynamic child slice needs merging.
+fn childSlices(g: *Generator, list: *ChildList) Error![]const u8 {
+    var slices: std.ArrayList([]const u8) = .empty;
+    for (list.values.items) |value| {
+        const code = if (model.element(g, value.ty)) |ty|
+            (if (ty == .optional_node) try zig_text.fmt(g, "tsx.nodes({s})", .{value.code}) else value.code)
+        else if (value.ty == .optional_node or value.ty == .null_)
+            try zig_text.fmt(g, "tsx.nodes(&.{{ {s}, }})", .{value.code})
+        else
+            try zig_text.fmt(g, "&.{{ {s}, }}", .{value.code});
+        try slices.append(g.a, code);
+    }
+    return zig_text.fmt(g, "tsx.concat(ui.Node, &.{{ {s} }})", .{try std.mem.join(g.a, ", ", slices.items)});
 }

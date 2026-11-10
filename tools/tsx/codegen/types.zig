@@ -3,6 +3,7 @@ const std = @import("std");
 const ast = @import("../ast.zig");
 const core = @import("codegen.zig");
 const types = @This();
+const model = @import("model.zig");
 const scope = @import("scope.zig");
 const zig_text = @import("zig_text.zig");
 const Generator = core.Generator;
@@ -10,7 +11,10 @@ const Context = scope.Context;
 const Format = zig_text.Format;
 const Error = core.Error;
 
-pub const Type = enum {
+pub const compound_base: u32 = 256;
+
+/// Compound tags index Generator.compounds; primitive tags keep their existing behavior.
+pub const Type = enum(u32) {
     int_literal,
     float_literal,
     u8,
@@ -31,6 +35,7 @@ pub const Type = enum {
     optional_node,
     null_,
     void_,
+    _,
     pub fn integer(t: Type) bool {
         return switch (t) {
             .u8, .u16, .u32, .u64, .i8, .i16, .i32, .i64, .usize, .isize => true,
@@ -65,16 +70,17 @@ pub const Type = enum {
         return if (t.literal()) .f64 else t;
     }
 
-    pub fn zig(t: Type) []const u8 {
+    pub fn zig(t: Type, g: *Generator) []const u8 {
         return switch (t) {
             .boolean => "bool",
             .string => "[]const u8",
             .node => "ui.Node",
             .optional_node => "?ui.Node",
-            .null_ => "@TypeOf(null)",
+            // Zig's literal null type is comptime-only; null-only slices need a runtime representation.
+            .null_ => "?u8",
             .void_ => "void",
             .int_literal, .float_literal => "f64",
-            else => @tagName(t),
+            else => if (@backingInt(t) >= 256) model.info(g, t).?.zig else @tagName(t),
         };
     }
 };
@@ -89,8 +95,13 @@ pub const Value = struct {
 };
 
 pub fn typeRef(g: *Generator, ref: ast.TypeRef, allow_void: bool) Error!Type {
-    if (ref.detail != null) return core.fail(g, ref.loc, "structured types are not supported yet", .{});
-    for (g.type_aliases.items) |alias| if (zig_text.eq(ref.name, alias.name)) return alias.ty;
+    if (ref.detail) |detail| {
+        for (g.resolved_types.items) |resolved| if (resolved.detail == detail) return resolved.ty;
+        const ty = try model.resolve(g, ref, null);
+        try g.resolved_types.append(g.a, .{ .detail = detail, .ty = ty });
+        return ty;
+    }
+    if (try model.named(g, ref.name)) |ty| return ty;
     if (zig_text.eq(ref.name, "number")) return .f64;
     if (zig_text.eq(ref.name, "boolean")) return .boolean;
     if (zig_text.eq(ref.name, "string")) return .string;
@@ -102,6 +113,35 @@ pub fn typeRef(g: *Generator, ref: ast.TypeRef, allow_void: bool) Error!Type {
 /// Allow matching types, contextual literals, integer-to-float, and float-width conversions.
 pub fn coerce(g: *Generator, v: Value, t: Type, loc: ast.Loc) Error!Value {
     if (v.ty == t) return v;
+    if (t == .string and model.enumType(g, v.ty)) return .{
+        .ty = .string,
+        .code = try zig_text.fmt(g, "@tagName({s})", .{(try concrete(g, v)).code}),
+    };
+    if (model.optionalChild(g, t)) |child| {
+        if (v.ty == .null_) return .{
+            .ty = t,
+            .code = if (zig_text.eq(v.code, "null")) "null" else try zig_text.fmt(g, "tsx.nullAs({s}, {s})", .{
+                child.zig(g), v.code,
+            }),
+        };
+        var result = try coerce(g, v, child, loc);
+        result.ty = t;
+        return result;
+    }
+    if (model.optionalChild(g, v.ty) != null) {
+        return core.fail(g, loc, "optional value needs a fallback with ?? or a non-null assertion !", .{});
+    }
+    if (model.enumType(g, t) and v.ty == .string and v.text != null) {
+        const members = model.info(g, t).?.members;
+        for (members) |member| if (zig_text.eq(member, v.text.?)) return .{
+            .ty = t,
+            .code = try zig_text.fmt(g, ".{s}", .{try zig_text.id(g, member)}),
+            .inference = .result_location,
+        };
+        return core.fail(g, loc, "unknown {s} member `{s}`; expected: {s}", .{
+            t.zig(g), v.text.?, try std.mem.join(g.a, ", ", members),
+        });
+    }
     if ((v.ty == .int_literal and t.numeric()) or (v.ty == .float_literal and t.float())) {
         var result = v;
         result.ty = t;
@@ -131,10 +171,10 @@ pub fn coerce(g: *Generator, v: Value, t: Type, loc: ast.Loc) Error!Value {
             g,
             loc,
             "cannot convert {s} to {s}; float-to-integer conversion is not implicit; use an integer value",
-            .{ v.ty.zig(), t.zig() },
+            .{ v.ty.zig(g), t.zig(g) },
         );
     }
-    return core.fail(g, loc, "cannot convert {s} to {s}; use an explicit matching type", .{ v.ty.zig(), t.zig() });
+    return core.fail(g, loc, "cannot convert {s} to {s}; use an explicit matching type", .{ v.ty.zig(g), t.zig(g) });
 }
 
 /// Explicit assertions allow numeric conversions that implicit coercion rejects.
@@ -144,8 +184,8 @@ pub fn explicitCast(g: *Generator, value: Value, target: Type, loc: ast.Loc) Err
     if (source.ty == target) return source;
     if (!source.ty.numeric() or !target.numeric()) {
         return core.fail(g, loc, "cannot cast {s} to {s}; only numeric conversions are supported", .{
-            source.ty.zig(),
-            target.zig(),
+            source.ty.zig(g),
+            target.zig(g),
         });
     }
     const builtin = if (source.ty.integer())
@@ -164,9 +204,9 @@ pub fn explicitCast(g: *Generator, value: Value, target: Type, loc: ast.Loc) Err
 /// Only those consumers materialize a contextual cast; assignments and typed
 /// arguments can keep the literal or conversion builtin bare.
 pub fn concrete(g: *Generator, v: Value) Error!Value {
-    if (v.inference == .known or !v.ty.numeric()) return v;
+    if (v.inference == .known or (!v.ty.numeric() and !model.enumType(g, v.ty))) return v;
     var result = v;
-    result.code = try zig_text.fmt(g, "@as({s}, {s})", .{ v.ty.zig(), v.code });
+    result.code = try zig_text.fmt(g, "@as({s}, {s})", .{ v.ty.zig(g), v.code });
     result.inference = .known;
     result.precedence = .primary;
     return result;
@@ -206,13 +246,17 @@ pub fn unify(g: *Generator, a: Type, b: Type, loc: ast.Loc) Error!Type {
             g,
             loc,
             "different integer types {s} and {s}; use the same integer type",
-            .{ a.zig(), b.zig() },
+            .{ a.zig(g), b.zig(g) },
         );
     }
+    if (a == .null_) return model.optional(g, b);
+    if (b == .null_) return model.optional(g, a);
+    if (model.optionalChild(g, a)) |child| if (child == b) return a;
+    if (model.optionalChild(g, b)) |child| if (child == a) return b;
     const a_node = a == .node or a == .optional_node or a == .null_;
     const b_node = b == .node or b == .optional_node or b == .null_;
     if (a_node and b_node) return .optional_node;
-    return core.fail(g, loc, "incompatible types {s} and {s}", .{ a.zig(), b.zig() });
+    return core.fail(g, loc, "incompatible types {s} and {s}", .{ a.zig(g), b.zig(g) });
 }
 
 /// Only literal-only numeric trees take peer context; typed integers must still unify.
@@ -231,7 +275,8 @@ pub fn expressionHint(g: *Generator, c: *Context, e: *ast.Expr) ?Type {
         .unary => |u| if (zig_text.eq(u.op, "!")) null else types.expressionHint(g, c, u.operand),
         .binary => |b| binaryHint(g, c, b),
         .cond => |v| branchHint(g, c, v),
-        .member => |m| if (zig_text.eq(m.name.name, "length")) .usize else null,
+        .member => |m| valueHint(g, c, .{ .data = .{ .member = m }, .loc = e.loc }),
+        .index => valueHint(g, c, e.*),
         else => null,
     };
     return if (t != null and t.?.numeric()) t else null;
@@ -258,7 +303,7 @@ pub fn checkLiteral(g: *Generator, e: *ast.Expr, t: Type) Error!void {
         g,
         e.loc,
         "integer literal does not fit {s}",
-        .{t.zig()},
+        .{t.zig(g)},
     );
     const bits: u7 = switch (t) {
         .u8, .i8 => 8,
@@ -268,13 +313,13 @@ pub fn checkLiteral(g: *Generator, e: *ast.Expr, t: Type) Error!void {
         .usize, .isize => @bitSizeOf(usize),
         else => unreachable,
     };
-    const signed = t.zig()[0] == 'i';
+    const signed = t.zig(g)[0] == 'i';
     const bound = @as(i128, 1) << (bits - @as(u7, if (signed) 1 else 0));
     if (n < (if (signed) -bound else 0) or n >= bound) return core.fail(
         g,
         e.loc,
         "integer literal does not fit {s}; choose a wider or signed type",
-        .{t.zig()},
+        .{t.zig(g)},
     );
 }
 
@@ -321,6 +366,7 @@ pub fn isLiteral(e: *ast.Expr) bool {
 fn nameHint(g: *Generator, c: *Context, name: []const u8) ?Type {
     if (scope.local(c, name)) |binding| return binding.ty;
     if (scope.stateIndex(g, name)) |index| return g.states.items[index].ty;
+    for (g.constants.items) |constant| if (zig_text.eq(constant.name, name)) return constant.value.ty;
     return null;
 }
 
@@ -358,5 +404,27 @@ fn castHint(g: *Generator, ref: ast.TypeRef) ?Type {
     for (g.type_aliases.items) |alias| if (zig_text.eq(ref.name, alias.name)) return alias.ty;
     if (zig_text.eq(ref.name, "number")) return .f64;
     if (types.numericName(ref.name)) return std.meta.stringToEnum(Type, ref.name);
+    return null;
+}
+
+/// Inspect members and indexes without emitting expressions or registering captures.
+fn valueHint(g: *Generator, c: *Context, e: ast.Expr) ?Type {
+    return switch (e.data) {
+        .ident => |name| nameHint(g, c, name),
+        .non_null => |inner| if (valueHint(g, c, inner.*)) |ty| model.optionalChild(g, ty) orelse ty else null,
+        .index => |ix| if (valueHint(g, c, ix.object.*)) |ty| model.element(g, ty) else null,
+        .member => |member| memberHint(g, c, member),
+        .call => |call| callHint(g, call),
+        else => null,
+    };
+}
+
+fn memberHint(g: *Generator, c: *Context, member: ast.Member) ?Type {
+    const ty = valueHint(g, c, member.object.*) orelse return null;
+    if (zig_text.eq(member.name.name, "length") and (ty == .string or model.element(g, ty) != null)) return .usize;
+    const entry = model.info(g, ty) orelse return null;
+    if (entry.kind == .object) for (entry.fields) |field| {
+        if (zig_text.eq(member.name.name, field.name)) return field.ty;
+    };
     return null;
 }

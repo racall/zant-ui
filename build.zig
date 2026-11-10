@@ -233,7 +233,7 @@ pub fn addTsx(b: *std.Build, tool: *std.Build.Step.Compile, source: std.Build.La
 }
 
 /// Golden files of the TSX compiler (`tools/tsx/testdata/<name>.tsx` → `.zig`).
-const tsx_golden = [_][]const u8{ "counter", "layout", "text", "events", "conditional", "components" };
+const tsx_golden = [_][]const u8{ "counter", "layout", "text", "events", "conditional", "components", "todos", "arrays" };
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
@@ -492,6 +492,24 @@ pub fn build(b: *std.Build) void {
     run_tsx_gallery.addPassthruArgs();
     b.step("run-tsx-gallery", "Run the TSX component gallery (examples/tsx/gallery.tsx)").dependOn(&run_tsx_gallery.step);
 
+    const tsx_todos = addTsx(b, tsx_tool, b.path("examples/tsx/todos.tsx"), "todos.zig", zant_mod);
+    const tsx_todos_demo = b.addExecutable(.{
+        .name = "zant-tsx-todos",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("examples/tsx/todos_main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+            .link_libcpp = is_macos,
+            .imports = &.{ .{ .name = "zant", .module = zant_mod }, .{ .name = "todos_tsx", .module = tsx_todos } },
+        }),
+    });
+    b.installArtifact(tsx_todos_demo);
+    const run_tsx_todos = b.addRunArtifact(tsx_todos_demo);
+    run_tsx_todos.step.dependOn(b.getInstallStep());
+    run_tsx_todos.addPassthruArgs();
+    b.step("run-tsx-todos", "Run the TSX todo app (examples/tsx/todos.tsx)").dependOn(&run_tsx_todos.step);
+
     const tsx_settings = addTsx(b, tsx_tool, b.path("examples/tsx/settings.tsx"), "settings.zig", zant_mod);
     const tsx_bench = b.addExecutable(.{
         .name = "zant-tsx-bench",
@@ -505,6 +523,7 @@ pub fn build(b: *std.Build) void {
                 .{ .name = "zant", .module = zant_mod },
                 .{ .name = "counter_tsx", .module = tsx_counter },
                 .{ .name = "settings_tsx", .module = tsx_settings },
+                .{ .name = "todos_tsx", .module = tsx_todos },
             },
         }),
     });
@@ -583,10 +602,10 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&tsx_e2e_tests.step);
 
     if (target.result.os.tag == .windows) {
-        for ([_]*std.Build.Step.Compile{ exe, demo, math_demo, md_demo, pdf_demo, components_demo, tsx_demo, tsx_gallery_demo }) |app| {
+        for ([_]*std.Build.Step.Compile{ exe, demo, math_demo, md_demo, pdf_demo, components_demo, tsx_demo, tsx_gallery_demo, tsx_todos_demo }) |app| {
             app.win32_manifest = b.path("src/platform/windows/zant.manifest");
             if (optimize != .debug) app.subsystem = .windows;
         }
-        if (bridge_dir) |dir| installRuntime(b, dir, hasPrebuiltBridge(b), &.{ run_demo, run_gallery_cmd, run_math, run_md, run_pdf, run_components, run_tsx, run_tsx_gallery, run_tsx_bench, run_tests, run_lib_tests, tsx_tags_tests, tsx_e2e_tests });
+        if (bridge_dir) |dir| installRuntime(b, dir, hasPrebuiltBridge(b), &.{ run_demo, run_gallery_cmd, run_math, run_md, run_pdf, run_components, run_tsx, run_tsx_gallery, run_tsx_todos, run_tsx_bench, run_tests, run_lib_tests, tsx_tags_tests, tsx_e2e_tests });
     }
 }

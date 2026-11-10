@@ -3,6 +3,7 @@ const std = @import("std");
 const ast = @import("../ast.zig");
 const tags = @import("../tags.zig");
 const core = @This();
+const model = @import("model.zig");
 const types = @import("types.zig");
 const scope = @import("scope.zig");
 const expr = @import("expr.zig");
@@ -38,6 +39,12 @@ pub const Generator = struct {
     type_aliases: std.ArrayList(struct { name: []const u8, ty: Type }) = .empty,
     module_names: [4][]const u8 = .{ "std", "zant", "ui", "tsx" },
     counter: usize = 0,
+    managed_strings: bool = false,
+    compounds: std.ArrayList(model.Info) = .empty,
+    type_decls: []const ast.TypeDecl = &.{},
+    resolving: []bool = &.{},
+    resolved_types: std.ArrayList(struct { detail: *const ast.TypeDetail, ty: Type }) = .empty,
+    constants: std.ArrayList(struct { name: []const u8, value: types.Value }) = .empty,
 };
 
 pub fn fail(g: *Generator, loc: ast.Loc, comptime f: []const u8, args: anytype) Error {
@@ -122,13 +129,14 @@ pub fn collectState(g: *Generator, loc: ast.Loc, d: ast.Decl, call: ast.Call) Er
         .{},
     );
     const init = call.args[0];
-    if (!types.isLiteral(init)) return core.fail(
+    const aggregate_init = init.data == .array or init.data == .object or init.data == .null_lit or init.data == .ident;
+    if (!types.isLiteral(init) and !aggregate_init) return core.fail(
         g,
         init.loc,
         "useState initializer must be a number, string, or boolean literal",
         .{},
     );
-    var c = Context{ .g = g, .render = true, .ret = .node };
+    var c = Context{ .g = g, .render = true, .ret = .node, .constant = true };
     const target: ?Type = if (call.type_args.len == 1) try types.typeRef(g, call.type_args[0], false) else null;
     var v = try expr.emit(g, &c, init, target, false);
     v = try types.coerce(g, v, target orelse v.ty.concrete(), init.loc);
@@ -144,22 +152,40 @@ pub fn collectState(g: *Generator, loc: ast.Loc, d: ast.Decl, call: ast.Call) Er
 
 /// Emit a method with inferred event parameters and only the state snapshots it reads.
 pub fn emitMethod(g: *Generator, m: Method) Error![]const u8 {
+    if (m.emitted) |emitted| return emitted;
     if (m.setter != null) return events.emitSetter(g, m);
+    return method(g, m, null, null);
+}
+
+pub fn method(g: *Generator, m: Method, source: ?*Context, index: ?usize) Error![]const u8 {
     const f = m.func.?;
-    var c = Context{ .g = g, .render = false, .ret = m.ret };
+    var c = Context{
+        .g = g,
+        .render = false,
+        .ret = m.ret,
+        .capture_source = source,
+        .capture_method = index,
+    };
     var params: std.ArrayList([]const u8) = .empty;
     for (f.params) |p| {
         const t = try events.parameterType(g, p, m.action);
         const b = try scope.bind(&c, p.name.name, t, false);
         try c.params.append(g.a, b);
-        try params.append(g.a, try zig_text.fmt(g, ", {s}: {s}", .{ b.zig, t.zig() }));
+        try params.append(g.a, try zig_text.fmt(g, ", {s}: {s}", .{ b.zig, t.zig(g) }));
     }
     if (m.action) |kind| if (kind != .action and f.params.len == 0) {
-        try params.append(g.a, try zig_text.fmt(g, ", _: {s}", .{events.actionType(kind).zig()}));
+        try params.append(g.a, try zig_text.fmt(g, ", _: {s}", .{events.actionType(kind).zig(g)}));
     };
     const body = switch (f.body) {
         .block => |ss| try methodBlock(g, &c, f.loc, ss),
         .expr => |e| try methodExpression(g, &c, e),
+    };
+    const finished = try scope.finish(&c, body);
+    if (index) |i| if (g.methods.items[i].captures.items.len > 0) {
+        return zig_text.fmt(g, "fn {s}(cap: *{s}{s}) {s} {{\nconst self: *{s} = cap.self;\n{s}}}\n", .{
+            try zig_text.id(g, m.name), m.capture_name.?,           try std.mem.join(g.a, "", params.items),
+            m.ret.zig(g),               try zig_text.id(g, g.name), finished,
+        });
     };
     return zig_text.fmt(
         g,
@@ -168,8 +194,8 @@ pub fn emitMethod(g: *Generator, m: Method) Error![]const u8 {
             try zig_text.id(g, m.name),
             try zig_text.id(g, g.name),
             try std.mem.join(g.a, "", params.items),
-            m.ret.zig(),
-            try scope.finish(&c, body),
+            m.ret.zig(g),
+            finished,
         },
     );
 }
@@ -185,12 +211,9 @@ pub fn generate(
     _ = src;
     diag.* = null;
     var g = Generator{ .a = arena, .diag = diag };
-    if (module.types.len > 0) {
-        return core.fail(&g, module.types[0].name.loc, "top-level types are not supported yet", .{});
-    }
-    if (module.consts.len > 0) {
-        return core.fail(&g, module.consts[0].name.loc, "top-level constants are not supported yet", .{});
-    }
+    g.type_decls = module.types;
+    g.resolving = try arena.alloc(bool, module.types.len);
+    @memset(g.resolving, false);
     for (module.imports) |imp| {
         if (!zig_text.eq(
             imp.source,
@@ -225,6 +248,7 @@ pub fn generate(
             }
         }
     }
+    for (module.types) |decl| _ = try model.named(&g, decl.name.name);
     var component: ?*ast.Function = null;
     for (module.functions) |top| if (top.default) {
         if (component != null) return core.fail(
@@ -265,6 +289,7 @@ pub fn generate(
         return core.fail(&g, ref.loc, "component return type must be JSX.Element, React.ReactNode, or ReactNode", .{});
     };
     g.name = f.name;
+    const globals = try @import("globals.zig").collect(&g, module.consts);
     try core.collect(&g, f);
     try scope.moduleNames(&g);
     try events.scanBody(&g, f.body);
@@ -278,28 +303,51 @@ pub fn generate(
         );
     }
     var c = Context{ .g = &g, .render = true, .ret = .node };
-    const render_body = try stmt.statements(&g, &c, body, true);
+    const statements = try stmt.statements(&g, &c, body, true);
+    var methods: std.ArrayList([]const u8) = .empty;
+    for (g.methods.items) |m| try methods.append(arena, try core.emitMethod(&g, m));
+    for (g.states.items) |state| if (model.owned(&g, state.ty)) {
+        g.managed_strings = true;
+    };
+    for (g.methods.items) |m| if (m.captures.items.len > 0) {
+        g.managed_strings = true;
+    };
+    var render_prefix: std.ArrayList(u8) = .empty;
+    for (g.states.items) |state| if (model.owned(&g, state.ty) or (state.ty == .string and g.managed_strings)) {
+        try render_prefix.appendSlice(arena, try zig_text.fmt(&g, "self.{s}.sweep();\n", .{
+            try zig_text.id(&g, state.name),
+        }));
+    };
+    const render_body = try zig_text.fmt(&g, "{s}{s}", .{ render_prefix.items, statements });
     var out: std.ArrayList(u8) = .empty;
     // Source names are comments, so strip newlines supplied by a caller.
     const source_name = try std.mem.replaceOwned(u8, arena, options.source_name, "\n", " ");
     try out.appendSlice(arena, try zig_text.fmt(&g, "//! Generated by zant-tsx from {s}. Do not edit.\nconst std = " ++
         "@import(\"std\");\nconst zant = @import(\"zant\");\nconst ui = " ++
-        "zant.ui;\nconst tsx = zant.tsx;\n\npub const {s} = struct {{\n", .{
+        "zant.ui;\nconst tsx = zant.tsx;\n\n{s}{s}pub const {s} = struct {{\n", .{
         source_name,
+        try @import("globals.zig").declarations(&g),
+        globals,
         try zig_text.id(&g, f.name),
     }));
     for (g.states.items) |s| {
-        const initial = if (s.ty == .string) try zig_text.fmt(&g, ".{{ .initial = {s} }}", .{s.initial}) else s.initial;
+        const wrapped = s.ty == .string or model.owned(&g, s.ty);
+        const initial = if (wrapped) try zig_text.fmt(&g, ".{{ .initial = {s} }}", .{s.initial}) else s.initial;
+        const state_type = if (s.ty == .string and !g.managed_strings) "tsx.String" else if (wrapped)
+            try zig_text.fmt(&g, "tsx.State({s})", .{s.ty.zig(&g)})
+        else
+            s.ty.zig(&g);
         try out.appendSlice(
             arena,
             try zig_text.fmt(
                 &g,
                 "{s}: {s} = {s},\n",
-                .{ try zig_text.id(&g, s.name), if (s.ty == .string) "tsx.String" else s.ty.zig(), initial },
+                .{ try zig_text.id(&g, s.name), state_type, initial },
             ),
         );
     }
     if (g.states.items.len > 0) try out.appendSlice(arena, "\n");
+    try out.appendSlice(arena, try @import("captures.zig").declarations(&g));
     try out.appendSlice(
         arena,
         try zig_text.fmt(
@@ -308,9 +356,9 @@ pub fn generate(
             .{ try zig_text.id(&g, f.name), try scope.finish(&c, render_body) },
         ),
     );
-    for (g.methods.items) |m| {
+    for (methods.items) |code| {
         try out.appendSlice(arena, "\n");
-        try out.appendSlice(arena, try core.emitMethod(&g, m));
+        try out.appendSlice(arena, code);
     }
     try out.appendSlice(arena, "};\n");
     return scope.renameModules(&g, out.items);

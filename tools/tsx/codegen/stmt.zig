@@ -6,6 +6,7 @@ const types = @import("types.zig");
 const scope = @import("scope.zig");
 const expr = @import("expr.zig");
 const stmt = @This();
+const model = @import("model.zig");
 const zig_text = @import("zig_text.zig");
 const Generator = core.Generator;
 const Type = types.Type;
@@ -71,6 +72,16 @@ fn declaration(g: *Generator, c: *Context, loc: ast.Loc, d: ast.Decl, top: bool)
 /// Validate the return value against the surrounding render or handler result type.
 fn returnStatement(g: *Generator, c: *Context, loc: ast.Loc, e: ?*ast.Expr) Error![]const u8 {
     if (e) |x| {
+        if (c.return_label) |label| {
+            if (c.return_values) |values| {
+                const value = try expr.emit(g, c, x, null, false);
+                const index = values.items.len;
+                try values.append(g.a, .{ .value = value, .loc = x.loc });
+                return zig_text.fmt(g, "break :{s} \x05{d}\x06;\n", .{ label, index });
+            }
+            const value = try expr.emit(g, c, x, c.ret, false);
+            return zig_text.fmt(g, "break :{s} {s};\n", .{ label, value.code });
+        }
         if (c.ret == .void_) {
             if (x.data != .call) return core.fail(g, x.loc, "void functions cannot return a value", .{});
             if (x.data.call.callee.data == .ident and scope.setterIndex(g, x.data.call.callee.data.ident) != null) {
@@ -82,7 +93,8 @@ fn returnStatement(g: *Generator, c: *Context, loc: ast.Loc, e: ?*ast.Expr) Erro
         const v = try expr.emit(g, c, x, c.ret, false);
         return zig_text.fmt(g, "return {s};\n", .{v.code});
     }
-    if (c.ret != .void_) return core.fail(g, loc, "return needs a value of type {s}", .{c.ret.zig()});
+    if (c.return_label != null) return core.fail(g, loc, "array callbacks must return a value", .{});
+    if (c.ret != .void_) return core.fail(g, loc, "return needs a value of type {s}", .{c.ret.zig(g)});
     return "return;\n";
 }
 
@@ -169,7 +181,9 @@ pub fn set(g: *Generator, c: *Context, loc: ast.Loc, i: usize, args: []const *as
         const depth = c.active.items.len;
         defer c.active.shrinkRetainingCapacity(depth);
         const b = try scope.bind(c, f.params[0].name.name, s.ty, false);
-        const current = if (s.ty == .string)
+        const current = if (model.owned(g, s.ty))
+            try zig_text.fmt(g, "self.{s}.get()", .{field})
+        else if (s.ty == .string)
             try zig_text.fmt(g, "ui.frameString(self.{s}.get())", .{field})
         else
             try zig_text.fmt(g, "self.{s}", .{field});
@@ -183,7 +197,7 @@ pub fn set(g: *Generator, c: *Context, loc: ast.Loc, i: usize, args: []const *as
 }
 
 pub fn stateWrite(g: *Generator, field: []const u8, t: Type, v: []const u8) Error![]const u8 {
-    return if (t == .string)
+    return if (t == .string or model.owned(g, t))
         zig_text.fmt(g, "self.{s}.set({s});", .{ field, v })
     else
         zig_text.fmt(g, "self.{s} = {s};", .{ field, v });

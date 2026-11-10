@@ -153,7 +153,7 @@ test "style can satisfy required props and same-type assertions are no-ops" {
     try contains(zig, "const number: f64 = 1;");
     try contains(zig, "const choice: u32 = if (self.show) 1 else 2;");
     try contains(zig, "const sum: u32 = @as(u32, if (self.show) 1 else 2) + 3;");
-    try contains(zig, ".footer = optional,");
+    try contains(zig, ".footer = optional.?,");
     try contains(zig, ".name = .eye_off,");
-    try std.testing.expect(std.mem.indexOf(u8, zig, ".?") == null);
+    try std.testing.expect(std.mem.indexOf(u8, zig, ".?") != null);
 }

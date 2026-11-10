@@ -96,6 +96,7 @@ pub fn eq(a: []const u8, b: []const u8) bool {
 /// a format call, while a substitution-free string remains ordinary text.
 pub const Format = struct {
     g: *Generator,
+    compile_time: bool = false,
     literal: std.ArrayList(u8) = .empty,
     pattern: std.ArrayList(u8) = .empty,
     args: std.ArrayList([]const u8) = .empty,
@@ -108,6 +109,9 @@ pub const Format = struct {
     }
 
     pub fn value(f: *Format, raw: Value, loc: ast.Loc) Error!void {
+        if (@import("model.zig").optionalChild(f.g, raw.ty) != null) {
+            return core.fail(f.g, loc, "optional text value needs ?? or !", .{});
+        }
         if (raw.text) |text_| return f.text(text_);
         if (raw.formatted) |other| {
             try f.literal.appendSlice(f.g.a, other.literal.items);
@@ -119,15 +123,23 @@ pub const Format = struct {
         const spec = switch (v.ty) {
             .string => "{s}",
             .boolean => "{}",
-            else => if (v.ty.numeric()) "{d}" else return core.fail(
-                f.g,
-                loc,
-                "text substitutions must be strings, numbers, or booleans",
-                .{},
-            ),
+            else => if (@import("model.zig").enumType(f.g, v.ty))
+                "{s}"
+            else if (v.ty.numeric())
+                "{d}"
+            else
+                return core.fail(
+                    f.g,
+                    loc,
+                    "text substitutions must be strings, numbers, or booleans",
+                    .{},
+                ),
         };
         try f.pattern.appendSlice(f.g.a, spec);
-        try f.args.append(f.g.a, v.code);
+        try f.args.append(f.g.a, if (@import("model.zig").enumType(f.g, v.ty))
+            try zig_text.fmt(f.g, "@tagName({s})", .{(try types.concrete(f.g, v)).code})
+        else
+            v.code);
     }
 
     pub fn expression(f: *Format, c: *Context, e: *ast.Expr) Error!void {
@@ -149,10 +161,11 @@ pub const Format = struct {
             ".{}"
         else
             try zig_text.fmt(f.g, ".{{{s}}}", .{try std.mem.join(f.g.a, ", ", f.args.items)});
+        const callee = if (log) "std.debug.print" else if (f.compile_time) "std.fmt.comptimePrint" else "tsx.fmt";
         return zig_text.fmt(
             f.g,
             "{s}({s}, {s})",
-            .{ if (log) "std.debug.print" else "tsx.fmt", try zig_text.quote(f.g, f.pattern.items), args },
+            .{ callee, try zig_text.quote(f.g, f.pattern.items), args },
         );
     }
 };

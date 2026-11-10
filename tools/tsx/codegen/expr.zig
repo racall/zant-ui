@@ -5,6 +5,8 @@ const core = @import("codegen.zig");
 const types = @import("types.zig");
 const scope = @import("scope.zig");
 const expr = @This();
+const aggregate = @import("aggregate.zig");
+const model = @import("model.zig");
 const jsx = @import("jsx.zig");
 const events = @import("events.zig");
 const zig_text = @import("zig_text.zig");
@@ -20,6 +22,7 @@ const boolean_condition_message =
 
 pub fn condition(g: *Generator, c: *Context, e: *ast.Expr) Error!Value {
     const v = try expr.emit(g, c, e, null, false);
+    if (model.optionalChild(g, v.ty) != null) return core.fail(g, e.loc, "optional condition needs ?? or !", .{});
     if (v.ty != .boolean) return core.fail(g, e.loc, boolean_condition_message, .{});
     return v;
 }
@@ -37,14 +40,16 @@ pub fn emit(g: *Generator, c: *Context, e: *ast.Expr, expected: ?Type, child: bo
         .binary => |b| try expr.binary(g, c, e.loc, b, expected, child),
         .cond => |cond| try conditional(g, c, e.loc, cond, expected, child),
         .member => |m| try member(g, c, m),
-        .call => |call| try expr.callValue(g, c, e.loc, call),
+        .call => |call| try expr.callValue(g, c, e.loc, call, expected),
         .jsx => |j| try jsx.emit(g, c, j),
         .arrow => return unsupportedArrow(g, e.loc),
-        .object => return core.fail(g, e.loc, "object literals are only supported in style", .{}),
+        .object => |properties| try aggregate.object(g, c, e.loc, properties, expected),
         .assign, .update => return core.fail(g, e.loc, "assignments and updates are only supported as statements", .{}),
-        .non_null => |inner| try expr.emit(g, c, inner, expected, child),
+        .non_null => |inner| try aggregate.nonNull(g, c, inner, expected, child),
         .as => |cast| try explicitCast(g, c, e.loc, cast, child),
-        .array, .spread, .index => return core.fail(g, e.loc, "this expression is not supported yet", .{}),
+        .array => |items| try aggregate.array(g, c, e.loc, items, expected),
+        .index => |ix| try aggregate.index(g, c, e.loc, ix),
+        .spread => return core.fail(g, e.loc, "this expression is not supported yet", .{}),
     };
     return if (expected) |t| types.coerce(g, v, t, e.loc) else v;
 }
@@ -81,8 +86,9 @@ pub fn unary(g: *Generator, c: *Context, loc: ast.Loc, u: ast.Unary, expected: ?
     const operand_context = if (u.operand.data != .number and types.numericLiterals(u.operand)) expected else null;
     var x = try expr.emit(g, c, u.operand, operand_context, false);
     if (x.inference == .result_location) x = try types.concrete(g, x);
+    if (model.optionalChild(g, x.ty) != null) return core.fail(g, loc, "optional operand needs ?? or !", .{});
     if (!x.ty.numeric()) return core.fail(g, loc, "unary - requires a number", .{});
-    if (zig_text.eq(u.op, "-") and x.ty.integer() and x.ty.zig()[0] == 'u') return core.fail(
+    if (zig_text.eq(u.op, "-") and x.ty.integer() and x.ty.zig(g)[0] == 'u') return core.fail(
         g,
         loc,
         "cannot negate an unsigned value; use a signed type",
@@ -117,15 +123,12 @@ pub fn conditional(g: *Generator, c: *Context, loc: ast.Loc, cond: ast.Cond, exp
 
 /// Lower the supported string length member while respecting suffix precedence.
 pub fn member(g: *Generator, c: *Context, m: ast.Member) Error!Value {
-    const x = try expr.emit(g, c, m.object, null, false);
-    if (x.ty != .string or !zig_text.eq(m.name.name, "length")) {
-        return core.fail(g, m.name.loc, "only .length on strings is supported", .{});
-    }
-    return .{ .ty = .usize, .code = try zig_text.fmt(g, "{s}.len", .{try zig_text.operand(g, x, .suffix, false)}) };
+    return aggregate.member(g, c, m);
 }
 
 /// Unify numeric peers, reject truthiness, and lower strings and optional JSX children.
 pub fn binary(g: *Generator, c: *Context, loc: ast.Loc, b: ast.Binary, expected: ?Type, child: bool) Error!Value {
+    if (zig_text.eq(b.op, "??")) return aggregate.coalesce(g, c, loc, b, expected);
     if (zig_text.eq(b.op, "**")) return core.fail(g, loc, "** is not supported yet", .{});
     if (zig_text.eq(b.op, "&&") or zig_text.eq(b.op, "||")) {
         const a = try expr.condition(g, c, b.lhs);
@@ -133,6 +136,11 @@ pub fn binary(g: *Generator, c: *Context, loc: ast.Loc, b: ast.Binary, expected:
         if (child and zig_text.eq(b.op, "&&") and (rhs.ty == .node or rhs.ty == .optional_node)) return .{
             .ty = .optional_node,
             .code = try zig_text.fmt(g, "if ({s}) {s} else null", .{ a.code, rhs.code }),
+            .precedence = .conditional,
+        };
+        if (child and zig_text.eq(b.op, "&&") and model.element(g, rhs.ty) != null) return .{
+            .ty = rhs.ty,
+            .code = try zig_text.fmt(g, "if ({s}) {s} else &.{{}}", .{ a.code, rhs.code }),
             .precedence = .conditional,
         };
         if (rhs.ty != .boolean) return core.fail(g, b.rhs.loc, boolean_condition_message, .{});
@@ -153,12 +161,45 @@ pub fn binary(g: *Generator, c: *Context, loc: ast.Loc, b: ast.Binary, expected:
         if (a.ty.numeric() and !a.ty.literal()) a.ty else numeric_context,
     ) else null;
     var z = try expr.emit(g, c, b.rhs, rhs_context, false);
+    if (equalityOperator(b.op)) {
+        if (model.enumType(g, a.ty) and z.ty == .string) z = try types.coerce(g, z, a.ty, b.rhs.loc);
+        if (model.enumType(g, z.ty) and a.ty == .string) a = try types.coerce(g, a, z.ty, b.lhs.loc);
+        if (a.ty == .null_ or z.ty == .null_) {
+            const other = if (a.ty == .null_) z else a;
+            if (other.ty != .null_ and model.optionalChild(g, other.ty) == null) {
+                return core.fail(g, loc, "null comparison needs an optional value", .{});
+            }
+            const negated = zig_text.eq(b.op, "!==") or zig_text.eq(b.op, "!=");
+            const typed_null = (a.ty == .null_ and !zig_text.eq(a.code, "null")) or
+                (z.ty == .null_ and !zig_text.eq(z.code, "null"));
+            if (typed_null) return .{
+                .ty = .boolean,
+                .code = try zig_text.fmt(g, "{s}tsx.nullEqual({s}, {s}, {s})", .{
+                    if (negated) "!" else "", if (a.ty == .null_) "true" else "false", a.code, z.code,
+                }),
+                .precedence = if (negated) .unary else .primary,
+            };
+            return infix(g, a, if (negated) "!=" else "==", z, .boolean);
+        }
+        if (model.optionalChild(g, a.ty) != null or model.optionalChild(g, z.ty) != null) {
+            return core.fail(g, loc, "optional operand needs ?? or !", .{});
+        }
+        if (model.enumType(g, a.ty) and a.ty == z.ty) {
+            return infix(g, a, if (zig_text.eq(b.op, "!==") or zig_text.eq(b.op, "!=")) "!=" else "==", z, .boolean);
+        }
+        if (model.info(g, a.ty) != null or model.info(g, z.ty) != null) {
+            return core.fail(g, loc, "equality on structs and arrays is not supported; compare their fields", .{});
+        }
+    }
     if (zig_text.eq(b.op, "+") and (a.ty == .string or z.ty == .string)) {
         const format_ = try g.a.create(Format);
-        format_.* = .{ .g = g };
+        format_.* = .{ .g = g, .compile_time = c.constant };
         try format_.value(a, loc);
         try format_.value(z, loc);
         return .{ .ty = .string, .code = try format_.finish(false), .formatted = format_ };
+    }
+    if (model.optionalChild(g, a.ty) != null or model.optionalChild(g, z.ty) != null) {
+        return core.fail(g, loc, "optional operand needs ?? or !", .{});
     }
     const equality = equalityOperator(b.op);
     const not_equal = zig_text.eq(b.op, "!==") or zig_text.eq(b.op, "!=");
@@ -228,7 +269,7 @@ pub fn infix(g: *Generator, a: Value, op: []const u8, b: Value, t: Type) Error!V
 pub fn template(g: *Generator, c: *Context, t: ast.Template) Error!Value {
     if (t.exprs.len == 0) return .{ .ty = .string, .code = try zig_text.quote(g, t.quasis[0]), .text = t.quasis[0] };
     const f = try g.a.create(Format);
-    f.* = .{ .g = g };
+    f.* = .{ .g = g, .compile_time = c.constant };
     for (t.quasis, 0..) |s, i| {
         try f.text(s);
         if (i < t.exprs.len) try f.value(try expr.emit(g, c, t.exprs[i], null, false), t.exprs[i].loc);
@@ -236,7 +277,10 @@ pub fn template(g: *Generator, c: *Context, t: ast.Template) Error!Value {
     return .{ .ty = .string, .code = try f.finish(false), .formatted = f };
 }
 
-pub fn callValue(g: *Generator, c: *Context, loc: ast.Loc, call: ast.Call) Error!Value {
+pub fn callValue(g: *Generator, c: *Context, loc: ast.Loc, call: ast.Call, expected: ?Type) Error!Value {
+    if (call.callee.data == .member) {
+        return @import("array_methods.zig").emit(g, c, loc, call, expected);
+    }
     if (call.callee.data != .ident) return core.fail(
         g,
         loc,

@@ -20,6 +20,8 @@ pub const Binding = struct {
     serial: usize,
 };
 
+pub const ReturnValue = struct { value: Value, loc: ast.Loc };
+
 pub const Context = struct {
     g: *Generator,
     render: bool,
@@ -27,6 +29,11 @@ pub const Context = struct {
     active: std.ArrayList(*Binding) = .empty,
     bindings: std.ArrayList(*Binding) = .empty,
     params: std.ArrayList(*Binding) = .empty,
+    constant: bool = false,
+    return_label: ?[]const u8 = null,
+    return_values: ?*std.ArrayList(ReturnValue) = null,
+    capture_source: ?*Context = null,
+    capture_method: ?usize = null,
     snapshots: std.ArrayList(struct { state: usize, binding: *Binding }) = .empty,
 };
 
@@ -59,7 +66,8 @@ pub fn bind(c: *Context, n: []const u8, t: Type, mutable: bool) Error!*Binding {
 }
 
 pub fn nameTaken(c: *Context, n: []const u8) bool {
-    if (zig_text.eq(n, "self") or zig_text.eq(n, "_") or scope.globalName(c.g, n)) return true;
+    const receiver = zig_text.eq(n, "self") or (c.capture_method != null and zig_text.eq(n, "cap"));
+    if (receiver or zig_text.eq(n, "_") or scope.globalName(c.g, n)) return true;
     for (c.bindings.items) |binding| {
         if (zig_text.eq(binding.zig, n)) return true;
         if (zig_text.eq(binding.zig, zig_text.id(c.g, n) catch return true)) return true;
@@ -70,15 +78,19 @@ pub fn nameTaken(c: *Context, n: []const u8) bool {
 /// Resolve declaration placeholders after prop replacement, then insert only required discards.
 pub fn finish(c: *Context, body: []const u8) Error![]const u8 {
     var result = body;
-    for (c.bindings.items) |binding| if (binding.init) |init| {
+    var remaining = c.bindings.items.len;
+    while (remaining > 0) {
+        remaining -= 1;
+        const binding = c.bindings.items[remaining];
+        const init = binding.init orelse continue;
         const marker = try zig_text.fmt(c.g, "\x01{d}\x02", .{binding.serial});
         const decl = try zig_text.fmt(
             c.g,
             "{s} {s}: {s} = {s};\n\x03{d}\x04",
-            .{ if (binding.assigned) "var" else "const", binding.zig, binding.ty.zig(), init, binding.serial },
+            .{ if (binding.assigned) "var" else "const", binding.zig, binding.ty.zig(c.g), init, binding.serial },
         );
         result = try std.mem.replaceOwned(u8, c.g.a, result, marker, decl);
-    };
+    }
     // Count identifiers in the surviving output, rather than in visited
     // expressions: a later prop alias may have replaced an earlier value.
     var usage_body = result;
@@ -129,14 +141,16 @@ pub fn finish(c: *Context, body: []const u8) Error![]const u8 {
         self_used = true;
         const state = c.g.states.items[snap.state];
         const field = try zig_text.id(c.g, state.name);
-        const init = if (state.ty == .string) try zig_text.fmt(
+        const init = if (@import("model.zig").owned(c.g, state.ty))
+            try zig_text.fmt(c.g, "self.{s}.get()", .{field})
+        else if (state.ty == .string) try zig_text.fmt(
             c.g,
             "ui.frameString(self.{s}.get())",
             .{field},
         ) else try zig_text.fmt(c.g, "self.{s}", .{field});
         try prefix.appendSlice(
             c.g.a,
-            try zig_text.fmt(c.g, "const {s}: {s} = {s};\n", .{ snap.binding.zig, state.ty.zig(), init }),
+            try zig_text.fmt(c.g, "const {s}: {s} = {s};\n", .{ snap.binding.zig, state.ty.zig(c.g), init }),
         );
     }
     if (!self_used) try prefix.appendSlice(c.g.a, "_ = self;\n");
@@ -168,6 +182,12 @@ pub fn globalName(g: *Generator, n: []const u8) bool {
     inline for (.{ "self", "std", "zant", "ui", "tsx", "render" }) |reserved| {
         if (zig_text.eq(n, reserved)) return true;
     }
+    for (g.methods.items) |method| if (method.capture_name) |name| {
+        if (zig_text.eq(name, n)) return true;
+    };
+    for (g.compounds.items) |entry| if (entry.declaration != null and zig_text.eq(entry.zig, n)) return true;
+    for (g.type_aliases.items) |alias| if (zig_text.eq(alias.name, n)) return true;
+    for (g.constants.items) |constant| if (zig_text.eq(constant.name, n)) return true;
     return zig_text.eq(n, g.name) or scope.methodIndex(g, n) != null;
 }
 
@@ -231,6 +251,7 @@ pub fn read(g: *Generator, c: *Context, n: []const u8, loc: ast.Loc) Error!Value
     if (scope.local(c, n)) |b| {
         return .{ .ty = b.ty, .code = b.zig };
     }
+    if (try @import("captures.zig").read(g, c, n)) |value| return value;
     if (scope.stateIndex(g, n)) |i| {
         const s = g.states.items[i];
         if (c.render) return .{
@@ -238,7 +259,10 @@ pub fn read(g: *Generator, c: *Context, n: []const u8, loc: ast.Loc) Error!Value
             .code = try zig_text.fmt(
                 g,
                 "self.{s}{s}",
-                .{ try zig_text.id(g, n), if (s.ty == .string) ".get()" else "" },
+                .{
+                    try zig_text.id(g, n),
+                    if (s.ty == .string or @import("model.zig").owned(g, s.ty)) ".get()" else "",
+                },
             ),
         };
         for (c.snapshots.items) |snap| if (snap.state == i) return .{ .ty = s.ty, .code = snap.binding.zig };
@@ -246,12 +270,12 @@ pub fn read(g: *Generator, c: *Context, n: []const u8, loc: ast.Loc) Error!Value
         try c.snapshots.append(g.a, .{ .state = i, .binding = b });
         return .{ .ty = s.ty, .code = b.zig };
     }
+    for (g.constants.items) |constant| if (zig_text.eq(constant.name, n)) return constant.value;
     if (!c.render) for (g.render_names.items) |name| {
         if (zig_text.eq(n, name)) return core.fail(
             g,
             loc,
-            "event handlers cannot read render locals yet (closures arrive in phase 2); " ++
-                "compute it from state inside the handler",
+            "component functions cannot capture render locals; use an inline event handler",
             .{},
         );
     };

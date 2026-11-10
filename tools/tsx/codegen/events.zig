@@ -1,4 +1,6 @@
 //! Event signatures, inferred parameters, generated handlers, and reusable setter adapters.
+const std = @import("std");
+const captures = @import("captures.zig");
 const ast = @import("../ast.zig");
 const tags = @import("../tags.zig");
 const core = @import("codegen.zig");
@@ -24,6 +26,9 @@ pub const Method = struct {
     setter: ?usize = null,
     ret: Type = .void_,
     user: bool = false,
+    capture_name: ?[]const u8 = null,
+    captures: std.ArrayList(captures.Capture) = .empty,
+    emitted: ?[]const u8 = null,
 };
 
 /// Register event methods before local allocation, so names and inferred signatures are stable.
@@ -37,6 +42,12 @@ pub fn scanExpr(g: *Generator, e: *ast.Expr) Error!void {
         .unary => |u| try events.scanExpr(g, u.operand),
         .non_null => |inner| try events.scanExpr(g, inner),
         .as => |cast| try events.scanExpr(g, cast.expr),
+        .index => |ix| {
+            try events.scanExpr(g, ix.object);
+            try events.scanExpr(g, ix.index);
+        },
+        .member => |member| try events.scanExpr(g, member.object),
+        .spread => |inner| try events.scanExpr(g, inner),
         .array => |items| for (items) |item| try events.scanExpr(g, item),
         .cond => |v| try scanConditional(g, v),
         .call => |v| {
@@ -186,6 +197,7 @@ pub fn event(g: *Generator, e: *ast.Expr, prop: *const tags.Prop, loc: ast.Loc) 
             .name = n,
             .func = e.data.arrow,
             .action = prop.kind,
+            .capture_name = try scope.uniqueMethod(g, try zig_text.fmt(g, "_Capture{d}", .{g.counter})),
             .ret = if (e.data.arrow.ret) |r| try types.typeRef(g, r, true) else .void_,
         };
         try events.signature(g, m, prop.kind, e.loc, true);
@@ -195,13 +207,17 @@ pub fn event(g: *Generator, e: *ast.Expr, prop: *const tags.Prop, loc: ast.Loc) 
     try g.events.append(g.a, .{ .expr = e, .kind = prop.kind, .method = i });
 }
 
-pub fn eventValue(g: *Generator, e: *ast.Expr, kind: tags.Kind) Error![]const u8 {
+pub fn eventValue(g: *Generator, c: *scope.Context, e: *ast.Expr, kind: tags.Kind) Error![]const u8 {
     for (g.events.items) |ev| if (ev.expr == e and ev.kind == kind) {
+        if (e.data == .arrow) try captures.prepare(g, c, ev.method);
+        const m = g.methods.items[ev.method];
+        const receiver = if (m.captures.items.len > 0) try captures.value(g, m) else "self";
         return zig_text.fmt(
             g,
-            "ui.{s}(self, {s}.{s})",
+            "ui.{s}({s}, {s}.{s})",
             .{
                 events.actionBuilder(kind),
+                receiver,
                 try zig_text.id(g, g.name),
                 try zig_text.id(g, g.methods.items[ev.method].name),
             },
@@ -256,7 +272,7 @@ pub fn emitSetter(g: *Generator, m: Method) Error![]const u8 {
         .{
             try zig_text.id(g, m.name),
             try zig_text.id(g, g.name),
-            events.actionType(m.action.?).zig(),
+            events.actionType(m.action.?).zig(g),
             try stmt.stateWrite(g, try zig_text.id(g, s.name), s.ty, value),
         },
     );

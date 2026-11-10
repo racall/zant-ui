@@ -8,7 +8,7 @@ const Generator = core.Generator;
 
 /// A `~` marks the expected diagnostic byte in these fixtures. Checking the
 /// human-facing position as well as the message catches misplaced diagnostics.
-fn expectDiagnostic(marked: []const u8, message: []const u8) !void {
+pub fn expectDiagnostic(marked: []const u8, message: []const u8) !void {
     const compiler = @import("../compile.zig");
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
@@ -60,9 +60,9 @@ test "codegen diagnostics include precise source positions" {
             "state can only be set in event handlers",
         },
         .{
-            "export default function App() { const local=1; return <Button onClick={() => console.log(~local)}/>; }",
-            "event handlers cannot read render locals yet (closures arrive in phase 2); compute " ++
-                "it from state inside the handler",
+            "export default function App() { const local=1; function f() { console.log(~local); } " ++
+                "return <Button onClick={f}/>; }",
+            "component functions cannot capture render locals; use an inline event handler",
         },
         .{
             "export default function App() { function f(x: boolean) {} return <Button ~onClick={f}/>; }",
@@ -334,7 +334,7 @@ test "additional semantic errors stop before emitting invalid Zig" {
         .{
             "export default function App() { if (true) { const local=1; } return <Button " ++
                 "onClick={() => console.log(~local)}/>; }",
-            "event handlers cannot read render locals yet",
+            "component functions cannot capture render locals",
         },
     };
     for (cases) |case| try expectDiagnostic(case[0], case[1]);
@@ -416,27 +416,11 @@ test "generated component props and explicit casts report source positions" {
         },
         .{
             "export default function App() { return <Card children={~true}/>; }",
-            "prop `children` requires an array literal",
-        },
-        .{
-            "export default function App() { const x=~[\"A\"]; return <Select options={x}/>; }",
-            "this expression is not supported yet",
+            "prop `children` requires an array of nodes",
         },
         .{
             "export default function App() { return <View padding={{~oops:1}}/>; }",
             "unknown edge `oops`; valid keys: top, right, bottom, left, horizontal, vertical",
-        },
-        .{
-            "export default function App() { const x=~[1]; return <Text/>; }",
-            "this expression is not supported yet",
-        },
-        .{
-            "const ~x=1; export default function App() { return <Text/>; }",
-            "top-level constants are not supported yet",
-        },
-        .{
-            "type ~Count=number; export default function App() { return <Text/>; }",
-            "top-level types are not supported yet",
         },
         .{
             "export default function App() { return <DropdownMenu items={[{onClick:~(x:boolean)=>{}}]}/>; }",
@@ -444,4 +428,8 @@ test "generated component props and explicit casts report source positions" {
         },
     };
     for (cases) |case| try expectDiagnostic(case[0], case[1]);
+}
+
+test {
+    _ = @import("round2_test.zig");
 }
