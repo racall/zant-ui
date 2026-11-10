@@ -92,9 +92,22 @@ pub fn fire(now_ms: i64) bool {
     return ran;
 }
 
+/// The app shell's wake: runs what is due, then makes sure a wake comes for
+/// the next timer (a sleep may end a little early, e.g. on Windows).
 pub fn fireDue() bool {
-    return fire(platform.monotonicMs());
+    const now = platform.monotonicMs();
+    // a wake a few ms early still runs the timer it was for
+    const ran = fire(now + early_ms);
+    // every timer has its own sleeper (`set`); a wake that came just before
+    // a timer was due gets another one for it
+    var next: ?i64 = null;
+    for (timers.items) |t| next = if (next) |n| @min(n, t.due_ms) else t.due_ms;
+    if (next) |due| if (due - now < 100) wakeIn(@max(due - now, 1));
+    return ran;
 }
+
+/// How early a wake may come and still run its timer.
+const early_ms = 4;
 
 /// Timers still waiting (tests).
 pub fn pending() usize {
@@ -108,7 +121,7 @@ fn wakeIn(delay_ms: i64) void {
     const io = @import("tsx_app.zig").ioIfStarted() orelse return;
     const Sleeper = struct {
         fn run(i: std.Io, ms: i64) void {
-            i.sleep(.fromMilliseconds(@max(ms, 0) + 1), .awake) catch {};
+            i.sleep(.fromMilliseconds(@max(ms, 0) + 2), .awake) catch {};
             ui.postWake();
         }
     };

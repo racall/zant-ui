@@ -138,6 +138,20 @@ pub fn shortcutLabel(shortcut: []const u8) []const u8 {
     return ui.frameString(parsed.label(&buf));
 }
 
+/// An imported image asset (`import icon from "./icon.png"`) as an `Image`
+/// for `<Image image>`: decoded on first use and kept (assets are static
+/// bytes, cached by address); null when it isn't a decodable image.
+pub fn assetImage(bytes: []const u8) ?@import("image.zig").Image {
+    for (asset_images.items) |entry| {
+        if (entry.ptr == bytes.ptr and entry.len == bytes.len) return entry.image;
+    }
+    const decoded = @import("image.zig").Image.fromEncoded(bytes);
+    asset_images.append(std.heap.c_allocator, .{ .ptr = bytes.ptr, .len = bytes.len, .image = decoded }) catch {};
+    return decoded;
+}
+
+var asset_images: std.ArrayList(struct { ptr: [*]const u8, len: usize, image: ?@import("image.zig").Image }) = .empty;
+
 /// Rebuilds after `ms` milliseconds (call it while rendering: a toast that
 /// hides itself reads `performance.now()` against its deadline).
 pub fn wakeAfter(ms: f64) void {
