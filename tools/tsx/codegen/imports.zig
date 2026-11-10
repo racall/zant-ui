@@ -84,6 +84,10 @@ pub fn process(g: *Generator, module: ast.Module, project: []const NamedModule) 
                     .scope = scope,
                 });
             } else if (exportedFunction(target, n.imported.name)) |f| {
+                if (@import("functions.zig").isFunction(f)) {
+                    try importFunction(g, n, f, scope);
+                    continue;
+                }
                 try importComponent(g, n, f, scope, @import("stateful.zig").stateful(project, target, f));
             } else if (@import("stores.zig").exported(target, n.imported.name)) |store| {
                 try @import("stores.zig").import(g, n, store, scope);
@@ -103,6 +107,17 @@ fn exportedType(module: ast.Module, name: []const u8) bool {
 fn exportedFunction(module: ast.Module, name: []const u8) ?*ast.Function {
     for (module.functions) |top| if (top.exported and zig_text.eq(top.func.name, name)) return top.func;
     return null;
+}
+
+/// An imported plain function: its signature resolves in the declaring file.
+fn importFunction(g: *Generator, n: ast.ImportName, f: *ast.Function, scope: *const Scope) Error!void {
+    const previous = g.type_scope;
+    g.type_scope = scope;
+    defer g.type_scope = previous;
+    const zig = try zig_text.fmt(g, "{s}.{s}", .{ try zig_text.id(g, scope.alias), try zig_text.id(g, f.name) });
+    var function = try @import("functions.zig").signature(g, f, zig, true);
+    function.name = n.local.name;
+    try g.functions.append(g.a, function);
 }
 
 /// An imported component: its props type resolves in the declaring file.

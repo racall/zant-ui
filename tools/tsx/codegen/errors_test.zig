@@ -228,7 +228,7 @@ test "codegen diagnostics include precise source positions" {
         },
         .{
             "export default function App() { return <Button onClick={~true}/>; }",
-            "event handler must be a component function, setter, or inline arrow",
+            "event handler must be a component function, plain function, setter, or inline arrow",
         },
         .{
             "export default function App() { function f(~x) {} return <View/>; }",

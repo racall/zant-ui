@@ -116,6 +116,7 @@ pub fn callbackInfo(g: *Generator, ty: Type) ?*model.Info {
 pub fn collect(g: *Generator, module: ast.Module, root: ?*ast.Function) Error!void {
     for (module.functions) |top| {
         if (root != null and top.func == root.?) continue;
+        if (@import("functions.zig").isFunction(top.func)) continue;
         const f = top.func;
         if (f.params.len > 1) return core.fail(g, f.params[1].name.loc, "components take one props object", .{});
         var comp = Component{
@@ -151,6 +152,12 @@ pub fn collect(g: *Generator, module: ast.Module, root: ?*ast.Function) Error!vo
         for (g.components.items) |other| if (zig_text.eq(other.name, comp.name)) {
             return core.fail(g, f.loc, "duplicate component `{s}`", .{comp.name});
         };
+        if (@import("functions.zig").find(g, comp.builder) != null) return core.fail(
+            g,
+            f.loc,
+            "<{s}> compiles to the function `{s}`, which is also a function of this file; rename one",
+            .{ comp.name, comp.builder },
+        );
         try g.components.append(g.a, comp);
     }
 }

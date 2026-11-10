@@ -183,11 +183,14 @@ pub fn event(g: *Generator, e: *ast.Expr, prop: *const tags.Prop, loc: ast.Loc) 
                 const name = try scope.uniqueMethod(g, try zig_text.fmt(g, "_{s}", .{n}));
                 try g.methods.append(g.a, .{ .name = name, .setter = s, .action = prop.kind });
             }
+        } else if (scope.sourceMethod(g, n) == null and @import("functions.zig").find(g, n) != null) {
+            // a plain function: handled as `(v) => fn(v)`
+            i = try registerArrow(g, prop, try functionArrow(g, e, prop.kind));
         } else {
             i = scope.sourceMethod(g, n) orelse return core.fail(
                 g,
                 e.loc,
-                "event handler must be a component function, setter, or inline arrow",
+                "event handler must be a component function, plain function, setter, or inline arrow",
                 .{},
             );
             const m = g.methods.items[i];
@@ -203,19 +206,13 @@ pub fn event(g: *Generator, e: *ast.Expr, prop: *const tags.Prop, loc: ast.Loc) 
             g.methods.items[i].action = prop.kind;
         }
     } else if (e.data == .arrow) {
-        g.counter += 1;
-        const n = try scope.uniqueMethod(g, try zig_text.fmt(g, "_{s}{d}", .{ prop.name, g.counter }));
-        const m = Method{
-            .name = n,
-            .func = e.data.arrow,
-            .action = prop.kind,
-            .capture_name = try scope.uniqueMethod(g, try zig_text.fmt(g, "_Capture{d}", .{g.counter})),
-            .ret = if (e.data.arrow.ret) |r| try types.typeRef(g, r, true) else .void_,
-        };
-        try events.signature(g, m, prop.kind, e.loc, true);
-        i = g.methods.items.len;
-        try g.methods.append(g.a, m);
-    } else return core.fail(g, e.loc, "event handler must be a component function, setter, or inline arrow", .{});
+        i = try registerArrow(g, prop, e);
+    } else return core.fail(
+        g,
+        e.loc,
+        "event handler must be a component function, plain function, setter, or inline arrow",
+        .{},
+    );
     try g.events.append(g.a, .{ .expr = e, .kind = prop.kind, .method = i });
 }
 
@@ -357,4 +354,42 @@ fn scanProperty(g: *Generator, prop: *const tags.Prop, value: *ast.Expr, loc: as
             } else try events.scanExpr(g, property.value);
         }
     }
+}
+
+/// Registers an inline arrow as the handler method of `prop`.
+fn registerArrow(g: *Generator, prop: *const tags.Prop, e: *ast.Expr) Error!usize {
+    g.counter += 1;
+    const n = try scope.uniqueMethod(g, try zig_text.fmt(g, "_{s}{d}", .{ prop.name, g.counter }));
+    const m = Method{
+        .name = n,
+        .func = e.data.arrow,
+        .action = prop.kind,
+        .capture_name = try scope.uniqueMethod(g, try zig_text.fmt(g, "_Capture{d}", .{g.counter})),
+        .ret = if (e.data.arrow.ret) |r| try types.typeRef(g, r, true) else .void_,
+    };
+    try events.signature(g, m, prop.kind, e.loc, true);
+    try g.methods.append(g.a, m);
+    return g.methods.items.len - 1;
+}
+
+/// `fn` passed as a handler, as the arrow `() => fn()` / `(v) => fn(v)`.
+fn functionArrow(g: *Generator, e: *ast.Expr, kind: tags.Kind) Error!*ast.Expr {
+    const callee = try g.a.create(ast.Expr);
+    callee.* = e.*;
+    const takes_value = kind != .action;
+    var args: []const *ast.Expr = &.{};
+    var params: []const ast.Param = &.{};
+    if (takes_value) {
+        const value = try g.a.create(ast.Expr);
+        value.* = .{ .loc = e.loc, .data = .{ .ident = "_value" } };
+        args = try g.a.dupe(*ast.Expr, &.{value});
+        params = try g.a.dupe(ast.Param, &.{.{ .name = .{ .name = "_value", .loc = e.loc }, .ty = null }});
+    }
+    const call = try g.a.create(ast.Expr);
+    call.* = .{ .loc = e.loc, .data = .{ .call = .{ .callee = callee, .type_args = &.{}, .args = args } } };
+    const f = try g.a.create(ast.Function);
+    f.* = .{ .loc = e.loc, .name = "", .params = params, .ret = null, .body = .{ .expr = call } };
+    const arrow = try g.a.create(ast.Expr);
+    arrow.* = .{ .loc = e.loc, .data = .{ .arrow = f } };
+    return arrow;
 }

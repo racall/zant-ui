@@ -38,6 +38,8 @@ pub const Context = struct {
     /// Inside an effect with a cleanup / inside a cleanup (`hooks.zig`).
     effect_field: ?[]const u8 = null,
     cleanup: bool = false,
+    /// A plain top-level function (`functions.zig`): no component, no `self`.
+    no_self: bool = false,
 };
 
 pub fn local(c: *Context, n: []const u8) ?*Binding {
@@ -156,7 +158,7 @@ pub fn finish(c: *Context, body: []const u8) Error![]const u8 {
             try zig_text.fmt(c.g, "const {s}: {s} = {s};\n", .{ snap.binding.zig, state.ty.zig(c.g), init }),
         );
     }
-    if (!self_used) try prefix.appendSlice(c.g.a, "_ = self;\n");
+    if (!self_used and !c.no_self) try prefix.appendSlice(c.g.a, "_ = self;\n");
     return zig_text.fmt(c.g, "{s}{s}", .{ prefix.items, result });
 }
 
@@ -192,6 +194,7 @@ pub fn globalName(g: *Generator, n: []const u8) bool {
     for (g.type_aliases.items) |alias| if (zig_text.eq(alias.name, n)) return true;
     for (g.constants.items) |constant| if (zig_text.eq(constant.name, n)) return true;
     for (g.stores.items) |store| if (zig_text.eq(store.name, n)) return true;
+    for (g.functions.items) |f| if (zig_text.eq(f.name, n)) return true;
     for (g.components.items) |comp| if (zig_text.eq(comp.name, n) or zig_text.eq(comp.builder, n)) return true;
     return zig_text.eq(n, g.name) or scope.methodIndex(g, n) != null;
 }

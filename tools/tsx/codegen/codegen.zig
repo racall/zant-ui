@@ -79,6 +79,8 @@ pub const Generator = struct {
     hook_fields: std.ArrayList(@import("hooks.zig").Field) = .empty,
     effects: std.ArrayList(@import("hooks.zig").Effect) = .empty,
     cleanups: std.ArrayList(@import("hooks.zig").Cleanup) = .empty,
+    /// Plain functions of this file and imported ones (`functions.zig`).
+    functions: std.ArrayList(@import("functions.zig").Function) = .empty,
     /// Stores declared in or imported into this file (`stores.zig`).
     stores: std.ArrayList(@import("stores.zig").Store) = .empty,
     /// Scrolling containers around the element being emitted (`nesting.zig`).
@@ -333,7 +335,9 @@ pub fn generate(
     const store_code = try @import("stores.zig").collect(&g, module.consts);
     const plain = try @import("stores.zig").plainConstants(&g, module.consts);
     const globals = try std.mem.concat(arena, u8, &.{ try @import("globals.zig").collect(&g, plain), store_code });
+    try @import("functions.zig").collect(&g, module);
     try components.collect(&g, module, root);
+    const function_code = try @import("functions.zig").emitAll(&g);
     // children first, then the root; the header needs every compound type
     var bodies: std.ArrayList(u8) = .empty;
     for (g.components.items) |*comp| {
@@ -355,6 +359,7 @@ pub fn generate(
         try @import("globals.zig").declarations(&g),
         globals,
     }));
+    try out.appendSlice(arena, function_code);
     try out.appendSlice(arena, bodies.items);
     return scope.renameModules(&g, out.items);
 }

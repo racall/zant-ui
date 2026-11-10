@@ -224,6 +224,10 @@ exe.root_module.addImport("notes_tsx", notes);
   被导入的组件和类型要 `export`；跨文件共享的嵌套对象类型和联合类型要写成具名的 `interface` / `type`）。参数是一个 props 对象
   （`function TodoRow(props: Props)` 或解构 `function TodoRow({ todo, onToggle }: Props)`），回调属性的类型写成
   函数类型（`onToggle: (id: number) => void`）。子组件可以有自己的状态（见下面「第三阶段」）。
+- **普通函数**：小写字母开头的顶层函数是普通函数（大写开头的才是组件，和 React 的约定一样），参数要写类型，
+  有返回值时写返回类型：`function bytes(n: number): string { … }`、`const half = (n: number): number => n / 2;`。
+  组件渲染、事件处理函数、其他函数（可以递归）里都能调用，也能直接当事件处理函数（`onClick={reset}`）；
+  可以 `export`，其他文件 `import { bytes } from "./format"`。普通函数没有状态，不能调用 hook，可以读写 store。
 - **字符串**：`str.length` 与 TypeScript 相同，是 UTF-16 码元数（`"周报".length` 是 2），不是 UTF-8 字节数。
 - **主题**：`const theme = useTheme();`，`theme.colorPrimary`、`theme.colorText`、`theme.colorBgContainer` …
   （`zant.tokens.Theme` 的字段，camelCase）。默认跟随系统浅色 / 深色。
