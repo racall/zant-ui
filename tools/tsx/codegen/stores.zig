@@ -161,7 +161,9 @@ fn update(g: *Generator, c: *Context, store: Store, arg: *ast.Expr) Error![]cons
         const ty = try model.fieldType(g, store.ty, p.key.name, p.key.loc);
         const v = try expr.emit(g, c, p.value, ty, false);
         const field = model.fieldZig(g, store.ty, p.key.name) orelse try text.id(g, p.key.name);
-        try fields.appendSlice(g.a, try text.fmt(g, ".{s} = {s},\n", .{ field, v.code }));
+        // the patch is generic: a literal (`cond ? "a" : "b"`) needs its type spelled out
+        const code = if (v.inference == .known) v.code else try text.fmt(g, "@as({s}, {s})", .{ ty.zig(g), v.code });
+        try fields.appendSlice(g.a, try text.fmt(g, ".{s} = {s},\n", .{ field, code }));
     }
     return text.fmt(g, "{s}.update(.{{\n{s}}})", .{ store.zig, fields.items });
 }
