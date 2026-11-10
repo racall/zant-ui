@@ -63,7 +63,33 @@ pub const Type = enum(u32) {
         if (a == .float_literal) return if (b.float()) b else .f64;
         if (b == .float_literal) return if (a.float()) a else .f64;
         if (a.float() or b.float()) return if (a == .f64 or b == .f64) .f64 else .f32;
-        return null;
+        return integerPeer(a, b);
+    }
+
+    /// Two integer types: the wider one when it holds every value of both
+    /// (Zig's peer rule: `u8` and `usize` → `usize`, `u16` and `i32` → `i32`);
+    /// otherwise a TS `number` (`f64`), e.g. `u64` and `i32`.
+    fn integerPeer(a: Type, b: Type) Type {
+        const ia = intInfo(a);
+        const ib = intInfo(b);
+        if (ia.signed == ib.signed) return if (ia.bits >= ib.bits) a else b;
+        const signed = if (ia.signed) a else b;
+        const unsigned_bits = if (ia.signed) ib.bits else ia.bits;
+        return if (intInfo(signed).bits > unsigned_bits) signed else .f64;
+    }
+
+    pub fn intInfo(t: Type) struct { bits: u16, signed: bool } {
+        return switch (t) {
+            .u8 => .{ .bits = 8, .signed = false },
+            .u16 => .{ .bits = 16, .signed = false },
+            .u32 => .{ .bits = 32, .signed = false },
+            .u64, .usize => .{ .bits = 64, .signed = false },
+            .i8 => .{ .bits = 8, .signed = true },
+            .i16 => .{ .bits = 16, .signed = true },
+            .i32 => .{ .bits = 32, .signed = true },
+            .i64, .isize => .{ .bits = 64, .signed = true },
+            else => unreachable,
+        };
     }
 
     pub fn concrete(t: Type) Type {
@@ -109,9 +135,16 @@ pub fn typeRef(g: *Generator, ref: ast.TypeRef, allow_void: bool) Error!Type {
     if (zig_text.eq(ref.name, "number")) return .f64;
     if (zig_text.eq(ref.name, "boolean")) return .boolean;
     if (zig_text.eq(ref.name, "string")) return .string;
+    // bytes (clipboard images, file contents): `[]const u8` as an array of u8
+    if (zig_text.eq(ref.name, "Uint8Array")) return model.array(g, .u8);
     if (allow_void and zig_text.eq(ref.name, "void")) return .void_;
     if (types.numericName(ref.name)) return std.meta.stringToEnum(Type, ref.name).?;
-    return core.fail(g, ref.loc, "unsupported type `{s}`; use number, boolean, string, or a numeric type", .{ref.name});
+    return core.fail(
+        g,
+        ref.loc,
+        "unsupported type `{s}`; use number, boolean, string, Uint8Array, or a numeric type",
+        .{ref.name},
+    );
 }
 
 /// Allow matching types, contextual literals, integer-to-float, and float-width conversions.
@@ -150,6 +183,10 @@ pub fn coerce(g: *Generator, v: Value, t: Type, loc: ast.Loc) Error!Value {
         var result = v;
         result.ty = t;
         return result;
+    }
+    if (v.ty.integer() and t.integer() and Type.numericPeer(v.ty, t) == t) {
+        // widening (u8 → usize): Zig coerces it
+        return .{ .ty = t, .code = try zig_text.fmt(g, "@as({s}, {s})", .{ t.zig(g), (try concrete(g, v)).code }) };
     }
     if (v.ty.integer() and t.float()) {
         return .{

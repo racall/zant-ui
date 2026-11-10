@@ -8,6 +8,11 @@ pub const strings = @import("tsx_strings.zig");
 /// Nested `<Text>` spans and inline `<Link>`s.
 pub const text = @import("tsx_text.zig");
 
+/// `Uint8Array` in TSX. In a Zig file imported by TSX, write `tsx.Bytes` (not
+/// `[]const u8`, which is a string there) for parameters and results that are
+/// bytes: `pub fn readImage() ?zant.tsx.Bytes`.
+pub const Bytes = []const u8;
+
 /// Heap memory of string state; it lives as long as the state value.
 const allocator = std.heap.smp_allocator;
 

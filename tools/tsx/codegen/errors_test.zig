@@ -77,9 +77,9 @@ test "codegen diagnostics include precise source positions" {
             "cannot convert f64 to u32",
         },
         .{
-            "export default function App() { const [x,sx]=useState<u32>(0); const " ++
-                "[y,sy]=useState<u16>(0); const z=~x+y; return <Text>{z}</Text>; }",
-            "different integer types u32 and u16; use the same integer type",
+            "export default function App() { const [x,sx]=useState<u64>(0); const " ++
+                "[y,sy]=useState<i32>(0); const z: u64 = ~x+y; return <Text>{z}</Text>; }",
+            "cannot convert f64 to u64",
         },
         .{
             "export default function App() { const [x,sx]=useState(0); if (~x) return <View/>; return <View/>; }",
@@ -357,8 +357,8 @@ test "additional semantic errors stop before emitting invalid Zig" {
         },
         .{
             "export default function App() { const [a,sa]=useState<u8>(0); const " ++
-                "[b,sb]=useState<u32>(0); const x:u32=~a; return <View/>; }",
-            "cannot convert u8 to u32",
+                "[b,sb]=useState<u32>(0); const x:u8=~b; return <View/>; }",
+            "cannot convert u32 to u8",
         },
         .{
             "export default function App() { if (true) { const local=1; } return <Button " ++

@@ -13,7 +13,7 @@
 | A1 | 顶层普通函数（工具函数，不是组件）：`function bytes(n: number): string`，组件和函数里都能调用，可跨文件 `export` / `import` | Claude | ✅ |
 | A2 | 语句：`for (let i = 0; …)`、`for (const x of xs)`、`while`、`break` / `continue`、`switch` | Codex | ⬜ |
 | A3 | 内置：`Math.*`、`Number()` / `String()`、`toFixed`、`parseInt` / `parseFloat`、`Date.now()` | Codex | ⬜ |
-| A4 | 字节：`Uint8Array` ↔ `[]const u8`（剪贴板图片、文件内容） | Claude | ⬜ |
+| A4 | 字节：`Uint8Array` ↔ `[]const u8`（剪贴板图片、文件内容） | Claude | ✅ |
 | A5 | 从 Zig 导入类型：`import type { Peer } from "./sync.zig"`（结构体、枚举），Zig 函数的参数和返回值可以是它们和它们的切片 | Claude | ⬜ |
 | A6 | 资源导入：`import trayIcon from "../assets/tray.png"`（编译期嵌入，`Uint8Array`） | Codex | ⬜ |
 

@@ -169,6 +169,12 @@ fn mapType(g: *Generator, tree: *const std.zig.Ast, node: std.zig.Ast.Node.Index
         if (model.optionalChild(g, child) != null) return null;
         return try model.optional(g, child);
     }
+    if (tree.nodeTag(node) == .field_access) {
+        // `tsx.Bytes` / `zant.tsx.Bytes`: a Uint8Array
+        const source = tree.getNodeSource(node);
+        if (text.eq(source, "tsx.Bytes") or text.eq(source, "zant.tsx.Bytes")) return try model.array(g, .u8);
+        return null;
+    }
     if (tree.fullPtrType(node)) |ptr| {
         if (ptr.size != .slice or ptr.const_token == null or ptr.allowzero_token != null or
             ptr.volatile_token != null or ptr.ast.sentinel != .none or ptr.ast.align_node != .none or

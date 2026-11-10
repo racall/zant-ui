@@ -224,6 +224,10 @@ exe.root_module.addImport("notes_tsx", notes);
   被导入的组件和类型要 `export`；跨文件共享的嵌套对象类型和联合类型要写成具名的 `interface` / `type`）。参数是一个 props 对象
   （`function TodoRow(props: Props)` 或解构 `function TodoRow({ todo, onToggle }: Props)`），回调属性的类型写成
   函数类型（`onToggle: (id: number) => void`）。子组件可以有自己的状态（见下面「第三阶段」）。
+- **字节**：`Uint8Array` 对应 Zig 的 `[]const u8`（剪贴板图片、文件内容），`.length` 是字节数，`data[i]` 是 `u8`。
+  从 Zig 导入的函数用 `zant.tsx.Bytes` 表示字节参数和返回值（直接写 `[]const u8` 是字符串）。
+- **数字混用**：TS 里都是 `number`。两个整数类型混用时取能放下双方的那个（`u8` 和 `usize` → `usize`，
+  `u16` 和 `i32` → `i32`），放不下（`u64` 和 `i32`）时得到 `number`；整数往更宽的整数赋值会自动转换，往更窄的报错。
 - **普通函数**：小写字母开头的顶层函数是普通函数（大写开头的才是组件，和 React 的约定一样），参数要写类型，
   有返回值时写返回类型：`function bytes(n: number): string { … }`、`const half = (n: number): number => n / 2;`。
   组件渲染、事件处理函数、其他函数（可以递归）里都能调用，也能直接当事件处理函数（`onClick={reset}`）；

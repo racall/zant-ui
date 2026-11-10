@@ -158,3 +158,28 @@ test "a store exported by one file is shared by the files importing it" {
     try contains(result.ok[1], "const p: _store.Prefs = _store.prefs.read();");
     try contains(result.ok[1], "_store.prefs.update(.{");
 }
+
+test "Zig functions take and return bytes as tsx.Bytes (Uint8Array)" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const result = try compile.compileProject(arena.allocator(), &.{
+        .{ .path = "src/image.zig", .src =
+        \\const zant = @import("zant");
+        \\const tsx = zant.tsx;
+        \\pub fn png() ?zant.tsx.Bytes { return null; }
+        \\pub fn size(data: tsx.Bytes) usize { return data.len; }
+        \\pub fn name() []const u8 { return "a.png"; }
+        },
+        .{ .path = "src/App.tsx", .src =
+        \\import { png, size, name } from "./image.zig";
+        \\export default function App() {
+        \\  const data: Uint8Array = png() ?? [];
+        \\  return <Text>{name()}: {size(data)} bytes, first {data.length > 0 ? data[0] : 0}</Text>;
+        \\}
+        },
+    });
+    if (result == .err) std.debug.print("{s}\n", .{result.err.diag.msg});
+    try std.testing.expect(result == .ok);
+    try contains(result.ok[1], "const data: []const u8 = _image.png() orelse");
+    try contains(result.ok[1], "_image.size(data)");
+}
