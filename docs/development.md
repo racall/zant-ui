@@ -85,6 +85,24 @@ curl -N … | ./zig-out-release/bin/zant-md-stream --sse                        
 29 KB 回复以约 1200 字节/秒输出时稳定 60 帧。示例用虚拟列表渲染聊天，打开长对话只排版可见的消息。
 测试不依赖真实窗口；时间相关测试注入假时钟（`runtime.clock`），不要 sleep。
 
+## macOS 界面场景测试
+
+`scripts/mac/ui-scenario.swift` 用**真实的**鼠标和键盘事件驱动 Zant 窗口，并在指定时刻截取窗口截图
+（Windows 上对应 `scripts/win/ui-auto.ps1`）。控件位置来自 `ZANT_LAYOUT_FILE`（按 key 定位），
+所以步骤里写 key 而不是坐标：
+
+```bash
+swiftc -O scripts/mac/ui-scenario.swift -o /tmp/ui-scenario
+ZANT_LAYOUT_FILE=/tmp/layout.txt ./zig-out/bin/zant-tsx-counter &
+CONTENT_HEIGHT=480 /tmp/ui-scenario zant-tsx-counter /tmp/layout.txt /tmp/shots scripts/mac/tsx-counter.steps
+```
+
+步骤：`click <key> [次数]`、`hover <key>`、`away`（指针移出窗口，截图前用它避免悬停样式）、`type <文字>`
+（Unicode 按键，可以输入中文）、`key return|backspace|tab|escape`、`resize <宽> <高>`、`wait <毫秒>`、
+`shot <名字>`。终端需要“辅助功能”和“屏幕录制”权限。改界面后按 DESIGN.md 第 6 条逐张检查：
+悬停 / 按下 / 聚焦 / 禁用、浅色 / 深色（`ZANT_DARK=1`）、最小窗口尺寸。帧率同时开 `ZANT_FRAME_STATS=1`
+（用 ReleaseFast 构建）。
+
 ## Windows 测试机
 
 在 Mac 上开发、到 Windows 测试机构建和验证。主机与目录由 `ZANT_WIN_HOST`（`user@host`）和

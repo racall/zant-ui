@@ -1,0 +1,21 @@
+//! Every golden output of the TSX compiler compiles against zant
+//! (`tools/tsx/testdata`); the compiler's own tests check it is what the
+//! compiler produces.
+const std = @import("std");
+
+/// References a generated file's component struct and all its methods
+/// (Zig only analyzes what is referenced).
+fn refComponent(comptime M: type) void {
+    inline for (comptime std.meta.declarations(M)) |name| {
+        const decl = @field(M, name);
+        if (@TypeOf(decl) == type and @typeInfo(decl) == .@"struct") std.testing.refAllDecls(decl);
+    }
+}
+
+test "tsx golden outputs compile" {
+    refComponent(@import("tsx_golden_counter"));
+    refComponent(@import("tsx_golden_layout"));
+    refComponent(@import("tsx_golden_text"));
+    refComponent(@import("tsx_golden_events"));
+    refComponent(@import("tsx_golden_conditional"));
+}

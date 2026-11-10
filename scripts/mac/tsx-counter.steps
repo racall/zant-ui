@@ -1,0 +1,36 @@
+# Steps for scripts/mac/ui-scenario.swift on the TSX counter (zant-tsx-counter):
+# every state worth a look, in light and dark (ZANT_DARK=1).
+away
+shot 01-initial
+hover inc
+shot 02-hover-inc
+click inc 2
+away
+shot 03-count-2
+click step
+away
+shot 04-step-5
+click inc 2
+away
+shot 05-count-12-many
+click large
+away
+shot 06-large-title
+click notify
+away
+shot 07-notify-off
+click name
+type  编译 ✓
+shot 08-typing-focused
+key backspace
+key backspace
+away
+shot 09-after-backspace
+click reset
+away
+shot 10-reset
+resize 420 420
+away
+shot 11-min-size
+key tab
+shot 12-tab-focus-ring

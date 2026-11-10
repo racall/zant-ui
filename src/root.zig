@@ -30,6 +30,8 @@ pub const ui_runtime = @import("ui_runtime.zig");
 pub const toggle = @import("components/toggle.zig");
 pub const select = @import("components/select.zig");
 pub const store = @import("store.zig");
+/// Runtime helpers for code generated from `.tsx` components (`docs/tsx.md`).
+pub const tsx = @import("tsx.zig");
 pub const default_theme = @import("theme/default.zig");
 pub const launch = @import("launch.zig");
 /// Extra windows (panels), tray / status bar icon, global hotkeys, quit,
@@ -48,6 +50,7 @@ test {
     _ = keys;
     _ = paths;
     _ = desktop;
+    _ = tsx;
 }
 
 pub const math = @import("math/mod.zig");
