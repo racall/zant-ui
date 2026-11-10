@@ -46,6 +46,9 @@ pub const AppConfig = struct {
     title: []const u8 = "Zant App",
     bundle_id: []const u8 = "dev.zant.app",
     version: []const u8 = "0.1.0",
+    /// A second launch brings the running app forward and exits (TS apps:
+    /// `zant.tsx.app.run`; Zig apps call `zant.desktop.singleInstance`).
+    single_instance: bool = false,
     sandbox: bool = false,
     signing_identity: []const u8 = "none",
     window: WindowConfig = .{},
@@ -84,6 +87,7 @@ const RawConfig = struct {
     title: ?[]const u8 = null,
     bundle_id: ?[]const u8 = null,
     version: ?[]const u8 = null,
+    single_instance: ?bool = null,
     sandbox: ?bool = null,
     signing_identity: ?[]const u8 = null,
     window: ?RawWindow = null,
@@ -398,6 +402,7 @@ pub fn loadConfig(allocator: std.mem.Allocator, io: Io, root: []const u8) !AppCo
             cfg.entitlements = v;
         }
     }
+    if (parsed.single_instance) |v| cfg.single_instance = v;
     if (parsed.window) |w| {
         if (w.style) |v| cfg.window.style = v;
         if (w.width) |v| cfg.window.width = v;
@@ -433,6 +438,7 @@ fn generateConfigSource(allocator: std.mem.Allocator, cfg: *const AppConfig) ![]
         \\pub const title: [:0]const u8 = "{s}";
         \\pub const bundle_id: []const u8 = "{s}";
         \\pub const version: []const u8 = "{s}";
+        \\pub const single_instance: bool = {};
         \\pub const sandbox: bool = {};
         \\pub const signing_identity: []const u8 = "{s}";
         \\
@@ -453,6 +459,7 @@ fn generateConfigSource(allocator: std.mem.Allocator, cfg: *const AppConfig) ![]
         title,
         bundle,
         version,
+        cfg.single_instance,
         cfg.sandbox,
         identity,
         styleZig(cfg.window.style),

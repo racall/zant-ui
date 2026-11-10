@@ -48,7 +48,7 @@
 | C3 | 桌面事件：`useClipboardChange`、`useHotkey`、`useTray`（图标、菜单、点击）、`useReopen` | Claude | ✅（托盘的真实窗口检查等 A6） |
 | C4 | `useWake`：原生模块在后台线程完成后 `ui.postWake()`，TS 在 UI 线程取结果 | Claude | ✅ |
 | C5 | 多窗口：`createWindow(Panel, { … })`，句柄 `show` / `hide` / `toggle` / `place` / `focus`，窗口自己的按键、关闭、失焦 | Claude | ✅ |
-| C6 | 桌面函数：剪贴板（文字 / 图片 / 文件 / 变化计数 / 监听）、`quit`、开机启动、下载目录、设备名、应用数据目录、单实例 | Claude | ✅（`singleInstance` 写进 `app_config.zig` 等 D1 合并） |
+| C6 | 桌面函数：剪贴板（文字 / 图片 / 文件 / 变化计数 / 监听）、`quit`、开机启动、下载目录、设备名、应用数据目录、单实例 | Claude | ✅ |
 
 ## D. 工具链
 

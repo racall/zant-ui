@@ -35,6 +35,7 @@
 | `title` | 窗口标题、应用显示名 |
 | `bundle_id` | 应用标识（如 `com.xx.test`）：macOS 的 Bundle ID，Windows 上 `zant.paths.appDataDir` 的目录名；须符合苹果与微软规范（见 `docs/scaffold.md`），否则 `zant` 报错 |
 | `version` | 版本号（macOS 写入 `CFBundleShortVersionString`） |
+| `single_instance` | 只运行一个实例：再次打开时把已运行的应用带到前面并退出（TS 应用自动处理；Zig 应用读 `app_config.single_instance` 调 `zant.desktop.singleInstance`）。默认 false |
 | `macos.sandbox` | 是否写入 App Sandbox entitlement 并用沙盒方式运行（仅 macOS） |
 | `macos.signing_identity` | `zant package` 和沙盒应用 `zant run` 用的 `codesign` 身份；`none` 表示 ad-hoc（仅 macOS）。发布构建的证书在 `build.config.json`，见 [发布构建](build.md) |
 | `macos.entitlements` | 应用需要的其他权限，如 `{"com.apple.security.network.client": true}`；值是 true / false、字符串或字符串列表。签名时（`zant package` / `zant build`）一起写入 |

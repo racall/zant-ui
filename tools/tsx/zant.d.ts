@@ -96,10 +96,46 @@ declare module "zant" {
     toggle(): void;
     activate(): void;
     visible(): boolean;
-    place(where: WindowPlace, margin: number): void;
+    place(where: WindowPlace, margin?: number): void;
     focus(key: string): void;
   }
   export function createWindow(component: () => JSX.Element, options: WindowOptions): WindowHandle;
+
+  // Desktop functions (src/tsx_platform.zig); the setters run in handlers and effects.
+  export const clipboard: {
+    text(): string;
+    setText(text: string): boolean;
+    /** PNG bytes, null when the clipboard holds no image. */
+    image(): Uint8Array | null;
+    setImage(png: Uint8Array): boolean;
+    /** Copied files: absolute paths, one per line. */
+    files(): string | null;
+    setFiles(lines: string): boolean;
+    changeCount(): number;
+  };
+  export const app: {
+    quit(): void;
+    launchAtLogin(): "off" | "on" | "needsApproval";
+    setLaunchAtLogin(on: boolean): boolean;
+    launchedAtLogin(): boolean;
+    deviceName(): string;
+    downloadsDir(): string | null;
+    dataDir(): string | null;
+  };
+  export const mainWindow: {
+    show(): void;
+    hide(): void;
+    activate(): void;
+    focus(key: string): void;
+    visible(): boolean;
+  };
+  /** Rebuild after `ms` milliseconds (call it while rendering). */
+  export function wakeAfter(ms: number): void;
+  /** The platform's label of a shortcut ("mod+f" → "⌘F" / "Ctrl+F"); a string literal. */
+  export function keyLabel(spec: string): string;
+  export const isMacos: boolean;
+  export const isWindows: boolean;
+  export function titlebarInsets(): { left: number; right: number };
 
   export interface ListProps<T> {
     key?: string | number;

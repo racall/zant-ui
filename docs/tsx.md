@@ -577,7 +577,7 @@ const insets = titlebarInsets();           // { left, right }：隐藏标题栏�
 - 会改变剪贴板、窗口或应用状态的函数（`setText`、`setImage`、`setFiles`、`quit`、`setLaunchAtLogin`、
   `show` / `hide` / `activate` / `focus`）只能在事件处理函数和 effect 里调用，渲染时调用会报错；读取类函数在哪里都能用。
 - 返回的字符串放在帧内存里，存进 state 时会被复制。
-- 单实例：`app.config.json` 里写 `"singleInstance": true`，第二次打开应用时会把已运行的实例带到前面。
+- 单实例：`app.config.json` 里写 `"single_instance": true`，第二次打开应用时会把已运行的实例带到前面。
 
 ### 多窗口：`createWindow`
 
