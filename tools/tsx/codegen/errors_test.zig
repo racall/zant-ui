@@ -86,8 +86,8 @@ test "codegen diagnostics include precise source positions" {
             "conditions must be boolean; compare the value explicitly",
         },
         .{
-            "import { Text } from ~\"react\"; export default function App() { return <Text/>; }",
-            "imports come from \"zant\" or another .tsx file (\"./Name\")",
+            "import { Text } from ~\"lodash\"; export default function App() { return <Text/>; }",
+            "imports come from \"zant\", \"react\" or a relative .tsx / .zig file",
         },
         .{
             "~function App() { return <View/>; }",
@@ -173,10 +173,6 @@ test "codegen diagnostics include precise source positions" {
         .{
             "export default function App() { const [x,sx] = useState(0); return <Button onClick={() => { ~x=1; }}/>; }",
             "use sx(…) to update state",
-        },
-        .{
-            "export default function App() { return ~<> <Text/> </>; }",
-            "a fragment is only allowed as a child; wrap it in <View>",
         },
         .{
             "export default function App() { return <Input>~text</Input>; }",

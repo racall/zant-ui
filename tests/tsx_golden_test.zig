@@ -35,4 +35,5 @@ test "tsx golden outputs compile" {
     refComponent(@import("tsx_golden_spread"));
     refComponent(@import("tsx_golden_app_hooks"));
     refComponent(@import("tsx_golden_builtins"));
+    refComponent(@import("tsx_golden_react_compat"));
 }

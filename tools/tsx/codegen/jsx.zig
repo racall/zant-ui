@@ -216,7 +216,12 @@ fn dimensionProp(g: *Generator, c: *Context, prop: *const tags.Prop, e: *ast.Exp
 
 /// Lower container children or joined text according to the tag table content contract.
 pub fn emit(g: *Generator, c: *Context, j: *ast.Jsx) Error!Value {
-    if (j.name.len == 0) return core.fail(g, j.loc, "a fragment is only allowed as a child; wrap it in <View>", .{});
+    if (j.name.len == 0) {
+        // A node-valued fragment needs a native root; container children are flattened by ChildList.
+        var root = j.*;
+        root.name = "View";
+        return emit(g, c, &root);
+    }
     if (@import("components.zig").find(g, j.name)) |comp| return @import("components.zig").emitCall(g, c, j, comp);
     if (zig_text.eq(j.name, "List")) {
         try nesting.notInScroll(g, j);

@@ -19,10 +19,9 @@ pub fn parseJsxAfterLt(self: *Parser, loc: u32) Error!*ast.Jsx {
         return parseJsxChildren(self, loc, name, attrs.items); // fragment
     }
     if (t.kind != .identifier) return self.fail(t.start, "expected a tag name after `<`", .{});
-    name = t.text(self.src);
+    name = try tagName(self, t);
     while (true) {
         t = self.lx.jsxTagToken();
-        if (t.is(self.src, ".")) return self.fail(t.start, "member tag names (`<a.b>`) are not supported", .{});
         if (t.kind == .identifier) {
             const attr_name: ast.Name = .{ .name = t.text(self.src), .loc = t.start };
             for (attrs.items) |a| {
@@ -118,7 +117,7 @@ pub fn parseJsxChildren(self: *Parser, loc: u32, name: []const u8, attrs: []cons
             if (name.len == 0) {
                 if (!close.is(self.src, ">")) return self.fail(close.start, "expected `</>` to close the fragment", .{});
             } else {
-                if (close.kind != .identifier or !std.mem.eql(u8, close.text(self.src), name)) {
+                if (close.kind != .identifier or !std.mem.eql(u8, try tagName(self, close), name)) {
                     return self.fail(close.start, "expected `</{s}>` to close <{s}>", .{ name, name });
                 }
                 const gt = self.lx.jsxTagToken();
@@ -129,5 +128,21 @@ pub fn parseJsxChildren(self: *Parser, loc: u32, name: []const u8, attrs: []cons
         self.lx.pos = after_lt;
         const child = try parseJsxAfterLt(self, child_loc);
         try children.append(self.arena, .{ .element = child });
+    }
+}
+
+/// Read dotted tag names without consuming the token following the name.
+fn tagName(p: *Parser, first: @import("lexer.zig").Token) Error![]const u8 {
+    var name = first.text(p.src);
+    while (true) {
+        const before = p.lx.pos;
+        const dot = p.lx.jsxTagToken();
+        if (!dot.is(p.src, ".")) {
+            p.lx.pos = before;
+            return name;
+        }
+        const part = p.lx.jsxTagToken();
+        if (part.kind != .identifier) return p.fail(part.start, "expected a member tag name", .{});
+        name = try std.fmt.allocPrint(p.arena, "{s}.{s}", .{ name, part.text(p.src) });
     }
 }

@@ -76,9 +76,14 @@ exe.root_module.addImport("notes_tsx", notes);
 
 ### 文件结构
 
-- `import { ... } from "zant"`、`import type { ... } from "zant"`：只能从 `"zant"` 导入；
+- `import { ... } from "zant"`、`import type { ... } from "zant"`：也可以从 `"react"` 导入同样的名字；
   可导入的名字：`useState`、各个标签、数值类型（`u8` `u16` `u32` `u64` `i8` `i16` `i32` `i64` `usize` `isize` `f32` `f64`）。
   标签不导入也能用（导入只是为了编辑器的类型检查）。
+- 兼容 `import React from "react"`、`import * as React from "react"` 和默认 + 具名混合导入，
+  默认 / 命名空间绑定可任意命名，不生成运行时代码。`React.useState/useEffect/useMemo/useRef` 与直接调用相同，
+  `<React.Fragment>` 与 `<>` 相同（子节点展开，根节点生成无样式的 View）；`React.ReactNode` / `React.ReactElement` 可作元素类型。
+  具名导入复用 Zant 验证，`useReducer` 等未支持名字仍报错；`React.FC<P>` 请改写成 `function X(props: P)`。
+  不支持副作用导入（如 CSS）或其他 npm 包，只接受 `"zant"`、`"react"`、相对 `.tsx` / `.zig` 导入。
 - 恰好一个组件：`export default function Name() { ... }`，或者 `function Name` / `const Name = () => ...`
   加上 `export default Name;`。
   组件没有参数（props 在第二阶段）。生成 `pub const Name = struct { ... }`。

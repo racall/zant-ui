@@ -327,3 +327,39 @@ test "loop syntax diagnostics and jump ASI" {
     try std.testing.expectEqual(@as(usize, 4), ss.len);
     try std.testing.expect(ss[0].data == .break_ and ss[2].data == .continue_);
 }
+
+test "React default, namespace and mixed imports retain their bindings" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const m = try parseOk(arena.allocator(),
+        \\import R from "react";
+        \\import * as NS from "react";
+        \\import React, { useState, type ReactNode } from "react";
+        \\import { useState, useEffect } from "react";
+        \\import Default, * as Space from "react";
+        \\function App() { return <React.Fragment><Text/></React.Fragment>; }
+    );
+    try std.testing.expectEqualStrings("R", m.imports[0].default_name.?.name);
+    try std.testing.expectEqualStrings("NS", m.imports[1].namespace_name.?.name);
+    try std.testing.expectEqualStrings("React", m.imports[2].default_name.?.name);
+    try std.testing.expectEqual(@as(usize, 2), m.imports[2].names.len);
+    try std.testing.expect(m.imports[2].names[1].type_only);
+    try std.testing.expectEqual(@as(usize, 2), m.imports[3].names.len);
+    try std.testing.expectEqualStrings("Default", m.imports[4].default_name.?.name);
+    try std.testing.expectEqualStrings("Space", m.imports[4].namespace_name.?.name);
+    try std.testing.expectEqualStrings("", m.functions[0].func.body.block[0].data.ret.?.data.jsx.name);
+}
+
+test "React compatibility respects shadowed namespace bindings" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const m = try parseOk(arena.allocator(),
+        \\import R from "react";
+        \\function f(R: number) { return R.useState(0); }
+        \\function g() { const R = 0; return R.useState(0); }
+        \\function h() { return R.useState(0); }
+    );
+    try std.testing.expect(m.functions[0].func.body.block[0].data.ret.?.data.call.callee.data == .member);
+    try std.testing.expect(m.functions[1].func.body.block[1].data.ret.?.data.call.callee.data == .member);
+    try std.testing.expect(m.functions[2].func.body.block[0].data.ret.?.data.call.callee.data == .ident);
+}
