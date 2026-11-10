@@ -589,6 +589,25 @@ const insets = titlebarInsets();           // { left, right }：隐藏标题栏�
 - 返回的字符串放在帧内存里，存进 state 时会被复制。
 - 单实例：`app.config.json` 里写 `"single_instance": true`，第二次打开应用时会把已运行的实例带到前面。
 
+### 定时器：`setTimeout` / `clearTimeout`
+
+```tsx
+const ask = (row: i64) => {
+  setPrompt(row);
+  setTimeout(() => expire(row), 8000);        // 8 秒后在 UI 线程运行，之后所有窗口重建
+};
+useEffect(() => {
+  const t = setTimeout(() => setReady(true), 300);
+  return () => clearTimeout(t);              // 卸载或依赖变化时取消
+}, []);
+```
+
+- 和浏览器一样是全局函数（不用 import），返回编号（number），`clearTimeout(id)` 取消；只能在事件处理函数和
+  effect 里调用，渲染时请用 `wakeAfter(ms)` 安排一次重建。
+- 只能在根组件或窗口组件（没有 props 的组件）里设置：它们和应用活得一样久。子组件把要做的事通过回调交给上层。
+- 回调运行时设置它的那一帧已经结束，所以只能捕获数字、布尔值和枚举（复制进定时器）；字符串、数组、对象放进
+  state，回调运行时再读。回调读 state 读到的是运行时的值。
+
 ### 多窗口：`createWindow`
 
 ```tsx

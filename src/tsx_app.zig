@@ -14,6 +14,7 @@ const desktop = @import("desktop.zig");
 const events = @import("core/events.zig");
 const tsx_desktop = @import("tsx_desktop.zig");
 const tsx_platform = @import("tsx_platform.zig");
+const tsx_timers = @import("tsx_timers.zig");
 
 /// The process's I/O, allocator and environment while the app runs, for
 /// native Zig modules a TS app imports (storage, sync engines, workers):
@@ -22,6 +23,11 @@ var process: ?std.process.Init = null;
 
 pub fn io() std.Io {
     return (process orelse @panic("zant.tsx.app.io() before the app started")).io;
+}
+
+/// The I/O once the app started, null before (and in tests).
+pub fn ioIfStarted() ?std.Io {
+    return if (process) |p| p.io else null;
 }
 
 pub fn gpa() std.mem.Allocator {
@@ -107,6 +113,7 @@ pub fn Shell(comptime Root: type) type {
         /// `useWake`: after `ui.postWake()` from a background thread (a
         /// native module finished work); every window rebuilds afterwards.
         pub fn onWake(self: *Self) void {
+            _ = tsx_timers.fireDue();
             if (@hasDecl(Root, "onWake")) self.root.onWake();
         }
 

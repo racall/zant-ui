@@ -2,7 +2,7 @@
 // (`addTsxApp`) compiles every .tsx here and generates the entry from this
 // file's default export and app_config.zig. Run it with `zig build run-tsx-app`.
 import { createStore, createWindow, useState, useStore, useKeyDown, View, Row, Heading, Paragraph, Button } from "zant";
-import { clipboard, keyLabel, wakeAfter, useTray, useAppExit, app, mainWindow, isMacos } from "zant";
+import { clipboard, keyLabel, useTray, useAppExit, app, mainWindow, isMacos } from "zant";
 import type { KeyEvent } from "zant";
 import { Counter } from "./components/Counter";
 import { Panel } from "./components/Panel";
@@ -23,10 +23,7 @@ export const panel = createWindow(Panel, { title: "Panel", style: "panel", width
 
 export default function App() {
   const total = useStore(counts, (c) => c.total);
-  const [copiedUntil, setCopiedUntil] = useState(0);
-  const now = performance.now();
-  const copied = now < copiedUntil;
-  if (copied) wakeAfter(copiedUntil - now); // hide the note again
+  const [copied, setCopied] = useState(false);
   useTray({
     icon: isMacos ? statusbar : trayDark,
     iconLight: trayLight,
@@ -48,7 +45,9 @@ export default function App() {
     return true;
   });
   const copy = () => {
-    if (clipboard.setText(`Total: ${total}`)) setCopiedUntil(performance.now() + 1500);
+    if (!clipboard.setText(`Total: ${total}`)) return;
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500); // hide the note again
   };
   return (
     <View padding={24} gap={14}>

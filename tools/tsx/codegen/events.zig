@@ -62,6 +62,7 @@ pub fn scanExpr(g: *Generator, e: *ast.Expr) Error!void {
         .array => |items| for (items) |item| try events.scanExpr(g, item),
         .cond => |v| try scanConditional(g, v),
         .call => |v| {
+            try @import("timers.zig").scan(g, e);
             for (v.args) |arg| try events.scanExpr(g, arg);
         },
         .template => |v| {

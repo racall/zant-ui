@@ -50,6 +50,7 @@
 | C5 | 多窗口：`createWindow(Panel, { … })`，句柄 `show` / `hide` / `toggle` / `place` / `focus`，窗口自己的按键、关闭、失焦 | Claude | ✅ |
 | C6 | 桌面函数：剪贴板（文字 / 图片 / 文件 / 变化计数 / 监听）、`quit`、开机启动、下载目录、设备名、应用数据目录、单实例 | Claude | ✅ |
 | C7 | 退出钩子：`useAppExit`（根组件；macOS `applicationWillTerminate`、Windows 消息循环结束后），原生模块在这里停线程、保存 | Claude | ✅ |
+| C8 | 定时器：`setTimeout` / `clearTimeout`（根组件和窗口组件；回调捕获数字 / 布尔 / 枚举），ClipHop 的同步询问倒计时、提示消失要用 | Claude | ✅ |
 
 ## D. 工具链
 

@@ -292,6 +292,7 @@ pub fn callValue(g: *Generator, c: *Context, loc: ast.Loc, call: ast.Call, expec
     if (try @import("windows.zig").tryCall(g, c, loc, call)) |value| return value;
     if (try @import("functions.zig").tryCall(g, c, loc, call)) |value| return value;
     if (try @import("zant_api.zig").tryCall(g, c, loc, call)) |value| return value;
+    if (try @import("timers.zig").tryCall(g, c, loc, call)) |value| return value;
     if (try @import("builtins.zig").tryCall(g, c, loc, call)) |value| return value;
     if (call.callee.data == .member) {
         return @import("array_methods.zig").emit(g, c, loc, call, expected);

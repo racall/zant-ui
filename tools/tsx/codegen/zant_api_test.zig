@@ -40,3 +40,21 @@ test "default value diagnostics" {
     };
     for (cases) |case| try expectDiagnostic(case[0], case[1]);
 }
+
+test "timer diagnostics" {
+    const cases = [_][2][]const u8{
+        .{ App ++ "  const t = ~setTimeout(() => {}, 10);\n" ++ End, "setTimeout runs in event handlers and effects" },
+        .{
+            "function Row({ n }: { n: number }) {\n  return <Button onClick={() => ~setTimeout(() => {}, 5)}/>;\n}\n" ++
+                App ++ "  return <Row n={1}/>;\n}\n",
+            "timers belong to the root component",
+        },
+        .{
+            App ++ "  const go = () => {\n    const s = \"x\";\n    setTimeout(~() => console.log(s), 5);\n  };\n" ++
+                "  return <Button onClick={go}/>;\n}\n",
+            "a timer callback can capture numbers, booleans and enums",
+        },
+        .{ App ++ "  const go = () => setTimeout(~(n: number) => {}, 5);\n" ++ End, "takes no parameters" },
+    };
+    for (cases) |case| try expectDiagnostic(case[0], case[1]);
+}
