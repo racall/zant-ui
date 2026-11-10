@@ -35,6 +35,14 @@ pub const Field = struct {
 pub const Effect = struct {
     call: *const ast.Expr,
     method: usize,
+    /// Has `return () => …` (a `tsx.Effect` field keeps the cleanup).
+    cleanup: bool = false,
+};
+
+/// A cleanup arrow and its method.
+pub const Cleanup = struct {
+    arrow: *const ast.Expr,
+    method: usize,
 };
 
 /// `useRef` / `useMemo` / `useEffect` (never renamed).
@@ -202,16 +210,61 @@ pub fn collectEffect(g: *Generator, e: *ast.Expr) Error!void {
     }
     const f = call.args[0].data.arrow;
     if (f.params.len != 0) return core.fail(g, f.loc, "the effect function takes no parameters", .{});
-    if (f.body == .block) for (f.body.block) |s| if (s.data == .ret) if (s.data.ret) |r| if (r.data == .arrow) {
-        return core.fail(g, r.loc, "effect cleanup functions are not supported yet", .{});
-    };
+    const cleanups = g.cleanups.items.len;
+    if (f.body == .block) for (f.body.block) |s| try collectCleanups(g, s);
     g.counter += 1;
-    try g.effects.append(g.a, .{ .call = e, .method = g.methods.items.len });
+    try g.effects.append(g.a, .{
+        .call = e,
+        .method = g.methods.items.len,
+        .cleanup = g.cleanups.items.len > cleanups,
+    });
     try g.methods.append(g.a, .{
         .name = try scope.uniqueMethod(g, try text.fmt(g, "_effect{d}", .{g.counter})),
         .func = f,
         .action = .action,
         .capture_name = try scope.uniqueMethod(g, try text.fmt(g, "_EffectCapture{d}", .{g.counter})),
+    });
+}
+
+/// `return () => { … }` in an effect body (also inside `if`s).
+fn collectCleanups(g: *Generator, s: *const ast.Stmt) Error!void {
+    switch (s.data) {
+        .ret => |r| if (r) |value| if (value.data == .arrow) {
+            const f = value.data.arrow;
+            if (f.params.len != 0) return core.fail(g, f.loc, "the cleanup function takes no parameters", .{});
+            g.counter += 1;
+            try g.cleanups.append(g.a, .{ .arrow = value, .method = g.methods.items.len });
+            try g.methods.append(g.a, .{
+                .name = try scope.uniqueMethod(g, try text.fmt(g, "_cleanup{d}", .{g.counter})),
+                .func = f,
+                .action = .action,
+                .cleanup = true,
+                .capture_name = try scope.uniqueMethod(g, try text.fmt(g, "_CleanupCapture{d}", .{g.counter})),
+            });
+        },
+        .if_ => |v| {
+            try collectCleanups(g, v.then);
+            if (v.else_) |el| try collectCleanups(g, el);
+        },
+        .block => |ss| for (ss) |child| try collectCleanups(g, child),
+        else => {},
+    }
+}
+
+/// `return () => …` inside an effect: keep the cleanup in the effect's field.
+pub fn cleanupReturn(g: *Generator, c: *Context, arrow: *ast.Expr) Error![]const u8 {
+    const info = for (g.cleanups.items) |item| {
+        if (item.arrow == arrow) break item;
+    } else return core.fail(g, arrow.loc, "only the effect itself can return a cleanup function", .{});
+    try captures.prepare(g, c, info.method);
+    const m = g.methods.items[info.method];
+    const receiver = if (m.captures.items.len > 0) try captures.value(g, m) else "self";
+    return text.fmt(g, "self.{s}.setCleanup({s}, {s}.{s}, {s});\nreturn;\n", .{
+        c.effect_field.?,
+        receiver,
+        try text.id(g, g.name),
+        try text.id(g, m.name),
+        if (g.current_component != null) "true" else "false",
     });
 }
 
@@ -221,6 +274,13 @@ pub fn effect(g: *Generator, c: *Context, e: *ast.Expr, top: bool) Error![]const
     const info = for (g.effects.items) |item| {
         if (item.call == e) break item;
     } else unreachable; // registered by `collectEffect`
+    const call = e.data.call;
+    const deps = if (call.args.len == 2) try depList(g, c, call.args[1]) else null;
+    // an effect with a cleanup keeps it in a `tsx.Effect` (deps included)
+    const effect_field = if (info.cleanup) try addField(g, "_effect", try text.fmt(g, "tsx.Effect({s})", .{
+        if (deps) |d| d.ty else "struct {}",
+    })) else null;
+    if (effect_field) |field| g.methods.items[info.method].effect_field = try scope.stateField(g, field);
     try captures.prepare(g, c, info.method);
     if (changesState(g, g.methods.items[info.method].func.?.body)) {
         // ask for another build first (an early `return` can't skip it)
@@ -232,15 +292,20 @@ pub fn effect(g: *Generator, c: *Context, e: *ast.Expr, top: bool) Error![]const
     }
     const m = g.methods.items[info.method];
     const receiver = if (m.captures.items.len > 0) try captures.value(g, m) else "self";
-    const queue = try text.fmt(g, "ui.effect(ui.action({s}, {s}.{s}));\n", .{
+    const action = try text.fmt(g, "ui.action({s}, {s}.{s})", .{
         receiver, try text.id(g, g.name), try text.id(g, m.name),
     });
-    const call = e.data.call;
-    if (call.args.len == 1) return queue;
-    const deps = try depList(g, c, call.args[1]);
-    const field = try addField(g, "_deps", try text.fmt(g, "tsx.Deps({s})", .{deps.ty}));
+    if (effect_field) |field| {
+        const slot = try scope.stateField(g, field);
+        const queue = try text.fmt(g, "self.{s}.queue({s});\n", .{ slot, action });
+        if (deps) |d| return text.fmt(g, "if (self.{s}.changed({s})) {{\n{s}}}\n", .{ slot, d.value, queue });
+        return queue;
+    }
+    const queue = try text.fmt(g, "ui.effect({s});\n", .{action});
+    const d = deps orelse return queue;
+    const field = try addField(g, "_deps", try text.fmt(g, "tsx.Deps({s})", .{d.ty}));
     const slot = try scope.stateField(g, field);
-    return text.fmt(g, "if (self.{s}.changed({s})) {{\n{s}}}\n", .{ slot, deps.value, queue });
+    return text.fmt(g, "if (self.{s}.changed({s})) {{\n{s}}}\n", .{ slot, d.value, queue });
 }
 
 /// Whether an effect body may change state: it calls a setter, a component

@@ -3,6 +3,8 @@
 //! memory.
 const std = @import("std");
 const deepCopy = @import("tsx.zig").deepCopy;
+const ui = @import("ui.zig");
+const actions = @import("core/actions.zig");
 
 /// Dependency list of `useMemo` / `useEffect` (`D` is a tuple of the values):
 /// a copy of the last list in its own memory, compared by value (strings and
@@ -109,4 +111,102 @@ test "Deps and Memo compare by value" {
     items[0] = 9;
     try std.testing.expectEqualSlices(u32, &.{ 4, 5 }, memo.hit(.{1}).?);
     try std.testing.expect(memo.hit(.{2}) == null);
+}
+
+/// A `useEffect` with a cleanup function (or deps): the dependency list plus
+/// the cleanup the last run returned, kept in its own memory. The cleanup runs
+/// before the effect runs again and when the component unmounts (`deinit`).
+pub fn Effect(comptime D: type) type {
+    return struct {
+        const Self = @This();
+        deps: Deps(D) = .{},
+        cleanup: ?actions.Action = null,
+        arena: ?std.heap.ArenaAllocator = null,
+
+        pub fn changed(self: *Self, deps: D) bool {
+            return self.deps.changed(deps);
+        }
+
+        /// Queues the previous cleanup, then the effect (`ui.effect`).
+        pub fn queue(self: *Self, effect: actions.Action) void {
+            if (self.cleanup != null) ui.effect(ui.action(self, runCleanup));
+            ui.effect(effect);
+        }
+
+        pub fn runCleanup(self: *Self) void {
+            const cleanup = self.cleanup orelse return;
+            self.cleanup = null;
+            cleanup.func(cleanup.ctx);
+            if (self.arena) |*arena| arena.deinit();
+            self.arena = null;
+        }
+
+        /// Keeps `ctx` (a capture struct or the component) for the cleanup
+        /// `f`. Captured values are copied; a child component's struct is
+        /// copied too (its frame copy goes away; `_s`, its local state, stays
+        /// valid until the cleanup ran), the root's is used as it is.
+        pub fn setCleanup(self: *Self, ctx: anytype, comptime f: anytype, comptime child: bool) void {
+            const P = @TypeOf(ctx.*);
+            if (self.arena) |*arena| arena.deinit();
+            self.arena = std.heap.ArenaAllocator.init(std.heap.smp_allocator);
+            const a = self.arena.?.allocator();
+            const kept: *P = if (@hasField(P, "self")) blk: {
+                const copy = a.create(P) catch oom();
+                copy.* = ctx.*;
+                inline for (@typeInfo(P).@"struct".field_names) |name| {
+                    if (comptime std.mem.eql(u8, name, "self")) {
+                        if (child) copy.self = shallow(a, ctx.self);
+                    } else {
+                        @field(copy, name) = deepCopy(@FieldType(P, name), a, @field(ctx, name)) catch oom();
+                    }
+                }
+                break :blk copy;
+            } else if (child) shallow(a, ctx) else ctx;
+            self.cleanup = ui.action(kept, f);
+        }
+
+        pub fn deinit(self: *Self) void {
+            self.runCleanup();
+            self.deps.deinit();
+        }
+    };
+}
+
+fn shallow(a: std.mem.Allocator, pointer: anytype) @TypeOf(pointer) {
+    const copy = a.create(@TypeOf(pointer.*)) catch oom();
+    copy.* = pointer.*;
+    return copy;
+}
+
+fn oom() noreturn {
+    @panic("Zant UI: out of memory in useEffect");
+}
+
+test "Effect keeps its cleanup until the next run or deinit" {
+    const Probe = struct {
+        var cleaned: u32 = 0;
+        var seen: u32 = 0;
+        const Cap = struct { self: *u32, n: []const u8 };
+        fn cleanup(cap: *Cap) void {
+            cleaned += 1;
+            seen = @intCast(cap.n.len);
+        }
+    };
+    var effect: Effect(struct { u32 }) = .{};
+    var owner: u32 = 0;
+    var text = [_]u8{ 'a', 'b', 'c' };
+    try std.testing.expect(effect.changed(.{1}));
+    var cap = Probe.Cap{ .self = &owner, .n = &text };
+    effect.setCleanup(&cap, Probe.cleanup, false);
+    text[0] = 'x';
+    cap.n = ""; // the effect keeps its own copy
+    try std.testing.expect(!effect.changed(.{1}));
+    effect.runCleanup();
+    try std.testing.expectEqual(@as(u32, 1), Probe.cleaned);
+    try std.testing.expectEqual(@as(u32, 3), Probe.seen);
+    effect.runCleanup(); // once
+    try std.testing.expectEqual(@as(u32, 1), Probe.cleaned);
+    effect.setCleanup(&cap, Probe.cleanup, true);
+    effect.deinit();
+    try std.testing.expectEqual(@as(u32, 2), Probe.cleaned);
 }

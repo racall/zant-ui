@@ -35,6 +35,9 @@ pub const Context = struct {
     capture_source: ?*Context = null,
     capture_method: ?usize = null,
     snapshots: std.ArrayList(struct { state: usize, binding: *Binding }) = .empty,
+    /// Inside an effect with a cleanup / inside a cleanup (`hooks.zig`).
+    effect_field: ?[]const u8 = null,
+    cleanup: bool = false,
 };
 
 pub fn local(c: *Context, n: []const u8) ?*Binding {
@@ -260,7 +263,12 @@ pub fn read(g: *Generator, c: *Context, n: []const u8, loc: ast.Loc) Error!Value
         return .{ .ty = b.ty, .code = b.zig };
     }
     if (try @import("captures.zig").read(g, c, n)) |value| return value;
-    if (try @import("components.zig").readProp(g, n)) |value| return value;
+    if (try @import("components.zig").readProp(g, n)) |value| {
+        if (c.cleanup) {
+            return core.fail(g, loc, "a cleanup runs after the props are gone; copy what it needs into a local", .{});
+        }
+        return value;
+    }
     if (scope.stateIndex(g, n)) |i| {
         const s = g.states.items[i];
         if (s.kind == .ref) return @import("hooks.zig").bareRef(g, i, loc);

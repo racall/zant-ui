@@ -32,8 +32,13 @@ test "hook diagnostics" {
             "useMemo caches values; elements are rebuilt every frame",
         },
         .{
-            App ++ "  useEffect(() => {\n    return ~() => {};\n  }, []);\n  return <View/>;\n}",
-            "effect cleanup functions are not supported yet",
+            "function Row({ name }: { name: string }) {\n  useEffect(() => {\n    return () => console.log(~name);\n" ++
+                "  }, []);\n  return <View/>;\n}\n" ++ App ++ "  return <Row name=\"a\"/>;\n}",
+            "a cleanup runs after the props are gone",
+        },
+        .{
+            App ++ "  useEffect(() => {\n    return ~(x: number) => {};\n  }, []);\n  return <View/>;\n}",
+            "the cleanup function takes no parameters",
         },
         .{
             App ++ "  if (true) {\n    ~useEffect(() => {}, []);\n  }\n  return <View/>;\n}",

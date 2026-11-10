@@ -280,7 +280,9 @@ function Counter({ label }: { label: string }) {
 - `useEffect(() => { … }, [deps])`：在这次构建协调完之后运行（`ui.effect`）。`[]` 只在挂载后运行一次，
   有依赖时依赖变了才运行，不写依赖列表则每次构建后都运行。effect 里调用了 setter（或组件函数、回调属性）
   时会再构建一次；只写 ref 的不会，所以不写依赖的 effect 不会死循环。
-  暂不支持返回清理函数（会报错）。
+- 清理函数：effect 里 `return () => { … }`，在下一次运行之前、以及组件卸载时运行（React 语义）。
+  它可以读 effect 里的局部变量（按值复制保存）、状态和 ref；**不能读 props**（卸载时父组件的数据可能已经不在了），
+  需要的话先在 effect 里复制成局部变量：`const name = label; return () => log(name);`。
 - 这三个 hook 都只能在组件体顶层调用，不能改名导入；用了它们的子组件算有状态组件（带实例 id）。
 
 框架接口 `ui.effect(action)` / `ui.requestRebuild()` 手写 Zig 也能用。
@@ -307,7 +309,7 @@ import { plural } from "./format.zig";
 
 ### 待做
 
-- effect 清理函数、编译期自动 memo（不依赖状态的子树跳过比对，参考 Solid / React Compiler）、
+- 编译期自动 memo（不依赖状态的子树跳过比对，参考 Solid / React Compiler）、
   字符串方法（`includes`、`startsWith`、`trim` …）、`zant.store`。
 
 ## 后续阶段

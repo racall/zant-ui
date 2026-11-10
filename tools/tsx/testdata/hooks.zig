@@ -14,6 +14,10 @@ pub const StatsProps = struct {
     items: []const Item,
 };
 
+pub const TickerProps = struct {
+    label: []const u8,
+};
+
 pub const Stats = struct {
     props: Props,
     _id: u64,
@@ -68,23 +72,80 @@ pub fn stats(props: Stats.Props, id: u64) ui.Node {
     return tsx.capture(Stats{ .props = props, ._id = id, ._s = ui.localState(Stats._Local, id, .{}) }).render();
 }
 
+pub const Ticker = struct {
+    props: Props,
+    _id: u64,
+    _s: *_Local,
+
+    pub const Props = TickerProps;
+
+    pub const _Local = struct {
+        runs: f64 = 0,
+        _effect5: tsx.Effect(struct {}) = .{},
+
+        pub fn deinit(self: *_Local) void {
+            tsx.deinitFields(self);
+        }
+    };
+
+    const _CleanupCapture3 = struct {
+        self: *Ticker,
+        name: []const u8,
+    };
+
+    pub fn render(self: *Ticker) ui.Node {
+        if (self._s._effect5.changed(.{})) {
+            self._s._effect5.queue(ui.action(self, Ticker._effect4));
+        }
+        return ui.text(self.props.label, .{
+            .key = tsx.fmt("ticker-{s}", .{self.props.label}),
+        });
+    }
+
+    fn _cleanup3(cap: *_CleanupCapture3) void {
+        const self: *Ticker = cap.self;
+        self._s.runs = self._s.runs - @as(f64, @floatFromInt(tsx.utf16Length(cap.name)));
+    }
+
+    fn _effect4(self: *Ticker) void {
+        const name: []const u8 = self.props.label;
+        self._s.runs = self._s.runs + 1;
+        self._s._effect5.setCleanup(tsx.capture(_CleanupCapture3{
+            .self = self,
+            .name = name,
+        }), Ticker._cleanup3, true);
+        return;
+    }
+};
+
+pub fn ticker(props: Ticker.Props, id: u64) ui.Node {
+    return tsx.capture(Ticker{ .props = props, ._id = id, ._s = ui.localState(Ticker._Local, id, .{}) }).render();
+}
+
 pub const App = struct {
     items: tsx.State([]const Item) = .{ .initial = &[_]Item{} },
     query: tsx.State([]const u8) = .{ .initial = "" },
     loaded: bool = false,
     nextId: u32 = 1,
     lastQuery: tsx.State([]const u8) = .{ .initial = "" },
-    _memo5: tsx.Memo([]const Item, struct { []const Item, []const u8 }) = .{},
-    _deps6: tsx.Deps(struct {}) = .{},
-    _deps7: tsx.Deps(struct { []const u8 }) = .{},
+    cleanups: f64 = 0,
+    ticking: bool = true,
+    _memo10: tsx.Memo([]const Item, struct { []const Item, []const u8 }) = .{},
+    _deps11: tsx.Deps(struct {}) = .{},
+    _effect12: tsx.Effect(struct { []const u8 }) = .{},
+
+    const _CleanupCapture7 = struct {
+        self: *App,
+        previous: []const u8,
+    };
 
     pub fn render(self: *App) ui.Node {
         self.items.sweep();
         self.query.sweep();
         self.lastQuery.sweep();
         const visible: []const Item = _memo: {
-            if (self._memo5.hit(.{ self.items.get(), self.query.get() })) |_cached| break :_memo _cached;
-            break :_memo self._memo5.store(_callback: {
+            if (self._memo10.hit(.{ self.items.get(), self.query.get() })) |_cached| break :_memo _cached;
+            break :_memo self._memo10.store(_callback: {
                 if (tsx.utf16Length(self.query.get()) == 0) {
                     break :_callback self.items.get();
                 }
@@ -107,16 +168,16 @@ pub const App = struct {
                 };
             });
         };
-        if (self._deps6.changed(.{})) {
-            ui.effect(ui.action(self, App._effect3));
+        if (self._deps11.changed(.{})) {
+            ui.effect(ui.action(self, App._effect6));
         }
-        if (self._deps7.changed(.{self.query.get()})) {
-            ui.effect(ui.action(self, App._effect4));
+        if (self._effect12.changed(.{self.query.get()})) {
+            self._effect12.queue(ui.action(self, App._effect8));
         }
         return ui.view(.{
             .padding = ui.inset(16),
             .gap = 8,
-            .children = &.{
+            .children = tsx.nodes(&.{
                 ui.row(.{
                     .gap = 8,
                     .children = &.{
@@ -139,11 +200,19 @@ pub const App = struct {
                 stats(.{
                     .items = self.items.get(),
                 }, tsx.siteId(0, "Stats", 1)),
-            },
+                if (self.ticking) ticker(.{
+                    .label = "tick",
+                }, tsx.siteId(0, "Ticker", 2)) else null,
+                ui.button(.{
+                    .key = "ticking",
+                    .text = "Toggle ticker",
+                    .on_click = ui.action(self, App._onClick9),
+                }),
+            }),
         });
     }
 
-    fn _effect3(self: *App) void {
+    fn _effect6(self: *App) void {
         ui.requestRebuild();
         self.items.set(tsx.concat(Item, &.{&[_]Item{
             Item{
@@ -155,9 +224,20 @@ pub const App = struct {
         self.loaded = true;
     }
 
-    fn _effect4(self: *App) void {
+    fn _cleanup7(cap: *_CleanupCapture7) void {
+        const self: *App = cap.self;
+        self.cleanups = self.cleanups + @as(f64, @floatFromInt(tsx.utf16Length(cap.previous)));
+    }
+
+    fn _effect8(self: *App) void {
         const query: []const u8 = ui.frameString(self.query.get());
+        const previous: []const u8 = query;
         self.lastQuery.set(query);
+        self._effect12.setCleanup(tsx.capture(_CleanupCapture7{
+            .self = self,
+            .previous = previous,
+        }), App._cleanup7, false);
+        return;
     }
 
     fn add(self: *App) void {
@@ -174,5 +254,10 @@ pub const App = struct {
 
     fn _setQuery(self: *App, value: []const u8) void {
         self.query.set(value);
+    }
+
+    fn _onClick9(self: *App) void {
+        const ticking: bool = self.ticking;
+        self.ticking = !ticking;
     }
 };

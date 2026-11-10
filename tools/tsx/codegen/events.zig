@@ -32,6 +32,11 @@ pub const Method = struct {
     /// Passed as a child component's callback prop: the parameter types of
     /// that prop (unannotated arrow params take them; missing ones become `_`).
     callback_params: ?[]const Type = null,
+    /// An effect with a cleanup: its `tsx.Effect` field (`return () => …`
+    /// stores the cleanup there).
+    effect_field: ?[]const u8 = null,
+    /// An effect's cleanup function (runs later; can't read props).
+    cleanup: bool = false,
 };
 
 /// Register event methods before local allocation, so names and inferred signatures are stable.

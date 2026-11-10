@@ -82,6 +82,7 @@ fn declaration(g: *Generator, c: *Context, loc: ast.Loc, d: ast.Decl, top: bool)
 
 /// Validate the return value against the surrounding render or handler result type.
 fn returnStatement(g: *Generator, c: *Context, loc: ast.Loc, e: ?*ast.Expr) Error![]const u8 {
+    if (e) |x| if (x.data == .arrow and c.effect_field != null) return @import("hooks.zig").cleanupReturn(g, c, x);
     if (e) |x| {
         if (c.return_label) |label| {
             if (c.return_values) |values| {

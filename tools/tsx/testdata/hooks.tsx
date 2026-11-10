@@ -25,12 +25,32 @@ function Stats({ items }: StatsProps) {
   );
 }
 
+interface TickerProps {
+  label: string;
+}
+
+// a cleanup in a child: runs when the ticker unmounts; it reads a copy of the
+// prop taken by the effect, and the child's own ref
+function Ticker({ label }: TickerProps) {
+  const runs = useRef(0);
+  useEffect(() => {
+    const name = label;
+    runs.current += 1;
+    return () => {
+      runs.current -= name.length;
+    };
+  }, []);
+  return <Text key={`ticker-${label}`}>{label}</Text>;
+}
+
 export default function App() {
   const [items, setItems] = useState<Item[]>([]);
   const [query, setQuery] = useState("");
   const [loaded, setLoaded] = useState(false);
   const nextId = useRef<u32>(1);
   const lastQuery = useRef("");
+  const cleanups = useRef(0);
+  const [ticking, setTicking] = useState(true);
 
   // a block body, two dependencies
   const visible = useMemo(() => {
@@ -44,9 +64,13 @@ export default function App() {
     setLoaded(true);
   }, []);
 
-  // whenever the query changes
+  // whenever the query changes; the cleanup of the previous run sees its query
   useEffect(() => {
+    const previous = query;
     lastQuery.current = query;
+    return () => {
+      cleanups.current += previous.length;
+    };
   }, [query]);
 
   function add() {
@@ -66,6 +90,10 @@ export default function App() {
         {visible.length} shown{loaded ? "" : " (loading)"}
       </Text>
       <Stats items={items} />
+      {ticking && <Ticker label="tick" />}
+      <Button key="ticking" onClick={() => setTicking(!ticking)}>
+        Toggle ticker
+      </Button>
     </View>
   );
 }

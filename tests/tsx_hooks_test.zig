@@ -42,14 +42,7 @@ test "tsx hooks: effects, memos and refs" {
     zant.motion.enabled = false;
     defer zant.motion.enabled = true;
     var app = gen.App{};
-    defer {
-        app.items.deinit();
-        app.query.deinit();
-        app.lastQuery.deinit();
-        app._memo5.deinit();
-        app._deps6.deinit();
-        app._deps7.deinit();
-    }
+    defer zant.tsx.deinitFields(&app);
     const runtime = try Runtime.init(std.testing.allocator, &app, render, .{ .window = .{ .width = W, .height = H } });
     defer runtime.deinit();
     var renderer = try Renderer.createRaster(W, H);
@@ -67,10 +60,10 @@ test "tsx hooks: effects, memos and refs" {
     try std.testing.expect(!runtime.needs_build);
 
     // unchanged dependencies: the cached value is reused
-    const cached = app._memo5.value.?.ptr;
+    const cached = app._memo10.value.?.ptr;
     runtime.invalidate();
     frame(runtime, &renderer);
-    try std.testing.expectEqual(cached, app._memo5.value.?.ptr);
+    try std.testing.expectEqual(cached, app._memo10.value.?.ptr);
 
     try click(runtime, &renderer, "add");
     try click(runtime, &renderer, "add");
@@ -85,4 +78,19 @@ test "tsx hooks: effects, memos and refs" {
     frame(runtime, &renderer);
     try std.testing.expectEqualStrings("1 shown", text(runtime, "visible"));
     try std.testing.expectEqualStrings("Item 1", app.lastQuery.get());
+    // the cleanup of the previous run saw its own query ("", then "Item 1"
+    // typed at once: one change)
+    try std.testing.expectEqual(@as(f64, 0), app.cleanups);
+    _ = runtime.dispatch(.{ .text_input = "0" });
+    frame(runtime, &renderer);
+    try std.testing.expectEqual(@as(f64, 6), app.cleanups);
+
+    // the ticker unmounts: its slot goes and its cleanup runs (it reads its
+    // own ref through the copied component)
+    const slots = runtime.local_states.count();
+    try click(runtime, &renderer, "ticking");
+    try std.testing.expect(runtime.tree.idOfKey("ticker-tick") == null);
+    try std.testing.expectEqual(slots - 1, runtime.local_states.count());
+    try click(runtime, &renderer, "ticking");
+    try std.testing.expect(runtime.tree.idOfKey("ticker-tick") != null);
 }

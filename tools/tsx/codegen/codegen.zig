@@ -78,6 +78,7 @@ pub const Generator = struct {
     /// component (fields next to its state), and its effects.
     hook_fields: std.ArrayList(@import("hooks.zig").Field) = .empty,
     effects: std.ArrayList(@import("hooks.zig").Effect) = .empty,
+    cleanups: std.ArrayList(@import("hooks.zig").Cleanup) = .empty,
 };
 
 pub fn fail(g: *Generator, loc: ast.Loc, comptime f: []const u8, args: anytype) Error {
@@ -201,6 +202,8 @@ pub fn method(g: *Generator, m: Method, source: ?*Context, index: ?usize) Error!
         .ret = m.ret,
         .capture_source = source,
         .capture_method = index,
+        .effect_field = m.effect_field,
+        .cleanup = m.cleanup,
     };
     var params: std.ArrayList([]const u8) = .empty;
     for (f.params, 0..) |p, i| {
@@ -359,6 +362,7 @@ fn resetComponent(g: *Generator) void {
     g.child_sites = 0;
     g.hook_fields.clearRetainingCapacity();
     g.effects.clearRetainingCapacity();
+    g.cleanups.clearRetainingCapacity();
 }
 
 /// One component as a struct: the root with its state fields, or a child

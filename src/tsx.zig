@@ -160,6 +160,7 @@ pub fn deinitFields(value: anytype) void {
 const hooks = @import("tsx_hooks.zig");
 pub const Deps = hooks.Deps;
 pub const Memo = hooks.Memo;
+pub const Effect = hooks.Effect;
 pub const deepEql = hooks.deepEql;
 
 /// Only immutable value types produced by the compiler participate in state copies.
