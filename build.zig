@@ -248,6 +248,9 @@ pub fn addTsxProject(
     const run = b.addRunArtifact(tool);
     run.addArg("--out");
     const out = run.addOutputDirectoryArg("tsx");
+    // imported assets (`import icon from "./icon.png"`) are inputs too
+    run.addArg("--dep");
+    _ = run.addDepFileOutputArg("tsx.d");
     for (sources) |source| run.addFileArg(source);
     return b.createModule(.{
         .root_source_file = out.path(b, b.fmt("{s}.zig", .{entry})),
@@ -284,6 +287,8 @@ fn tsxApp(
     const run = b.addRunArtifact(tool);
     run.addArg("--out");
     const out = run.addOutputDirectoryArg("tsx");
+    run.addArg("--dep");
+    _ = run.addDepFileOutputArg("tsx.d");
     run.addArgs(&.{ "--main", options.entry, "--src" });
     run.addDirectoryArg(b.path(options.src));
     // a directory argument isn't hashed by content: list its files as inputs

@@ -101,6 +101,7 @@ pub fn compileProject(arena: std.mem.Allocator, files: []const File) error{OutOf
             .project = modules.items,
             .zig_sources = sources.items,
             .require_root = false,
+            .source_path = file.path,
         }, &diag) catch |err| switch (err) {
             error.OutOfMemory => return error.OutOfMemory,
             error.Tsx => return .{ .err = .{ .file = i, .diag = diag.? } },

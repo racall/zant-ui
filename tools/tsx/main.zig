@@ -7,6 +7,7 @@
 const std = @import("std");
 const compile = @import("compile.zig");
 const entry = @import("entry.zig");
+const assets = @import("assets.zig");
 
 pub fn main(init: std.process.Init) !void {
     const io = init.io;
@@ -34,17 +35,22 @@ pub fn main(init: std.process.Init) !void {
     }
 }
 
-/// `--out <dir> [--main <App>] [--src <dir>] files...`: compile TSX and copy
-/// Zig into one output directory. `--src` adds every `.tsx` / `.zig` under a
-/// directory; `--main App` also writes the app's entry `main.zig`
-/// (`entry.zig`).
+/// `--out <dir> [--main <App>] [--src <dir>] [--dep <file>] files...`:
+/// compile TSX and copy Zig into one output directory. `--src` adds every
+/// `.tsx` / `.zig` under a directory; `--main App` also writes the app's
+/// entry `main.zig` (`entry.zig`); imported assets are copied to
+/// `_assets/` and listed in the `--dep` file (`assets.zig`).
 fn project(io: std.Io, arena: std.mem.Allocator, out_dir: []const u8, rest: []const [:0]const u8) !void {
     var paths: std.ArrayList([]const u8) = .empty;
     var main_entry: ?[]const u8 = null;
+    var dep_file: ?[]const u8 = null;
     var i: usize = 0;
     while (i < rest.len) : (i += 1) {
         const arg: []const u8 = rest[i];
-        if ((std.mem.eql(u8, arg, "--main") or std.mem.eql(u8, arg, "--src")) and i + 1 < rest.len) {
+        if (std.mem.eql(u8, arg, "--dep") and i + 1 < rest.len) {
+            i += 1;
+            dep_file = rest[i];
+        } else if ((std.mem.eql(u8, arg, "--main") or std.mem.eql(u8, arg, "--src")) and i + 1 < rest.len) {
             i += 1;
             if (std.mem.eql(u8, arg, "--main")) main_entry = rest[i] else try entry.collect(io, arena, rest[i], &paths);
         } else try paths.append(arena, arg);
@@ -58,6 +64,7 @@ fn project(io: std.Io, arena: std.mem.Allocator, out_dir: []const u8, rest: []co
                 const out = try std.fs.path.join(arena, &.{ out_dir, try file.outputName(arena) });
                 try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = out, .data = zig });
             }
+            try copyAssets(io, arena, out_dir, files, dep_file);
             if (main_entry) |name| {
                 const source = entry.mainSource(arena, files, name) catch |err| {
                     std.debug.print("zant-tsx: --main {s}: {s}\n", .{ name, entry.describe(err) });
@@ -72,6 +79,33 @@ fn project(io: std.Io, arena: std.mem.Allocator, out_dir: []const u8, rest: []co
             std.debug.print("{s}", .{try compile.renderDiag(arena, file.path, file.src, e.diag)});
             std.process.exit(1);
         },
+    }
+}
+
+fn copyAssets(
+    io: std.Io,
+    arena: std.mem.Allocator,
+    out_dir: []const u8,
+    files: []const compile.File,
+    dep_file: ?[]const u8,
+) !void {
+    const list = try assets.collect(arena, files);
+    for (list) |asset| {
+        const data = std.Io.Dir.cwd().readFileAlloc(io, asset.from, arena, .limited(64 << 20)) catch |err| {
+            const diag = compile.Diag{ .loc = asset.loc, .msg = try std.fmt.allocPrint(
+                arena,
+                "cannot read the asset `{s}` ({s})",
+                .{ asset.from, @errorName(err) },
+            ) };
+            std.debug.print("{s}", .{try compile.renderDiag(arena, asset.importer, asset.importer_src, diag)});
+            std.process.exit(1);
+        };
+        const out = try std.fs.path.join(arena, &.{ out_dir, asset.key });
+        try std.Io.Dir.cwd().createDirPath(io, std.fs.path.dirname(out).?);
+        try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = out, .data = data });
+    }
+    if (dep_file) |dep| {
+        try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = dep, .data = try assets.depFile(arena, out_dir, list) });
     }
 }
 
@@ -109,6 +143,7 @@ test {
     _ = compile;
     _ = @import("project_test.zig");
     _ = entry;
+    _ = assets;
     _ = @import("codegen/zig_imports.zig");
     _ = @import("golden_test.zig");
 }

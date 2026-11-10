@@ -61,7 +61,7 @@ pub fn findModule(project: []const NamedModule, source: []const u8) ?ast.Module 
 pub fn process(g: *Generator, module: ast.Module, project: []const NamedModule) Error![]const u8 {
     var header: std.ArrayList(u8) = .empty;
     for (module.imports) |imp| {
-        if (!isRelative(imp.source)) continue;
+        if (!isRelative(imp.source) or @import("../assets.zig").isAsset(imp.source)) continue;
         if (std.mem.endsWith(u8, imp.source, ".zig")) {
             try @import("zig_imports.zig").process(g, imp, &header);
             continue;

@@ -2,10 +2,14 @@
 // (`addTsxApp`) compiles every .tsx here and generates the entry from this
 // file's default export and app_config.zig. Run it with `zig build run-tsx-app`.
 import { createStore, createWindow, useState, useStore, useKeyDown, View, Row, Heading, Paragraph, Button } from "zant";
-import { clipboard, keyLabel, wakeAfter } from "zant";
+import { clipboard, keyLabel, wakeAfter, useTray, app, mainWindow, isMacos } from "zant";
 import type { KeyEvent } from "zant";
 import { Counter } from "./components/Counter";
 import { Panel } from "./components/Panel";
+// tray / menu bar icons: macOS draws a template image, Windows picks by taskbar theme
+import statusbar from "./assets/statusbar.png";
+import trayDark from "./assets/tray-dark.png";
+import trayLight from "./assets/tray-light.png";
 
 export interface Counts {
   total: number;
@@ -23,6 +27,19 @@ export default function App() {
   const now = performance.now();
   const copied = now < copiedUntil;
   if (copied) wakeAfter(copiedUntil - now); // hide the note again
+  useTray({
+    icon: isMacos ? statusbar : trayDark,
+    iconLight: trayLight,
+    template: isMacos,
+    tooltip: `TSX App · total ${total}`,
+    items: [
+      { title: "Show window", onSelect: () => mainWindow.show() },
+      { title: "Toggle panel", onSelect: () => panel.toggle() },
+      { separator: true },
+      { title: "Quit", onSelect: () => app.quit() },
+    ],
+    onClick: () => mainWindow.show(),
+  });
   useKeyDown((e: KeyEvent) => {
     if (!e.mod || e.key !== "p") return false;
     panel.toggle();

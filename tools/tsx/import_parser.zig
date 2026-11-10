@@ -64,8 +64,19 @@ pub fn parse(self: *Parser) Error!ast.Import {
     };
     self.advance();
     try self.endStatement();
-    if (!std.mem.eql(u8, source, "react")) {
-        if (default_name) |name| return self.fail(name.loc, "default imports are only supported from \"react\"", .{});
+    const asset = @import("assets.zig").isAsset(source);
+    if (asset and (names.items.len > 0 or namespace_name != null)) {
+        return self.fail(source_loc, "an asset is imported by a default name: import icon from \"{s}\"", .{source});
+    }
+    if (asset and default_name == null) {
+        return self.fail(source_loc, "import an asset by a default name: import icon from \"{s}\"", .{source});
+    }
+    if (!std.mem.eql(u8, source, "react") and !asset) {
+        if (default_name) |name| return self.fail(
+            name.loc,
+            "default imports are only supported from \"react\" and for assets (import icon from \"./icon.png\")",
+            .{},
+        );
         if (namespace_name) |name| {
             return self.fail(name.loc, "namespace imports are only supported from \"react\"", .{});
         }

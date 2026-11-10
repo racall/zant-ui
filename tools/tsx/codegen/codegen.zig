@@ -26,6 +26,8 @@ pub const Options = struct {
     /// A file without a root component (only child components) is an error
     /// unless false (library files of a project).
     require_root: bool = true,
+    /// The file's path in a project build, for asset imports (`assets.zig`).
+    source_path: ?[]const u8 = null,
 };
 
 pub const State = struct {
@@ -390,7 +392,10 @@ pub fn generate(
     }
     const store_code = try @import("stores.zig").collect(&g, module.consts);
     const plain = try @import("stores.zig").plainConstants(&g, module.consts);
-    const globals = try std.mem.concat(arena, u8, &.{ try @import("globals.zig").collect(&g, plain), store_code });
+    const asset_code = try @import("globals.zig").assets(&g, module, options.source_path);
+    const globals = try std.mem.concat(arena, u8, &.{
+        asset_code, try @import("globals.zig").collect(&g, plain), store_code,
+    });
     try @import("functions.zig").collect(&g, module);
     try components.collect(&g, module, root);
     const window_code = try @import("windows.zig").collect(&g, module.consts);

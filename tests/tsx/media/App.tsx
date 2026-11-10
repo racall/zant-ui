@@ -1,6 +1,7 @@
-// In-memory images and the hotkey recorder (tests/tsx_media_test.zig).
+// In-memory images, an imported asset and the hotkey recorder (tests/tsx_media_test.zig).
 import { useState, View, Image, HotkeyInput, Text } from "zant";
-import { thumbnail } from "./thumbs.zig";
+import { thumbnail, pngWidth } from "./thumbs.zig";
+import dot from "../assets/dot.png";
 
 export default function App() {
   const [hotkey, setHotkey] = useState("ctrl+cmd+v");
@@ -22,6 +23,9 @@ export default function App() {
         onClear={() => setHotkey("")}
       />
       <Text key="label">{hotkey}</Text>
+      <Text key="asset">
+        {dot.length} bytes, {pngWidth(dot)} px wide
+      </Text>
     </View>
   );
 }

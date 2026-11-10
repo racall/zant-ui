@@ -9,7 +9,16 @@ declare namespace JSX {
 
 // Native Zig exports are checked by zant-tsx; the editor treats them as any.
 declare module "*.zig";
+// Assets (`import icon from "./icon.png"`): their bytes, embedded at compile time.
 declare module "*.png" { const bytes: Uint8Array; export default bytes; }
+declare module "*.jpg" { const bytes: Uint8Array; export default bytes; }
+declare module "*.jpeg" { const bytes: Uint8Array; export default bytes; }
+declare module "*.gif" { const bytes: Uint8Array; export default bytes; }
+declare module "*.webp" { const bytes: Uint8Array; export default bytes; }
+declare module "*.ico" { const bytes: Uint8Array; export default bytes; }
+declare module "*.svg" { const bytes: Uint8Array; export default bytes; }
+declare module "*.txt" { const bytes: Uint8Array; export default bytes; }
+declare module "*.bin" { const bytes: Uint8Array; export default bytes; }
 
 declare module "zant" {
 // Handwritten runtime declarations included by dts.zig inside module "zant".

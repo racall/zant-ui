@@ -600,6 +600,20 @@ export function Panel() {
   `background`、`resizable`、`alwaysOnTop`、`movableByBackground`、`center`、`titlebarHeight`。
   位置：`"center"` `"topLeft"` `"topRight"` `"bottomLeft"` `"bottomRight"` `"trayCorner"`（菜单栏 / 托盘图标旁边）。
 
+### 资源文件
+
+```tsx
+import trayIcon from "../assets/icons/tray-dark.png";   // Uint8Array：文件的字节，编译期嵌入
+useTray({ icon: trayIcon, template: true, tooltip: "ClipHop" });
+```
+
+- 相对路径、扩展名不是 `.tsx` / `.ts` / `.zig` 的导入就是资源文件，只能用默认导入（`import x from`）。
+  路径相对于写导入的那个文件，可以在 `src/` 外面（比如项目的 `assets/`）。
+- `zant-tsx` 把文件复制到生成目录的 `_assets/`，生成 `const trayIcon: []const u8 = @embedFile(...)`；
+  构建会记录这些文件，改了图片会自动重新生成。文件不存在时报错指向那条 import。
+- 只在项目构建里可用（`addTsxApp` / `addTsxProject`，或 `zant-tsx --out`）。字节也可以传给 Zig 原生模块
+  （参数类型 `zant.tsx.Bytes`）。编辑器类型里 `.png` / `.jpg` / `.svg` / `.txt` 等的默认导出是 `Uint8Array`。
+
 ### 从 Zig 导入函数
 
 项目里的 TSX 可以从相对路径的 `.zig` 文件按名导入顶层 `pub fn`，也支持 `as` 别名：

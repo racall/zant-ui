@@ -15,7 +15,7 @@
 | A3 | 内置：`Math.*`、`Number()` / `String()`、`toFixed`、`parseInt` / `parseFloat`、`Date.now()` | Codex | ✅ |
 | A4 | 字节：`Uint8Array` ↔ `[]const u8`（剪贴板图片、文件内容） | Claude | ✅ |
 | A5 | 从 Zig 导入类型：`import type { Peer } from "./sync.zig"`（结构体、枚举），Zig 函数的参数和返回值可以是它们和它们的切片 | Claude | ✅ |
-| A6 | 资源导入：`import trayIcon from "../assets/tray.png"`（编译期嵌入，`Uint8Array`） | Codex | ⬜ |
+| A6 | 资源导入：`import trayIcon from "../assets/tray.png"`（编译期嵌入，`Uint8Array`） | Claude | ✅ |
 
 以下几项来自 SWC 解析器测试集的统计（`scripts/tsx/swc-corpus.sh`：981 个 TS / TSX / JSX 输入，0 崩溃、0 卡死，
 按被拒绝的原因排序，就是真实代码里最常见、我们还不支持的写法）：
@@ -45,7 +45,7 @@
 |---|---|---|---|
 | C1 | 入口：TS 项目不写 `main.zig`，工具链按 `app.config.json` 和 `App.tsx` 的默认导出生成入口 | Claude | ✅ |
 | C2 | 应用 hooks：`useCloseRequest`、`useQuitRequest`、`useKeyDown`、主题跟随系统 | Claude | ✅ |
-| C3 | 桌面事件：`useClipboardChange`、`useHotkey`、`useTray`（图标、菜单、点击）、`useReopen` | Claude | ✅（托盘的真实窗口检查等 A6） |
+| C3 | 桌面事件：`useClipboardChange`、`useHotkey`、`useTray`（图标、菜单、点击）、`useReopen` | Claude | ✅ |
 | C4 | `useWake`：原生模块在后台线程完成后 `ui.postWake()`，TS 在 UI 线程取结果 | Claude | ✅ |
 | C5 | 多窗口：`createWindow(Panel, { … })`，句柄 `show` / `hide` / `toggle` / `place` / `focus`，窗口自己的按键、关闭、失焦 | Claude | ✅ |
 | C6 | 桌面函数：剪贴板（文字 / 图片 / 文件 / 变化计数 / 监听）、`quit`、开机启动、下载目录、设备名、应用数据目录、单实例 | Claude | ✅ |

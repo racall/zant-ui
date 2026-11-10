@@ -1,4 +1,4 @@
-//! `<Image image={…}>` and `<HotkeyInput value onRecord>` from TSX
+//! `<Image image={…}>`, an imported asset and `<HotkeyInput value onRecord>` from TSX
 //! (`tests/tsx/media/`): the generated code compiles against zant and renders.
 const std = @import("std");
 const zant = @import("zant");
@@ -28,4 +28,8 @@ test "tsx in-memory images and the hotkey recorder render" {
     try std.testing.expect(runtime.tree.idOfKey("hk") != null);
     const label = runtime.tree.get(runtime.tree.idOfKey("label").?).data.text.content;
     try std.testing.expectEqualStrings("ctrl+cmd+v", label);
+    // `import dot from "../assets/dot.png"`: embedded bytes, readable by Zig
+    const asset = runtime.tree.get(runtime.tree.idOfKey("asset").?).data.text.content;
+    const expected = std.fmt.comptimePrint("{d} bytes, 3 px wide", .{@embedFile("tsx/assets/dot.png").len});
+    try std.testing.expectEqualStrings(expected, asset);
 }
