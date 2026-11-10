@@ -188,6 +188,7 @@ pub fn emit(g: *Generator, c: *Context, j: *ast.Jsx) Error!Value {
         "unknown tag <{s}>; valid tags: {s}",
         .{ j.name, try jsx.validTags(g) },
     );
+    if (tag.instance_id) return @import("widgets.zig").emit(g, c, j, tag);
     var fields = Fields{ .g = g };
     var child_list = ChildList{ .g = g, .c = c };
     for (j.attrs) |attr| try jsx.attribute(g, c, tag, &fields, attr);

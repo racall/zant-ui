@@ -258,7 +258,7 @@ pub fn addTsxProject(
 /// Golden files of the TSX compiler (`tools/tsx/testdata/<name>.tsx` → `.zig`).
 const tsx_golden = [_][]const u8{
     "counter",  "layout", "text", "events",      "conditional", "components", "todos", "arrays",
-    "children", "theme",  "list", "local_state", "hooks",       "strings",    "store",
+    "children", "theme",  "list", "local_state", "hooks",       "strings",    "store", "widgets",
 };
 
 pub fn build(b: *std.Build) void {
@@ -536,6 +536,24 @@ pub fn build(b: *std.Build) void {
     run_tsx_todos.addPassthruArgs();
     b.step("run-tsx-todos", "Run the TSX todo app (examples/tsx/todos.tsx)").dependOn(&run_tsx_todos.step);
 
+    const tsx_reader = addTsx(b, tsx_tool, b.path("examples/tsx/reader.tsx"), "reader.zig", zant_mod);
+    const tsx_reader_demo = b.addExecutable(.{
+        .name = "zant-tsx-reader",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("examples/tsx/reader_main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+            .link_libcpp = is_macos,
+            .imports = &.{ .{ .name = "zant", .module = zant_mod }, .{ .name = "reader_tsx", .module = tsx_reader } },
+        }),
+    });
+    b.installArtifact(tsx_reader_demo);
+    const run_tsx_reader = b.addRunArtifact(tsx_reader_demo);
+    run_tsx_reader.step.dependOn(b.getInstallStep());
+    run_tsx_reader.addPassthruArgs();
+    b.step("run-tsx-reader", "Run the TSX Markdown and PDF reader").dependOn(&run_tsx_reader.step);
+
     const tsx_notes = addTsxProject(b, tsx_tool, &.{
         b.path("examples/tsx/notes/App.tsx"),
         b.path("examples/tsx/notes/NoteCard.tsx"),
@@ -561,6 +579,13 @@ pub fn build(b: *std.Build) void {
     const tsx_list_bench = addTsx(b, tsx_tool, b.path("examples/tsx/list_bench.tsx"), "list_bench.zig", zant_mod);
     const tsx_settings = addTsx(b, tsx_tool, b.path("examples/tsx/settings.tsx"), "settings.zig", zant_mod);
     const tsx_local_bench = addTsx(b, tsx_tool, b.path("examples/tsx/local_bench.tsx"), "local_bench.zig", zant_mod);
+    const tsx_markdown_bench = addTsx(
+        b,
+        tsx_tool,
+        b.path("examples/tsx/markdown_bench.tsx"),
+        "markdown_bench.zig",
+        zant_mod,
+    );
     const tsx_bench = b.addExecutable(.{
         .name = "zant-tsx-bench",
         .root_module = b.createModule(.{
@@ -576,6 +601,7 @@ pub fn build(b: *std.Build) void {
                 .{ .name = "todos_tsx", .module = tsx_todos },
                 .{ .name = "list_bench_tsx", .module = tsx_list_bench },
                 .{ .name = "local_bench_tsx", .module = tsx_local_bench },
+                .{ .name = "markdown_bench_tsx", .module = tsx_markdown_bench },
             },
         }),
     });
@@ -655,10 +681,17 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&tsx_e2e_tests.step);
 
     if (target.result.os.tag == .windows) {
-        for ([_]*std.Build.Step.Compile{ exe, demo, math_demo, md_demo, pdf_demo, components_demo, tsx_demo, tsx_gallery_demo, tsx_todos_demo, tsx_notes_demo }) |app| {
+        for ([_]*std.Build.Step.Compile{
+            exe,              demo,           math_demo,      md_demo,         pdf_demo, components_demo, tsx_demo,
+            tsx_gallery_demo, tsx_todos_demo, tsx_notes_demo, tsx_reader_demo,
+        }) |app| {
             app.win32_manifest = b.path("src/platform/windows/zant.manifest");
             if (optimize != .debug) app.subsystem = .windows;
         }
-        if (bridge_dir) |dir| installRuntime(b, dir, hasPrebuiltBridge(b), &.{ run_demo, run_gallery_cmd, run_math, run_md, run_pdf, run_components, run_tsx, run_tsx_gallery, run_tsx_todos, run_tsx_notes, run_tsx_bench, run_tests, run_lib_tests, tsx_tags_tests, tsx_e2e_tests });
+        if (bridge_dir) |dir| installRuntime(b, dir, hasPrebuiltBridge(b), &.{
+            run_demo,  run_gallery_cmd, run_math,       run_md,        run_pdf,        run_components,
+            run_tsx,   run_tsx_gallery, run_tsx_todos,  run_tsx_notes, run_tsx_reader, run_tsx_bench,
+            run_tests, run_lib_tests,   tsx_tags_tests, tsx_e2e_tests,
+        });
     }
 }

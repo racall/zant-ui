@@ -24,6 +24,27 @@ try viewer.open("manual.pdf"); // error.PasswordRequired 时用 openWithPassword
 
 阅读器填满父容器：放进有尺寸的容器，或在 column 里给 `grow`。
 
+## 自动管理文档的 `ui.pdfViewer`
+
+```zig
+ui.pdfViewer(ui.childId(parent_id, "manual"), .{
+    .src = path,
+    .password = null,
+    .height = 600,
+    .annotation_tools = true,
+    .on_change = ui.action(state, State.onChange),
+});
+```
+
+`ui.PdfViewerOptions` 包含全部 `ViewOptions` 字段及 `src` / `password` / `width` / `height` / `grow`。
+实例由 `ui.localSlot` 持有一个 `Viewer`，卸载自动关闭文档、停止渲染线程并释放状态。
+路径或密码改变后在协调结束的 effect 中重新打开；相同输入保留阅读状态，失败路径不会反复打开。
+空路径显示 `empty_text`，打开中显示 `loading_text`，失败沿用阅读器的主题化错误提示。
+指定 height 时容器不伸长，其他情况下 grow 默认 1；支持 `ui.styled` 覆盖。
+多个实例的内部 key 自动用 id 隔离，`key` 只设置最外层节点。
+TSX 对应 `<PdfViewer src={path} toolbar annotationTools height={600} />`，不接受子节点。
+需要程序控制 Viewer（如跳页、保存批注）时继续由应用持有 Viewer 并调用 `pdf.view`。
+
 ## 选项（`ViewOptions`）
 
 | 选项 | 说明 |

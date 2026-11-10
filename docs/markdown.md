@@ -48,6 +48,26 @@ zant.markdown.editor(.{
 编辑器快捷键：⌘B 粗体、⌘I 斜体、⌘K 链接、⌘E 行内代码、⌘⇧X 删除线（Windows 上 ⌘ 换成 Ctrl）；
 列表/引用中回车自动续写，空项回车结束列表；Tab / ⇧Tab 缩进列表。
 
+## 自动管理缓存的 `ui.markdown`
+
+```zig
+ui.markdown(ui.childId(parent_id, "reply"), .{
+    .source = reply,
+    .streaming = busy,
+    .caret = .block,
+    .font_size = 15,
+    .latex_delimiters = true,
+    .on_link = ui.textAction(state, State.onLink),
+});
+```
+
+`ui.MarkdownOptions` 把常用排版 / 代码 / 表格 / Mermaid 控件和数学选项放在同一层；
+主题默认跟随当前 UI，亦可传 `theme` 覆盖。`policy`、`labels`、`image_loader` 和 `block_renderers`
+保留原来的 Zig 类型。内部通过 `ui.localSlot` 保存一个 `Cache`，每个稳定 id 代表一个实例，
+卸载自动释放缓存。多个实例使用不同 id，内部节点 key 自动隔离；外观尺寸可用 `ui.styled` 覆盖。
+TSX 对应 `<Markdown source={reply} streaming={busy} />` 或 `<Markdown>{reply}</Markdown>`。
+需要直接操作缓存（例如按源码偏移跳转）时仍使用 `markdown.streamdown`。
+
 ## 渲染选项（Streamdown props）
 
 - `theme`：`markdown.theme.light()` / `.dark()`，代码配色为 github-light / github-dark。

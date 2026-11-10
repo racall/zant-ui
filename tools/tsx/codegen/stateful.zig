@@ -93,7 +93,7 @@ const Walker = struct {
 
     fn jsx(w: *Walker, j: *const ast.Jsx) void {
         if (w.found) return;
-        if (std.mem.eql(u8, j.name, "List") or w.statefulTag(j.name)) {
+        if (std.mem.eql(u8, j.name, "List") or @import("widgets.zig").needsId(j.name) or w.statefulTag(j.name)) {
             w.found = true;
             return;
         }

@@ -155,6 +155,15 @@ if ($sel) {
 } else { Write-Result $false "find 'select-text'" }
 Wheel-At $app 500 400 10
 
+# stateful document builders (fixture is included in the source archive)
+Wheel-At $app 500 400 -30
+Click-Key $app "widget-append" | Out-Null
+Assert-Event $app "markdown chunk" "Markdown streams another chunk"
+Click-Key $app "pdf-2002-zin" | Out-Null
+Assert-Event $app "pdf changed" "PdfViewer zoom callback"
+Shot $app "09d-widgets"
+Wheel-At $app 500 400 30
+
 # dark theme
 Click-Key $app "dark-btn" | Out-Null
 Assert-Event $app "dark true" "dark theme"

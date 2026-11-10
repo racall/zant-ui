@@ -10,4 +10,5 @@ test {
     _ = @import("tsx_store_test.zig");
     _ = @import("tsx_strings_test.zig");
     _ = @import("tsx_golden_test.zig");
+    _ = @import("tsx_widgets_test.zig");
 }

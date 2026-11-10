@@ -12,6 +12,7 @@ const ui = zant.ui;
 
 const State = struct {
     dark: bool = false,
+    widget_chunk: bool = false,
     last_event: [96]u8 = undefined,
     last_len: usize = 0,
     notifications: bool = true,
@@ -66,6 +67,15 @@ const State = struct {
         const text = std.fmt.bufPrint(&self.last_event, fmt, args) catch return;
         self.last_len = text.len;
         if (!self.quiet) std.debug.print("[event] " ++ fmt ++ "\n", args);
+    }
+
+    fn appendWidget(self: *State) void {
+        self.widget_chunk = !self.widget_chunk;
+        self.event("markdown chunk", .{});
+    }
+
+    fn pdfChanged(self: *State) void {
+        self.event("pdf changed", .{});
     }
 
     /// ui.pointerArea: drag the knob along the track; double click resets it.
@@ -349,6 +359,25 @@ fn render(s: *State) ui.Node {
         } }),
     });
 
+    const documents = section("文档 Markdown / PdfViewer", &.{
+        ui.button(.{
+            .key = "widget-append",
+            .text = "追加 Markdown 文本",
+            .on_click = ui.action(s, State.appendWidget),
+        }),
+        ui.markdown(0x2001, .{
+            .source = if (s.widget_chunk) "**Markdown** · streamed chunk" else "**Markdown**",
+            .streaming = true,
+            .caret = .block,
+            .font_size = 14,
+        }),
+        ui.pdfViewer(0x2002, .{
+            .src = "tests/fixtures/widgets.pdf",
+            .height = 240,
+            .on_change = ui.action(s, State.pdfChanged),
+        }),
+    });
+
     var children: std.ArrayListUnmanaged(ui.Node) = .empty;
     children.append(arena, ui.column(.{
         .key = "page",
@@ -366,6 +395,7 @@ fn render(s: *State) ui.Node {
                 ui.column(.{ .grow = 1, .basis = 0, .gap = 16, .align_items = .stretch, .children = &.{ buttons, form, nav } }),
                 ui.column(.{ .grow = 1, .basis = 0, .gap = 16, .align_items = .stretch, .children = &.{ display, feedback, interaction } }),
             } }),
+            documents,
         },
     })) catch {};
 

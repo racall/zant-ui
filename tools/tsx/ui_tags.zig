@@ -1519,6 +1519,52 @@ pub const all: []const Tag = &.{
         } },
         .{ .name = "children", .field = "children", .kind = .children, .required = false },
     } },
+    .{ .name = "Markdown", .builder = "ui.markdown", .instance_id = true, .content = .none, .props = &.{
+        .{ .name = "source", .field = "source", .kind = .string, .required = true },
+        .{ .name = "key", .field = "key", .kind = .string, .required = false },
+        .{ .name = "streaming", .field = "streaming", .kind = .boolean, .required = false },
+        .{ .name = "parseIncomplete", .field = "parse_incomplete", .kind = .boolean, .required = false },
+        .{ .name = "singleDollarMath", .field = "single_dollar_math", .kind = .boolean, .required = false },
+        .{ .name = "latexDelimiters", .field = "latex_delimiters", .kind = .boolean, .required = false },
+        .{ .name = "fontSize", .field = "font_size", .kind = .number, .required = false },
+        .{ .name = "contentWidth", .field = "content_width", .kind = .number, .required = false },
+        .{ .name = "caret", .field = "caret", .kind = .enumeration, .required = false, .values = &.{
+            .{ .ts = "none", .zig = "none" },
+            .{ .ts = "block", .zig = "block" },
+            .{ .ts = "circle", .zig = "circle" },
+        } },
+        .{ .name = "lineNumbers", .field = "line_numbers", .kind = .boolean, .required = false },
+        .{ .name = "codeMaxHeight", .field = "code_max_height", .kind = .number, .required = false },
+        .{ .name = "codeCopy", .field = "code_copy", .kind = .boolean, .required = false },
+        .{ .name = "codeDownload", .field = "code_download", .kind = .boolean, .required = false },
+        .{ .name = "tableCopy", .field = "table_copy", .kind = .boolean, .required = false },
+        .{ .name = "tableDownload", .field = "table_download", .kind = .boolean, .required = false },
+        .{ .name = "mermaidCopy", .field = "mermaid_copy", .kind = .boolean, .required = false },
+        .{ .name = "mermaidDownload", .field = "mermaid_download", .kind = .boolean, .required = false },
+        .{ .name = "onLink", .field = "on_link", .kind = .text_action, .required = false },
+        .{ .name = "baseDir", .field = "base_dir", .kind = .string, .required = false },
+        .{ .name = "selectable", .field = "selectable", .kind = .boolean, .required = false },
+    } },
+    .{ .name = "PdfViewer", .builder = "ui.pdfViewer", .instance_id = true, .content = .none, .props = &.{
+        .{ .name = "src", .field = "src", .kind = .string, .required = true },
+        .{ .name = "password", .field = "password", .kind = .string, .required = false },
+        .{ .name = "key", .field = "key", .kind = .string, .required = false },
+        .{ .name = "toolbar", .field = "toolbar", .kind = .boolean, .required = false },
+        .{ .name = "pageGap", .field = "page_gap", .kind = .number, .required = false },
+        .{ .name = "padding", .field = "padding", .kind = .number, .required = false },
+        .{ .name = "background", .field = "background", .kind = .color, .required = false },
+        .{ .name = "onLink", .field = "on_link", .kind = .text_action, .required = false },
+        .{ .name = "onChange", .field = "on_change", .kind = .action, .required = false },
+        .{ .name = "annotationTools", .field = "annotation_tools", .kind = .boolean, .required = false },
+        .{ .name = "selectionMenu", .field = "selection_menu", .kind = .boolean, .required = false },
+        .{ .name = "onAnnotation", .field = "on_annotation", .kind = .action, .required = false },
+        .{ .name = "width", .field = "width", .kind = .number, .required = false },
+        .{ .name = "height", .field = "height", .kind = .number, .required = false },
+        .{ .name = "grow", .field = "grow", .kind = .number, .required = false },
+        .{ .name = "emptyText", .field = "empty_text", .kind = .string, .required = false },
+        .{ .name = "loadingText", .field = "loading_text", .kind = .string, .required = false },
+        .{ .name = "errorText", .field = "error_text", .kind = .string, .required = false },
+    } },
 };
 
 /// Builders intentionally excluded from the generated table.
@@ -1605,3 +1651,9 @@ pub const theme: []const tags.Prop = &.{
 // ui.hotkeyInput.value: unsupported type ?desktop.Shortcut
 // ui.hotkeyInput.on_record: unsupported type ?components.hotkey_input.HotkeyAction
 // ui.view.style: unsupported type ?ui.Style
+// ui.markdown.theme: unsupported type ?markdown.theme.Theme
+// ui.markdown.policy: unsupported type markdown.safety.Policy
+// ui.markdown.labels: unsupported type markdown.render.options.Labels
+// ui.markdown.image_loader: unsupported type ?markdown.render.options.ImageLoader
+// ui.markdown.block_renderers: unsupported type []const markdown.render.options.BlockRenderer
+// ui.pdfViewer.labels: unsupported type pdf.viewer.Labels

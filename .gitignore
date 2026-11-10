@@ -15,6 +15,7 @@ test
 *.mobileprovision
 *.key
 *.pdf
+!tests/fixtures/widgets.pdf
 third_party/skia-win/
 third_party/pdfium-win/
 third_party/fonts/

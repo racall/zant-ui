@@ -116,6 +116,8 @@ pub const Tag = struct {
     name: []const u8,
     /// Zig builder (`ui.view`).
     builder: []const u8,
+    /// Builder takes a stable instance id before its options.
+    instance_id: bool = false,
     content: Content,
     content_field: []const u8 = "",
     props: []const Prop,

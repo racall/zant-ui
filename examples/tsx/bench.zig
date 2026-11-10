@@ -101,5 +101,6 @@ pub fn main(init: std.process.Init) !void {
     }
     if (want(args, "todos")) try todos_bench.run(gpa, &renderer);
     if (want(args, "list")) try list_bench.run(gpa, &renderer);
+    if (want(args, "markdown")) try @import("bench_markdown.zig").run(gpa, &renderer);
     if (want(args, "local")) try local_bench.run(gpa, &renderer);
 }
