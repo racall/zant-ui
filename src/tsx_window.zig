@@ -62,6 +62,17 @@ pub fn Window(comptime Comp: type) type {
             return w.isVisible();
         }
 
+        /// Shown and the app's key window (has the keyboard).
+        pub fn active(self: *Self) bool {
+            const w = self.handle orelse return false;
+            return w.isVisible() and w.isActive();
+        }
+
+        pub fn minimized(self: *Self) bool {
+            const w = self.handle orelse return false;
+            return w.isMinimized();
+        }
+
         /// Moves it to a spot of the screen under the pointer.
         pub fn place(self: *Self, where: Place, margin: f32) void {
             if (self.window()) |w| w.place(where, margin);

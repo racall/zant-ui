@@ -22,7 +22,7 @@ test "window diagnostics" {
         .{
             Panel ++ "const w = createWindow(Panel, {});\n" ++
                 "export default function App() {\n  return <Button onClick={() => w.~close()}/>;\n}\n",
-            "a window has show, hide, activate, toggle, visible, place and focus",
+            "a window has show, hide, activate, toggle, visible, active, minimized, place and focus",
         },
     };
     for (cases) |case| try expectDiagnostic(case[0], case[1]);

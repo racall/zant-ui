@@ -177,10 +177,10 @@ pub fn tryCall(g: *Generator, c: *Context, loc: ast.Loc, call: ast.Call) Error!?
         if (call.args.len != 0) return core.fail(g, loc, "{s}() takes no arguments", .{name});
         return .{ .ty = .void_, .code = try text.fmt(g, "{s}.{s}()", .{ w.zig, name }) };
     };
-    if (text.eq(method, "visible")) {
-        if (call.args.len != 0) return core.fail(g, loc, "visible() takes no arguments", .{});
-        return .{ .ty = .boolean, .code = try text.fmt(g, "{s}.visible()", .{w.zig}) };
-    }
+    inline for (.{ "visible", "active", "minimized" }) |name| if (text.eq(method, name)) {
+        if (call.args.len != 0) return core.fail(g, loc, "{s}() takes no arguments", .{name});
+        return .{ .ty = .boolean, .code = try text.fmt(g, "{s}.{s}()", .{ w.zig, name }) };
+    };
     if (text.eq(method, "place")) {
         if (call.args.len < 1 or call.args.len > 2) return core.fail(g, loc, "place(where, margin?)", .{});
         const where = try literal(g, call.args[0], &places, "the place");
@@ -192,5 +192,6 @@ pub fn tryCall(g: *Generator, c: *Context, loc: ast.Loc, call: ast.Call) Error!?
         const key = try expr.emit(g, c, call.args[0], .string, false);
         return .{ .ty = .void_, .code = try text.fmt(g, "{s}.focus({s})", .{ w.zig, key.code }) };
     }
-    return core.fail(g, m.name.loc, "a window has show, hide, activate, toggle, visible, place and focus", .{});
+    return core.fail(g, m.name.loc, "a window has show, hide, activate, toggle, visible, active, minimized, place " ++
+        "and focus", .{});
 }

@@ -576,9 +576,11 @@ app.deviceName();             // string：用户看到的电脑名
 app.downloadsDir();           // string | null
 app.dataDir();                // string | null：应用自己的数据目录（按 bundle id）
 
-mainWindow.show(); mainWindow.hide(); mainWindow.activate(); mainWindow.focus("search"); mainWindow.visible();
+mainWindow.show(); mainWindow.hide(); mainWindow.activate(); mainWindow.focus("search");
+mainWindow.visible(); mainWindow.active(); mainWindow.minimized();   // 显示中 / 有键盘焦点 / 最小化
 
 const hint = `搜索 ${keyLabel("mod+f")}`;   // "⌘F" / "Ctrl+F"，参数必须是字符串字面量（编译期求值）
+shortcutLabel(hotkey);                     // 运行时的快捷键字符串（"ctrl+cmd+v"）→ "⌃⌘V"；无效时为 ""
 if (toastUntil > performance.now()) wakeAfter(toastUntil - performance.now());   // 到时间重建一次
 const insets = titlebarInsets();           // { left, right }：隐藏标题栏时系统按钮占的宽度（渲染时读）
 ```
@@ -613,7 +615,7 @@ useEffect(() => {
 ```tsx
 // App.tsx
 export const panel = createWindow(Panel, { title: "剪贴板", style: "panel", width: 380, height: 480, resizable: false });
-panel.toggle();                      // 也有 show / hide / activate / visible() / place("trayCorner", 12) / focus("search")
+panel.toggle();                      // 也有 show / hide / activate / visible() / active() / minimized() / place("trayCorner", 12) / focus("search")
 
 // Panel.tsx：没有 props 的组件；可以 import { panel } from "./App"
 export function Panel() {

@@ -69,12 +69,15 @@ const namespaces = [_]Namespace{
         .{ .name = "activate", .zig = "activate", .effect = true },
         .{ .name = "focus", .zig = "focus", .params = &.{.string}, .effect = true },
         .{ .name = "visible", .zig = "visible", .ret = .boolean },
+        .{ .name = "active", .zig = "active", .ret = .boolean },
+        .{ .name = "minimized", .zig = "minimized", .ret = .boolean },
     } },
 };
 
 /// Functions and constants imported by name.
 const functions = [_]Function{
     .{ .name = "wakeAfter", .zig = "tsx.platform.wakeAfter", .params = &.{.number} },
+    .{ .name = "shortcutLabel", .zig = "tsx.platform.shortcutLabel", .params = &.{.string}, .ret = .string },
 };
 
 const constants = [_][2][]const u8{

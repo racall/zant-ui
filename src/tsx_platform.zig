@@ -118,7 +118,25 @@ pub const main_window = struct {
         const w = desktop.mainWindow() orelse return false;
         return w.isVisible();
     }
+
+    pub fn active() bool {
+        const w = desktop.mainWindow() orelse return false;
+        return w.isVisible() and w.isActive();
+    }
+
+    pub fn minimized() bool {
+        const w = desktop.mainWindow() orelse return false;
+        return w.isMinimized();
+    }
 };
+
+/// A shortcut string ("ctrl+cmd+v", what `useHotkey` takes) as the platform
+/// shows it ("⌃⌘V" / "Ctrl+Alt+V"); "" when it is not a valid shortcut.
+pub fn shortcutLabel(shortcut: []const u8) []const u8 {
+    const parsed = desktop.Shortcut.parse(shortcut) orelse return "";
+    var buf: [64]u8 = undefined;
+    return ui.frameString(parsed.label(&buf));
+}
 
 /// Rebuilds after `ms` milliseconds (call it while rendering: a toast that
 /// hides itself reads `performance.now()` against its deadline).

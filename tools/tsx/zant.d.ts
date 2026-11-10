@@ -107,6 +107,9 @@ declare module "zant" {
     toggle(): void;
     activate(): void;
     visible(): boolean;
+    /** Shown and has the keyboard. */
+    active(): boolean;
+    minimized(): boolean;
     place(where: WindowPlace, margin?: number): void;
     focus(key: string): void;
   }
@@ -139,11 +142,15 @@ declare module "zant" {
     activate(): void;
     focus(key: string): void;
     visible(): boolean;
+    active(): boolean;
+    minimized(): boolean;
   };
   /** Rebuild after `ms` milliseconds (call it while rendering). */
   export function wakeAfter(ms: number): void;
   /** The platform's label of a shortcut ("mod+f" → "⌘F" / "Ctrl+F"); a string literal. */
   export function keyLabel(spec: string): string;
+  /** A shortcut string ("ctrl+cmd+v") as the platform shows it ("⌃⌘V"); "" when invalid. */
+  export function shortcutLabel(shortcut: string): string;
   export const isMacos: boolean;
   export const isWindows: boolean;
   export function titlebarInsets(): { left: number; right: number };
