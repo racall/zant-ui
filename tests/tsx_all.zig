@@ -2,5 +2,6 @@
 test {
     _ = @import("tsx_test.zig");
     _ = @import("tsx_todos_test.zig");
+    _ = @import("tsx_children_test.zig");
     _ = @import("tsx_golden_test.zig");
 }

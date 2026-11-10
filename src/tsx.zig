@@ -285,3 +285,43 @@ test "null-only values lift and compare with unrelated nullable types" {
     try std.testing.expect(!nullEqual(false, @as(?[]const u8, "text"), nil));
     try std.testing.expect(nullEqual(true, nil, @as(?[]const u8, null)));
 }
+
+/// A typed callback prop of a TSX child component (`onToggle: (id: number) =>
+/// void`): a context pointer and an adapter taking the arguments as a tuple.
+pub fn Callback(comptime Args: type) type {
+    return struct {
+        ctx: *anyopaque,
+        func: *const fn (*anyopaque, Args) void,
+
+        pub fn call(self: @This(), args: Args) void {
+            self.func(self.ctx, args);
+        }
+    };
+}
+
+/// Binds `f(ctx, args...)` as a `Callback(Args)`; `Args` is a tuple type
+/// (`struct { f64 }`).
+pub fn callback(comptime Args: type, ctx: anytype, comptime f: anytype) Callback(Args) {
+    const Ctx = @TypeOf(ctx);
+    const Adapter = struct {
+        fn call(raw: *anyopaque, args: Args) void {
+            const typed: Ctx = @ptrCast(@alignCast(raw));
+            @call(.auto, f, .{typed} ++ args);
+        }
+    };
+    return .{ .ctx = @ptrCast(ctx), .func = Adapter.call };
+}
+
+test "typed callbacks pass their arguments through" {
+    const Counter = struct {
+        total: f64 = 0,
+        fn add(self: *@This(), amount: f64, times: u32) void {
+            self.total += amount * @as(f64, @floatFromInt(times));
+        }
+    };
+    var counter = Counter{};
+    const cb = callback(struct { f64, u32 }, &counter, Counter.add);
+    cb.call(.{ 1.5, 2 });
+    cb.call(.{ 1, 1 });
+    try std.testing.expectEqual(@as(f64, 4), counter.total);
+}

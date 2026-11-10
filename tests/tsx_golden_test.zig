@@ -21,4 +21,5 @@ test "tsx golden outputs compile" {
     refComponent(@import("tsx_golden_components"));
     refComponent(@import("tsx_golden_todos"));
     refComponent(@import("tsx_golden_arrays"));
+    refComponent(@import("tsx_golden_children"));
 }

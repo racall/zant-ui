@@ -94,12 +94,30 @@ test "codegen diagnostics include precise source positions" {
             "missing default exported component",
         },
         .{
-            "export default function App() { return <View/>; }\n~function Child() { return <View/>; }",
-            "other top-level functions are not supported; child components arrive in phase 2",
+            "export default function App() { return <View/>; }\nexport default ~function Child() { return <View/>; }",
+            "only one component can be the default export",
         },
         .{
-            "export default function App() { return <View/>; }\nexport default ~function Child() { return <View/>; }",
-            "exactly one component is supported; child components arrive in phase 2",
+            "function Row(~props) { return <View/>; }\nexport default function App() { return <Row/>; }",
+            "props need a type: function Row(props: RowProps)",
+        },
+        .{
+            "function Row(p: { a: string }) { return <View/>; }\nexport default function App() { return ~<Row/>; }",
+            "<Row> needs the prop `a`",
+        },
+        .{
+            "function Row(p: { a: string }) { return <View/>; }\nexport default function App() { return <Row ~b=\"x\"/>; }",
+            "unknown prop `b` on <Row>; props: a",
+        },
+        .{
+            "~function Row(p: { a: string }) { const [x,sx]=useState(0); return <View/>; }\n" ++
+                "export default function App() { return <Row a=\"x\"/>; }",
+            "child components have no state yet (phase 3)",
+        },
+        .{
+            "function Row({ go }: { go: (id: number) => void }) { return <Button onClick={() => go(1)}/>; }\n" ++
+                "export default function App() { return <Row go={(~id: string) => {}}/>; }",
+            "parameter type does not match the callback prop",
         },
         .{
             "export default function App() { if (true) { const [x,sx]=~useState(0); } return <View/>; }",
@@ -131,7 +149,7 @@ test "codegen diagnostics include precise source positions" {
         },
         .{
             "export default function App(~props) { return <View/>; }",
-            "component parameters are not supported; props arrive in phase 2",
+            "the root component takes no props; it is the app's state",
         },
         .{
             "export default function App() { ~const [x] = useState(0); return <View/>; }",

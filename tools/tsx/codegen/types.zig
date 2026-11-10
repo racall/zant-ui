@@ -102,6 +102,10 @@ pub fn typeRef(g: *Generator, ref: ast.TypeRef, allow_void: bool) Error!Type {
         return ty;
     }
     if (try model.named(g, ref.name)) |ty| return ty;
+    // React element types: a prop holding an element (`children`, `icon`)
+    inline for (.{ "JSX.Element", "React.ReactNode", "ReactNode", "React.ReactElement", "ReactElement" }) |name| {
+        if (zig_text.eq(ref.name, name)) return .node;
+    }
     if (zig_text.eq(ref.name, "number")) return .f64;
     if (zig_text.eq(ref.name, "boolean")) return .boolean;
     if (zig_text.eq(ref.name, "string")) return .string;

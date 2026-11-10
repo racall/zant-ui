@@ -10,12 +10,14 @@ const Error = core.Error;
 
 pub const Field = struct { name: []const u8, ty: Type, optional: bool = false };
 pub const Info = struct {
-    kind: enum { array, object, optional, enumeration },
+    kind: enum { array, object, optional, enumeration, callback },
     zig: []const u8,
     child: Type = .void_,
     fields: []const Field = &.{},
     members: []const []const u8 = &.{},
     declaration: ?[]const u8 = null,
+    /// `.callback`: the parameter types (callbacks return nothing).
+    params: []const Type = &.{},
 };
 
 pub fn info(g: *Generator, ty: Type) ?*Info {
@@ -62,7 +64,7 @@ pub fn owned(g: *Generator, ty: Type) bool {
     return switch (entry.kind) {
         .array, .object => true,
         .optional => owned(g, entry.child) or entry.child == .string,
-        .enumeration => false,
+        .enumeration, .callback => false,
     };
 }
 
@@ -80,7 +82,7 @@ pub fn resolve(g: *Generator, ref: ast.TypeRef, name: ?[]const u8) Error!Type {
         .union_ => |members| unionType(g, ref.loc, members, name),
         .string_lit => |member| enumeration(g, &.{member}, name),
         .null_ => .null_,
-        .func => core.fail(g, ref.loc, "function types arrive with child components in round 3", .{}),
+        .func => |f| @import("components.zig").callbackType(g, ref.loc, f),
     };
 }
 

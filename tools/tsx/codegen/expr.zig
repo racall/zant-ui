@@ -278,6 +278,7 @@ pub fn template(g: *Generator, c: *Context, t: ast.Template) Error!Value {
 }
 
 pub fn callValue(g: *Generator, c: *Context, loc: ast.Loc, call: ast.Call, expected: ?Type) Error!Value {
+    if (try @import("components.zig").tryCall(g, c, loc, call)) |value| return value;
     if (call.callee.data == .member) {
         return @import("array_methods.zig").emit(g, c, loc, call, expected);
     }
@@ -302,8 +303,8 @@ pub fn callValue(g: *Generator, c: *Context, loc: ast.Loc, call: ast.Call, expec
     const f = m.func.?;
     if (call.args.len != f.params.len) return core.fail(g, loc, "`{s}` expects {d} arguments", .{ n, f.params.len });
     var args: std.ArrayList([]const u8) = .empty;
-    for (call.args, f.params) |arg, p| {
-        const t = try events.parameterType(g, p, m.action);
+    for (call.args, f.params, 0..) |arg, p, index| {
+        const t = try events.methodParamType(g, m, index, p);
         try args.append(g.a, (try expr.emit(g, c, arg, t, false)).code);
     }
     return .{

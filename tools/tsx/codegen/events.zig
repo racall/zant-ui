@@ -29,6 +29,9 @@ pub const Method = struct {
     capture_name: ?[]const u8 = null,
     captures: std.ArrayList(captures.Capture) = .empty,
     emitted: ?[]const u8 = null,
+    /// Passed as a child component's callback prop: the parameter types of
+    /// that prop (unannotated arrow params take them; missing ones become `_`).
+    callback_params: ?[]const Type = null,
 };
 
 /// Register event methods before local allocation, so names and inferred signatures are stable.
@@ -67,6 +70,7 @@ pub fn scanExpr(g: *Generator, e: *ast.Expr) Error!void {
 
 /// Register attribute callbacks before recursively scanning JSX children.
 fn scanJsx(g: *Generator, j: *ast.Jsx) Error!void {
+    if (@import("components.zig").find(g, j.name)) |comp| try @import("components.zig").scan(g, j, comp);
     if (tags.find(j.name)) |tag| for (j.attrs) |attr| {
         if (attr.value) |value| {
             if (zig_text.eq(attr.name.name, "style") and value.data == .object) {
@@ -144,6 +148,8 @@ pub fn signature(g: *Generator, m: Method, kind: tags.Kind, loc: ast.Loc, inline
 /// Validate the action signature and reuse one adapter per setter and action kind.
 pub fn event(g: *Generator, e: *ast.Expr, prop: *const tags.Prop, loc: ast.Loc) Error!void {
     for (g.events.items) |ev| if (ev.expr == e and ev.kind == prop.kind) return;
+    // a child component's own callback prop, forwarded (`onClick={onSave}`)
+    if (try @import("components.zig").forwardedProp(g, e, prop.kind, loc)) return;
     var i: usize = undefined;
     if (e.data == .ident) {
         const n = e.data.ident;
@@ -208,6 +214,9 @@ pub fn event(g: *Generator, e: *ast.Expr, prop: *const tags.Prop, loc: ast.Loc) 
 }
 
 pub fn eventValue(g: *Generator, c: *scope.Context, e: *ast.Expr, kind: tags.Kind) Error![]const u8 {
+    if (try @import("components.zig").forwardedProp(g, e, kind, e.loc)) {
+        return (try @import("expr.zig").emit(g, c, e, null, false)).code;
+    }
     for (g.events.items) |ev| if (ev.expr == e and ev.kind == kind) {
         if (e.data == .arrow) try captures.prepare(g, c, ev.method);
         const m = g.methods.items[ev.method];
@@ -283,6 +292,24 @@ fn scanConditional(g: *Generator, v: ast.Cond) Error!void {
     try events.scanExpr(g, v.cond);
     try events.scanExpr(g, v.then);
     try events.scanExpr(g, v.else_);
+}
+
+/// The type of a method's parameter `index`: from a callback prop's
+/// signature when it has one, else as `parameterType`.
+pub fn methodParamType(g: *Generator, m: Method, index: usize, param: ast.Param) Error!Type {
+    const params = m.callback_params orelse return events.parameterType(g, param, m.action);
+    if (index >= params.len) return core.fail(g, param.name.loc, "the callback passes {d} arguments", .{params.len});
+    if (param.ty) |ref| {
+        const t = try types.typeRef(g, ref, false);
+        if (t != params[index]) return core.fail(
+            g,
+            param.name.loc,
+            "parameter type does not match the callback prop",
+            .{},
+        );
+        return t;
+    }
+    return params[index];
 }
 
 /// Prefer an annotation, then infer a parameter from its registered action kind.
