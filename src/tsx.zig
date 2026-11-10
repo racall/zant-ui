@@ -9,6 +9,8 @@ pub const strings = @import("tsx_strings.zig");
 pub const app = @import("tsx_app.zig");
 /// `KeyEvent` in TSX (`useKeyDown`).
 pub const KeyEvent = app.KeyEvent;
+/// JavaScript numeric built-ins for generated TSX code.
+pub const builtins = @import("tsx_builtins.zig");
 /// Nested `<Text>` spans and inline `<Link>`s.
 pub const text = @import("tsx_text.zig");
 
@@ -47,8 +49,7 @@ pub const String = struct {
 /// Template literals, string `+` and JSX text with expressions: formatted
 /// into the frame arena (valid until the next frame, like every node).
 pub fn fmt(comptime format: []const u8, args: anytype) []const u8 {
-    return std.fmt.allocPrint(ui.frameAllocator(), format, args) catch
-        @panic("Zant UI: out of memory while formatting a string");
+    return builtins.format(format, args);
 }
 
 /// Children with conditional entries (`{cond && <X/>}`): drops the nulls.
