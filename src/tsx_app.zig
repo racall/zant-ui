@@ -78,6 +78,12 @@ pub fn Shell(comptime Root: type) type {
             return true;
         }
 
+        /// `useWake`: after `ui.postWake()` from a background thread (a
+        /// native module finished work); every window rebuilds afterwards.
+        pub fn onWake(self: *Self) void {
+            if (@hasDecl(Root, "onWake")) self.root.onWake();
+        }
+
         /// Light or dark with the system, before every build.
         pub fn theme(self: *Self) tokens.Theme {
             return self.forced orelse systemTheme();

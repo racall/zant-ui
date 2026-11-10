@@ -480,6 +480,8 @@ useClipboardChange(() => record());          // 任何应用复制了东西（�
 useReopen(() => showMain());                 // macOS 点了 Dock 图标（只在根组件；不写时把主窗口带到前面）
 ```
 
+- `useWake(() => { … })`（只在根组件）：原生模块在后台线程做完事后调用 `zant.ui.postWake()`，回调在 UI 线程运行，
+  从模块里取结果（`const got = take(); if (got > 0) setValue(got);`），之后所有窗口重建。
 - 托盘和快捷键在渲染时应用，只有内容变化才调用系统接口；回调像事件处理函数一样运行，可以读渲染体里的局部变量。
 - 图标是 PNG 字节（`Uint8Array`），来自导入的图片文件或 Zig 原生模块。`useHotkey` 被别的应用占用时返回 false。
 

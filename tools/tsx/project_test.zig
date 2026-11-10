@@ -183,3 +183,14 @@ test "Zig functions take and return bytes as tsx.Bytes (Uint8Array)" {
     try contains(result.ok[1], "const data: []const u8 = _image.png() orelse");
     try contains(result.ok[1], "_image.size(data)");
 }
+
+test "output names that differ only in case collide (case-insensitive file systems)" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const result = try compile.compileProject(arena.allocator(), &.{
+        .{ .path = "src/Worker.tsx", .src = "export default function Worker() { return <View/>; }" },
+        .{ .path = "src/worker.zig", .src = "pub fn f() void {}" },
+    });
+    try std.testing.expect(result == .err);
+    try contains(result.err.diag.msg, "project output collision");
+}

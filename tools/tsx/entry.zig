@@ -23,7 +23,7 @@ pub fn mainSource(arena: std.mem.Allocator, files: []const compile.File, name: [
     var config = false;
     for (files) |file| {
         const output = try file.outputName(arena);
-        if (std.mem.eql(u8, output, "main.zig")) return error.NameTaken;
+        if (std.ascii.eqlIgnoreCase(output, "main.zig")) return error.NameTaken;
         if (std.mem.eql(u8, output, "app_config.zig")) config = true;
         if (!file.isZig() and std.mem.eql(u8, std.fs.path.stem(file.path), name)) entry = file;
     }

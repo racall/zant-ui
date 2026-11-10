@@ -60,7 +60,8 @@ pub fn compileProject(arena: std.mem.Allocator, files: []const File) error{OutOf
     const names = try arena.alloc([]const u8, files.len);
     for (files, 0..) |file, i| {
         names[i] = try file.outputName(arena);
-        for (names[0..i]) |previous| if (std.mem.eql(u8, names[i], previous)) {
+        // case-insensitive: macOS and Windows file systems are by default
+        for (names[0..i]) |previous| if (std.ascii.eqlIgnoreCase(names[i], previous)) {
             return .{ .err = .{ .file = i, .diag = .{
                 .loc = 0,
                 .msg = try std.fmt.allocPrint(arena, "project output collision: `{s}`", .{names[i]}),

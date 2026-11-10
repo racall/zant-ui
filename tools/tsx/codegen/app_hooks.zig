@@ -37,6 +37,7 @@ const hooks = [_]Hook{
     .{ .name = "useWindowFocus", .method = "onFocus", .param = .focused, .returns = .void_ },
     .{ .name = "useClipboardChange", .method = "onClipboard", .returns = .void_, .root_only = true },
     .{ .name = "useReopen", .method = "onReopen", .returns = .void_, .root_only = true },
+    .{ .name = "useWake", .method = "onWake", .returns = .void_, .root_only = true },
 };
 
 fn find(name: []const u8) ?Hook {
