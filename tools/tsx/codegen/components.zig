@@ -356,7 +356,7 @@ pub fn emitCall(g: *Generator, c: *Context, j: *ast.Jsx, comp: *const Component)
         const bare_error = "bare attribute `{s}` is only valid for boolean props";
         const code = if (attr.value) |v|
             try propValue(g, c, ty, v)
-        else if (ty == .boolean)
+        else if (ty == .boolean or model.optionalChild(g, ty) == .boolean)
             "true"
         else
             return core.fail(g, attr.name.loc, bare_error, .{attr.name.name});

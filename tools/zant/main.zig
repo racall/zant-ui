@@ -88,6 +88,13 @@ const RawMacos = struct {
     sandbox: ?bool = null,
     signing_identity: ?[]const u8 = null,
     entitlements: ?std.json.Value = null,
+    /// Overrides `window.titlebar_height` on macOS.
+    titlebar_height: ?f32 = null,
+};
+
+/// Windows-only settings (so far the title bar height override).
+const RawWindows = struct {
+    titlebar_height: ?f32 = null,
 };
 
 const RawConfig = struct {
@@ -99,6 +106,7 @@ const RawConfig = struct {
     signing_identity: ?[]const u8 = null,
     window: ?RawWindow = null,
     macos: ?RawMacos = null,
+    windows: ?RawWindows = null,
 };
 
 pub fn step(comptime fmt: []const u8, args: anytype) void {
@@ -410,6 +418,11 @@ pub fn loadConfig(allocator: std.mem.Allocator, io: Io, root: []const u8) !AppCo
         }
     }
     if (parsed.single_instance) |v| cfg.single_instance = v;
+    // the platform's own title bar height (macOS 52 / Windows 32 in ClipHop)
+    const platform_titlebar = if (is_windows)
+        (if (parsed.windows) |w| w.titlebar_height else null)
+    else
+        (if (parsed.macos) |m| m.titlebar_height else null);
     if (parsed.window) |w| {
         if (w.style) |v| cfg.window.style = v;
         if (w.width) |v| cfg.window.width = v;
@@ -424,6 +437,7 @@ pub fn loadConfig(allocator: std.mem.Allocator, io: Io, root: []const u8) !AppCo
         if (w.titlebar_height) |v| cfg.window.titlebar_height = v;
         if (w.hidden_at_login) |v| cfg.window.hidden_at_login = v;
     }
+    if (platform_titlebar) |v| cfg.window.titlebar_height = v;
     if (bundleError(cfg.bundle_id)) |why| fail("app.config.json 的 bundle_id \"{s}\" 不符合规范：{s}（如 com.xx.test）", .{ cfg.bundle_id, why });
     if (cfg.window.min_width > cfg.window.width) cfg.window.min_width = cfg.window.width;
     if (cfg.window.min_height > cfg.window.height) cfg.window.min_height = cfg.window.height;

@@ -11,11 +11,12 @@ interface BadgeProps {
   text: string;
   size?: number;
   tone?: "info" | "warn";
+  bold?: boolean;
 }
 
-function Badge({ text, size = 14, tone = "info" }: BadgeProps) {
+function Badge({ text, size = 14, tone = "info", bold = false }: BadgeProps) {
   return (
-    <Text size={size} weight={tone === "warn" ? "semibold" : "regular"}>
+    <Text size={size} weight={tone === "warn" || bold ? "semibold" : "regular"}>
       {text}
     </Text>
   );
@@ -28,7 +29,7 @@ export default function App() {
   }
   return (
     <View padding={16} gap={8}>
-      <Badge key="count" text={label(count)} />
+      <Badge key="count" text={label(count)} bold />
       <Badge key="files" text={label(count, "file", false)} size={20} tone="warn" />
       <Row key="buttons" gap={8}>
         <Button key="one" onClick={() => add(1)}>

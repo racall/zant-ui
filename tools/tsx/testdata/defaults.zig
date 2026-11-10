@@ -8,6 +8,7 @@ pub const BadgeProps = struct {
     text: []const u8,
     size: ?f64 = null,
     tone: ?_Enum2 = null,
+    bold: ?bool = null,
 };
 
 pub const _Enum2 = enum {
@@ -29,7 +30,7 @@ pub const Badge = struct {
     pub fn render(self: *Badge) ui.Node {
         return ui.text(self.props.text, .{
             .size = @floatCast((self.props.size orelse 14)),
-            .weight = if ((self.props.tone orelse .info) == .warn) .semibold else .regular,
+            .weight = if ((self.props.tone orelse .info) == .warn or (self.props.bold orelse false)) .semibold else .regular,
         });
     }
 
@@ -48,6 +49,7 @@ pub const App = struct {
             .children = &.{
                 ui.withKey(Badge.build(.{
                     .text = label(self.count, "item", true),
+                    .bold = true,
                 }), "count"),
                 ui.withKey(Badge.build(.{
                     .text = label(self.count, "file", false),
