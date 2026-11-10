@@ -104,6 +104,7 @@ test {
     _ = @import("codegen/app_hooks_test.zig");
     _ = @import("codegen/windows_test.zig");
     _ = @import("codegen/desktop_hooks_test.zig");
+    _ = @import("codegen/zant_api_test.zig");
     _ = @import("codegen/strings_test.zig");
     _ = compile;
     _ = @import("project_test.zig");

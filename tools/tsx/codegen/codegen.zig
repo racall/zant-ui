@@ -147,17 +147,52 @@ pub fn collect(g: *Generator, f: *ast.Function) Error!void {
         .expr => |e| if (@import("hooks.zig").callName(e)) |n| {
             if (zig_text.eq(n, "useEffect")) try @import("hooks.zig").collectEffect(g, e);
             if (@import("app_hooks.zig").isAppHook(n)) try @import("app_hooks.zig").collect(g, e);
-            if (@import("desktop_hooks.zig").isHook(n)) try @import("desktop_hooks.zig").collect(g, e);
         },
         else => {},
     };
     for (f.body.block) |s| try core.renderNames(g, s);
+    try markInline(g);
+    // desktop hooks may take a function that reads render locals (marked above)
+    for (f.body.block) |s| {
+        const e = switch (s.data) {
+            .decl => |d| d.init orelse continue,
+            .expr => |e| e,
+            else => continue,
+        };
+        const n = @import("hooks.zig").callName(e) orelse continue;
+        if (@import("desktop_hooks.zig").isHook(n)) try @import("desktop_hooks.zig").collect(g, e);
+    }
     for (g.states.items) |s| {
         if (scope.methodIndex(g, s.name) != null or zig_text.eq(
             s.name,
             "render",
         )) return core.fail(g, f.loc, "state `{s}` conflicts with a method; rename it", .{s.name});
     }
+}
+
+/// Component functions that read render locals (also through another such
+/// function) are emitted where they are passed, capturing that render.
+fn markInline(g: *Generator) Error!void {
+    var names: std.ArrayList([]const u8) = .empty;
+    // refs are fields of the component: functions read them directly
+    for (g.render_names.items) |n| if (scope.stateIndex(g, n) == null) try names.append(g.a, n);
+    var changed = true;
+    while (changed) {
+        changed = false;
+        for (g.methods.items) |*m| if (m.user and !m.inline_only) {
+            if (!@import("free_names.zig").function(m.func.?, names.items)) continue;
+            m.inline_only = true;
+            try names.append(g.a, m.name);
+            changed = true;
+        };
+    }
+}
+
+/// The function of a component function that reads render locals.
+pub fn inlineFunction(g: *Generator, n: []const u8) ?*ast.Function {
+    const i = scope.sourceMethod(g, n) orelse return null;
+    const m = g.methods.items[i];
+    return if (m.inline_only) m.func else null;
 }
 
 pub fn collectMethod(g: *Generator, n: []const u8, f: *ast.Function) Error!void {
@@ -298,7 +333,7 @@ pub fn generate(
                 zig_text.eq(n.imported.name, "createStore") or zig_text.eq(n.imported.name, "useStore") or
                 @import("app_hooks.zig").isAppHook(n.imported.name) or zig_text.eq(n.imported.name, "KeyEvent") or
                 zig_text.eq(n.imported.name, "createWindow") or @import("desktop_hooks.zig").isHook(n.imported.name) or
-                zig_text.eq(n.imported.name, "Image");
+                zig_text.eq(n.imported.name, "Image") or @import("zant_api.zig").exports(n.imported.name);
             if (!hook_import and tag == null and !types.numericName(n.imported.name) and
                 !types.nodeName(n.imported.name)) return core.fail(
                 &g,
@@ -433,7 +468,7 @@ fn emitComponent(g: *Generator, f: *ast.Function, comp: ?*components.Component) 
     var c = Context{ .g = g, .render = true, .ret = .node };
     const statements = try stmt.statements(g, &c, body, true);
     var methods: std.ArrayList([]const u8) = .empty;
-    for (g.methods.items) |m| try methods.append(arena, try core.emitMethod(g, m));
+    for (g.methods.items) |m| if (!m.inline_only) try methods.append(arena, try core.emitMethod(g, m));
     for (g.states.items) |state| if (model.owned(g, state.ty)) {
         g.managed_strings = true;
     };
@@ -564,7 +599,7 @@ fn collectDeclaration(g: *Generator, loc: ast.Loc, declaration: ast.Decl) Error!
         if (zig_text.eq(n, "useRef")) return @import("hooks.zig").collectRef(g, loc, declaration, init.data.call);
         if (zig_text.eq(n, "useMemo") or zig_text.eq(n, "useStore")) return; // render locals (stmt.declaration)
         if (zig_text.eq(n, "useEffect")) return core.fail(g, loc, "useEffect returns nothing", .{});
-        if (@import("desktop_hooks.zig").isHook(n)) return @import("desktop_hooks.zig").collect(g, init);
+        if (@import("desktop_hooks.zig").isHook(n)) return; // after `markInline`
         return core.collectState(g, loc, declaration, init.data.call);
     }
     if (init.data == .arrow and declaration.pattern == .ident) {

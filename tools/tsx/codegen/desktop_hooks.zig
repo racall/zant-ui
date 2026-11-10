@@ -55,7 +55,11 @@ pub fn collect(g: *Generator, e: *ast.Expr) Error!void {
 fn callback(g: *Generator, e: *ast.Expr) Error!void {
     const arrow = switch (e.data) {
         .arrow => e,
-        .ident => try events.functionArrow(g, e, .action),
+        .ident => |n| if (core.inlineFunction(g, n)) |f| blk: {
+            const arrow = try g.a.create(ast.Expr);
+            arrow.* = .{ .loc = e.loc, .data = .{ .arrow = f } };
+            break :blk arrow;
+        } else try events.functionArrow(g, e, .action),
         else => return core.fail(g, e.loc, "a callback here is an arrow or a function name", .{}),
     };
     if (arrow.data.arrow.params.len != 0) return core.fail(g, arrow.loc, "this callback takes no parameters", .{});

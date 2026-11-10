@@ -13,6 +13,7 @@ const launch = @import("launch.zig");
 const desktop = @import("desktop.zig");
 const events = @import("core/events.zig");
 const tsx_desktop = @import("tsx_desktop.zig");
+const tsx_platform = @import("tsx_platform.zig");
 
 /// Runs the app until its last window closes.
 pub fn run(init: std.process.Init, comptime Root: type, comptime config: type) !void {
@@ -20,6 +21,8 @@ pub fn run(init: std.process.Init, comptime Root: type, comptime config: type) !
         // already running (maybe hidden in the tray): it comes forward instead
         if (!desktop.singleInstance(config.bundle_id)) return;
     }
+    if (@hasDecl(config, "bundle_id")) tsx_platform.app_id = config.bundle_id;
+    tsx_platform.environ = init.environ_map;
     const App = Shell(Root);
     const forced = forcedTheme(init.environ_map);
     forced_theme = forced;

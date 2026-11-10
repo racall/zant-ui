@@ -293,10 +293,13 @@ pub fn scan(g: *Generator, j: *ast.Jsx, comp: *const Component) Error!void {
             try events.scanExpr(g, value);
             continue;
         };
-        if (value.data != .arrow) continue;
+        const f = switch (value.data) {
+            .arrow => |f| f,
+            .ident => |n| core.inlineFunction(g, n) orelse continue,
+            else => continue,
+        };
         g.counter += 1;
         const name = try scope.uniqueMethod(g, try zig_text.fmt(g, "_{s}{d}", .{ attr.name.name, g.counter }));
-        const f = value.data.arrow;
         if (f.params.len > entry.params.len) return core.fail(
             g,
             value.loc,
@@ -478,6 +481,11 @@ fn propValue(g: *Generator, c: *Context, ty: Type, value: *ast.Expr) Error![]con
 
 /// A function, an inline arrow or a callback prop of this component, bound
 /// as the callback type of the target prop.
+fn registered(g: *Generator, value: *const ast.Expr) ?usize {
+    for (g.callback_events.items) |ev| if (ev.expr == value) return ev.method;
+    return null;
+}
+
 fn callbackValue(g: *Generator, c: *Context, entry: *const model.Info, value: *ast.Expr) Error![]const u8 {
     var method_index: usize = undefined;
     switch (value.data) {
@@ -490,7 +498,10 @@ fn callbackValue(g: *Generator, c: *Context, entry: *const model.Info, value: *a
             } else unreachable; // registered by `scan`
             try captures.prepare(g, c, method_index);
         },
-        .ident => |n| {
+        .ident => |n| if (registered(g, value)) |index| {
+            method_index = index;
+            try captures.prepare(g, c, method_index);
+        } else {
             if (try readProp(g, n)) |prop| {
                 // forwarding this component's own callback prop
                 const same = callbackInfo(g, prop.ty);

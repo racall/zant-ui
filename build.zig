@@ -320,10 +320,10 @@ fn addSourceInputs(b: *std.Build, run: *std.Build.Step.Run, sub_path: []const u8
 
 /// Golden files of the TSX compiler (`tools/tsx/testdata/<name>.tsx` → `.zig`).
 const tsx_golden = [_][]const u8{
-    "counter",      "layout",    "text",  "events",      "conditional", "components", "todos",   "arrays",
-    "children",     "theme",     "list",  "local_state", "hooks",       "strings",    "store",   "nesting",
-    "widgets",      "functions", "loops", "spread",      "app_hooks",   "builtins",   "windows", "desktop",
-    "react_compat", "entities",
+    "counter",      "layout",    "text",     "events",      "conditional", "components", "todos",   "arrays",
+    "children",     "theme",     "list",     "local_state", "hooks",       "strings",    "store",   "nesting",
+    "widgets",      "functions", "loops",    "spread",      "app_hooks",   "builtins",   "windows", "desktop",
+    "react_compat", "entities",  "platform",
 };
 
 pub fn build(b: *std.Build) void {

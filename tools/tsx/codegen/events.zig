@@ -37,6 +37,9 @@ pub const Method = struct {
     effect_field: ?[]const u8 = null,
     /// An effect's cleanup function (runs later; can't read props).
     cleanup: bool = false,
+    /// A component function that reads render locals: not a method of its
+    /// own, emitted like an inline arrow wherever it is passed.
+    inline_only: bool = false,
 };
 
 /// Register event methods before local allocation, so names and inferred signatures are stable.
@@ -205,6 +208,11 @@ pub fn event(g: *Generator, e: *ast.Expr, prop: *const tags.Prop, loc: ast.Loc) 
                 const name = try scope.uniqueMethod(g, try zig_text.fmt(g, "_{s}", .{n}));
                 try g.methods.append(g.a, .{ .name = name, .setter = s, .action = prop.kind });
             }
+        } else if (core.inlineFunction(g, n)) |f| {
+            // reads render locals: emitted here like an inline arrow
+            const arrow = try g.a.create(ast.Expr);
+            arrow.* = .{ .loc = e.loc, .data = .{ .arrow = f } };
+            i = try registerArrow(g, prop, arrow);
         } else if (scope.sourceMethod(g, n) == null and @import("functions.zig").find(g, n) != null) {
             // a plain function: handled as `(v) => fn(v)`
             i = try registerArrow(g, prop, try functionArrow(g, e, prop.kind));
@@ -243,7 +251,7 @@ pub fn eventValue(g: *Generator, c: *scope.Context, e: *ast.Expr, kind: tags.Kin
         return (try @import("expr.zig").emit(g, c, e, null, false)).code;
     }
     for (g.events.items) |ev| if (ev.expr == e and ev.kind == kind) {
-        if (e.data == .arrow) try captures.prepare(g, c, ev.method);
+        if (g.methods.items[ev.method].capture_name != null) try captures.prepare(g, c, ev.method);
         const m = g.methods.items[ev.method];
         const receiver = if (m.captures.items.len > 0) try captures.value(g, m) else "self";
         return zig_text.fmt(

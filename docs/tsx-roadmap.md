@@ -27,6 +27,7 @@
 | A9 | JSX 展开属性：`<Button {...common} onClick={…} />`（对象的字段必须是这个标签 / 组件的属性，按源码顺序合并） | Claude | ✅ |
 | A10 | `enum Kind { Text, Image }` / `enum Kind { Text = "text" }` → Zig 枚举 | Codex | ⬜ |
 | A11 | JSX 实体：完整 XHTML 实体表、数字实体规则与 SWC / Babel 一致（`&#x` 小写、码点范围） | Codex | ✅ |
+| A14 | 命名的处理函数读 render 局部变量：`const copy = () => …` 传给 `onClick={copy}` / 回调 prop / `useHotkey`，也可被其他处理函数调用 | Claude | ✅ |
 | A13 | 可选值当条件用并收窄类型：`peer ? peer.name : "none"`、`if (peer) { peer.name }`（TS 里很常见） | Codex | ⬜ |
 | A12 | 泛型函数 `function first<T>(xs: T[]): T`（ClipHop 不需要，排在最后） | — | ⬜ |
 
@@ -36,7 +37,7 @@
 |---|---|---|---|
 | B1 | `<Image image={img}>`：内存图片类型 `Image`（`import type { Image } from "zant"`） | Claude | ✅ |
 | B2 | `<HotkeyInput value onRecord>`：快捷键用字符串表示（`"ctrl+cmd+v"`），回调 `(shortcut: string) => void` | Claude | ✅ |
-| B3 | 平台信息：`isMacos` / `isWindows`、`keyLabel("mod+f")`、`titlebarInsets()`、`monotonicMs()`、`wakeAfter(ms)` | Codex | ⬜ |
+| B3 | 平台信息：`isMacos` / `isWindows`、`keyLabel("mod+f")`、`titlebarInsets()`、`wakeAfter(ms)`（单调时钟用已有的 `performance.now()`） | Claude | ✅ |
 
 ## C. 应用运行时
 
@@ -47,7 +48,7 @@
 | C3 | 桌面事件：`useClipboardChange`、`useHotkey`、`useTray`（图标、菜单、点击）、`useReopen` | Claude | ✅（托盘的真实窗口检查等 A6） |
 | C4 | `useWake`：原生模块在后台线程完成后 `ui.postWake()`，TS 在 UI 线程取结果 | Claude | ✅ |
 | C5 | 多窗口：`createWindow(Panel, { … })`，句柄 `show` / `hide` / `toggle` / `place` / `focus`，窗口自己的按键、关闭、失焦 | Claude | ✅ |
-| C6 | 桌面函数：剪贴板（文字 / 图片 / 文件 / 变化计数 / 监听）、`quit`、开机启动、下载目录、设备名、应用数据目录、单实例 | Codex | ⬜ |
+| C6 | 桌面函数：剪贴板（文字 / 图片 / 文件 / 变化计数 / 监听）、`quit`、开机启动、下载目录、设备名、应用数据目录、单实例 | Claude | ✅（`singleInstance` 写进 `app_config.zig` 等 D1 合并） |
 
 ## D. 工具链
 

@@ -279,6 +279,10 @@ const selected = items.filter(item => {
 - **列表渲染**：子节点里的 `{todos.map((t) => <TodoRow key={t.id} … />)}`；`key` 是字符串或数字。
 - **闭包**：事件处理函数可以读 render 里的局部变量和 `.map` 的参数（`onClick={() => remove(t.id)}`），
   捕获的值按值复制进帧内存。
+- **命名的处理函数**：`const copy = () => clipboard.setText(text);` 读了 render 里的局部变量时，不单独生成方法，
+  而是在每个传入的地方（`onClick={copy}`、子组件的回调 prop、`useHotkey(k, copy)`）像内联箭头一样生成，捕获那次渲染的值；
+  其他事件处理函数和 effect 里也可以调用它（`() => { copy(); close(); }`）。应用 hooks（`useKeyDown` 等）的回调
+  不在渲染时创建，不能调用这种函数。
 - **子组件**：同一文件里的其他函数组件，或从项目里另一个文件导入（`import { TodoRow, type Todo } from "./TodoRow"`，
   被导入的组件和类型要 `export`；跨文件共享的嵌套对象类型和联合类型要写成具名的 `interface` / `type`）。参数是一个 props 对象
   （`function TodoRow(props: Props)` 或解构 `function TodoRow({ todo, onToggle }: Props)`），回调属性的类型写成
@@ -497,6 +501,40 @@ useReopen(() => showMain());                 // macOS 点了 Dock 图标（只�
   从模块里取结果（`const got = take(); if (got > 0) setValue(got);`），之后所有窗口重建。
 - 托盘和快捷键在渲染时应用，只有内容变化才调用系统接口；回调像事件处理函数一样运行，可以读渲染体里的局部变量。
 - 图标是 PNG 字节（`Uint8Array`），来自导入的图片文件或 Zig 原生模块。`useHotkey` 被别的应用占用时返回 false。
+
+### 桌面函数（从 "zant" 导入）
+
+```tsx
+import { clipboard, app, mainWindow, wakeAfter, keyLabel, isMacos, isWindows, titlebarInsets } from "zant";
+
+clipboard.text();             // string，没有文字时为 ""
+clipboard.setText(s);         // boolean
+clipboard.image();            // Uint8Array | null（PNG 字节）
+clipboard.setImage(png);      // boolean
+clipboard.files();            // string | null：复制的文件，绝对路径，一行一个
+clipboard.setFiles(lines);    // boolean
+clipboard.changeCount();      // number：每次变化（包括自己写入）都会增加
+
+app.quit();                   // 直接退出（不再询问 useCloseRequest）
+app.launchAtLogin();          // "off" | "on" | "needsApproval"（macOS：等用户在系统设置里允许）
+app.setLaunchAtLogin(on);     // boolean：macOS 上 `zant run` 的构建不支持，要打包后才行
+app.launchedAtLogin();        // boolean：本次由系统在登录时启动
+app.deviceName();             // string：用户看到的电脑名
+app.downloadsDir();           // string | null
+app.dataDir();                // string | null：应用自己的数据目录（按 bundle id）
+
+mainWindow.show(); mainWindow.hide(); mainWindow.activate(); mainWindow.focus("search"); mainWindow.visible();
+
+const hint = `搜索 ${keyLabel("mod+f")}`;   // "⌘F" / "Ctrl+F"，参数必须是字符串字面量（编译期求值）
+if (toastUntil > performance.now()) wakeAfter(toastUntil - performance.now());   // 到时间重建一次
+const insets = titlebarInsets();           // { left, right }：隐藏标题栏时系统按钮占的宽度（渲染时读）
+```
+
+- 这些名字要从 `"zant"` 导入才生效，不导入就是普通变量名，局部变量也可以遮蔽它们。
+- 会改变剪贴板、窗口或应用状态的函数（`setText`、`setImage`、`setFiles`、`quit`、`setLaunchAtLogin`、
+  `show` / `hide` / `activate` / `focus`）只能在事件处理函数和 effect 里调用，渲染时调用会报错；读取类函数在哪里都能用。
+- 返回的字符串放在帧内存里，存进 state 时会被复制。
+- 单实例：`app.config.json` 里写 `"singleInstance": true`，第二次打开应用时会把已运行的实例带到前面。
 
 ### 多窗口：`createWindow`
 

@@ -1,4 +1,6 @@
-//! Event arrows capture render locals by value; named component functions cannot capture.
+//! Event arrows capture render locals by value. Named component functions that
+//! read render locals are emitted like arrows where they are passed, and a
+//! call to one from such a handler gets its own copy (`nested`).
 const std = @import("std");
 const core = @import("codegen.zig");
 const scope = @import("scope.zig");
@@ -66,4 +68,39 @@ fn captureFieldTaken(method: events.Method, field: []const u8) bool {
     if (text.eq(field, "self")) return true;
     for (method.captures.items) |entry| if (text.eq(entry.field, field)) return true;
     return false;
+}
+
+pub const Nested = struct { receiver: []const u8, target: []const u8 };
+
+/// A call to component function `index` (it reads render locals) from a
+/// handler emitted at a render site: a copy of the function capturing from
+/// that render, its captured values read through the calling handler.
+pub fn nested(g: *core.Generator, c: *scope.Context, loc: @import("../ast.zig").Loc, index: usize) core.Error!Nested {
+    const source = c.capture_source orelse return core.fail(
+        g,
+        loc,
+        "`{s}` reads render locals; only handlers made while rendering (events, effects) can call it",
+        .{g.methods.items[index].name},
+    );
+    const m = g.methods.items[index];
+    g.counter += 1;
+    try g.methods.append(g.a, .{
+        .name = try scope.uniqueMethod(g, try text.fmt(g, "_{s}{d}", .{ m.name, g.counter })),
+        .func = m.func,
+        .ret = m.ret,
+        .capture_name = try scope.uniqueMethod(g, try text.fmt(g, "_Capture{d}", .{g.counter})),
+    });
+    const copy = g.methods.items.len - 1;
+    try prepare(g, source, copy);
+    const inner = g.methods.items[copy];
+    const target = try text.fmt(g, "{s}.{s}", .{ try text.id(g, g.name), try text.id(g, inner.name) });
+    if (inner.captures.items.len == 0) return .{ .receiver = "self", .target = target };
+    var fields: std.ArrayList(u8) = .empty;
+    try fields.appendSlice(g.a, ".self = self,\n");
+    for (inner.captures.items) |capture| {
+        const v = (try read(g, c, capture.name)) orelse unreachable; // a local of the same render
+        try fields.appendSlice(g.a, try text.fmt(g, ".{s} = {s},\n", .{ try text.id(g, capture.field), v.code }));
+    }
+    const receiver = try text.fmt(g, "tsx.capture({s}{{\n{s}}})", .{ inner.capture_name.?, fields.items });
+    return .{ .receiver = receiver, .target = target };
 }

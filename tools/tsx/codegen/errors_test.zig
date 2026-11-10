@@ -60,9 +60,9 @@ test "codegen diagnostics include precise source positions" {
             "state can only be set in event handlers",
         },
         .{
-            "export default function App() { const local=1; function f() { console.log(~local); } " ++
-                "return <Button onClick={f}/>; }",
-            "component functions cannot capture render locals; use an inline event handler",
+            "export default function App() { const local=1; function f() { console.log(local); } " ++
+                "useKeyDown((e: KeyEvent) => { ~f(); return true; }); return <Button onClick={f}/>; }",
+            "`f` reads render locals; only handlers made while rendering",
         },
         .{
             "export default function App() { function f(x: boolean) {} return <Button ~onClick={f}/>; }",

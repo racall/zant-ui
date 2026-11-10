@@ -22,7 +22,7 @@ const unary_names = [_][]const u8{
     "exp",   "log",  "log2",  "log10", "sin", "cos",  "tan",  "atan",
 };
 
-fn shadowed(g: *Generator, c: *Context, name: []const u8) bool {
+pub fn shadowed(g: *Generator, c: *Context, name: []const u8) bool {
     if (scope.local(c, name) != null or scope.stateIndex(g, name) != null or scope.globalName(g, name)) return true;
     if (c.capture_source) |parent| if (shadowed(g, parent, name)) return true;
     if (g.current_component) |component| {

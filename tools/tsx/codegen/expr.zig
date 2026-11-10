@@ -283,6 +283,7 @@ pub fn callValue(g: *Generator, c: *Context, loc: ast.Loc, call: ast.Call, expec
     if (try @import("stores.zig").tryCall(g, c, loc, call)) |value| return value;
     if (try @import("windows.zig").tryCall(g, c, loc, call)) |value| return value;
     if (try @import("functions.zig").tryCall(g, c, loc, call)) |value| return value;
+    if (try @import("zant_api.zig").tryCall(g, c, loc, call)) |value| return value;
     if (try @import("builtins.zig").tryCall(g, c, loc, call)) |value| return value;
     if (call.callee.data == .member) {
         return @import("array_methods.zig").emit(g, c, loc, call, expected);
@@ -310,20 +311,25 @@ pub fn callValue(g: *Generator, c: *Context, loc: ast.Loc, call: ast.Call, expec
     if (call.type_args.len != 0) return core.fail(g, loc, "type arguments are only supported on useState", .{});
     const i = scope.sourceMethod(g, n) orelse return core.fail(g, loc, "unknown function `{s}`", .{n});
     const m = g.methods.items[i];
+    var receiver: []const u8 = "self";
+    var target = try zig_text.fmt(g, "self.{s}", .{try zig_text.id(g, n)});
+    if (m.inline_only) {
+        // reads render locals: its own copy, capturing them through this handler
+        const nested = try @import("captures.zig").nested(g, c, loc, i);
+        receiver = nested.receiver;
+        target = nested.target;
+    }
     const f = m.func.?;
     if (call.args.len != f.params.len) return core.fail(g, loc, "`{s}` expects {d} arguments", .{ n, f.params.len });
     var args: std.ArrayList([]const u8) = .empty;
+    if (m.inline_only) try args.append(g.a, receiver);
     for (call.args, f.params, 0..) |arg, p, index| {
         const t = try events.methodParamType(g, m, index, p);
         try args.append(g.a, (try expr.emit(g, c, arg, t, false)).code);
     }
     return .{
         .ty = m.ret,
-        .code = try zig_text.fmt(
-            g,
-            "self.{s}({s})",
-            .{ try zig_text.id(g, n), try std.mem.join(g.a, ", ", args.items) },
-        ),
+        .code = try zig_text.fmt(g, "{s}({s})", .{ target, try std.mem.join(g.a, ", ", args.items) }),
     };
 }
 

@@ -45,6 +45,15 @@ pub const App = struct {
         });
     }
 
+    pub fn onClipboard(self: *App) void {
+        const clips: f64 = self.clips;
+        self.clips = clips + 1;
+    }
+
+    pub fn onReopen(self: *App) void {
+        self.hotkey.set("");
+    }
+
     fn _desktop1(self: *App) void {
         self.clips = 0;
     }
@@ -62,14 +71,5 @@ pub const App = struct {
     fn _desktop4(self: *App) void {
         const clips: f64 = self.clips;
         self.clips = clips + 1;
-    }
-
-    pub fn onClipboard(self: *App) void {
-        const clips: f64 = self.clips;
-        self.clips = clips + 1;
-    }
-
-    pub fn onReopen(self: *App) void {
-        self.hotkey.set("");
     }
 };

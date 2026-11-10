@@ -24,8 +24,9 @@ test "round 2 type and closure errors" {
             "array callback expects at most 2 parameters",
         },
         .{
-            "export default function App(){ const x=1; function f(){console.log(~x);} return <Button onClick={f}/>; }",
-            "component functions cannot capture render locals",
+            "export default function App(){ const x=1; function f(){console.log(x);} " ++
+                "useCloseRequest(() => { ~f(); return true; }); return <Button onClick={f}/>; }",
+            "`f` reads render locals",
         },
         .{
             "export default function App(){ const a=[1]; const x=~a===a; return <Text/>; }",

@@ -1,7 +1,9 @@
 // A TS + TSX app as `zant create` makes it: no Zig to write. The build
 // (`addTsxApp`) compiles every .tsx here and generates the entry from this
 // file's default export and app_config.zig. Run it with `zig build run-tsx-app`.
-import { createStore, createWindow, useStore, View, Row, Heading, Paragraph, Button } from "zant";
+import { createStore, createWindow, useState, useStore, useKeyDown, View, Row, Heading, Paragraph, Button } from "zant";
+import { clipboard, keyLabel, wakeAfter } from "zant";
+import type { KeyEvent } from "zant";
 import { Counter } from "./components/Counter";
 import { Panel } from "./components/Panel";
 
@@ -17,6 +19,18 @@ export const panel = createWindow(Panel, { title: "Panel", style: "panel", width
 
 export default function App() {
   const total = useStore(counts, (c) => c.total);
+  const [copiedUntil, setCopiedUntil] = useState(0);
+  const now = performance.now();
+  const copied = now < copiedUntil;
+  if (copied) wakeAfter(copiedUntil - now); // hide the note again
+  useKeyDown((e: KeyEvent) => {
+    if (!e.mod || e.key !== "p") return false;
+    panel.toggle();
+    return true;
+  });
+  const copy = () => {
+    if (clipboard.setText(`Total: ${total}`)) setCopiedUntil(performance.now() + 1500);
+  };
   return (
     <View padding={24} gap={14}>
       <Heading level={2}>Hello from TSX</Heading>
@@ -28,7 +42,11 @@ export default function App() {
         <Button key="toggle-panel" onClick={() => panel.toggle()}>
           Toggle panel
         </Button>
+        <Button key="copy" onClick={copy}>
+          Copy total
+        </Button>
       </Row>
+      <Paragraph key="note">{copied ? "Copied to the clipboard" : `Panel: ${keyLabel("mod+p")}`}</Paragraph>
     </View>
   );
 }

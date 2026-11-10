@@ -297,6 +297,7 @@ pub fn read(g: *Generator, c: *Context, n: []const u8, loc: ast.Loc) Error!Value
         return .{ .ty = s.ty, .code = b.zig };
     }
     for (g.constants.items) |constant| if (zig_text.eq(constant.name, n)) return constant.value;
+    if (try @import("zant_api.zig").read(g, c, n, loc)) |value| return value;
     if (!c.render) for (g.render_names.items) |name| {
         if (zig_text.eq(n, name)) return core.fail(
             g,
