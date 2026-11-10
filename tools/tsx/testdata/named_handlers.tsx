@@ -14,12 +14,13 @@ function Stepper({ label, onStep }: { label: string; onStep: (delta: number) => 
 export default function App() {
   const [count, setCount] = useState(0);
   const [name, setName] = useState("");
+  const [said, setSaid] = useState("");
   const step = name.length > 0 ? name.length : 1;
   const greeting = `Hello ${name}`;
   const bump = () => setCount(count + step);
   const onStep = (delta: number) => setCount(count + delta * step);
   const announce = () => {
-    console.log(greeting);
+    setSaid(greeting);
     bump();
   };
   useHotkey("ctrl+alt+b", bump);
@@ -29,6 +30,7 @@ export default function App() {
       <Text key="count">
         {count} (step {step})
       </Text>
+      <Text key="said">{said}</Text>
       <Row key="buttons" gap={8}>
         <Button key="bump" onClick={bump}>Bump</Button>
         <Button key="again" onClick={bump}>Bump again</Button>

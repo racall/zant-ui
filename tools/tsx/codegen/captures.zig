@@ -20,6 +20,8 @@ pub fn prepare(g: *core.Generator, c: *scope.Context, index: usize) core.Error!v
 pub fn read(g: *core.Generator, c: *scope.Context, n: []const u8) core.Error!?types.Value {
     const source = c.capture_source orelse return null;
     const binding = scope.local(source, n) orelse return null;
+    // narrowed where the arrow is made (`peer && <Button onClick={() => use(peer.name)}/>`)
+    const narrowed = @import("narrowing.zig").find(source, n);
     const index = c.capture_method.?;
     for (g.methods.items[index].captures.items) |capture| if (text.eq(capture.name, n)) {
         return .{ .ty = capture.ty, .code = try text.fmt(g, "cap.{s}", .{try text.id(g, capture.field)}) };
@@ -30,13 +32,14 @@ pub fn read(g: *core.Generator, c: *scope.Context, n: []const u8) core.Error!?ty
     while (captureFieldTaken(g.methods.items[index], field)) : (suffix += 1) {
         field = try text.fmt(g, "{s}_{d}", .{ n, suffix });
     }
+    const ty = if (narrowed) |v| v.ty else binding.ty;
     try g.methods.items[index].captures.append(g.a, .{
         .name = n,
         .field = field,
-        .ty = binding.ty,
-        .source = binding.zig,
+        .ty = ty,
+        .source = if (narrowed) |v| v.code else binding.zig,
     });
-    return .{ .ty = binding.ty, .code = try text.fmt(g, "cap.{s}", .{try text.id(g, field)}) };
+    return .{ .ty = ty, .code = try text.fmt(g, "cap.{s}", .{try text.id(g, field)}) };
 }
 
 /// One capture struct is shared by all instances of an arrow (including map rows).

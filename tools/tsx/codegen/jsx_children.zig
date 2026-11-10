@@ -115,12 +115,20 @@ pub const ChildList = struct {
         if (e.data == .jsx and e.data.jsx.name.len == 0) return list.append(e.data.jsx.children, guard);
         if (e.data == .binary and zig_text.eq(e.data.binary.op, "&&") and jsx.hasFragment(e.data.binary.rhs)) {
             const b = e.data.binary;
-            return list.expression(b.rhs, try list.condition(b.lhs, guard));
+            const cond = try list.condition(b.lhs, guard);
+            const mark = try @import("narrowing.zig").push(list.g, list.c, b.lhs, true);
+            defer @import("narrowing.zig").restore(list.c, mark);
+            return list.expression(b.rhs, cond);
         }
         if (e.data == .cond and (jsx.hasFragment(e.data.cond.then) or jsx.hasFragment(e.data.cond.else_))) {
             const v = e.data.cond;
             const cond = try list.condition(v.cond, guard);
+            const narrowing = @import("narrowing.zig");
+            var mark = try narrowing.push(list.g, list.c, v.cond, true);
             try list.expression(v.then, cond);
+            narrowing.restore(list.c, mark);
+            mark = try narrowing.push(list.g, list.c, v.cond, false);
+            defer narrowing.restore(list.c, mark);
             const otherwise = if (guard) |parent|
                 try zig_text.fmt(list.g, "{s} and !{s}", .{ parent, cond })
             else

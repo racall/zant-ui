@@ -22,7 +22,7 @@ const boolean_condition_message =
 
 pub fn condition(g: *Generator, c: *Context, e: *ast.Expr) Error!Value {
     const v = try expr.emit(g, c, e, null, false);
-    if (model.optionalChild(g, v.ty) != null) return core.fail(g, e.loc, "optional condition needs ?? or !", .{});
+    if (model.optionalChild(g, v.ty) != null) return @import("narrowing.zig").truthy(g, v);
     if (v.ty != .boolean) return core.fail(g, e.loc, boolean_condition_message, .{});
     return v;
 }
@@ -105,9 +105,14 @@ pub fn unary(g: *Generator, c: *Context, loc: ast.Loc, u: ast.Unary, expected: ?
 
 /// Unify branches and retain whether the result needs a concrete Zig type.
 pub fn conditional(g: *Generator, c: *Context, loc: ast.Loc, cond: ast.Cond, expected: ?Type, child: bool) Error!Value {
+    const narrowing = @import("narrowing.zig");
     const test_ = try expr.condition(g, c, cond.cond);
+    var mark = try narrowing.push(g, c, cond.cond, true);
     var a = try expr.emit(g, c, cond.then, expected, child);
+    narrowing.restore(c, mark);
+    mark = try narrowing.push(g, c, cond.cond, false);
     var b = try expr.emit(g, c, cond.else_, expected, child);
+    narrowing.restore(c, mark);
     const t = expected orelse (try types.unify(g, a.ty, b.ty, loc)).concrete();
     a = try types.coerce(g, a, t, cond.then.loc);
     b = try types.coerce(g, b, t, cond.else_.loc);
@@ -132,7 +137,10 @@ pub fn binary(g: *Generator, c: *Context, loc: ast.Loc, b: ast.Binary, expected:
     if (zig_text.eq(b.op, "**")) return core.fail(g, loc, "** is not supported yet", .{});
     if (zig_text.eq(b.op, "&&") or zig_text.eq(b.op, "||")) {
         const a = try expr.condition(g, c, b.lhs);
+        // `peer && peer.online`: the right side runs only when the left is true (|| false)
+        const mark = try @import("narrowing.zig").push(g, c, b.lhs, zig_text.eq(b.op, "&&"));
         const rhs = try expr.emit(g, c, b.rhs, null, child);
+        @import("narrowing.zig").restore(c, mark);
         if (child and zig_text.eq(b.op, "&&") and (rhs.ty == .node or rhs.ty == .optional_node)) return .{
             .ty = .optional_node,
             .code = try zig_text.fmt(g, "if ({s}) {s} else null", .{ a.code, rhs.code }),

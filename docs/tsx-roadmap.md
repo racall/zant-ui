@@ -28,7 +28,7 @@
 | A10 | `enum Kind { Text, Image }` / `enum Kind { Text = "text" }` → Zig 枚举 | Codex | ⬜ |
 | A11 | JSX 实体：完整 XHTML 实体表、数字实体规则与 SWC / Babel 一致（`&#x` 小写、码点范围） | Codex | ✅ |
 | A14 | 命名的处理函数读 render 局部变量：`const copy = () => …` 传给 `onClick={copy}` / 回调 prop / `useHotkey`，也可被其他处理函数调用 | Claude | ✅ |
-| A13 | 可选值当条件用并收窄类型：`peer ? peer.name : "none"`、`if (peer) { peer.name }`（TS 里很常见） | Codex | ⬜ |
+| A13 | 可选值当条件用并收窄类型：`peer ? peer.name : "none"`、`if (peer) { peer.name }`（TS 里很常见） | Claude | ✅ |
 | A12 | 泛型函数 `function first<T>(xs: T[]): T`（ClipHop 不需要，排在最后） | — | ⬜ |
 
 ## B. 组件属性

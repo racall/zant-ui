@@ -36,11 +36,13 @@ pub fn enumValue(g: *Generator, c: *Context, prop: *const tags.Prop, e: *ast.Exp
     if (e.data == .cond and prop.kind != .flag) {
         const v = e.data.cond;
         const cond = try expr.condition(g, c, v.cond);
-        return zig_text.fmt(
-            g,
-            "if ({s}) {s} else {s}",
-            .{ cond.code, try jsx.enumValue(g, c, prop, v.then), try jsx.enumValue(g, c, prop, v.else_) },
-        );
+        const narrowing = @import("narrowing.zig");
+        var mark = try narrowing.push(g, c, v.cond, true);
+        const then = try jsx.enumValue(g, c, prop, v.then);
+        narrowing.restore(c, mark);
+        mark = try narrowing.push(g, c, v.cond, false);
+        defer narrowing.restore(c, mark);
+        return zig_text.fmt(g, "if ({s}) {s} else {s}", .{ cond.code, then, try jsx.enumValue(g, c, prop, v.else_) });
     }
     const spelling = switch (e.data) {
         .string => |s| s,

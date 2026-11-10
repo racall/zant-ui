@@ -12,6 +12,8 @@ test {
     _ = @import("tsx_store_test.zig");
     _ = @import("tsx_nesting_test.zig");
     _ = @import("tsx_functions_test.zig");
+    _ = @import("tsx_narrowing_test.zig");
+    _ = @import("tsx_named_handlers_test.zig");
     _ = @import("tsx_zig_types_test.zig");
     _ = @import("tsx_spread_test.zig");
     _ = @import("tsx_app_test.zig");

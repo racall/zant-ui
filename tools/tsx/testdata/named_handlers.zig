@@ -42,6 +42,7 @@ pub const Stepper = struct {
 pub const App = struct {
     count: f64 = 0,
     name: tsx.State([]const u8) = .{ .initial = "" },
+    said: tsx.State([]const u8) = .{ .initial = "" },
     _hotkey7: tsx.desktop.Hotkey = .{},
 
     const _DesktopCapture2 = struct {
@@ -77,6 +78,7 @@ pub const App = struct {
 
     pub fn render(self: *App) ui.Node {
         self.name.sweep();
+        self.said.sweep();
         const step: usize = if (tsx.utf16Length(self.name.get()) > 0) tsx.utf16Length(self.name.get()) else 1;
         const greeting: []const u8 = tsx.fmt("Hello {s}", .{self.name.get()});
         _ = self._hotkey7.update("ctrl+alt+b", ui.action(tsx.capture(_DesktopCapture2{
@@ -94,6 +96,9 @@ pub const App = struct {
                 }),
                 ui.text(tsx.fmt("{d} (step {d})", .{ self.count, step }), .{
                     .key = "count",
+                }),
+                ui.text(self.said.get(), .{
+                    .key = "said",
                 }),
                 ui.row(.{
                     .key = "buttons",
@@ -161,7 +166,7 @@ pub const App = struct {
 
     fn _onClick5(cap: *_Capture5) void {
         const self: *App = cap.self;
-        std.debug.print("{s}\n", .{cap.greeting});
+        self.said.set(cap.greeting);
         App._bump8(tsx.capture(_Capture8{
             .self = self,
             .step = cap.step,

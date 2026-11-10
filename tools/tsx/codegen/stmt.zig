@@ -15,11 +15,24 @@ const Error = core.Error;
 
 pub fn statements(g: *Generator, c: *Context, ss: []const *ast.Stmt, top: bool) Error![]const u8 {
     var out: std.ArrayList(u8) = .empty;
+    const mark = c.narrowed.items.len;
+    defer @import("narrowing.zig").restore(c, mark);
     for (ss) |s| {
         try out.appendSlice(g.a, try stmt.statement(g, c, s, top));
         if (@import("loops.zig").exits(s)) break;
+        // `if (!entry) return …;` narrows `entry` for the rest of the block
+        if (s.data == .if_ and s.data.if_.else_ == null and leaves(s.data.if_.then)) {
+            _ = try @import("narrowing.zig").push(g, c, s.data.if_.cond, false);
+        }
     }
     return out.items;
+}
+
+/// The statement always leaves the block (return, break, continue).
+fn leaves(s: *ast.Stmt) bool {
+    const body: []const *ast.Stmt = if (s.data == .block) s.data.block else &.{s};
+    if (stmt.returnsAll(body)) return true;
+    return body.len > 0 and (body[body.len - 1].data == .break_ or body[body.len - 1].data == .continue_);
 }
 
 pub fn scoped(g: *Generator, c: *Context, s: *ast.Stmt) Error![]const u8 {
@@ -137,9 +150,14 @@ fn block(g: *Generator, c: *Context, ss: []const *ast.Stmt) Error![]const u8 {
 
 /// Emit boolean branches with a separate scope for each branch.
 fn ifStatement(g: *Generator, c: *Context, v: ast.If) Error![]const u8 {
+    const narrowing = @import("narrowing.zig");
     const cond = try expr.condition(g, c, v.cond);
+    var mark = try narrowing.push(g, c, v.cond, true);
     const then = try stmt.scoped(g, c, v.then);
+    narrowing.restore(c, mark);
+    mark = try narrowing.push(g, c, v.cond, false);
     const otherwise = if (v.else_) |el| try zig_text.fmt(g, " else {s}", .{try stmt.scoped(g, c, el)}) else "";
+    narrowing.restore(c, mark);
     return zig_text.fmt(g, "if ({s}) {s}{s}\n", .{ cond.code, then, otherwise });
 }
 

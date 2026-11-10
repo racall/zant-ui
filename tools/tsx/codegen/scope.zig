@@ -43,6 +43,8 @@ pub const Context = struct {
     cleanup: bool = false,
     /// A plain top-level function (`functions.zig`): no component, no `self`.
     no_self: bool = false,
+    /// Optionals proven non-null here (`narrowing.zig`).
+    narrowed: std.ArrayList(@import("narrowing.zig").Narrow) = .empty,
 };
 
 pub fn local(c: *Context, n: []const u8) ?*Binding {
@@ -267,6 +269,7 @@ pub fn stateField(g: *Generator, name: []const u8) Error![]const u8 {
 
 /// Handlers read method-entry snapshots; string snapshots copy into the frame arena.
 pub fn read(g: *Generator, c: *Context, n: []const u8, loc: ast.Loc) Error!Value {
+    if (@import("narrowing.zig").find(c, n)) |narrowed| return narrowed;
     if (scope.local(c, n)) |b| {
         return .{ .ty = b.ty, .code = b.zig };
     }
