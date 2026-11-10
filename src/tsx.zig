@@ -115,6 +115,48 @@ pub fn State(comptime T: type) type {
     };
 }
 
+/// `str.length` with TypeScript's meaning: UTF-16 code units, not bytes
+/// (`"周报".length` is 2, an emoji counts 2). Every byte that starts a code
+/// point counts one, and a 4-byte sequence (outside the BMP) one more.
+pub fn utf16Length(s: []const u8) usize {
+    var units: usize = 0;
+    for (s) |b| units += @as(usize, @intFromBool(b & 0xC0 != 0x80)) + @intFromBool(b >= 0xF0);
+    return units;
+}
+
+test utf16Length {
+    try std.testing.expectEqual(@as(usize, 0), utf16Length(""));
+    try std.testing.expectEqual(@as(usize, 5), utf16Length("hello"));
+    try std.testing.expectEqual(@as(usize, 6), utf16Length("周五前交周报"));
+    try std.testing.expectEqual(@as(usize, 3), utf16Length("📌 "));
+}
+
+/// The instance id of a stateful child component (`ui.localState`): the
+/// parent's id (the root's is 0) mixed with the component's name and its key
+/// (string or number) or call-site number.
+pub fn childId(parent: u64, comptime name: []const u8, key: anytype) u64 {
+    const named = parent ^ comptime std.hash.Wyhash.hash(0, name);
+    return switch (@typeInfo(@TypeOf(key))) {
+        .float, .comptime_float => ui.childId(named, @as(u64, @bitCast(@as(f64, key)))),
+        else => ui.childId(named, key),
+    };
+}
+
+/// The instance id of a key-less stateful child: numbered by call site, never
+/// equal to a keyed sibling's `childId`.
+pub fn siteId(parent: u64, comptime name: []const u8, comptime site: u32) u64 {
+    return ui.childId(parent ^ comptime std.hash.Wyhash.hash(1, name), site);
+}
+
+/// Frees a component's local state slot: every field with a `deinit`.
+pub fn deinitFields(value: anytype) void {
+    const T = @TypeOf(value.*);
+    inline for (@typeInfo(T).@"struct".field_names) |name| {
+        const F = @FieldType(T, name);
+        if (@typeInfo(F) == .@"struct" and @hasDecl(F, "deinit")) @field(value, name).deinit();
+    }
+}
+
 /// Only immutable value types produced by the compiler participate in state copies.
 fn deepCopy(comptime T: type, a: std.mem.Allocator, value: T) std.mem.Allocator.Error!T {
     return switch (@typeInfo(T)) {

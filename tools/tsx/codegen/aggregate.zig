@@ -166,6 +166,8 @@ pub fn member(g: *Generator, c: *Context, m: ast.Member) Error!Value {
 fn memberValue(g: *Generator, value: Value, name: ast.Name) Error!Value {
     const length = text.eq(name.name, "length") and (value.ty == .string or model.element(g, value.ty) != null);
     const ty = if (length) .usize else try model.fieldType(g, value.ty, name.name, name.loc);
+    // strings count UTF-16 code units, as in TypeScript
+    if (length and value.ty == .string) return .{ .ty = ty, .code = try text.fmt(g, "tsx.utf16Length({s})", .{value.code}) };
     const field = if (length) "len" else model.fieldZig(g, value.ty, name.name) orelse try text.id(g, name.name);
     return .{ .ty = ty, .code = try text.fmt(g, "{s}.{s}", .{ try text.operand(g, value, .suffix, false), field }) };
 }

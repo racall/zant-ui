@@ -156,7 +156,7 @@ pub const Todos = struct {
     fn add(self: *Todos) void {
         const name: []const u8 = ui.frameString(self.name.get());
         const nextId: f64 = self.nextId;
-        if (name.len > 0) {
+        if (tsx.utf16Length(name) > 0) {
             {
                 const current: []const Todo = self.todos.get();
                 self.todos.set(tsx.concat(Todo, &.{ current, &[_]Todo{

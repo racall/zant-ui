@@ -51,6 +51,7 @@ test {
     _ = paths;
     _ = desktop;
     _ = tsx;
+    _ = @import("core/local_state.zig");
 }
 
 pub const math = @import("math/mod.zig");

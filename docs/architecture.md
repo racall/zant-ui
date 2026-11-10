@@ -57,6 +57,8 @@ Zig 侧只通过 `skia_bridge.h` 的 C ABI 链接它（导入库由 `zant_skia.d
   在 `forgetNode` 中清理。带 presence 的节点先播放退场动画（不参与布局和命中测试），
   结束后再释放；同 key 节点重新出现时复活原节点。
 - 保留树保存焦点、光标、选区、悬停和输入法组合状态，并深拷贝所有字符串与绘制数据。
+- 组件实例的状态（`ui.localState`）由 Runtime 的 `LocalStateStore` 按 id 持有（`src/core/local_state.zig`）：
+  每次重建结束后释放这次没被请求的槽位；memo 子树构建时记录它用到的 id，被跳过时重新标记，不会被误释放。
 
 ## 布局
 

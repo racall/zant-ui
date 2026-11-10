@@ -124,6 +124,8 @@ pub const Runtime = struct {
     clear_color: u32 = 0,
     /// This window's frame allocations (ui.frameAllocator while it builds).
     frame_arena: std.heap.ArenaAllocator = std.heap.ArenaAllocator.init(std.heap.c_allocator),
+    /// `ui.localState` slots of this window's components.
+    local_states: ui.LocalStateStore,
 
     pub fn init(
         allocator: std.mem.Allocator,
@@ -150,11 +152,13 @@ pub const Runtime = struct {
             .userdata = userdata,
             .render_fn = render_fn,
             .clear_color = config.window.background,
+            .local_states = .init(allocator),
         };
         return self;
     }
 
     pub fn deinit(self: *Runtime) void {
+        self.local_states.deinit();
         self.frame_arena.deinit();
         if (self.tooltip_layout) |*layout| layout.deinit();
         self.sel_marked.deinit(self.allocator);
@@ -296,6 +300,12 @@ pub const Runtime = struct {
         ui.setBuildWindowStyle(self.config.window.style);
         ui.setBuildTree(self.tree);
         defer ui.setBuildTree(null);
+        // memo subtrees build during reconcile, so the store stays set (and
+        // sweeps unmounted slots) until the end
+        self.local_states.beginBuild();
+        ui.setBuildStates(&self.local_states);
+        defer ui.setBuildStates(null);
+        defer self.local_states.sweep();
         ui.beginFrameIn(&self.frame_arena);
         defer ui.endFrame();
         const prev_owner = ui.setCommandOwner(self);
@@ -416,17 +426,26 @@ pub const Runtime = struct {
                 }
                 if (child_spec.element.memo_hash) |hash| {
                     if (node.memo_hash != null and node.memo_hash.? == hash) {
+                        self.local_states.touch(node.memo_states);
                         try new_children.append(self.allocator, id);
                         continue;
                     }
                 }
-                const real = resolveMemo(child_spec);
-                if (try self.patchNode(id, real)) changed_layout = true;
-                self.tree.get(id).memo_hash = child_spec.element.memo_hash;
+                if (child_spec.element.memo_build == null) {
+                    if (try self.patchNode(id, child_spec)) changed_layout = true;
+                    var none: std.ArrayListUnmanaged(u64) = .empty;
+                    try self.setMemo(id, null, &none);
+                } else {
+                    var states: std.ArrayListUnmanaged(u64) = .empty;
+                    const recording = self.local_states.record(&states);
+                    const real = resolveMemo(child_spec);
+                    if (try self.patchNode(id, real)) changed_layout = true;
+                    self.local_states.endRecord(recording);
+                    try self.setMemo(id, child_spec.element.memo_hash, &states);
+                }
                 try new_children.append(self.allocator, id);
             } else {
-                const id = try self.createNode(resolveMemo(child_spec));
-                self.tree.get(id).memo_hash = child_spec.element.memo_hash;
+                const id = try self.createMemo(child_spec);
                 self.tree.get(id).parent = parent_id;
                 self.beginEnter(id);
                 try new_children.append(self.allocator, id);
@@ -556,6 +575,28 @@ pub const Runtime = struct {
     fn removeSubtree(self: *Runtime, id: NodeId) void {
         self.forgetSubtree(id);
         self.tree.freeSubtree(id);
+    }
+
+    /// Creates the node of a child spec, expanding (and recording) a memo.
+    fn createMemo(self: *Runtime, child_spec: ui.Node) !NodeId {
+        if (child_spec.element.memo_build == null) return self.createNode(child_spec);
+        var states: std.ArrayListUnmanaged(u64) = .empty;
+        const recording = self.local_states.record(&states);
+        const id = try self.createNode(resolveMemo(child_spec));
+        self.local_states.endRecord(recording);
+        try self.setMemo(id, child_spec.element.memo_hash, &states);
+        return id;
+    }
+
+    /// Stores the memo hash and the local state ids its build touched.
+    fn setMemo(self: *Runtime, id: NodeId, hash: ?u64, states: *std.ArrayListUnmanaged(u64)) !void {
+        defer states.deinit(self.allocator);
+        const node = self.tree.get(id);
+        node.memo_hash = hash;
+        if (node.memo_states.len > 0) self.tree.allocator.free(node.memo_states);
+        node.memo_states = &.{};
+        if (hash == null or states.items.len == 0) return;
+        node.memo_states = try self.tree.allocator.dupe(u64, states.items);
     }
 
     /// Expands a `ui.memo` placeholder into its built subtree.

@@ -47,6 +47,7 @@ macOS 与 Windows 共用同一套 API；快捷键文字一律用 `zant.keys.labe
 | `ui.richText(.{ .spans, .line_height, .on_link })` | 富文本：一段里混排不同样式、链接（`RichSpan.link` + `on_link`）、行内绘制（`RichSpan.embed`）；`line_height` 默认 2.0，0 用字体自身行高 |
 | `ui.vector(.{ .drawing, .width, .copy })` | 保留式矢量绘制（公式、图表）；尺寸取绘制内容，`copy` 是被选中复制时的文字 |
 | `ui.memo(.{ .key, .hash }, ctx, build)` | 类似 React.memo：`hash` 不变时整棵子树跳过构建；`build` 要返回 `ui.column` / `ui.row`，`ctx` 和子树里回调的上下文要活过这一帧 |
+| `ui.localState(T, id, initial)` | 组件实例自己的状态（类似 React 子组件的 `useState`）：第一次构建时用 `initial` 创建，返回的指针在实例一直被构建期间不变；某次重建不再请求这个 `id` 时释放（卸载，`T.deinit` 会被调用）。`id` 用 `ui.childId(parent_id, key)` 从父实例的 id 和 key 派生；`ui.memo` 跳过的子树里的状态保留 |
 | `ui.withKey(node, key)` | 给一个已经建好的节点设置 key（为 memo 子树分配 key） |
 | `ui.focus(key)` | 下一次布局后让这个 key 的控件获得键盘焦点（例如打开时聚焦搜索框） |
 | `ui.scrollIntoView(key)` | 滚动最近的滚动容器，把这个控件滚到顶部（有动效，关闭动效时直接跳） |

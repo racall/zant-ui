@@ -140,7 +140,7 @@ pub fn finish(c: *Context, body: []const u8) Error![]const u8 {
         if (counts[snap.binding.serial] == 0) continue;
         self_used = true;
         const state = c.g.states.items[snap.state];
-        const field = try zig_text.id(c.g, state.name);
+        const field = try scope.stateField(c.g, state.name);
         const init = if (@import("model.zig").owned(c.g, state.ty))
             try zig_text.fmt(c.g, "self.{s}.get()", .{field})
         else if (state.ty == .string) try zig_text.fmt(
@@ -247,6 +247,13 @@ pub fn renameModules(g: *Generator, raw: []const u8) Error![]const u8 {
     return out.items;
 }
 
+/// The Zig field (after `self.`) of a state or hidden `ListState`: child
+/// components keep theirs in the local state slot `_s` (`ui.localState`).
+pub fn stateField(g: *Generator, name: []const u8) Error![]const u8 {
+    const field = try zig_text.id(g, name);
+    return if (g.current_component != null) zig_text.fmt(g, "_s.{s}", .{field}) else field;
+}
+
 /// Handlers read method-entry snapshots; string snapshots copy into the frame arena.
 pub fn read(g: *Generator, c: *Context, n: []const u8, loc: ast.Loc) Error!Value {
     if (scope.local(c, n)) |b| {
@@ -262,7 +269,7 @@ pub fn read(g: *Generator, c: *Context, n: []const u8, loc: ast.Loc) Error!Value
                 g,
                 "self.{s}{s}",
                 .{
-                    try zig_text.id(g, n),
+                    try scope.stateField(g, n),
                     if (s.ty == .string or @import("model.zig").owned(g, s.ty)) ".get()" else "",
                 },
             ),

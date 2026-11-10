@@ -18,6 +18,7 @@ test {
 test {
     _ = @import("ui_test.zig");
     _ = @import("view_test.zig");
+    _ = @import("local_state_test.zig");
 }
 
 test {

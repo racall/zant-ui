@@ -222,7 +222,8 @@ exe.root_module.addImport("notes_tsx", notes);
 - **子组件**：同一文件里的其他函数组件，或从项目里另一个文件导入（`import { TodoRow, type Todo } from "./TodoRow"`，
   被导入的组件和类型要 `export`；跨文件共享的嵌套对象类型和联合类型要写成具名的 `interface` / `type`）。参数是一个 props 对象
   （`function TodoRow(props: Props)` 或解构 `function TodoRow({ todo, onToggle }: Props)`），回调属性的类型写成
-  函数类型（`onToggle: (id: number) => void`）。子组件没有自己的状态（第三阶段），由父组件传值和回调。
+  函数类型（`onToggle: (id: number) => void`）。子组件可以有自己的状态（见下面「第三阶段」）。
+- **字符串**：`str.length` 与 TypeScript 相同，是 UTF-16 码元数（`"周报".length` 是 2），不是 UTF-8 字节数。
 - **主题**：`const theme = useTheme();`，`theme.colorPrimary`、`theme.colorText`、`theme.colorBgContainer` …
   （`zant.tokens.Theme` 的字段，camelCase）。默认跟随系统浅色 / 深色。
 - **长列表**：`<List data={todos} renderItem={(t, i) => <Row …/>} keyExtractor={(t) => t.id} />`
@@ -240,8 +241,37 @@ exe.root_module.addImport("notes_tsx", notes);
 示例：`zig build run-tsx`（计数器）、`run-tsx-gallery`（组件展示）、`run-tsx-todos`（待办）、
 `run-tsx-notes`（两个文件的便签：`examples/tsx/notes/`）。
 
+## 第三阶段（进行中）：组件状态与 hooks
+
+### 子组件的 `useState`
+
+子组件里的 `useState` 和 React 一样属于**这个实例**：同一个 `<Counter>` 渲染三次就有三份独立的状态，
+实例卸载（父组件不再渲染它）时状态释放，再出现时从初始值开始。
+
+```tsx
+function Counter({ label }: { label: string }) {
+  const [count, setCount] = useState(0);
+  return <Button onClick={() => setCount(count + 1)}>{label}: {count}</Button>;
+}
+```
+
+编译结果：状态字段放进 `_Local` 结构体，由框架的 `ui.localState` 按实例 id 持有；构建函数多一个 id 参数，
+调用处用 `tsx.childId(父实例 id, "Counter", key)` 计算（没有 key 时按调用位置编号 `tsx.siteId`）。
+所以实例的身份和 React 一样由**父组件 + 组件名 + key（或位置）**决定：列表里换了顺序、删了别的项，
+带 key 的实例状态跟着 key 走。`.map` 里的有状态组件一定要给 `key`（React 也要求），否则它们共用一份状态。
+`<List>` 的滚动状态同样保存在所在组件的实例里，子组件里也可以用 `<List>`。
+
+只有有状态的组件（用了 `useState` / `<List>`，或者渲染了有状态的子组件，跨文件也会分析）才带 id，
+无状态组件的生成代码和以前一样，没有额外开销。
+
+性能（ReleaseFast）：300 行、每行一个有状态 `<Counter>`（`local_bench.tsx` 对手写 `ui.localState` 的
+`local_manual.zig`），逐行挂载 0.444 / 0.428 ms，点击 0.562 / 0.558 ms（`zig build bench-tsx -- local`）。
+
+### 待做
+
+- `useMemo` / `useRef` / `useEffect`、编译期自动 memo（不依赖状态的子树跳过比对，参考 Solid / React Compiler）、
+  从 Zig 导入函数、`zant.store`。
+
 ## 后续阶段
 
-- 第三阶段：子组件内部状态（`ui.localState`）、`useMemo` / `useRef` / `useEffect`、
-  编译期自动 memo（不依赖状态的子树跳过比对，参考 Solid / React Compiler）、从 Zig 导入函数、`zant.store`。
 - 第四阶段：`zant.d.ts`（编辑器补全，从标签表生成，参考 nsh）、`zant new --tsx`、`zant run --watch` 监视 `.tsx`。

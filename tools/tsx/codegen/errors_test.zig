@@ -110,11 +110,6 @@ test "codegen diagnostics include precise source positions" {
             "unknown prop `b` on <Row>; props: a",
         },
         .{
-            "~function Row(p: { a: string }) { const [x,sx]=useState(0); return <View/>; }\n" ++
-                "export default function App() { return <Row a=\"x\"/>; }",
-            "child components have no state yet (phase 3)",
-        },
-        .{
             "function Row({ go }: { go: (id: number) => void }) { return <Button onClick={() => go(1)}/>; }\n" ++
                 "export default function App() { return <Row go={(~id: string) => {}}/>; }",
             "parameter type does not match the callback prop",
@@ -162,11 +157,6 @@ test "codegen diagnostics include precise source positions" {
         .{
             "export default function App() { return ~<List data={[\"a\"]}/>; }",
             "<List> needs `renderItem`",
-        },
-        .{
-            "function Rows(p: { names: string[] }) { return ~<List data={p.names} renderItem={(n) => <Text>{n}</Text>}/>; }\n" ++
-                "export default function App() { return <Rows names={[]}/>; }",
-            "<List> keeps scroll state and needs the root component",
         },
         .{
             "export default function App(~props) { return <View/>; }",

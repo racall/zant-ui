@@ -48,6 +48,13 @@ fn stem(source: []const u8) []const u8 {
     return if (std.mem.endsWith(u8, base, ".tsx")) base[0 .. base.len - 4] else base;
 }
 
+/// The project file a relative import names (`./components/TodoRow` → `TodoRow`).
+pub fn findModule(project: []const NamedModule, source: []const u8) ?ast.Module {
+    const name = stem(source);
+    for (project) |m| if (zig_text.eq(m.name, name)) return m.module;
+    return null;
+}
+
 /// Handles the relative imports of `module`: registers imported types and
 /// components and returns the `@import` lines for the file header.
 pub fn process(g: *Generator, module: ast.Module, project: []const NamedModule) Error![]const u8 {
@@ -55,26 +62,24 @@ pub fn process(g: *Generator, module: ast.Module, project: []const NamedModule) 
     for (module.imports) |imp| {
         if (!isRelative(imp.source)) continue;
         const name = stem(imp.source);
-        const target = for (project) |m| {
-            if (zig_text.eq(m.name, name)) break m;
-        } else return core.fail(g, imp.source_loc, "cannot find `{s}` among the project's .tsx files", .{
-            imp.source,
-        });
+        const target = findModule(project, imp.source) orelse {
+            return core.fail(g, imp.source_loc, "cannot find `{s}` among the project's .tsx files", .{imp.source});
+        };
         const alias = try zig_text.fmt(g, "_{s}", .{name});
         const scope = try g.a.create(Scope);
-        scope.* = .{ .decls = target.module.types, .alias = alias };
+        scope.* = .{ .decls = target.types, .alias = alias };
         try header.appendSlice(g.a, try zig_text.fmt(g, "const {s} = @import(\"{s}.zig\");\n", .{
             try zig_text.id(g, alias), name,
         }));
         for (imp.names) |n| {
-            if (exportedType(target.module, n.imported.name)) {
+            if (exportedType(target, n.imported.name)) {
                 try g.imported_types.append(g.a, .{
                     .local = n.local.name,
                     .imported = n.imported.name,
                     .scope = scope,
                 });
-            } else if (exportedFunction(target.module, n.imported.name)) |f| {
-                try importComponent(g, n, f, scope);
+            } else if (exportedFunction(target, n.imported.name)) |f| {
+                try importComponent(g, n, f, scope, @import("stateful.zig").stateful(project, target, f));
             } else {
                 return core.fail(g, n.imported.loc, "`{s}` is not exported by `{s}`", .{ n.imported.name, imp.source });
             }
@@ -94,7 +99,13 @@ fn exportedFunction(module: ast.Module, name: []const u8) ?*ast.Function {
 }
 
 /// An imported component: its props type resolves in the declaring file.
-fn importComponent(g: *Generator, n: ast.ImportName, f: *ast.Function, scope: *const Scope) Error!void {
+fn importComponent(
+    g: *Generator,
+    n: ast.ImportName,
+    f: *ast.Function,
+    scope: *const Scope,
+    stateful: bool,
+) Error!void {
     var comp = components.Component{
         .name = n.local.name,
         .builder = try zig_text.fmt(g, "{s}.{s}", .{
@@ -104,6 +115,7 @@ fn importComponent(g: *Generator, n: ast.ImportName, f: *ast.Function, scope: *c
         .func = f,
         .props = null,
         .external = true,
+        .stateful = stateful,
     };
     if (f.params.len == 1) {
         const ref = f.params[0].ty orelse return core.fail(g, n.imported.loc, "`{s}` has untyped props", .{f.name});

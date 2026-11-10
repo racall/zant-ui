@@ -29,6 +29,7 @@ const Stats = harness.Stats;
 const Harness = harness.Harness;
 const todos_bench = @import("bench_todos.zig");
 const list_bench = @import("bench_list.zig");
+const local_bench = @import("bench_local.zig");
 
 /// The counter's controls in the order the scenario clicks them; `reset`
 /// is skipped while it is disabled (count 0), as a user would.
@@ -100,4 +101,5 @@ pub fn main(init: std.process.Init) !void {
     }
     if (want(args, "todos")) try todos_bench.run(gpa, &renderer);
     if (want(args, "list")) try list_bench.run(gpa, &renderer);
+    if (want(args, "local")) try local_bench.run(gpa, &renderer);
 }

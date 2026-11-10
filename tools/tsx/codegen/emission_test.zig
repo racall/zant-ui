@@ -63,7 +63,7 @@ test "parentheses preserve precedence and right operand grouping" {
     try contains(zig, "const c: f64 = self.x + (self.x + 1);");
     try contains(zig, "const d: f64 = (if (self.flag) self.x else self.x + 1) * 2;");
     try contains(zig, "const e: bool = !(self.x > 0 and self.flag);");
-    try contains(zig, "const name: usize = (if (self.flag) \"A\" else \"B\").len;");
+    try contains(zig, "const name: usize = tsx.utf16Length(if (self.flag) \"A\" else \"B\");");
     try contains(zig, "if (e) {");
 }
 

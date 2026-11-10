@@ -117,6 +117,43 @@ pub fn setBuildTree(tree: ?*const @import("core/tree.zig").Tree) void {
     build_tree = tree;
 }
 
+const local_state = @import("core/local_state.zig");
+pub const LocalStateStore = local_state.Store;
+pub const LocalSlot = local_state.Slot;
+/// The id of a child instance for `localState`: the parent's id mixed with a
+/// name, key or position (`[]const u8` or an integer).
+pub const childId = local_state.childId;
+
+threadlocal var build_states: ?*local_state.Store = null;
+threadlocal var default_states: ?local_state.Store = null;
+
+/// Local state store of the runtime being built (set by the runtime).
+pub fn setBuildStates(store: ?*local_state.Store) void {
+    build_states = store;
+}
+
+/// Component-local state that lives while the instance keeps being built:
+/// the slot for `id` is created from `initial` on the first build and freed
+/// after the first rebuild that does not ask for it (unmount). The pointer
+/// stays valid for callbacks of the frame. `T.deinit` runs on unmount.
+///
+///     const open = ui.localState(bool, ui.childId(parent_id, "faq-3"), false);
+pub fn localState(comptime T: type, id: u64, initial: T) *T {
+    const slot = localSlot(T, id);
+    if (slot.fresh) slot.value.* = initial;
+    return slot.value;
+}
+
+/// `localState` without an initial value: the slot starts as `T`'s default
+/// (`std.mem.zeroInit`) and `fresh` tells the caller to initialise it.
+pub fn localSlot(comptime T: type, id: u64) local_state.Slot(T) {
+    const store = build_states orelse blk: {
+        if (default_states == null) default_states = local_state.Store.init(std.heap.c_allocator);
+        break :blk &default_states.?;
+    };
+    return store.slot(T, id);
+}
+
 /// Window-space box (logical px) of the node with `key` as laid out in the
 /// previous frame, or null (first frame, key not shown). Use it to place a
 /// popover next to its trigger from the root container:

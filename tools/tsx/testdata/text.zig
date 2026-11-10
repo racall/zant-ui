@@ -11,7 +11,7 @@ pub const TextExamples = struct {
 
     pub fn render(self: *TextExamples) ui.Node {
         const greeting: []const u8 = tsx.fmt("Hello, {s}!", .{self.name.get()});
-        const length: usize = self.name.get().len;
+        const length: usize = tsx.utf16Length(self.name.get());
         const message: []const u8 = tsx.fmt("Braces {{ok}} and UTF-8 你好: {s} {d} {}", .{ self.name.get(), self.count, self.enabled });
         return ui.view(.{
             .children = &.{

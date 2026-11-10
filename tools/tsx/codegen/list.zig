@@ -80,12 +80,6 @@ fn arrow(g: *Generator, j: *ast.Jsx, name: []const u8, required: bool) Error!?*a
 /// Registers the item and id methods (before emission, like event handlers)
 /// and scans their bodies for nested handlers.
 pub fn scan(g: *Generator, j: *ast.Jsx) Error!void {
-    if (g.current_component != null) return core.fail(
-        g,
-        j.loc,
-        "<List> keeps scroll state and needs the root component (child state arrives in phase 3)",
-        .{},
-    );
     if (attr(j, "data") == null) return core.fail(g, j.loc, "<List> needs `data`", .{});
     const render_item = (try arrow(g, j, "renderItem", true)).?;
     if (render_item.params.len == 0 or render_item.params.len > 2) {
@@ -157,7 +151,7 @@ pub fn emit(g: *Generator, c: *Context, j: *ast.Jsx) Error!Value {
     return .{ .ty = .node, .code = try zig_text.fmt(
         g,
         "{s}: {{\nconst {s} = {s};\nbreak :{s} ui.list(&self.{s}, {s});\n}}",
-        .{ info.field, cap, capture, info.field, info.field, try fields.emit() },
+        .{ info.field, cap, capture, info.field, try scope.stateField(g, info.field), try fields.emit() },
     ) };
 }
 

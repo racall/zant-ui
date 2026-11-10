@@ -62,6 +62,11 @@ pub const Generator = struct {
     type_scope: ?*const @import("imports.zig").Scope = null,
     /// `<List>`s of the component being generated.
     lists: std.ArrayList(@import("list.zig").ListInfo) = .empty,
+    /// The project's files (stateful analysis of imported components).
+    project: []const @import("imports.zig").NamedModule = &.{},
+    /// Key-less stateful child call sites of the current component, numbered
+    /// for their instance ids.
+    child_sites: usize = 0,
 };
 
 pub fn fail(g: *Generator, loc: ast.Loc, comptime f: []const u8, args: anytype) Error {
@@ -232,7 +237,7 @@ pub fn generate(
 ) Error![]const u8 {
     _ = src;
     diag.* = null;
-    var g = Generator{ .a = arena, .diag = diag };
+    var g = Generator{ .a = arena, .diag = diag, .project = options.project };
     g.type_decls = module.types;
     g.resolving = try arena.alloc(bool, module.types.len);
     @memset(g.resolving, false);
@@ -334,6 +339,7 @@ fn resetComponent(g: *Generator) void {
     g.callback_events.clearRetainingCapacity();
     g.lists.clearRetainingCapacity();
     g.managed_strings = false;
+    g.child_sites = 0;
 }
 
 /// One component as a struct: the root with its state fields, or a child
@@ -349,12 +355,6 @@ fn emitComponent(g: *Generator, f: *ast.Function, comp: ?*components.Component) 
     };
     g.name = f.name;
     try core.collect(g, f);
-    if (comp != null and g.states.items.len > 0) return core.fail(
-        g,
-        f.loc,
-        "child components have no state yet (phase 3); keep the state in the parent and pass values and callbacks",
-        .{},
-    );
     try scope.moduleNames(g);
     try events.scanBody(g, f.body);
     const body = f.body.block;
@@ -379,34 +379,32 @@ fn emitComponent(g: *Generator, f: *ast.Function, comp: ?*components.Component) 
     var render_prefix: std.ArrayList(u8) = .empty;
     for (g.states.items) |state| if (model.owned(g, state.ty) or (state.ty == .string and g.managed_strings)) {
         try render_prefix.appendSlice(arena, try zig_text.fmt(g, "self.{s}.sweep();\n", .{
-            try zig_text.id(g, state.name),
+            try scope.stateField(g, state.name),
         }));
     };
     const render_body = try zig_text.fmt(g, "{s}{s}", .{ render_prefix.items, statements });
     const name = try zig_text.id(g, f.name);
     var out: std.ArrayList(u8) = .empty;
     try out.appendSlice(arena, try zig_text.fmt(g, "pub const {s} = struct {{\n", .{name}));
+    const fields = try stateFields(g);
     if (comp) |child| {
         const props_type = if (child.props) |t| t.zig(g) else "struct {}";
-        try out.appendSlice(arena, try zig_text.fmt(g, "props: Props,\n\npub const Props = {s};\n\n", .{props_type}));
+        try out.appendSlice(arena, "props: Props,\n");
+        // stateful children: their instance id, and the state kept in a
+        // `ui.localState` slot while the instance stays mounted
+        if (child.stateful) try out.appendSlice(arena, "_id: u64,\n");
+        if (fields.len > 0) try out.appendSlice(arena, "_s: *_Local,\n");
+        try out.appendSlice(arena, try zig_text.fmt(g, "\npub const Props = {s};\n\n", .{props_type}));
+        if (fields.len > 0) try out.appendSlice(arena, try zig_text.fmt(
+            g,
+            "pub const _Local = struct {{\n{s}\n" ++
+                "pub fn deinit(self: *_Local) void {{\ntsx.deinitFields(self);\n}}\n}};\n\n",
+            .{fields},
+        ));
+    } else if (fields.len > 0) {
+        try out.appendSlice(arena, fields);
+        try out.appendSlice(arena, "\n");
     }
-    for (g.states.items) |s| {
-        const wrapped = s.ty == .string or model.owned(g, s.ty);
-        const initial = if (wrapped) try zig_text.fmt(g, ".{{ .initial = {s} }}", .{s.initial}) else s.initial;
-        const state_type = if (s.ty == .string and !g.managed_strings) "tsx.String" else if (wrapped)
-            try zig_text.fmt(g, "tsx.State({s})", .{s.ty.zig(g)})
-        else
-            s.ty.zig(g);
-        try out.appendSlice(
-            arena,
-            try zig_text.fmt(g, "{s}: {s} = {s},\n", .{ try zig_text.id(g, s.name), state_type, initial }),
-        );
-    }
-    for (g.lists.items) |l| {
-        const field = "{s}: ui.ListState = .{{ .allocator = std.heap.smp_allocator }},\n";
-        try out.appendSlice(arena, try zig_text.fmt(g, field, .{l.field}));
-    }
-    if (g.states.items.len + g.lists.items.len > 0) try out.appendSlice(arena, "\n");
     try out.appendSlice(arena, try @import("captures.zig").declarations(g));
     try out.appendSlice(arena, try zig_text.fmt(
         g,
@@ -418,12 +416,46 @@ fn emitComponent(g: *Generator, f: *ast.Function, comp: ?*components.Component) 
         try out.appendSlice(arena, code);
     }
     try out.appendSlice(arena, "};\n");
-    if (comp) |child| try out.appendSlice(arena, try zig_text.fmt(
+    if (comp) |child| try out.appendSlice(arena, try builderFunction(g, child, name, fields.len > 0));
+    return out.items;
+}
+
+/// State fields and hidden `ListState`s with their initial values.
+fn stateFields(g: *Generator) Error![]const u8 {
+    var out: std.ArrayList(u8) = .empty;
+    for (g.states.items) |s| {
+        const wrapped = s.ty == .string or model.owned(g, s.ty);
+        const initial = if (wrapped) try zig_text.fmt(g, ".{{ .initial = {s} }}", .{s.initial}) else s.initial;
+        const state_type = if (s.ty == .string and !g.managed_strings) "tsx.String" else if (wrapped)
+            try zig_text.fmt(g, "tsx.State({s})", .{s.ty.zig(g)})
+        else
+            s.ty.zig(g);
+        try out.appendSlice(g.a, try zig_text.fmt(g, "{s}: {s} = {s},\n", .{
+            try zig_text.id(g, s.name), state_type, initial,
+        }));
+    }
+    for (g.lists.items) |l| {
+        const field = "{s}: ui.ListState = .{{ .allocator = std.heap.smp_allocator }},\n";
+        try out.appendSlice(g.a, try zig_text.fmt(g, field, .{l.field}));
+    }
+    return out.items;
+}
+
+/// `pub fn todoRow(props: TodoRow.Props[, id: u64]) ui.Node`.
+fn builderFunction(g: *Generator, child: *const components.Component, name: []const u8, local: bool) Error![]const u8 {
+    const builder = try zig_text.id(g, child.builder);
+    if (!child.stateful) return zig_text.fmt(
         g,
         "\npub fn {s}(props: {s}.Props) ui.Node {{\nreturn tsx.capture({s}{{ .props = props }}).render();\n}}\n",
-        .{ try zig_text.id(g, child.builder), name, name },
-    ));
-    return out.items;
+        .{ builder, name, name },
+    );
+    const slot = if (local) try zig_text.fmt(g, ", ._s = ui.localState({s}._Local, id, .{{}})", .{name}) else "";
+    return zig_text.fmt(
+        g,
+        "\npub fn {s}(props: {s}.Props, id: u64) ui.Node {{\n" ++
+            "return tsx.capture({s}{{ .props = props, ._id = id{s} }}).render();\n}}\n",
+        .{ builder, name, name, slot },
+    );
 }
 
 /// Validate destructuring with short circuit checks before accessing its names.

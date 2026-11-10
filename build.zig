@@ -256,7 +256,7 @@ pub fn addTsxProject(
 }
 
 /// Golden files of the TSX compiler (`tools/tsx/testdata/<name>.tsx` → `.zig`).
-const tsx_golden = [_][]const u8{ "counter", "layout", "text", "events", "conditional", "components", "todos", "arrays", "children", "theme", "list" };
+const tsx_golden = [_][]const u8{ "counter", "layout", "text", "events", "conditional", "components", "todos", "arrays", "children", "theme", "list", "local_state" };
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
@@ -556,6 +556,7 @@ pub fn build(b: *std.Build) void {
 
     const tsx_list_bench = addTsx(b, tsx_tool, b.path("examples/tsx/list_bench.tsx"), "list_bench.zig", zant_mod);
     const tsx_settings = addTsx(b, tsx_tool, b.path("examples/tsx/settings.tsx"), "settings.zig", zant_mod);
+    const tsx_local_bench = addTsx(b, tsx_tool, b.path("examples/tsx/local_bench.tsx"), "local_bench.zig", zant_mod);
     const tsx_bench = b.addExecutable(.{
         .name = "zant-tsx-bench",
         .root_module = b.createModule(.{
@@ -570,6 +571,7 @@ pub fn build(b: *std.Build) void {
                 .{ .name = "settings_tsx", .module = tsx_settings },
                 .{ .name = "todos_tsx", .module = tsx_todos },
                 .{ .name = "list_bench_tsx", .module = tsx_list_bench },
+                .{ .name = "local_bench_tsx", .module = tsx_local_bench },
             },
         }),
     });

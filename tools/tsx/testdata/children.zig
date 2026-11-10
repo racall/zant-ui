@@ -124,7 +124,7 @@ pub const App = struct {
                             }
                             break :_loop _result;
                         };
-                    }, tsx.nodes(&.{if (self.last.get().len > 0) ui.text(tsx.fmt("Last: {s}", .{self.last.get()}), .{}) else null}) }),
+                    }, tsx.nodes(&.{if (tsx.utf16Length(self.last.get()) > 0) ui.text(tsx.fmt("Last: {s}", .{self.last.get()}), .{}) else null}) }),
                 }),
             },
         });

@@ -717,6 +717,8 @@ pub const Node = struct {
     tooltip: ?[]u8 = null,
     /// Hash of the last memoized spec (see `ui.memo`); null when not memoized.
     memo_hash: ?u64 = null,
+    /// `ui.localState` ids the memo build touched (kept alive when skipped).
+    memo_states: []u64 = &.{},
     bounds: geometry.Rect = .{},
     dirty: DirtyFlags = .{},
     /// False for a freed slot (tombstone) waiting in `Tree.free_ids`.
@@ -751,6 +753,8 @@ pub const Node = struct {
         self.key = null;
         if (self.tooltip) |tooltip| allocator.free(tooltip);
         self.tooltip = null;
+        if (self.memo_states.len > 0) allocator.free(self.memo_states);
+        self.memo_states = &.{};
         switch (self.data) {
             .text => |*value| {
                 value.invalidate();

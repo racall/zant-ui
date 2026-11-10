@@ -50,7 +50,7 @@ pub const Themed = struct {
                         }),
                     },
                 }),
-                if (self.last.get().len > 0) ui.text(self.last.get(), .{
+                if (tsx.utf16Length(self.last.get()) > 0) ui.text(self.last.get(), .{
                     .color = theme.color_success_text,
                 }) else null,
             }),

@@ -29,6 +29,9 @@
   需要原始输出时设 `ZANT_RAW_LOGS=1`。
 - PDF：阅读器 `zant.pdf.view`（`src/pdf/`：连续滚动、缩放、选择复制、搜索、批注与导出；
   算法参照 EmbedPDF），单页预览 `ui.pdfPreview`；macOS PDFKit，Windows PDFium。
+- TSX：`tools/tsx/`（`zant-tsx`，TSX → Zig，编译期完成，无 JS 运行时），规范与进度见 `docs/tsx.md`；
+  `build.zig` 的 `addTsx` / `addTsxProject`，示例 `examples/tsx/`（`run-tsx*`），对比基准 `zig build bench-tsx`。
+  子组件状态用框架的 `ui.localState(T, id, initial)`（手写 Zig 也可用）。
 - 原始指针输入：`ui.pointerArea`（拖动捕获、多击、滚轮、按键）；尺寸变化 `BoxOptions.on_resize`；
   内存图片 `zant.image.Image` + `ui.image(.{ .image = .. })`；后台线程唤醒 UI `ui.postWake()`。
 - Markdown：`src/markdown/`（Streamdown 移植，模块化），数学：`src/math/`（KaTeX 算法，

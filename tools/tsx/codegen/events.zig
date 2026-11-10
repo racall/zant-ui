@@ -283,7 +283,7 @@ pub fn emitSetter(g: *Generator, m: Method) Error![]const u8 {
             try zig_text.id(g, m.name),
             try zig_text.id(g, g.name),
             events.actionType(m.action.?).zig(g),
-            try stmt.stateWrite(g, try zig_text.id(g, s.name), s.ty, value),
+            try stmt.stateWrite(g, try scope.stateField(g, s.name), s.ty, value),
         },
     );
 }

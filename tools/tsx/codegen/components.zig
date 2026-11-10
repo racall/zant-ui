@@ -41,6 +41,8 @@ pub const Component = struct {
     /// Imported from another file: `builder` is already Zig code
     /// (`_TodoRow.todoRow`) and no struct is generated here.
     external: bool = false,
+    /// Keeps local state (`stateful.zig`): the builder takes an instance id.
+    stateful: bool = false,
 };
 
 /// An inline arrow passed to a child component's callback prop.
@@ -116,7 +118,13 @@ pub fn collect(g: *Generator, module: ast.Module, root: ?*ast.Function) Error!vo
         if (root != null and top.func == root.?) continue;
         const f = top.func;
         if (f.params.len > 1) return core.fail(g, f.params[1].name.loc, "components take one props object", .{});
-        var comp = Component{ .name = f.name, .builder = try builderName(g, f.name), .func = f, .props = null };
+        var comp = Component{
+            .name = f.name,
+            .builder = try builderName(g, f.name),
+            .func = f,
+            .props = null,
+            .stateful = @import("stateful.zig").stateful(g.project, module, f),
+        };
         if (f.params.len == 1) {
             const p = f.params[0];
             const ref = p.ty orelse return core.fail(
@@ -296,16 +304,20 @@ pub fn scan(g: *Generator, j: *ast.Jsx, comp: *const Component) Error!void {
 pub fn emitCall(g: *Generator, c: *Context, j: *ast.Jsx, comp: *const Component) Error!Value {
     var parts: std.ArrayList([]const u8) = .empty;
     var key: ?[]const u8 = null;
+    // the key as written (a string or an integer) for the instance id
+    var raw_key: ?[]const u8 = null;
     var given: std.ArrayList([]const u8) = .empty;
     for (j.attrs) |attr| {
         if (zig_text.eq(attr.name.name, "key")) {
             const v = attr.value orelse return core.fail(g, attr.name.loc, "key needs a value", .{});
             const k = try expr.emit(g, c, v, null, false);
             // keys are strings; numbers (`key={t.id}`) are formatted
+            const concrete = if (k.ty.numeric()) (try types.concrete(g, k)).code else k.code;
             key = if (k.ty == .string) k.code else if (k.ty.numeric())
-                try zig_text.fmt(g, "tsx.fmt(\"{{d}}\", .{{{s}}})", .{(try types.concrete(g, k)).code})
+                try zig_text.fmt(g, "tsx.fmt(\"{{d}}\", .{{{s}}})", .{concrete})
             else
                 return core.fail(g, v.loc, "key must be a string or a number", .{});
+            raw_key = concrete;
             continue;
         }
         const ty = (if (comp.props) |p| fieldType(g, p, attr.name.name) else null) orelse return core.fail(
@@ -335,9 +347,20 @@ pub fn emitCall(g: *Generator, c: *Context, j: *ast.Jsx, comp: *const Component)
         } else return core.fail(g, j.loc, "<{s}> needs the prop `{s}`", .{ comp.name, f.name });
     }
     const builder = if (comp.external) comp.builder else try zig_text.id(g, comp.builder);
-    var node = try zig_text.fmt(g, "{s}(.{{\n{s}}})", .{ builder, try std.mem.join(g.a, "", parts.items) });
+    const id = if (comp.stateful) try instanceId(g, comp, raw_key) else "";
+    var node = try zig_text.fmt(g, "{s}(.{{\n{s}}}{s})", .{ builder, try std.mem.join(g.a, "", parts.items), id });
     if (key) |k| node = try zig_text.fmt(g, "ui.withKey({s}, {s})", .{ node, k });
     return .{ .ty = .node, .code = node };
+}
+
+/// `, tsx.childId(parent, "TodoRow", key)`: the parent's instance id (the
+/// root's is 0) mixed with the component name and its key; without a key,
+/// `tsx.siteId(parent, "TodoRow", n)` numbers the call site.
+fn instanceId(g: *Generator, comp: *const Component, key: ?[]const u8) Error![]const u8 {
+    const parent = if (g.current_component != null) "self._id" else "0";
+    if (key) |k| return zig_text.fmt(g, ", tsx.childId({s}, \"{s}\", {s})", .{ parent, comp.name, k });
+    g.child_sites += 1;
+    return zig_text.fmt(g, ", tsx.siteId({s}, \"{s}\", {d})", .{ parent, comp.name, g.child_sites });
 }
 
 fn fieldList(g: *Generator, comp: *const Component) Error![]const u8 {

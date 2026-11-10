@@ -165,7 +165,7 @@ pub fn set(g: *Generator, c: *Context, loc: ast.Loc, i: usize, args: []const *as
     if (c.render) return core.fail(g, loc, "state can only be set in event handlers", .{});
     if (args.len != 1) return core.fail(g, loc, "state setter takes one argument", .{});
     const s = g.states.items[i];
-    const field = try zig_text.id(g, s.name);
+    const field = try scope.stateField(g, s.name);
     const arg = args[0];
     if (arg.data == .arrow) {
         const f = arg.data.arrow;
