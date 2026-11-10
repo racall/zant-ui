@@ -3,6 +3,9 @@
 const std = @import("std");
 const ui = @import("ui.zig");
 
+/// String.prototype helpers for generated TSX code.
+pub const strings = @import("tsx_strings.zig");
+
 /// Heap memory of string state; it lives as long as the state value.
 const allocator = std.heap.smp_allocator;
 

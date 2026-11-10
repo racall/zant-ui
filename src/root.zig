@@ -53,6 +53,7 @@ test {
     _ = tsx;
     _ = @import("core/local_state.zig");
     _ = @import("tsx_hooks.zig");
+    _ = @import("tsx_strings.zig");
 }
 
 pub const math = @import("math/mod.zig");
