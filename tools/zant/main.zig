@@ -1,4 +1,5 @@
 const std = @import("std");
+const sources = @import("sources.zig");
 const build_options = @import("build_options");
 const Io = std.Io;
 const Dir = Io.Dir;
@@ -1274,45 +1275,6 @@ fn buildOnce(allocator: std.mem.Allocator, io: Io, root: []const u8, release: bo
     return term.success();
 }
 
-fn hashFileStamp(hash: *std.hash.Wyhash, io: Io, path: []const u8) void {
-    const st = Dir.cwd().statFile(io, path, .{}) catch return;
-    hash.update(path);
-    hash.update(std.mem.asBytes(&st.mtime.nanoseconds));
-    hash.update(std.mem.asBytes(&st.size));
-}
-
-fn hashTree(allocator: std.mem.Allocator, io: Io, hash: *std.hash.Wyhash, dir_path: []const u8, depth: usize) void {
-    if (depth > 8) return;
-    var dir = Dir.cwd().openDir(io, dir_path, .{ .iterate = true }) catch return;
-    defer dir.close(io);
-    var it = dir.iterate();
-    while (it.next(io) catch null) |entry| {
-        const path = std.fs.path.join(allocator, &.{ dir_path, entry.name }) catch continue;
-        defer allocator.free(path);
-        switch (entry.kind) {
-            .directory => hashTree(allocator, io, hash, path, depth + 1),
-            .file => if (std.mem.endsWith(u8, entry.name, ".zig")) hashFileStamp(hash, io, path),
-            else => {},
-        }
-    }
-}
-
-/// Fingerprint of everything that affects the app build: the config files
-/// and every `.zig` file under `src/` (any depth).
-fn sourceStamp(allocator: std.mem.Allocator, io: Io, root: []const u8) !u64 {
-    var hash = std.hash.Wyhash.init(0);
-    const files = [_][]const u8{ "app.config.json", "build.zig", "build.zig.zon" };
-    for (files) |rel| {
-        const path = try std.fs.path.join(allocator, &.{ root, rel });
-        defer allocator.free(path);
-        hashFileStamp(&hash, io, path);
-    }
-    const src = try std.fs.path.join(allocator, &.{ root, "src" });
-    defer allocator.free(src);
-    hashTree(allocator, io, &hash, src, 0);
-    return hash.final();
-}
-
 /// Harmless macOS framework log lines (InputMethodKit / Text Services
 /// Manager) that unbundled apps launched from a terminal print when an input
 /// method attaches. They do not affect input; `zant run` hides them unless
@@ -1359,7 +1321,7 @@ fn cmdWatch(allocator: std.mem.Allocator, io: Io, release: bool) !void {
     if (!try buildOnce(allocator, io, root, release)) fail("编译失败", .{});
     ok("编译完成", .{});
 
-    var last = try sourceStamp(allocator, io, root);
+    var last = try sources.stamp(allocator, io, root);
     const exe_path = try appExePath(allocator, root);
     defer allocator.free(exe_path);
     var child = try spawnApp(io, exe_path, root);
@@ -1367,7 +1329,7 @@ fn cmdWatch(allocator: std.mem.Allocator, io: Io, release: bool) !void {
 
     while (true) {
         std.Io.sleep(io, .fromMilliseconds(400), .awake) catch {};
-        const now = try sourceStamp(allocator, io, root);
+        const now = try sources.stamp(allocator, io, root);
         if (now == last) continue;
         last = now;
         std.debug.print("\n检测到改动，重新编译...\n", .{});
@@ -1648,4 +1610,5 @@ pub fn main(init: std.process.Init) !void {
 
 test {
     _ = distribute;
+    _ = sources;
 }
