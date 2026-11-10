@@ -33,6 +33,11 @@ const WindowConfig = struct {
     always_on_top: bool = false,
     movable_by_background: bool = false,
     center: bool = true,
+    /// `hidden-titlebar` style: the height of the app's own title bar
+    /// (where the system buttons sit); 0 for the system's default.
+    titlebar_height: f32 = 0,
+    /// Opened by the system at login: start hidden (a tray app).
+    hidden_at_login: bool = false,
 };
 
 /// app.config.json. `title`, `bundle_id` (the app identifier: the macOS
@@ -75,6 +80,8 @@ const RawWindow = struct {
     always_on_top: ?bool = null,
     movable_by_background: ?bool = null,
     center: ?bool = null,
+    titlebar_height: ?f32 = null,
+    hidden_at_login: ?bool = null,
 };
 
 const RawMacos = struct {
@@ -414,6 +421,8 @@ pub fn loadConfig(allocator: std.mem.Allocator, io: Io, root: []const u8) !AppCo
         if (w.always_on_top) |v| cfg.window.always_on_top = v;
         if (w.movable_by_background) |v| cfg.window.movable_by_background = v;
         if (w.center) |v| cfg.window.center = v;
+        if (w.titlebar_height) |v| cfg.window.titlebar_height = v;
+        if (w.hidden_at_login) |v| cfg.window.hidden_at_login = v;
     }
     if (bundleError(cfg.bundle_id)) |why| fail("app.config.json 的 bundle_id \"{s}\" 不符合规范：{s}（如 com.xx.test）", .{ cfg.bundle_id, why });
     if (cfg.window.min_width > cfg.window.width) cfg.window.min_width = cfg.window.width;
@@ -453,6 +462,8 @@ fn generateConfigSource(allocator: std.mem.Allocator, cfg: *const AppConfig) ![]
         \\    .always_on_top = {},
         \\    .movable_by_background = {},
         \\    .center = {},
+        \\    .titlebar_height = {d},
+        \\    .hidden_at_login = {},
         \\}};
         \\
     , .{
@@ -472,6 +483,8 @@ fn generateConfigSource(allocator: std.mem.Allocator, cfg: *const AppConfig) ![]
         cfg.window.always_on_top,
         cfg.window.movable_by_background,
         cfg.window.center,
+        cfg.window.titlebar_height,
+        cfg.window.hidden_at_login,
     });
 }
 

@@ -47,6 +47,8 @@
 | `window.always_on_top` | 是否悬浮在其他窗口之上 |
 | `window.movable_by_background` | 是否允许拖拽空白背景移动窗口 |
 | `window.center` | 首次显示是否居中 |
+| `window.titlebar_height` | `hidden-titlebar` 时应用自绘标题栏的高度（系统窗口按钮所在区域）；0 为系统默认 |
+| `window.hidden_at_login` | 系统在登录时启动应用时先不显示窗口（托盘 / 菜单栏应用） |
 
 省略的字段取默认值：`native`、560 × 420、最小 480 × 320、`#f5f5f5`、可缩放、居中、沙盒关、`none`。
 旧项目写在顶层的 `sandbox` / `signing_identity` 仍然有效；补充 `macos` 段时会移到段里。
