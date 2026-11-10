@@ -55,6 +55,7 @@ exe.root_module.addImport("counter_tsx", counter);
 const notes = addTsxProject(b, tsx_tool, &.{
     b.path("examples/tsx/notes/App.tsx"),
     b.path("examples/tsx/notes/NoteCard.tsx"),
+    b.path("examples/tsx/notes/format.zig"),
 }, "App", zant_mod);
 exe.root_module.addImport("notes_tsx", notes);
 ```
@@ -283,6 +284,26 @@ function Counter({ label }: { label: string }) {
 - 这三个 hook 都只能在组件体顶层调用，不能改名导入；用了它们的子组件算有状态组件（带实例 id）。
 
 框架接口 `ui.effect(action)` / `ui.requestRebuild()` 手写 Zig 也能用。
+
+### 从 Zig 导入函数
+
+项目里的 TSX 可以从相对路径的 `.zig` 文件按名导入顶层 `pub fn`，也支持 `as` 别名：
+
+```tsx
+import { plural } from "./format.zig";
+// render 或事件处理函数里都能调用，参数个数和类型在 TSX 编译时检查
+<Text>{plural(notes.length, "note")}</Text>
+```
+
+函数签名支持 `bool`、`[]const u8`（字符串）、所有上述数值类型，以及这些类型的 `?T`、
+`[]const T`（包括字符串数组）；返回值还支持 `void`，可在事件处理函数里作为语句调用。
+不支持结构体、其他指针、`anytype`、comptime 参数、错误联合或泛型，也不能用 `import type` 导入。
+返回字符串或切片时，内存必须是静态内存，或至少在当前帧有效（用 `zant.ui.frameAllocator()` 分配）。
+
+把 `.zig` 文件也加进 `addTsxProject` 的 sources，或运行
+`zant-tsx --out <目录> App.tsx format.zig`。编译器用 Zig AST 读取签名，把手写文件原样复制到
+生成文件旁边；`format.tsx` 和 `format.zig` 输出重名会报错。单文件模式（`addTsx` / `in.tsx out.zig`）
+不支持 Zig 导入。完整用法见 `examples/tsx/notes/`。
 
 ### 待做
 

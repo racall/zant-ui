@@ -258,7 +258,7 @@ fn closestField(fields_: []const Field, name: []const u8) ?[]const u8 {
 }
 
 /// Levenshtein distance for short identifiers (longer ones count as far).
-fn editDistance(a: []const u8, b: []const u8) usize {
+pub fn editDistance(a: []const u8, b: []const u8) usize {
     if (a.len > 64 or b.len > 64) return std.math.maxInt(usize);
     var row: [65]usize = undefined;
     for (0..b.len + 1) |j| row[j] = j;

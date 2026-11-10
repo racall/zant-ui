@@ -36,7 +36,11 @@ export function NoteCard({ note, onPin, onDelete }: NoteCardProps) {
           </Text>
         )}
       </View>
-      <IconButton key={`pin-${note.id}`} icon={note.pinned ? "arrow_down" : "arrow_up"} onClick={() => onPin(note.id)} />
+      <IconButton
+        key={`pin-${note.id}`}
+        icon={note.pinned ? "arrow_down" : "arrow_up"}
+        onClick={() => onPin(note.id)}
+      />
       <IconButton key={`delete-${note.id}`} icon="trash" onClick={() => onDelete(note.id)} />
     </Row>
   );

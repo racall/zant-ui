@@ -21,6 +21,8 @@ pub const Options = struct {
     source_name: []const u8,
     /// The project's parsed files, for relative imports.
     project: []const @import("imports.zig").NamedModule = &.{},
+    /// Hand-written Zig files parsed for function signatures.
+    zig_sources: []const @import("zig_imports.zig").Source = &.{},
     /// A file without a root component (only child components) is an error
     /// unless false (library files of a project).
     require_root: bool = true,
@@ -63,6 +65,8 @@ pub const Generator = struct {
     /// declarations are being resolved (null: this file).
     imported_types: std.ArrayList(@import("imports.zig").ImportedType) = .empty,
     type_scope: ?*const @import("imports.zig").Scope = null,
+    zig_sources: []const @import("zig_imports.zig").Source = &.{},
+    zig_functions: std.ArrayList(@import("zig_imports.zig").Function) = .empty,
     /// `<List>`s of the component being generated.
     lists: std.ArrayList(@import("list.zig").ListInfo) = .empty,
     /// The project's files (stateful analysis of imported components).
@@ -248,6 +252,7 @@ pub fn generate(
     _ = src;
     diag.* = null;
     var g = Generator{ .a = arena, .diag = diag, .project = options.project };
+    g.zig_sources = options.zig_sources;
     g.type_decls = module.types;
     g.resolving = try arena.alloc(bool, module.types.len);
     @memset(g.resolving, false);

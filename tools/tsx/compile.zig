@@ -31,41 +31,80 @@ pub const File = struct {
     /// Path as given on the command line (diagnostics use it).
     path: []const u8,
     src: []const u8,
+
+    /// Hand-written Zig is copied, while TSX is compiled.
+    pub fn isZig(self: File) bool {
+        return std.mem.endsWith(u8, self.path, ".zig");
+    }
+
+    /// Both `App.tsx` and `App.zig` produce `App.zig` in the output directory.
+    pub fn outputName(self: File, arena: std.mem.Allocator) error{OutOfMemory}![]const u8 {
+        const base = std.fs.path.basename(self.path);
+        return if (self.isZig()) base else std.fmt.allocPrint(arena, "{s}.zig", .{std.fs.path.stem(base)});
+    }
 };
 
 pub const ProjectResult = union(enum) {
-    /// Formatted Zig per file, in the order given.
+    /// Formatted TSX output or verbatim Zig source per file, in the order given.
     ok: []const []const u8,
     err: struct { file: usize, diag: Diag },
 };
 
-/// Compiles the `.tsx` files of one project together, so relative imports
-/// (`import { TodoRow } from "./TodoRow"`) resolve. A file without a root
-/// component (child components only) is fine.
+/// Compile project TSX with relative imports; parse hand-written Zig for
+/// signatures and pass it through verbatim beside the generated modules.
 pub fn compileProject(arena: std.mem.Allocator, files: []const File) error{OutOfMemory}!ProjectResult {
     const imports = @import("codegen/imports.zig");
-    const modules = try arena.alloc(imports.NamedModule, files.len);
+    const zig_imports = @import("codegen/zig_imports.zig");
+    var modules: std.ArrayList(imports.NamedModule) = .empty;
+    var sources: std.ArrayList(zig_imports.Source) = .empty;
+    const names = try arena.alloc([]const u8, files.len);
     for (files, 0..) |file, i| {
+        names[i] = try file.outputName(arena);
+        for (names[0..i]) |previous| if (std.mem.eql(u8, names[i], previous)) {
+            return .{ .err = .{ .file = i, .diag = .{
+                .loc = 0,
+                .msg = try std.fmt.allocPrint(arena, "project output collision: `{s}`", .{names[i]}),
+            } } };
+        };
+        const name = std.fs.path.stem(names[i]);
+        if (file.isZig()) {
+            const tree = try std.zig.Ast.parse(arena, try arena.dupeSentinel(u8, file.src, 0), .{});
+            if (tree.errors.len > 0) {
+                var aw: std.Io.Writer.Allocating = .init(arena);
+                tree.renderError(tree.errors[0], &aw.writer) catch {};
+                return .{ .err = .{ .file = i, .diag = .{
+                    .loc = tree.tokenStart(tree.errors[0].token),
+                    .msg = try arena.dupe(u8, aw.written()),
+                } } };
+            }
+            try sources.append(arena, .{ .name = name, .tree = tree });
+            continue;
+        }
         var p = parser.Parser.init(arena, file.src);
         const module = p.parseModule() catch |err| switch (err) {
             error.OutOfMemory => return error.OutOfMemory,
             error.Syntax => return .{ .err = .{ .file = i, .diag = p.diag.? } },
         };
-        const base = std.fs.path.basename(file.path);
-        const name = if (std.mem.endsWith(u8, base, ".tsx")) base[0 .. base.len - 4] else base;
-        modules[i] = .{ .name = name, .module = module };
+        try modules.append(arena, .{ .name = name, .module = module });
     }
     const out = try arena.alloc([]const u8, files.len);
+    var module_index: usize = 0;
     for (files, 0..) |file, i| {
+        if (file.isZig()) {
+            out[i] = file.src;
+            continue;
+        }
         var diag: ?Diag = null;
-        const raw = codegen.generate(arena, file.src, modules[i].module, .{
+        const raw = codegen.generate(arena, file.src, modules.items[module_index].module, .{
             .source_name = std.fs.path.basename(file.path),
-            .project = modules,
+            .project = modules.items,
+            .zig_sources = sources.items,
             .require_root = false,
         }, &diag) catch |err| switch (err) {
             error.OutOfMemory => return error.OutOfMemory,
             error.Tsx => return .{ .err = .{ .file = i, .diag = diag.? } },
         };
+        module_index += 1;
         out[i] = try format(arena, raw);
     }
     return .{ .ok = out };

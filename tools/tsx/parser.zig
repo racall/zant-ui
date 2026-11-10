@@ -243,11 +243,12 @@ pub const Parser = struct {
         if (self.isP("*")) return self.fail(self.cur.start, "namespace imports are not supported; use `import {{ ... }} from \"zant\"`", .{});
         try self.expectP("{");
         while (!self.isP("}")) {
+            var name_type_only = false;
             if (self.isKw("type")) {
-                // `import { type Foo }`: the name is a type either way
+                // `import { type Foo }`: retain the modifier for Zig imports
                 const s = self.save();
                 self.advance();
-                if (self.cur.kind != .identifier) self.restore(s);
+                if (self.cur.kind != .identifier) self.restore(s) else name_type_only = true;
             }
             const imported = try self.expectIdent("an imported name");
             var local = imported;
@@ -255,7 +256,7 @@ pub const Parser = struct {
                 self.advance();
                 local = try self.expectIdent("a local name");
             }
-            try names.append(self.arena, .{ .imported = imported, .local = local });
+            try names.append(self.arena, .{ .imported = imported, .local = local, .type_only = name_type_only });
             if (!self.eatP(",")) break;
         }
         try self.expectP("}");

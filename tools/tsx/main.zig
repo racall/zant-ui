@@ -29,7 +29,7 @@ pub fn main(init: std.process.Init) !void {
     }
 }
 
-/// `--out <dir> files...`: one project; `<dir>/<Name>.zig` per `<Name>.tsx`.
+/// `--out <dir> files...`: compile TSX and copy Zig into one output directory.
 fn project(io: std.Io, arena: std.mem.Allocator, out_dir: []const u8, paths: []const [:0]const u8) !void {
     const files = try arena.alloc(compile.File, paths.len);
     for (paths, 0..) |path, i| files[i] = .{ .path = path, .src = read(io, arena, path) };
@@ -37,9 +37,7 @@ fn project(io: std.Io, arena: std.mem.Allocator, out_dir: []const u8, paths: []c
         .ok => |outputs| {
             try std.Io.Dir.cwd().createDirPath(io, out_dir);
             for (files, outputs) |file, zig| {
-                const base = std.fs.path.basename(file.path);
-                const stem = if (std.mem.endsWith(u8, base, ".tsx")) base[0 .. base.len - 4] else base;
-                const out = try std.fmt.allocPrint(arena, "{s}/{s}.zig", .{ out_dir, stem });
+                const out = try std.fs.path.join(arena, &.{ out_dir, try file.outputName(arena) });
                 try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = out, .data = zig });
             }
         },
@@ -69,5 +67,7 @@ test {
     _ = @import("codegen/stateful.zig");
     _ = @import("codegen/hooks_test.zig");
     _ = compile;
+    _ = @import("project_test.zig");
+    _ = @import("codegen/zig_imports.zig");
     _ = @import("golden_test.zig");
 }

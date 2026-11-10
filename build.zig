@@ -232,9 +232,9 @@ pub fn addTsx(b: *std.Build, tool: *std.Build.Step.Compile, source: std.Build.La
     });
 }
 
-/// Compiles several `.tsx` files as one project (relative imports resolve;
-/// docs/tsx.md) into one output directory; the module's root is `entry`'s
-/// generated file.
+/// Compiles `.tsx` files as one project and copies hand-written `.zig` sources
+/// beside the generated files (relative imports resolve; docs/tsx.md).
+/// The module's root is `entry`'s generated file.
 ///
 ///     const sources = &.{ b.path("src/App.tsx"), b.path("src/NoteCard.tsx") };
 ///     const notes = addTsxProject(b, tsx_tool, sources, "App", zant_mod);
@@ -536,6 +536,7 @@ pub fn build(b: *std.Build) void {
     const tsx_notes = addTsxProject(b, tsx_tool, &.{
         b.path("examples/tsx/notes/App.tsx"),
         b.path("examples/tsx/notes/NoteCard.tsx"),
+        b.path("examples/tsx/notes/format.zig"),
     }, "App", zant_mod);
     const tsx_notes_demo = b.addExecutable(.{
         .name = "zant-tsx-notes",
