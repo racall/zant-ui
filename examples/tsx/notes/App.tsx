@@ -1,8 +1,9 @@
-// A two-file TSX app: the note card lives in NoteCard.tsx. Run it with
+// A TSX project: NoteCard.tsx renders cards; format.zig formats counts. Run with
 // `zig build run-tsx-notes`.
 import { useState, useTheme, View, Row, Heading, Input, Button, Text } from "zant";
 import type { u32 } from "zant";
 import { NoteCard, type Note } from "./NoteCard";
+import { plural } from "./format.zig";
 
 export default function Notes() {
   const [notes, setNotes] = useState<Note[]>([]);
@@ -27,6 +28,11 @@ export default function Notes() {
   return (
     <View padding={24} gap={12}>
       <Heading level={3}>Notes</Heading>
+      {notes.length > 0 && (
+        <Text key="summary" color={theme.colorTextSecondary}>
+          {plural(notes.length, "note")} · {notes.filter((n) => n.pinned).length} pinned
+        </Text>
+      )}
       <Row gap={8}>
         <View flex={1}>
           <Input key="new" value={text} placeholder="Write a note" onChange={setText} onSubmit={add} />

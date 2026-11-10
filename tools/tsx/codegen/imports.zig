@@ -50,6 +50,7 @@ fn stem(source: []const u8) []const u8 {
 
 /// The project file a relative import names (`./components/TodoRow` → `TodoRow`).
 pub fn findModule(project: []const NamedModule, source: []const u8) ?ast.Module {
+    if (std.mem.endsWith(u8, source, ".zig")) return null;
     const name = stem(source);
     for (project) |m| if (zig_text.eq(m.name, name)) return m.module;
     return null;
@@ -61,6 +62,10 @@ pub fn process(g: *Generator, module: ast.Module, project: []const NamedModule) 
     var header: std.ArrayList(u8) = .empty;
     for (module.imports) |imp| {
         if (!isRelative(imp.source)) continue;
+        if (std.mem.endsWith(u8, imp.source, ".zig")) {
+            try @import("zig_imports.zig").process(g, imp, &header);
+            continue;
+        }
         const name = stem(imp.source);
         const target = findModule(project, imp.source) orelse {
             return core.fail(g, imp.source_loc, "cannot find `{s}` among the project's .tsx files", .{imp.source});

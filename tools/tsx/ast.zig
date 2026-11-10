@@ -243,6 +243,8 @@ pub const Import = struct {
 };
 
 pub const ImportName = struct {
+    /// `import { type Name }` (the whole import may also be type-only).
+    type_only: bool = false,
     imported: Name,
     local: Name,
 };
