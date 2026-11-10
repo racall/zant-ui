@@ -1,0 +1,17 @@
+{
+  "title": "__APP_TITLE__",
+  "bundle_id": "__BUNDLE_ID__",
+  "version": "0.1.0",
+  "window": {
+    "style": "native",
+    "width": 680,
+    "height": 700,
+    "min_width": 600,
+    "min_height": 620,
+    "background": "#f5f5f5",
+    "resizable": true,
+    "always_on_top": false,
+    "movable_by_background": false,
+    "center": true
+  }
+}
