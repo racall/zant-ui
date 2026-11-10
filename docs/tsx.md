@@ -219,7 +219,8 @@ exe.root_module.addImport("counter_tsx", counter);
 生成的代码与手写 Zig 一样：没有虚拟 DOM、没有运行时解释，状态是 struct 字段，事件是函数指针。
 `zig build bench-tsx` 用同样的输入对比 TSX 与手写 Zig 的帧耗时；每次改代码生成都要复测，差距超过 5% 视为回归。
 目前（ReleaseFast，Apple Silicon）：计数器点击 0.093 / 0.093 ms；1000 条待办（`examples/tsx/todos.tsx`
-对 `todos_manual.zig`，React 式不可变更新对原地修改）添加 0.89 / 0.88 ms、勾选 1.55 / 1.55 ms、筛选 3.3 / 3.4 ms。
+对 `todos_manual.zig`，React 式不可变更新对原地修改）添加 0.89 / 0.88 ms、勾选 1.55 / 1.55 ms、筛选 3.3 / 3.4 ms；
+1 万行 `<List>`（`list_bench.tsx` 对 `list_manual.zig`）滚动 0.41 / 0.41 ms、点击 0.37 / 0.38 ms。
 
 示例：`zig build run-tsx`（计数器）、`run-tsx-gallery`（组件展示）、`run-tsx-todos`（待办）。
 

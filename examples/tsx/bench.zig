@@ -13,6 +13,8 @@
 //!   settings  2000 switch clicks on `settings.tsx` (40 rows, one state each)
 //!   todos     the TSX todo app vs the hand-written one: 1000 items added by
 //!             typing + Enter, 500 toggles, 60 filter switches
+//!   list      a 10 000-row <List> vs the hand-written ui.list: 300 scrolls,
+//!             100 row clicks
 const std = @import("std");
 const zant = @import("zant");
 const ui = zant.ui;
@@ -26,6 +28,7 @@ const H = harness.H;
 const Stats = harness.Stats;
 const Harness = harness.Harness;
 const todos_bench = @import("bench_todos.zig");
+const list_bench = @import("bench_list.zig");
 
 /// The counter's controls in the order the scenario clicks them; `reset`
 /// is skipped while it is disabled (count 0), as a user would.
@@ -96,4 +99,5 @@ pub fn main(init: std.process.Init) !void {
         }
     }
     if (want(args, "todos")) try todos_bench.run(gpa, &renderer);
+    if (want(args, "list")) try list_bench.run(gpa, &renderer);
 }

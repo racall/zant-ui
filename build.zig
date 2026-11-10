@@ -510,6 +510,7 @@ pub fn build(b: *std.Build) void {
     run_tsx_todos.addPassthruArgs();
     b.step("run-tsx-todos", "Run the TSX todo app (examples/tsx/todos.tsx)").dependOn(&run_tsx_todos.step);
 
+    const tsx_list_bench = addTsx(b, tsx_tool, b.path("examples/tsx/list_bench.tsx"), "list_bench.zig", zant_mod);
     const tsx_settings = addTsx(b, tsx_tool, b.path("examples/tsx/settings.tsx"), "settings.zig", zant_mod);
     const tsx_bench = b.addExecutable(.{
         .name = "zant-tsx-bench",
@@ -524,6 +525,7 @@ pub fn build(b: *std.Build) void {
                 .{ .name = "counter_tsx", .module = tsx_counter },
                 .{ .name = "settings_tsx", .module = tsx_settings },
                 .{ .name = "todos_tsx", .module = tsx_todos },
+                .{ .name = "list_bench_tsx", .module = tsx_list_bench },
             },
         }),
     });
