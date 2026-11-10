@@ -322,7 +322,7 @@ fn addSourceInputs(b: *std.Build, run: *std.Build.Step.Run, sub_path: []const u8
 const tsx_golden = [_][]const u8{
     "counter",  "layout",    "text",  "events",      "conditional", "components", "todos",        "arrays",
     "children", "theme",     "list",  "local_state", "hooks",       "strings",    "store",        "nesting",
-    "widgets",  "functions", "loops", "spread",      "app_hooks",   "builtins",   "react_compat",
+    "widgets",  "functions", "loops", "spread",      "app_hooks",   "builtins",   "react_compat", "entities",
 };
 
 pub fn build(b: *std.Build) void {

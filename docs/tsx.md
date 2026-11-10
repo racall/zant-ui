@@ -170,7 +170,11 @@ const selected = items.filter(item => {
 
 ### JSX
 
-- 文本按 React 的空白规则处理（相当于 Babel 的 `cleanJSXElementLiteralChild`）；支持 `&amp;` 等 HTML 实体。
+- 文本按 React 的空白规则处理（相当于 Babel 的 `cleanJSXElementLiteralChild`）；文本和属性字符串支持完整的 XHTML 1.0 实体（253 个名字，区分大小写）。
+- 数字实体为 `&#123;`（十进制）或 `&#x1F600;`（十六进制，前缀只接受小写 `x`）；至少一位数字，
+  必须以 `;` 结束，码点不超过 `0x10FFFF`。无效、未知或未结束的引用保留原文，不报错。
+  代理项按 SWC 的 JS 字符串规则保存为 WTF-8，相邻的高 / 低代理项合并；生成 Zig 时孤立代理项使用字节转义。
+  XHTML 表不含 `&lbrace;` / `&rbrace;`，花括号可写 `&#123;` / `&#125;`。
 - `<Text>`、`<Button>`、`<Checkbox>`、`<Switch>` 的文本子节点和 `{表达式}` 拼成一个字符串，
   例如 `Count: {count}`。容器里直接写文本会报错（和 React Native 一样，要包在 `<Text>` 里）。
 - 子节点可以是元素、`{cond && <X/>}`、`{cond ? <A/> : <B/>}`、`{cond ? <A/> : null}`，

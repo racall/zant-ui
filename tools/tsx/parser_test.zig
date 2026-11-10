@@ -25,7 +25,7 @@ test "jsx text whitespace follows React" {
     try std.testing.expectEqualStrings(" a b ", (try cleanJsxText(a, " a b ")).?);
     try std.testing.expectEqualStrings("a © b", try decodeEntities(a, "a &copy; b"));
     try std.testing.expectEqualStrings("<&#>", try decodeEntities(a, "&lt;&amp;&#35;&gt;"));
-    try std.testing.expectEqualStrings("{x}", try decodeEntities(a, "&lbrace;x&rbrace;")); // what the `}` error suggests
+    try std.testing.expectEqualStrings("{x}", try decodeEntities(a, "&#123;x&#125;")); // what the `}` error suggests
 }
 
 test "parses a component" {
@@ -173,7 +173,11 @@ test "typed arrows report errors inside their parameters" {
 
 test "`>` and `}` in JSX text name the fix" {
     try expectSyntaxError("function f() { return <Text>a > b</Text>; }", "unexpected `>` in JSX text; write `{'>'}` or `&gt;`", "> b");
-    try expectSyntaxError("function f() { return <Text>a } b</Text>; }", "unexpected `}` in JSX text; write `{'}'}` or `&rbrace;`", "} b");
+    try expectSyntaxError(
+        "function f() { return <Text>a } b</Text>; }",
+        "unexpected `}` in JSX text; write `{'}'}` or `&#125;`",
+        "} b",
+    );
 }
 
 test "phase 2 types: interfaces, unions, arrays, function types" {

@@ -86,6 +86,7 @@ test {
     _ = @import("lexer.zig");
     _ = @import("parser.zig");
     _ = @import("parser_test.zig");
+    _ = @import("jsx_entities_test.zig");
     _ = @import("tags.zig");
     _ = @import("codegen.zig");
     _ = @import("codegen/errors_test.zig");

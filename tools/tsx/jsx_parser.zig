@@ -80,7 +80,7 @@ pub fn parseJsxChildren(self: *Parser, loc: u32, name: []const u8, attrs: []cons
         const raw = self.lx.jsxText();
         if (std.mem.indexOfAny(u8, raw.text(self.src), ">}")) |i| {
             const c = raw.text(self.src)[i];
-            const entity = if (c == '>') "&gt;" else "&rbrace;";
+            const entity = if (c == '>') "&gt;" else "&#125;";
             return self.fail(raw.start + @as(u32, @intCast(i)), "unexpected `{c}` in JSX text; write `{{'{c}'}}` or `{s}`", .{ c, c, entity });
         }
         const decoded = try jsx_text.decodeEntities(self.arena, raw.text(self.src));

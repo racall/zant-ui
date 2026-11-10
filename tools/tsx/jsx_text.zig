@@ -25,57 +25,67 @@ pub fn cleanJsxText(arena: std.mem.Allocator, value: []const u8) !?[]const u8 {
     return out.items;
 }
 
-const entities = .{
-    .{ "amp", "&" },  .{ "lbrace", "{" },    .{ "rbrace", "}" },    .{ "lt", "<" },       .{ "gt", ">" }, .{ "quot", "\"" },
-    .{ "apos", "'" }, .{ "nbsp", "\u{a0}" }, .{ "copy", "\u{a9}" }, .{ "reg", "\u{ae}" },
-    .{ "mdash", "—" },
-    .{ "ndash", "–" },
-    .{ "hellip", "…" },
-    .{ "middot", "·" },
-    .{ "times", "×" },
-    .{ "laquo", "«" },
-    .{ "raquo", "»" },
-    .{ "bull", "•" },
-    .{ "lsquo", "‘" },
-    .{ "rsquo", "’" },
-    .{ "ldquo", "“" },
-    .{ "rdquo", "”" },
-};
+const entities = @import("jsx_entities.zig").table;
+const Entity = struct { cp: u21, len: usize };
 
-/// HTML entities in JSX text and attribute strings (`&amp;`, `&#169;`).
+/// Decode one reference at the start, following SWC's `decode_jsx_entity`.
+fn entity(raw: []const u8) ?Entity {
+    if (raw.len < 3 or raw[0] != '&') return null;
+    var i: usize = 1;
+    if (raw[i] == '#') {
+        i += 1;
+        const radix: u32 = if (i < raw.len and raw[i] == 'x') blk: {
+            i += 1;
+            break :blk 16;
+        } else 10;
+        const start = i;
+        var value: u32 = 0;
+        while (i < raw.len) : (i += 1) {
+            const ch = raw[i];
+            if (ch == ';' and i > start) return .{ .cp = @intCast(value), .len = i + 1 };
+            const digit: u32 = switch (ch) {
+                '0'...'9' => ch - '0',
+                'a'...'f' => if (radix == 16) ch - 'a' + 10 else return null,
+                'A'...'F' => if (radix == 16) ch - 'A' + 10 else return null,
+                else => return null,
+            };
+            // Values cannot shrink: this also prevents integer overflow on arbitrarily long inputs.
+            if (value > (0x10ffff - digit) / radix) return null;
+            value = value * radix + digit;
+        }
+        return null;
+    }
+    while (i < raw.len and std.ascii.isAlphanumeric(raw[i])) : (i += 1) {}
+    if (i >= raw.len or raw[i] != ';') return null;
+    const cp = entities.get(raw[1..i]) orelse return null;
+    return .{ .cp = cp, .len = i + 1 };
+}
+
+/// XHTML entities in JSX text and attributes. Invalid references stay literal.
+/// Like SWC's JS strings, lone surrogates use WTF-8; adjacent pairs combine.
 pub fn decodeEntities(arena: std.mem.Allocator, raw: []const u8) ![]const u8 {
     if (std.mem.indexOfScalar(u8, raw, '&') == null) return raw;
     var out: std.ArrayList(u8) = .empty;
     var i: usize = 0;
-    outer: while (i < raw.len) {
-        if (raw[i] == '&') {
-            if (std.mem.indexOfScalarPos(u8, raw, i + 1, ';')) |semi| {
-                const name = raw[i + 1 .. semi];
-                if (name.len > 1 and name[0] == '#') {
-                    const cp = if (name[1] == 'x' or name[1] == 'X')
-                        std.fmt.parseInt(u21, name[2..], 16) catch null
-                    else
-                        std.fmt.parseInt(u21, name[1..], 10) catch null;
-                    if (cp) |c| {
-                        var buf: [4]u8 = undefined;
-                        if (std.unicode.utf8Encode(c, &buf)) |n| {
-                            try out.appendSlice(arena, buf[0..n]);
-                            i = semi + 1;
-                            continue :outer;
-                        } else |_| {}
-                    }
-                }
-                inline for (entities) |e| {
-                    if (std.mem.eql(u8, name, e[0])) {
-                        try out.appendSlice(arena, e[1]);
-                        i = semi + 1;
-                        continue :outer;
+    while (i < raw.len) {
+        if (entity(raw[i..])) |decoded| {
+            i += decoded.len;
+            var cp = decoded.cp;
+            if (cp >= 0xd800 and cp <= 0xdbff) {
+                if (entity(raw[i..])) |next| {
+                    if (next.cp >= 0xdc00 and next.cp <= 0xdfff) {
+                        cp = 0x10000 + (@as(u21, cp - 0xd800) << 10) + (next.cp - 0xdc00);
+                        i += next.len;
                     }
                 }
             }
+            var buf: [4]u8 = undefined;
+            const n = std.unicode.wtf8Encode(cp, &buf) catch unreachable;
+            try out.appendSlice(arena, buf[0..n]);
+        } else {
+            try out.append(arena, raw[i]);
+            i += 1;
         }
-        try out.append(arena, raw[i]);
-        i += 1;
     }
     return out.items;
 }
