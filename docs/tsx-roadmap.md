@@ -49,6 +49,7 @@
 | C4 | `useWake`：原生模块在后台线程完成后 `ui.postWake()`，TS 在 UI 线程取结果 | Claude | ✅ |
 | C5 | 多窗口：`createWindow(Panel, { … })`，句柄 `show` / `hide` / `toggle` / `place` / `focus`，窗口自己的按键、关闭、失焦 | Claude | ✅ |
 | C6 | 桌面函数：剪贴板（文字 / 图片 / 文件 / 变化计数 / 监听）、`quit`、开机启动、下载目录、设备名、应用数据目录、单实例 | Claude | ✅ |
+| C7 | 退出钩子：`useAppExit`（根组件；macOS `applicationWillTerminate`、Windows 消息循环结束后），原生模块在这里停线程、保存 | Claude | ✅ |
 
 ## D. 工具链
 
@@ -62,8 +63,8 @@
 
 | # | 内容 | 负责 | 状态 |
 |---|---|---|---|
-| E1 | 新分支，原生模块整理：同步、传输、文件、存储保留 Zig，导出 TS 能调用的函数 | Codex | ⬜ |
-| E2 | 界面移植：列表行、历史页、设置页、面板、同步提示、对话框、标题栏 | Codex | ⬜ |
+| E1 | 新分支，原生模块整理：同步、传输、文件、存储保留 Zig，导出 TS 能调用的函数 | Codex | ✅（cliphop `ts-port`，`docs/ts-port.md`） |
+| E2 | 界面移植：列表行、历史页、设置页、面板、同步提示、对话框、标题栏（纯组件，props 向下、事件向上） | Codex | 进行中 |
 | E3 | 应用逻辑移植：`state.zig` → TS | Claude | ⬜ |
 | E4 | 两版在浅色 / 深色、主窗口 / 面板 / 提示窗、多种尺寸下截图对比，帧耗时对比 | Claude | ⬜ |
 
