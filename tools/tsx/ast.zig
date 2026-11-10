@@ -161,6 +161,8 @@ pub const Attr = struct {
     name: Name,
     /// Null for a bare attribute (`<Input password />` means `true`).
     value: ?*Expr,
+    /// `{...value}`: `name` is empty (`spread.zig` expands it).
+    spread: bool = false,
 };
 
 pub const Child = union(enum) {

@@ -287,7 +287,11 @@ pub fn forwardedProp(g: *Generator, e: *ast.Expr, kind: tags.Kind, loc: ast.Loc)
 /// Registers inline arrows passed to callback props (before emission, like
 /// ui event handlers) and scans everything else.
 pub fn scan(g: *Generator, j: *ast.Jsx, comp: *const Component) Error!void {
-    for (j.attrs) |attr| {
+    for (try @import("spread.zig").literals(g, j.attrs)) |attr| {
+        if (attr.spread) {
+            try events.scanExpr(g, attr.value.?);
+            continue;
+        }
         const value = attr.value orelse continue;
         const ty = fieldType(g, comp.props orelse continue, attr.name.name) orelse continue;
         const entry = callbackInfo(g, ty) orelse {
@@ -324,7 +328,7 @@ pub fn emitCall(g: *Generator, c: *Context, j: *ast.Jsx, comp: *const Component)
     // the key as written (a string or an integer) for the instance id
     var raw_key: ?[]const u8 = null;
     var given: std.ArrayList([]const u8) = .empty;
-    for (j.attrs) |attr| {
+    for (try @import("spread.zig").flatten(g, c, j.attrs)) |attr| {
         if (zig_text.eq(attr.name.name, "key")) {
             const v = attr.value orelse return core.fail(g, attr.name.loc, "key needs a value", .{});
             const k = try expr.emit(g, c, v, null, false);

@@ -50,12 +50,21 @@ pub fn enumValue(g: *Generator, c: *Context, prop: *const tags.Prop, e: *ast.Exp
             "`{s}` requires a static string literal",
             .{prop.name},
         ),
-        else => return core.fail(
-            g,
-            e.loc,
-            "`{s}` requires a literal{s}",
-            .{ prop.name, if (prop.kind == .flag) " string" else " or a conditional of literals" },
-        ),
+        else => {
+            if (prop.kind != .flag) if (try enumVariable(g, c, prop, e)) |code| return code;
+            return core.fail(
+                g,
+                e.loc,
+                "`{s}` requires a literal{s}",
+                .{
+                    prop.name,
+                    if (prop.kind == .flag)
+                        " string"
+                    else
+                        ", a conditional of literals or a string-literal union value",
+                },
+            );
+        },
     };
     const value = tags.findValue(prop, spelling) orelse {
         var names: std.ArrayList([]const u8) = .empty;
@@ -68,6 +77,28 @@ pub fn enumValue(g: *Generator, c: *Context, prop: *const tags.Prop, e: *ast.Exp
         );
     };
     return if (prop.kind == .flag) value else zig_text.fmt(g, ".{s}", .{try zig_text.id(g, value)});
+}
+
+/// A value of a string-literal union (`look.variant`: `"primary" | "default"`)
+/// for an enum prop: every member must be one of the prop's values; mapped
+/// with a `switch`. Null when `e` is not such a value.
+fn enumVariable(g: *Generator, c: *Context, prop: *const tags.Prop, e: *ast.Expr) Error!?[]const u8 {
+    const value = try expr.emit(g, c, e, null, false);
+    const info = @import("model.zig").info(g, value.ty) orelse return null;
+    if (info.kind != .enumeration) return null;
+    var arms: std.ArrayList(u8) = .empty;
+    for (info.members) |member| {
+        const target = tags.findValue(prop, member) orelse return core.fail(
+            g,
+            e.loc,
+            "`{s}` can be \"{s}\", which is not a `{s}` value",
+            .{ try zig_text.fmt(g, "{s}", .{prop.name}), member, prop.name },
+        );
+        try arms.appendSlice(g.a, try zig_text.fmt(g, ".{s} => .{s}, ", .{
+            try zig_text.id(g, member), try zig_text.id(g, target),
+        }));
+    }
+    return try zig_text.fmt(g, "switch ({s}) {{ {s}}}", .{ value.code, arms.items });
 }
 
 /// Merge props and literal style objects in source order; later writes replace earlier fields.
@@ -208,7 +239,7 @@ pub fn emit(g: *Generator, c: *Context, j: *ast.Jsx) Error!Value {
     try nesting.uniqueKeys(g, j.children);
     var fields = Fields{ .g = g };
     var child_list = ChildList{ .g = g, .c = c };
-    for (j.attrs) |attr| try jsx.attribute(g, c, tag, &fields, attr);
+    for (try @import("spread.zig").flatten(g, c, j.attrs)) |attr| try jsx.attribute(g, c, tag, &fields, attr);
     var text_arg: []const u8 = "";
     const scrolls = nesting.scrolls(j);
     if (scrolls) g.scroll_depth += 1;

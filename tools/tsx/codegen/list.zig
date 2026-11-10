@@ -80,6 +80,9 @@ fn arrow(g: *Generator, j: *ast.Jsx, name: []const u8, required: bool) Error!?*a
 /// Registers the item and id methods (before emission, like event handlers)
 /// and scans their bodies for nested handlers.
 pub fn scan(g: *Generator, j: *ast.Jsx) Error!void {
+    for (j.attrs) |a| if (a.spread) {
+        return core.fail(g, a.name.loc, "<List> takes its props one by one (no spread)", .{});
+    };
     if (attr(j, "data") == null) return core.fail(g, j.loc, "<List> needs `data`", .{});
     const render_item = (try arrow(g, j, "renderItem", true)).?;
     if (render_item.params.len == 0 or render_item.params.len > 2) {

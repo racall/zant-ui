@@ -23,7 +23,7 @@ pub fn needsId(name: []const u8) bool {
 pub fn emit(g: *core.Generator, c: *scope.Context, j: *ast.Jsx, tag: *const tags.Tag) core.Error!types.Value {
     var fields = Fields{ .g = g };
     var raw_key: ?[]const u8 = null;
-    for (j.attrs) |attr| {
+    for (try @import("spread.zig").flatten(g, c, j.attrs)) |attr| {
         try jsx.attribute(g, c, tag, &fields, attr);
         if (zig_text.eq(attr.name.name, "key")) raw_key = try keyValue(g, c, attr.value, attr.name.loc);
         if (zig_text.eq(attr.name.name, "style")) {

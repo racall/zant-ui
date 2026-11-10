@@ -12,6 +12,7 @@ test {
     _ = @import("tsx_nesting_test.zig");
     _ = @import("tsx_functions_test.zig");
     _ = @import("tsx_zig_types_test.zig");
+    _ = @import("tsx_spread_test.zig");
     _ = @import("tsx_strings_test.zig");
     _ = @import("tsx_golden_test.zig");
     _ = @import("tsx_widgets_test.zig");

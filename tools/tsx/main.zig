@@ -71,6 +71,7 @@ test {
     _ = @import("codegen/stores_test.zig");
     _ = @import("codegen/nesting_test.zig");
     _ = @import("codegen/functions_test.zig");
+    _ = @import("codegen/spread_test.zig");
     _ = @import("codegen/strings_test.zig");
     _ = compile;
     _ = @import("project_test.zig");

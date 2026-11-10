@@ -52,7 +52,15 @@ pub fn parseJsxAfterLt(self: *Parser, loc: u32) Error!*ast.Jsx {
                 return self.fail(v.start, "expected a string or `{{...}}` for attribute `{s}`", .{attr_name.name});
             }
         } else if (t.is(self.src, "{")) {
-            return self.fail(t.start, "spread attributes (`{{...props}}`) are not supported", .{});
+            // `{...common}`
+            self.advance();
+            if (!self.isP("...")) {
+                return self.fail(self.cur.start, "expected `...` in a spread attribute (`{{...props}}`)", .{});
+            }
+            self.advance();
+            const value = try expr_parser.parseExpr(self);
+            if (!self.isP("}")) return self.unexpected("}");
+            try attrs.append(self.arena, .{ .name = .{ .name = "", .loc = t.start }, .value = value, .spread = true });
         } else if (t.is(self.src, "/")) {
             const gt = self.lx.jsxTagToken();
             if (!gt.is(self.src, ">")) return self.fail(gt.start, "expected `>` after `/` in <{s} />", .{name});

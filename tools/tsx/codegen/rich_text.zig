@@ -108,6 +108,7 @@ fn spanStyle(b: *Builder, el: *const ast.Jsx, parent: Style, root: bool) Error!S
     const tag = tags.find("Text").?;
     var style = parent;
     for (el.attrs) |a| {
+        if (a.spread) return core.fail(b.g, a.name.loc, "text with spans takes its props one by one (no spread)", .{});
         const name = a.name.name;
         if (text.eq(name, "key") or (root and text.eq(name, "lineHeight"))) continue;
         if (try extra(b, a)) |entry| {

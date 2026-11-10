@@ -77,7 +77,7 @@ pub fn scanExpr(g: *Generator, e: *ast.Expr) Error!void {
 fn scanJsx(g: *Generator, j: *ast.Jsx) Error!void {
     if (@import("components.zig").find(g, j.name)) |comp| try @import("components.zig").scan(g, j, comp);
     if (zig_text.eq(j.name, "List")) return @import("list.zig").scan(g, j);
-    if (tags.find(j.name)) |tag| for (j.attrs) |attr| {
+    if (tags.find(j.name)) |tag| for (try @import("spread.zig").literals(g, j.attrs)) |attr| {
         if (attr.value) |value| {
             if (zig_text.eq(attr.name.name, "style") and value.data == .object) {
                 for (value.data.object) |property| {
