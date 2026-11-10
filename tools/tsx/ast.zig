@@ -274,6 +274,14 @@ pub const Pattern = union(enum) {
     ident: Name,
     /// `const [value, setValue] = ...`; null for a hole (`[, b]`).
     array: []const ?Name,
+    /// `const { ok, label: text } = ...` (custom hooks, `custom_hooks.zig`).
+    object: []const ObjectBinding,
+};
+
+/// `key` in `{ key }`, `{ key: local }`.
+pub const ObjectBinding = struct {
+    key: Name,
+    local: Name,
 };
 
 pub const If = struct {

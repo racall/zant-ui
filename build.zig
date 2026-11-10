@@ -716,6 +716,12 @@ pub fn build(b: *std.Build) void {
         b.path("tests/tsx/crossfile/Rows.tsx"),
         b.path("tests/tsx/crossfile/data.zig"),
     }, "App", zant_mod);
+    const tsx_hooks = addTsxProject(b, tsx_tool, &.{
+        b.path("tests/tsx/hooks/App.tsx"),
+        b.path("tests/tsx/hooks/config.tsx"),
+        b.path("tests/tsx/hooks/hooks/useCounter.tsx"),
+        b.path("tests/tsx/hooks/hooks/useToggle.tsx"),
+    }, "App", zant_mod);
     const tsx_wake = addTsxProject(b, tsx_tool, &.{
         b.path("tests/tsx/zig_types/Worker.tsx"),
         b.path("tests/tsx/zig_types/jobs.zig"),
@@ -834,6 +840,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = "wake_tsx", .module = tsx_wake },
             .{ .name = "media_tsx", .module = tsx_media },
             .{ .name = "crossfile_tsx", .module = tsx_crossfile },
+            .{ .name = "hooks_tsx", .module = tsx_hooks },
         },
     });
     // every golden output of the TSX compiler must compile against zant

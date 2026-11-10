@@ -3,6 +3,7 @@
 const std = @import("std");
 const parser = @import("parser.zig");
 const codegen = @import("codegen.zig");
+const hooks = @import("hooks/expand.zig");
 
 pub const Diag = parser.Diag;
 
@@ -15,10 +16,13 @@ pub const Result = union(enum) {
 /// Everything lives in `arena`.
 pub fn compile(arena: std.mem.Allocator, src: []const u8, source_name: []const u8) error{OutOfMemory}!Result {
     var p = parser.Parser.init(arena, src);
-    const module = p.parseModule() catch |err| switch (err) {
+    var module = p.parseModule() catch |err| switch (err) {
         error.OutOfMemory => return error.OutOfMemory,
         error.Syntax => return .{ .err = p.diag.? },
     };
+    var units = [_]hooks.Unit{.{ .name = std.fs.path.stem(source_name), .path = source_name, .module = &module }};
+    var failure: ?hooks.Failure = null;
+    if (!try hooks.expand(arena, &units, &failure)) return .{ .err = .{ .loc = failure.?.loc, .msg = failure.?.msg } };
     var diag: ?Diag = null;
     const raw = codegen.generate(arena, src, module, .{ .source_name = source_name }, &diag) catch |err| switch (err) {
         error.OutOfMemory => return error.OutOfMemory,
@@ -92,6 +96,23 @@ pub fn compileProject(arena: std.mem.Allocator, files: []const File) error{OutOf
         const module_name = if (file.native) std.fs.path.stem(file.path) else name;
         try modules.append(arena, .{ .name = module_name, .module = module, .native = file.native });
     }
+    // custom hooks are inlined into the components calling them
+    var units: std.ArrayList(hooks.Unit) = .empty;
+    var unit_files: std.ArrayList(usize) = .empty;
+    var next_module: usize = 0;
+    for (files, 0..) |file, i| if (!file.isZig()) {
+        if (!file.native) {
+            const m = &modules.items[next_module];
+            try units.append(arena, .{ .name = m.name, .path = file.path, .module = &m.module });
+            try unit_files.append(arena, i);
+        }
+        next_module += 1;
+    };
+    var failure: ?hooks.Failure = null;
+    if (!try hooks.expand(arena, units.items, &failure)) return .{ .err = .{
+        .file = unit_files.items[failure.?.unit],
+        .diag = .{ .loc = failure.?.loc, .msg = failure.?.msg },
+    } };
     const out = try arena.alloc([]const u8, files.len);
     // specs first: their errors are the ones to fix before the code using them
     const module_index = try arena.alloc(usize, files.len);
@@ -116,7 +137,14 @@ pub fn compileProject(arena: std.mem.Allocator, files: []const File) error{OutOf
             .native = file.native,
         }, &diag) catch |err| switch (err) {
             error.OutOfMemory => return error.OutOfMemory,
-            error.Tsx => return .{ .err = .{ .file = i, .diag = diag.? } },
+            error.Tsx => {
+                // code inlined from another file's hook is reported there
+                const unit = std.mem.indexOfScalar(usize, unit_files.items, i) orelse
+                    return .{ .err = .{ .file = i, .diag = diag.? } };
+                const at = hooks.decode(unit, diag.?.loc);
+                const where = unit_files.items[at.unit];
+                return .{ .err = .{ .file = where, .diag = .{ .loc = at.loc, .msg = diag.?.msg } } };
+            },
         };
         out[i] = try format(arena, raw);
     };

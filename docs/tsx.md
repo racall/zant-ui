@@ -479,6 +479,40 @@ function Counter({ label }: { label: string }) {
 
 框架接口 `ui.effect(action)` / `ui.requestRebuild()` 手写 Zig 也能用。
 
+### 自定义 hook（`useXxx`）
+
+和 React 一样，把一组 hooks 抽成 `use` 开头的函数，放在任意文件里，组件按名导入调用：
+
+```tsx
+// src/hooks/useCounter.tsx
+import { useState } from "zant";
+export function useCounter(start: number) {
+  const [count, setCount] = useState(start);
+  return { count, increment: () => setCount(count + 1), reset: () => setCount(start) };
+}
+
+// src/App.tsx：根组件只做组合
+import { useCounter } from "./hooks/useCounter";
+export default function App() {
+  const { count, increment } = useCounter(0);
+  useSession();                    // 应用 hooks（useWake、useTray…）也可以放进自定义 hook
+  return <Button onClick={increment}>{`${count}`}</Button>;
+}
+```
+
+- 编译期展开：调用处替换成 hook 的函数体，里面的 `useState`、`useEffect`、应用 hooks、托盘和快捷键
+  都属于调用它的组件（应用 hooks 仍然只能出现在根组件里）。运行时没有额外开销。
+  同一个 hook 调用两次就是两份独立的状态；子组件里调用时，每个实例各有一份。
+- hook 里声明的名字会加上 hook 名前缀（生成的 Zig 里是 `useCounter_count`），不会和组件里的名字冲突。
+  hook 文件导入的名字（store、native 模块、资源、其他文件的函数），编译器会自动导入到调用方，
+  相对路径按调用方的位置重新计算。
+- 调用写法：`useX(…);`、`const v = useX(…)`、`const [a, b] = useX(…)`（hook 返回数组字面量）、
+  `const { a, b } = useX(…)` 或 `const r = useX(…); r.a`（hook 返回对象字面量）。
+- 参数是普通值和回调；名字和字面量直接代入，其他表达式（包括箭头函数）在调用处先求值一次。
+- hook 可以调用其他 hook。只能在组件或 hook 的顶层调用；写在条件、循环、事件处理函数或普通函数里会报错。
+  hook 只在函数末尾 `return` 一次。
+- 编译错误指向 hook 自己的文件和行。
+
 ### Markdown 与 PDF
 
 `<Markdown>` 和 `<PdfViewer>` 是有独立状态的原生文档组件，标签和属性由同一份
@@ -518,6 +552,8 @@ PDF 的 `src` 必填（空字符串显示提示），不接受子节点。`passw
 TSX 平均 0.348 ms，手写 0.339 ms，差距 2.61%。
 
 ### 应用 hooks（只在根组件里用）
+
+可以放进[自定义 hook](#自定义-hookusexxx)，再在根组件里调用。
 
 ```tsx
 useCloseRequest(() => {            // 点关闭按钮 / ⌘W：返回 false 不关（比如先弹确认框、隐藏到托盘）

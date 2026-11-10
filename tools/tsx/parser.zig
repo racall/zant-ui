@@ -370,10 +370,20 @@ pub const Parser = struct {
                 }
                 try self.expectP("]");
                 break :blk .{ .array = names.items };
-            } else if (self.isP("{"))
-                return self.fail(self.cur.start, "object destructuring is not supported yet", .{})
-            else
-                .{ .ident = try self.expectIdent("a variable name") };
+            } else if (self.isP("{")) blk: {
+                self.advance();
+                var bindings: std.ArrayList(ast.ObjectBinding) = .empty;
+                while (!self.isP("}")) {
+                    if (self.isP("...")) return self.fail(self.cur.start, "rest patterns are not supported", .{});
+                    const key = try self.expectIdent("a property name");
+                    const local = if (self.eatP(":")) try self.expectIdent("a variable name") else key;
+                    if (self.isP("=")) return self.fail(self.cur.start, "defaults in destructuring are not supported", .{});
+                    try bindings.append(self.arena, .{ .key = key, .local = local });
+                    if (!self.eatP(",")) break;
+                }
+                try self.expectP("}");
+                break :blk .{ .object = bindings.items };
+            } else .{ .ident = try self.expectIdent("a variable name") };
             var ty: ?ast.TypeRef = null;
             if (self.eatP(":")) ty = try self.parseType();
             var init_expr: ?*ast.Expr = null;

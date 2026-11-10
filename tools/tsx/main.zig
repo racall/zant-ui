@@ -196,6 +196,8 @@ test {
     _ = compile;
     _ = @import("project_test.zig");
     _ = @import("native_test.zig");
+    _ = @import("hooks/expand_test.zig");
+    _ = @import("hooks/resolve.zig");
     _ = entry;
     _ = assets;
     _ = @import("codegen/zig_imports.zig");

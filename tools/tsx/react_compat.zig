@@ -48,6 +48,10 @@ const Walker = struct {
                 for (ns) |n| if (n) |v| if (w.matches(v.name)) break :blk true;
                 break :blk false;
             },
+            .object => |bs| blk: {
+                for (bs) |b| if (w.matches(b.local.name)) break :blk true;
+                break :blk false;
+            },
         };
     }
 
