@@ -157,6 +157,8 @@ pub const Format = struct {
 
     pub fn finish(f: *Format, log: bool) Error![]const u8 {
         if (!log and f.args.items.len == 0) return zig_text.quote(f.g, f.literal.items);
+        // a lone string needs no formatting (and no frame allocation)
+        if (!log and f.args.items.len == 1 and std.mem.eql(u8, f.pattern.items, "{s}")) return f.args.items[0];
         const args = if (f.args.items.len == 0)
             ".{}"
         else

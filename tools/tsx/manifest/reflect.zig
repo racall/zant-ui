@@ -204,5 +204,23 @@ pub fn source() []const u8 {
         "pub const all: []const Tag = &.{\n" ++ table ++ "};\n\n" ++
         "/// Builders intentionally excluded from the generated table.\n" ++
         "pub const skipped = [_]struct { builder: []const u8, reason: []const u8 }{\n" ++ skipped ++ "};\n\n" ++
+        "/// Fields of `zant.tokens.Theme`, read in TSX through `useTheme()`.\n" ++
+        "pub const theme: []const tags.Prop = &.{\n" ++ themeSource() ++ "};\n\n" ++
         "// Omitted props and tags (in declaration / field order):\n" ++ omitted;
+}
+
+/// One entry per theme field: colors (`color_*`, `u32`), durations and other
+/// integers (`u32`) and sizes (`f32`).
+fn themeSource() []const u8 {
+    const info = @typeInfo(zant.tokens.Theme).@"struct";
+    var out: []const u8 = "";
+    for (info.field_names, info.field_types) |name, T| {
+        const color = T == u32 and std.mem.startsWith(u8, name, "color");
+        const k = if (color) "color" else if (T == u32) "integer, .int_type = \"u32\"" else if (T == f32)
+            "number"
+        else
+            @compileError("theme field " ++ name ++ " has an unsupported type");
+        out = out ++ ".{ .name = " ++ quote(names.camel(name)) ++ ", .field = " ++ quote(name) ++ ", .kind = ." ++ k ++ " },\n";
+    }
+    return out;
 }

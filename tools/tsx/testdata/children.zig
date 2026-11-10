@@ -36,7 +36,7 @@ pub const TodoRow = struct {
             .children = &.{
                 ui.checkbox(.{
                     .key = tsx.fmt("check-{d}", .{self.props.todo.id}),
-                    .label = tsx.fmt("{s}", .{self.props.todo.title}),
+                    .label = self.props.todo.title,
                     .checked = self.props.todo.done,
                     .on_change = ui.boolAction(self, TodoRow._onChange1),
                 }),

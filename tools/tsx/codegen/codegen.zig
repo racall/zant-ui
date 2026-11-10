@@ -51,6 +51,8 @@ pub const Generator = struct {
     components: std.ArrayList(components.Component) = .empty,
     current_component: ?*components.Component = null,
     callback_events: std.ArrayList(components.CallbackEvent) = .empty,
+    /// `<List>`s of the component being generated.
+    lists: std.ArrayList(@import("list.zig").ListInfo) = .empty,
 };
 
 pub fn fail(g: *Generator, loc: ast.Loc, comptime f: []const u8, args: anytype) Error {
@@ -232,10 +234,9 @@ pub fn generate(
         )) return core.fail(&g, imp.source_loc, "only imports from \"zant\" are supported", .{});
         for (imp.names) |n| {
             const tag = tags.find(n.imported.name);
-            if (!zig_text.eq(
-                n.imported.name,
-                "useState",
-            ) and tag == null and !types.numericName(n.imported.name)) return core.fail(
+            const hook_import = zig_text.eq(n.imported.name, "useState") or zig_text.eq(n.imported.name, "useTheme") or
+                zig_text.eq(n.imported.name, "List");
+            if (!hook_import and tag == null and !types.numericName(n.imported.name)) return core.fail(
                 &g,
                 n.imported.loc,
                 "unknown import `{s}`; import useState, a tag, or a numeric type from zant",
@@ -313,6 +314,7 @@ fn resetComponent(g: *Generator) void {
     g.events.clearRetainingCapacity();
     g.render_names.clearRetainingCapacity();
     g.callback_events.clearRetainingCapacity();
+    g.lists.clearRetainingCapacity();
     g.managed_strings = false;
 }
 
@@ -382,7 +384,11 @@ fn emitComponent(g: *Generator, f: *ast.Function, comp: ?*components.Component) 
             try zig_text.fmt(g, "{s}: {s} = {s},\n", .{ try zig_text.id(g, s.name), state_type, initial }),
         );
     }
-    if (g.states.items.len > 0) try out.appendSlice(arena, "\n");
+    for (g.lists.items) |l| {
+        const field = "{s}: ui.ListState = .{{ .allocator = std.heap.smp_allocator }},\n";
+        try out.appendSlice(arena, try zig_text.fmt(g, field, .{l.field}));
+    }
+    if (g.states.items.len + g.lists.items.len > 0) try out.appendSlice(arena, "\n");
     try out.appendSlice(arena, try @import("captures.zig").declarations(g));
     try out.appendSlice(arena, try zig_text.fmt(
         g,

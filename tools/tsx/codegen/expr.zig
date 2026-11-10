@@ -289,6 +289,11 @@ pub fn callValue(g: *Generator, c: *Context, loc: ast.Loc, call: ast.Call, expec
         .{},
     );
     const n = call.callee.data.ident;
+    if (scope.local(c, n) == null and zig_text.eq(n, "useTheme")) {
+        if (!c.render) return core.fail(g, loc, "useTheme() is read while rendering; capture the value in handlers", .{});
+        if (call.args.len != 0) return core.fail(g, loc, "useTheme() takes no arguments", .{});
+        return .{ .ty = try model.themeType(g), .code = "ui.currentTheme()" };
+    }
     if (scope.local(c, n) != null) return core.fail(g, loc, "`{s}` is a local value, not a component function", .{n});
     if (core.hookName(g, n)) return core.fail(g, loc, "hooks must be called at the top level of the component", .{});
     if (scope.setterIndex(g, n) != null) return core.fail(

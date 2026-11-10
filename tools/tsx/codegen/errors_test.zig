@@ -148,6 +148,27 @@ test "codegen diagnostics include precise source positions" {
             "tag imports cannot be renamed; use `Text`",
         },
         .{
+            "export default function App() { const t = useTheme(); return <Text color={t.~colorPrimry}>x</Text>; }",
+            "zant.tokens.Theme has no field `colorPrimry`; did you mean `colorPrimary`?",
+        },
+        .{
+            "export default function App() { return <Button onClick={() => { const t = ~useTheme(); }}/>; }",
+            "useTheme() is read while rendering; capture the value in handlers",
+        },
+        .{
+            "export default function App() { return ~<List renderItem={(x: string) => <Text>{x}</Text>}/>; }",
+            "<List> needs `data`",
+        },
+        .{
+            "export default function App() { return ~<List data={[\"a\"]}/>; }",
+            "<List> needs `renderItem`",
+        },
+        .{
+            "function Rows(p: { names: string[] }) { return ~<List data={p.names} renderItem={(n) => <Text>{n}</Text>}/>; }\n" ++
+                "export default function App() { return <Rows names={[]}/>; }",
+            "<List> keeps scroll state and needs the root component",
+        },
+        .{
             "export default function App(~props) { return <View/>; }",
             "the root component takes no props; it is the app's state",
         },

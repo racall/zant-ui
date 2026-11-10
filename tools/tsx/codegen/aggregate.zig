@@ -166,9 +166,8 @@ pub fn member(g: *Generator, c: *Context, m: ast.Member) Error!Value {
 fn memberValue(g: *Generator, value: Value, name: ast.Name) Error!Value {
     const length = text.eq(name.name, "length") and (value.ty == .string or model.element(g, value.ty) != null);
     const ty = if (length) .usize else try model.fieldType(g, value.ty, name.name, name.loc);
-    return .{ .ty = ty, .code = try text.fmt(g, "{s}.{s}", .{
-        try text.operand(g, value, .suffix, false), if (length) "len" else try text.id(g, name.name),
-    }) };
+    const field = if (length) "len" else model.fieldZig(g, value.ty, name.name) orelse try text.id(g, name.name);
+    return .{ .ty = ty, .code = try text.fmt(g, "{s}.{s}", .{ try text.operand(g, value, .suffix, false), field }) };
 }
 
 /// Numeric indexes are checked by tsx.index before Zig's own slice bounds check.

@@ -126,7 +126,7 @@ pub const Todos = struct {
                                 .children = &.{
                                     ui.checkbox(.{
                                         .key = tsx.fmt("toggle-{d}", .{todo.id}),
-                                        .label = tsx.fmt("{s}", .{todo.title}),
+                                        .label = todo.title,
                                         .checked = todo.done,
                                         .on_change = ui.boolAction(tsx.capture(_Capture4{
                                             .self = self,

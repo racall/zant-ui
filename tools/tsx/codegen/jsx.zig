@@ -181,6 +181,7 @@ fn dimensionProp(g: *Generator, c: *Context, prop: *const tags.Prop, e: *ast.Exp
 pub fn emit(g: *Generator, c: *Context, j: *ast.Jsx) Error!Value {
     if (j.name.len == 0) return core.fail(g, j.loc, "a fragment is only allowed as a child; wrap it in <View>", .{});
     if (@import("components.zig").find(g, j.name)) |comp| return @import("components.zig").emitCall(g, c, j, comp);
+    if (zig_text.eq(j.name, "List")) return @import("list.zig").emit(g, c, j);
     const tag = tags.find(j.name) orelse return core.fail(
         g,
         j.loc,

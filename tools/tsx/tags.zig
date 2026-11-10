@@ -168,6 +168,10 @@ pub const all: []const Tag = blk: {
     break :blk result;
 };
 
+/// Fields of `zant.tokens.Theme` for `useTheme()` (`colorPrimary` →
+/// `color_primary`), reflected with the tag table.
+pub const theme_fields: []const Prop = generated.theme;
+
 pub fn find(name: []const u8) ?*const Tag {
     for (all) |*tag| {
         if (std.mem.eql(u8, tag.name, name)) return tag;

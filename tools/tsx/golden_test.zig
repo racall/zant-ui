@@ -3,7 +3,7 @@ const std = @import("std");
 const compiler = @import("compile.zig");
 
 test "TSX golden files match formatted compiler output" {
-    inline for (.{ "counter", "layout", "text", "events", "conditional", "components", "todos", "arrays", "children" }) |name| {
+    inline for (.{ "counter", "layout", "text", "events", "conditional", "components", "todos", "arrays", "children", "theme", "list" }) |name| {
         var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
         defer arena.deinit();
         const src = @embedFile("testdata/" ++ name ++ ".tsx");

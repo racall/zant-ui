@@ -8,7 +8,34 @@ const Type = types.Type;
 const Generator = core.Generator;
 const Error = core.Error;
 
-pub const Field = struct { name: []const u8, ty: Type, optional: bool = false };
+pub const Field = struct {
+    name: []const u8,
+    ty: Type,
+    optional: bool = false,
+    /// The Zig field when it differs from the TSX name (`colorPrimary` →
+    /// `color_primary` on the theme).
+    zig: ?[]const u8 = null,
+};
+
+/// The Zig spelling of field `name` of `ty` (its TSX name unless aliased).
+pub fn fieldZig(g: *Generator, ty: Type, name: []const u8) ?[]const u8 {
+    const entry = info(g, ty) orelse return null;
+    for (entry.fields) |f| if (text.eq(f.name, name)) return f.zig;
+    return null;
+}
+
+/// `zant.tokens.Theme` as an object type with camelCase fields (`useTheme()`).
+pub fn themeType(g: *Generator) Error!Type {
+    for (g.compounds.items, 0..) |entry, i| if (text.eq(entry.zig, "zant.tokens.Theme")) {
+        return @fromBackingInt(@intCast(types.compound_base + i));
+    };
+    var fields: std.ArrayList(Field) = .empty;
+    for (@import("../tags.zig").theme_fields) |f| {
+        const t: Type = if (f.kind == .number) .f32 else .u32;
+        try fields.append(g.a, .{ .name = f.name, .ty = t, .zig = f.field });
+    }
+    return add(g, .{ .kind = .object, .zig = "zant.tokens.Theme", .fields = fields.items });
+}
 pub const Info = struct {
     kind: enum { array, object, optional, enumeration, callback },
     zig: []const u8,
@@ -183,5 +210,39 @@ pub fn fieldType(g: *Generator, ty: Type, name: []const u8, loc: ast.Loc) Error!
     if (entry.kind == .object) for (entry.fields) |f| {
         if (text.eq(f.name, name)) return f.ty;
     };
+    if (closestField(entry.fields, name)) |near| {
+        return core.fail(g, loc, "{s} has no field `{s}`; did you mean `{s}`?", .{ ty.zig(g), name, near });
+    }
     return core.fail(g, loc, "{s} has no field `{s}`", .{ ty.zig(g), name });
+}
+
+/// The field whose name is within a couple of edits of `name` (typos).
+fn closestField(fields_: []const Field, name: []const u8) ?[]const u8 {
+    var best: ?[]const u8 = null;
+    var best_distance: usize = 3;
+    for (fields_) |f| {
+        const d = editDistance(f.name, name);
+        if (d < best_distance) {
+            best = f.name;
+            best_distance = d;
+        }
+    }
+    return best;
+}
+
+/// Levenshtein distance for short identifiers (longer ones count as far).
+fn editDistance(a: []const u8, b: []const u8) usize {
+    if (a.len > 64 or b.len > 64) return std.math.maxInt(usize);
+    var row: [65]usize = undefined;
+    for (0..b.len + 1) |j| row[j] = j;
+    for (a, 1..) |ca, i| {
+        var diagonal = row[0];
+        row[0] = i;
+        for (b, 1..) |cb, j| {
+            const above = row[j];
+            row[j] = @min(@min(row[j] + 1, row[j - 1] + 1), diagonal + @intFromBool(ca != cb));
+            diagonal = above;
+        }
+    }
+    return row[b.len];
 }

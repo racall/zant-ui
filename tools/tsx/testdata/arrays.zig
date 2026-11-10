@@ -333,7 +333,7 @@ pub const Arrays = struct {
                     .options = PLANS,
                 }),
             }, &.{
-                ui.text(tsx.fmt("{s}", .{BANNER}), .{
+                ui.text(BANNER, .{
                     .key = "banner",
                 }),
             }, &.{

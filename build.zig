@@ -233,7 +233,7 @@ pub fn addTsx(b: *std.Build, tool: *std.Build.Step.Compile, source: std.Build.La
 }
 
 /// Golden files of the TSX compiler (`tools/tsx/testdata/<name>.tsx` → `.zig`).
-const tsx_golden = [_][]const u8{ "counter", "layout", "text", "events", "conditional", "components", "todos", "arrays", "children" };
+const tsx_golden = [_][]const u8{ "counter", "layout", "text", "events", "conditional", "components", "todos", "arrays", "children", "theme", "list" };
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
