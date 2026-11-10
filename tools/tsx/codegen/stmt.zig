@@ -40,7 +40,15 @@ pub fn statement(g: *Generator, c: *Context, s: *ast.Stmt, top: bool) Error![]co
             return core.fail(g, s.loc, "nested functions are not supported yet (closures arrive in phase 2)", .{});
         },
         .ret => |e| return returnStatement(g, c, s.loc, e),
-        .expr => |e| return stmt.expressionStatement(g, c, e),
+        .expr => |e| {
+            if (core.hook(g, e)) {
+                if (!zig_text.eq(e.data.call.callee.data.ident, "useEffect")) {
+                    return core.fail(g, e.loc, "keep the value of this hook: const x = …", .{});
+                }
+                return @import("hooks.zig").effect(g, c, e, top);
+            }
+            return stmt.expressionStatement(g, c, e);
+        },
         .block => |ss| return block(g, c, ss),
         .if_ => |v| return ifStatement(g, c, v),
     }
@@ -49,6 +57,9 @@ pub fn statement(g: *Generator, c: *Context, s: *ast.Stmt, top: bool) Error![]co
 /// Emit a typed local or skip a registered top-level hook or component function.
 fn declaration(g: *Generator, c: *Context, loc: ast.Loc, d: ast.Decl, top: bool) Error![]const u8 {
     const e = d.init orelse return core.fail(g, loc, "local declarations need an initializer", .{});
+    if (core.hook(g, e) and zig_text.eq(e.data.call.callee.data.ident, "useMemo")) {
+        return @import("hooks.zig").memo(g, c, loc, d, top);
+    }
     if (core.hook(g, e)) {
         if (c.render and top) return "";
         return core.fail(g, e.loc, "hooks must be called at the top level of the component", .{});
@@ -124,6 +135,7 @@ pub fn expressionStatement(g: *Generator, c: *Context, e: *ast.Expr) Error![]con
         return expr.callStatement(g, c, e);
     }
     if (e.data == .assign or e.data == .update) {
+        if (try @import("hooks.zig").refWrite(g, c, e)) |code| return code;
         const target = if (e.data == .assign) e.data.assign.target else e.data.update.target;
         if (target.data != .ident) return core.fail(g, target.loc, "only let locals can be assigned", .{});
         const n = target.data.ident;

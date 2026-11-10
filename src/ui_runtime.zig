@@ -295,6 +295,16 @@ pub const Runtime = struct {
     }
 
     fn rebuild(self: *Runtime) void {
+        self.buildTree();
+        // `ui.effect` callbacks: after the tree is in place; they may set
+        // state, so another build follows
+        if (ui.runEffects()) {
+            self.needs_build = true;
+            platform.requestRedraw(self.window, 0);
+        }
+    }
+
+    fn buildTree(self: *Runtime) void {
         if (self.config.theme_fn) |theme_fn| self.setTheme(theme_fn(self.userdata));
         ui.setBuildTheme(self.theme);
         ui.setBuildWindowStyle(self.config.window.style);

@@ -28,9 +28,12 @@ pub const Options = struct {
 
 pub const State = struct {
     name: []const u8,
+    /// Empty for a ref.
     setter: []const u8,
     ty: Type,
     initial: []const u8,
+    /// `useState` or `useRef` (read and written through `.current`).
+    kind: enum { state, ref } = .state,
 };
 
 pub const Generator = struct {
@@ -67,6 +70,10 @@ pub const Generator = struct {
     /// Key-less stateful child call sites of the current component, numbered
     /// for their instance ids.
     child_sites: usize = 0,
+    /// `useMemo` caches and `useEffect` dependency lists of the current
+    /// component (fields next to its state), and its effects.
+    hook_fields: std.ArrayList(@import("hooks.zig").Field) = .empty,
+    effects: std.ArrayList(@import("hooks.zig").Effect) = .empty,
 };
 
 pub fn fail(g: *Generator, loc: ast.Loc, comptime f: []const u8, args: anytype) Error {
@@ -84,7 +91,7 @@ pub fn contextualize(g: *Generator, prefix: []const u8) Error!void {
 }
 
 pub fn hookName(g: *Generator, n: []const u8) bool {
-    if (zig_text.eq(n, "useState")) return true;
+    if (zig_text.eq(n, "useState") or @import("hooks.zig").extraHook(n)) return true;
     for (g.hook_names.items) |name| if (zig_text.eq(n, name)) return true;
     return false;
 }
@@ -114,6 +121,9 @@ pub fn collect(g: *Generator, f: *ast.Function) Error!void {
     for (f.body.block) |s| switch (s.data) {
         .decl => |d| try collectDeclaration(g, s.loc, d),
         .func => |func| try core.collectMethod(g, func.name, func),
+        .expr => |e| if (@import("hooks.zig").callName(e)) |n| if (zig_text.eq(n, "useEffect")) {
+            try @import("hooks.zig").collectEffect(g, e);
+        },
         else => {},
     };
     for (f.body.block) |s| try core.renderNames(g, s);
@@ -250,7 +260,7 @@ pub fn generate(
         for (imp.names) |n| {
             const tag = tags.find(n.imported.name);
             const hook_import = zig_text.eq(n.imported.name, "useState") or zig_text.eq(n.imported.name, "useTheme") or
-                zig_text.eq(n.imported.name, "List");
+                zig_text.eq(n.imported.name, "List") or @import("hooks.zig").extraHook(n.imported.name);
             if (!hook_import and tag == null and !types.numericName(n.imported.name)) return core.fail(
                 &g,
                 n.imported.loc,
@@ -266,6 +276,8 @@ pub fn generate(
                 );
                 if (zig_text.eq(n.imported.name, "useState")) {
                     try g.hook_names.append(arena, n.local.name);
+                } else if (!types.numericName(n.imported.name)) {
+                    return core.fail(&g, n.local.loc, "`{s}` cannot be renamed", .{n.imported.name});
                 } else {
                     try g.type_aliases.append(
                         arena,
@@ -340,6 +352,8 @@ fn resetComponent(g: *Generator) void {
     g.lists.clearRetainingCapacity();
     g.managed_strings = false;
     g.child_sites = 0;
+    g.hook_fields.clearRetainingCapacity();
+    g.effects.clearRetainingCapacity();
 }
 
 /// One component as a struct: the root with its state fields, or a child
@@ -438,6 +452,9 @@ fn stateFields(g: *Generator) Error![]const u8 {
         const field = "{s}: ui.ListState = .{{ .allocator = std.heap.smp_allocator }},\n";
         try out.appendSlice(g.a, try zig_text.fmt(g, field, .{l.field}));
     }
+    for (g.hook_fields.items) |f| {
+        try out.appendSlice(g.a, try zig_text.fmt(g, "{s}: {s} = .{{}},\n", .{ f.name, f.zig_type }));
+    }
     return out.items;
 }
 
@@ -492,7 +509,13 @@ fn methodExpression(g: *Generator, c: *Context, e: *ast.Expr) Error![]const u8 {
 /// Collect top-level state and functions without adding derived render locals.
 fn collectDeclaration(g: *Generator, loc: ast.Loc, declaration: ast.Decl) Error!void {
     const init = declaration.init orelse return;
-    if (core.hook(g, init)) return core.collectState(g, loc, declaration, init.data.call);
+    if (core.hook(g, init)) {
+        const n = init.data.call.callee.data.ident;
+        if (zig_text.eq(n, "useRef")) return @import("hooks.zig").collectRef(g, loc, declaration, init.data.call);
+        if (zig_text.eq(n, "useMemo")) return; // a render local (stmt.declaration)
+        if (zig_text.eq(n, "useEffect")) return core.fail(g, loc, "useEffect returns nothing", .{});
+        return core.collectState(g, loc, declaration, init.data.call);
+    }
     if (init.data == .arrow and declaration.pattern == .ident) {
         try core.collectMethod(g, declaration.pattern.ident.name, init.data.arrow);
     }

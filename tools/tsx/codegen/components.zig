@@ -204,12 +204,22 @@ pub fn readProp(g: *Generator, n: []const u8) Error!?Value {
 
 /// `onToggle(todo.id)` / `props.onToggle(todo.id)` inside a child: calls the
 /// callback prop. Null when the callee is not a callback prop.
+/// `object.name` is a callback field of the props object.
+fn propsCallback(g: *Generator, m: ast.Member) Error!bool {
+    const object = (try readProp(g, m.object.data.ident)) orelse return false;
+    const entry = model.info(g, object.ty) orelse return false;
+    if (entry.kind != .object) return false;
+    const ty = fieldType(g, object.ty, m.name.name) orelse return false;
+    return callbackInfo(g, ty) != null;
+}
+
 pub fn tryCall(g: *Generator, c: *Context, loc: ast.Loc, call: ast.Call) Error!?Value {
     if (g.current_component == null) return null;
     const callee_is_prop = switch (call.callee.data) {
         .ident => |n| scope.local(c, n) == null and (try readProp(g, n)) != null,
+        // `props.onToggle(...)`, not an array method on a prop (`items.filter(...)`)
         .member => |m| m.object.data == .ident and scope.local(c, m.object.data.ident) == null and
-            (try readProp(g, m.object.data.ident)) != null,
+            try propsCallback(g, m),
         else => false,
     };
     if (!callee_is_prop) return null;

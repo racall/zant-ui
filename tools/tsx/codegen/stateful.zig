@@ -1,5 +1,5 @@
 //! Which child components keep local state (phase 3, docs/tsx.md): a
-//! component that calls `useState`, renders a `<List>` (its scroll state), or
+//! component that calls a hook (`useState`, `useRef`, …), renders a `<List>` (its scroll state), or
 //! renders another stateful component needs an instance id, so its builder
 //! takes one (`todoRow(props, id)`) and its call sites pass
 //! `tsx.childId(parent, "TodoRow", key)`. Components without state keep the
@@ -68,7 +68,7 @@ const Walker = struct {
                 w.expr(c.else_);
             },
             .call => |c| {
-                if (c.callee.data == .ident and w.isUseState(c.callee.data.ident)) w.found = true;
+                if (c.callee.data == .ident and w.isHook(c.callee.data.ident)) w.found = true;
                 w.expr(c.callee);
                 for (c.args) |a| w.expr(a);
             },
@@ -105,8 +105,10 @@ const Walker = struct {
         };
     }
 
-    /// `useState`, or the local name it is imported under.
-    fn isUseState(w: *const Walker, name: []const u8) bool {
+    /// `useRef`, `useMemo`, `useEffect`, `useState` or the local name it is
+    /// imported under.
+    fn isHook(w: *const Walker, name: []const u8) bool {
+        if (@import("hooks.zig").extraHook(name)) return true;
         for (w.module.imports) |imp| for (imp.names) |n| {
             if (std.mem.eql(u8, n.imported.name, "useState") and std.mem.eql(u8, n.local.name, name)) return true;
         };

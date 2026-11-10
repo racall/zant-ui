@@ -154,6 +154,34 @@ pub fn localSlot(comptime T: type, id: u64) local_state.Slot(T) {
     return store.slot(T, id);
 }
 
+threadlocal var pending_effects: std.ArrayList(actions.Action) = .empty;
+threadlocal var rebuild_requested = false;
+
+/// Runs `action` after this build has been reconciled (React's `useEffect`):
+/// the new tree is in place. An effect that changes state calls
+/// `requestRebuild` so the UI is built once more. The context must live until
+/// then (frame memory is fine).
+pub fn effect(callback: actions.Action) void {
+    pending_effects.append(frameArena().allocator(), callback) catch
+        @panic("Zant UI: out of memory while building a frame");
+}
+
+/// From an effect: its state changes need another build.
+pub fn requestRebuild() void {
+    rebuild_requested = true;
+}
+
+/// Runs the effects queued by the last build; true when one of them asked
+/// for another build.
+pub fn runEffects() bool {
+    const queued = pending_effects.items;
+    pending_effects = .empty;
+    rebuild_requested = false;
+    for (queued) |callback| callback.func(callback.ctx);
+    defer rebuild_requested = false;
+    return rebuild_requested;
+}
+
 /// Window-space box (logical px) of the node with `key` as laid out in the
 /// previous frame, or null (first frame, key not shown). Use it to place a
 /// popover next to its trigger from the root container:
@@ -373,6 +401,7 @@ pub fn beginFrame() void {
 pub fn beginFrameIn(arena: ?*std.heap.ArenaAllocator) void {
     frame_arena_ptr = arena;
     _ = frameArena().reset(.retain_capacity);
+    pending_effects = .empty;
     pending_wake_ms = null;
     pending_edited = null;
     frame_active = true;

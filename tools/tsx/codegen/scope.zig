@@ -263,6 +263,7 @@ pub fn read(g: *Generator, c: *Context, n: []const u8, loc: ast.Loc) Error!Value
     if (try @import("components.zig").readProp(g, n)) |value| return value;
     if (scope.stateIndex(g, n)) |i| {
         const s = g.states.items[i];
+        if (s.kind == .ref) return @import("hooks.zig").bareRef(g, i, loc);
         if (c.render) return .{
             .ty = s.ty,
             .code = try zig_text.fmt(

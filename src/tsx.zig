@@ -157,8 +157,13 @@ pub fn deinitFields(value: anytype) void {
     }
 }
 
+const hooks = @import("tsx_hooks.zig");
+pub const Deps = hooks.Deps;
+pub const Memo = hooks.Memo;
+pub const deepEql = hooks.deepEql;
+
 /// Only immutable value types produced by the compiler participate in state copies.
-fn deepCopy(comptime T: type, a: std.mem.Allocator, value: T) std.mem.Allocator.Error!T {
+pub fn deepCopy(comptime T: type, a: std.mem.Allocator, value: T) std.mem.Allocator.Error!T {
     return switch (@typeInfo(T)) {
         .pointer => |pointer| blk: {
             if (pointer.size != .slice) @compileError("TSX state supports slices, not pointers");

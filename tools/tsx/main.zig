@@ -67,6 +67,7 @@ test {
     _ = @import("codegen/errors_test.zig");
     _ = @import("codegen/emission_test.zig");
     _ = @import("codegen/stateful.zig");
+    _ = @import("codegen/hooks_test.zig");
     _ = compile;
     _ = @import("golden_test.zig");
 }

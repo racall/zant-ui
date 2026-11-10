@@ -267,10 +267,27 @@ function Counter({ label }: { label: string }) {
 性能（ReleaseFast）：300 行、每行一个有状态 `<Counter>`（`local_bench.tsx` 对手写 `ui.localState` 的
 `local_manual.zig`），逐行挂载 0.444 / 0.428 ms，点击 0.562 / 0.558 ms（`zig build bench-tsx -- local`）。
 
+### `useRef`、`useMemo`、`useEffect`
+
+和状态一样，它们的存储是组件结构体（根组件）或 `_Local` 槽位（子组件）里的字段，跟着实例走。
+
+- `const nextId = useRef<u32>(1)`：只能通过 `nextId.current` 读写；读到的总是当前值（不是快照），
+  在事件处理函数和 effect 里写，不触发重建。初始值是字面量。
+- `const visible = useMemo(() => items.filter(…), [items, query])`：依赖列表**按值**比较
+  （字符串、数组、对象按内容），不变就直接用缓存，函数体不执行；结果复制进缓存自己的内存。
+  比较本身是 O(依赖大小)，适合包住比它贵的计算（过滤、排序、统计）。不能缓存元素（每帧照常构建）。
+- `useEffect(() => { … }, [deps])`：在这次构建协调完之后运行（`ui.effect`）。`[]` 只在挂载后运行一次，
+  有依赖时依赖变了才运行，不写依赖列表则每次构建后都运行。effect 里调用了 setter（或组件函数、回调属性）
+  时会再构建一次；只写 ref 的不会，所以不写依赖的 effect 不会死循环。
+  暂不支持返回清理函数（会报错）。
+- 这三个 hook 都只能在组件体顶层调用，不能改名导入；用了它们的子组件算有状态组件（带实例 id）。
+
+框架接口 `ui.effect(action)` / `ui.requestRebuild()` 手写 Zig 也能用。
+
 ### 待做
 
-- `useMemo` / `useRef` / `useEffect`、编译期自动 memo（不依赖状态的子树跳过比对，参考 Solid / React Compiler）、
-  从 Zig 导入函数、`zant.store`。
+- effect 清理函数、编译期自动 memo（不依赖状态的子树跳过比对，参考 Solid / React Compiler）、
+  字符串方法（`includes`、`startsWith`、`trim` …）、`zant.store`。
 
 ## 后续阶段
 
