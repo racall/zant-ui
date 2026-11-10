@@ -610,9 +610,11 @@ import { plural } from "./format.zig";
 <Text>{plural(notes.length, "note")}</Text>
 ```
 
-函数签名支持 `bool`、`[]const u8`（字符串）、所有上述数值类型，以及这些类型的 `?T`、
+函数签名支持 `bool`、`[]const u8`（字符串）、所有上述数值类型、`zant.tsx.Bytes`（`Uint8Array`）、
+`zant.image.Image`、同文件的 `pub` 结构体和枚举（见下文“从 Zig 导入类型”），以及这些类型的 `?T`、
 `[]const T`（包括字符串数组）；返回值还支持 `void`，可在事件处理函数里作为语句调用。
-不支持结构体、其他指针、`anytype`、comptime 参数、错误联合或泛型，也不能用 `import type` 导入。
+不支持其他指针、`anytype`、comptime 参数、错误联合或泛型。
+原生模块需要进程的 I/O、分配器或环境变量时用 `zant.tsx.app.io()`、`gpa()`、`environ()`（应用启动后可用）。
 返回字符串或切片时，内存必须是静态内存，或至少在当前帧有效（用 `zant.ui.frameAllocator()` 分配）。
 
 把 `.zig` 文件也加进 `addTsxProject` 的 sources，或运行

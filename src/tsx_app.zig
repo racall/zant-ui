@@ -15,8 +15,26 @@ const events = @import("core/events.zig");
 const tsx_desktop = @import("tsx_desktop.zig");
 const tsx_platform = @import("tsx_platform.zig");
 
+/// The process's I/O, allocator and environment while the app runs, for
+/// native Zig modules a TS app imports (storage, sync engines, workers):
+/// `const io = zant.tsx.app.io();`.
+var process: ?std.process.Init = null;
+
+pub fn io() std.Io {
+    return (process orelse @panic("zant.tsx.app.io() before the app started")).io;
+}
+
+pub fn gpa() std.mem.Allocator {
+    return (process orelse @panic("zant.tsx.app.gpa() before the app started")).gpa;
+}
+
+pub fn environ() *const std.process.Environ.Map {
+    return (process orelse @panic("zant.tsx.app.environ() before the app started")).environ_map;
+}
+
 /// Runs the app until its last window closes.
 pub fn run(init: std.process.Init, comptime Root: type, comptime config: type) !void {
+    process = init;
     if (@hasDecl(config, "single_instance") and config.single_instance) {
         // already running (maybe hidden in the tray): it comes forward instead
         if (!desktop.singleInstance(config.bundle_id)) return;
@@ -157,8 +175,8 @@ pub fn systemTheme() tokens.Theme {
 }
 
 /// `ZANT_THEME=light|dark` fixes the theme.
-fn forcedTheme(environ: *const std.process.Environ.Map) ?tokens.Theme {
-    const value = environ.get("ZANT_THEME") orelse return null;
+fn forcedTheme(env: *const std.process.Environ.Map) ?tokens.Theme {
+    const value = env.get("ZANT_THEME") orelse return null;
     if (std.mem.eql(u8, value, "dark")) return tokens.antDark();
     if (std.mem.eql(u8, value, "light")) return tokens.antLight();
     return null;
