@@ -275,6 +275,33 @@ const selected = items.filter(item => {
   （React Native 的 `FlatList` 写法）编译成虚拟列表 `ui.list`，只构建看得见的行；
   `estimatedItemHeight`、`itemHeight`、`followTail`、`gap`、`padding` 同 `ui.ListOptions`。
 
+### 内置对象
+
+- `Math`：`floor`、`ceil`、`round`、`trunc`、`abs`、`sign`、`sqrt`、`cbrt`、`pow`、`exp`、
+  `log`、`log2`、`log10`、`sin`、`cos`、`tan`、`atan`、`atan2`、`hypot`，以及 `PI`、`E`。
+  `min(...值)` / `max(...值)` 接受零到多个参数，空参数返回正 / 负 Infinity；`hypot()` 为 0。
+  `round` 按 JS 规则向最近整数舍入，恰好一半时向正无穷（`Math.round(-2.5)` 为 -2）。
+- 显式整数的 `floor` / `ceil` / `round` / `trunc` / `abs` 保留整数类型，不经过浮点转换；
+  `min` / `max` 按整数混用规则选类型，其他 Math 运算返回 `number`。有符号最小值的 `abs`
+  沿用原生整数溢出规则。`random()` 使用进程内只播种一次的非密码学 PRNG，返回 `[0, 1)`。
+- `Number(x)` 接受数值、布尔和字符串；字符串去除 JS 空白，空串为 0，完整匹配十进制、
+  `Infinity`、无符号 `0x` / `0b` / `0o`，无效输入为 NaN。
+  `Number.isNaN` / `isFinite` / `isInteger` 不做隐式转换；常量有 `MAX_SAFE_INTEGER`、`EPSILON`。
+- `String(x)` 接受数值、布尔和字符串；数值的 `.toString()`、模板插值也使用 JS 最短可往返格式：
+  整数不带 `.0`，NaN / Infinity 使用 JS 拼写，负零输出 `"0"`，绝对值小于 `1e-6` 或不小于 `1e21`
+  时用科学计数法。显式整数保持精确的整数文本。
+- 数值的 `.toFixed(digits?)` 默认零位，支持截断后为 0–20 的位数，按实际二进制数的精确值舍入；
+  例如 `(1.25).toFixed(1)` 为 `"1.3"`，`(0.995).toFixed(2)` 为 `"0.99"`。
+  无穷 / NaN 和绝对值不小于 `1e21` 的数沿用 `String` 格式。越界位数在原生运行时 panic。
+- `parseInt(s, radix?)` 读取去掉前导空白、符号后的最长整数前缀；默认十进制，默认或 16 进制
+  接受 `0x`，基数支持 2–36，遇到无效数字停止，没有数字时为 NaN。
+  `parseFloat(s)` 读取最长十进制前缀（含指数和有符号 Infinity），其余尾部忽略。
+- `Date.now()` 返回 Unix 纪元以来的墙钟毫秒数（`number`）；`performance.now()` 返回含小数的单调毫秒数，
+  与 UI 帧时钟独立。完整 Date 对象暂不支持。未知成员会列出支持项。
+
+字符串结果在当前帧内有效；数字转字符串、随机数和时钟调用不能用于文件顶层常量，纯数值运算和内置常量可以。
+参数按源码顺序各求值一次；可选数值接收者先用 `??` / `!` 解包。暂不支持 `.toString(radix)`。
+
 ### 嵌套规则
 
 每个标签有自己的“内容模型”（和 HTML 一样）：合法的嵌套直接能用，不合法的在编译时报错，

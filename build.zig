@@ -259,7 +259,7 @@ pub fn addTsxProject(
 const tsx_golden = [_][]const u8{
     "counter",  "layout",    "text",  "events",      "conditional", "components", "todos", "arrays",
     "children", "theme",     "list",  "local_state", "hooks",       "strings",    "store", "nesting",
-    "widgets",  "functions", "loops",
+    "widgets",  "functions", "loops", "builtins",
 };
 
 pub fn build(b: *std.Build) void {

@@ -148,6 +148,7 @@ pub fn coalesce(g: *Generator, c: *Context, loc: ast.Loc, binary: ast.Binary, ex
 
 /// Optional access evaluates its receiver once and preserves null through the member.
 pub fn member(g: *Generator, c: *Context, m: ast.Member) Error!Value {
+    if (try @import("builtins.zig").member(g, c, m)) |value| return value;
     if (try @import("hooks.zig").refRead(g, c, m)) |ref| return ref;
     const value = try expr.emit(g, c, m.object, null, false);
     if (m.optional and model.optionalChild(g, value.ty) != null) {
