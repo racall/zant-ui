@@ -36,6 +36,13 @@ pub fn write(allocator: std.mem.Allocator, io: std.Io, options: Options) !void {
         const data = try cli.readFile(allocator, io, design);
         defer allocator.free(data);
         try cli.writeFile(allocator, io, dest, data);
+        const types = try std.fs.path.join(allocator, &.{ options.framework, "tools/tsx/zant.d.ts" });
+        defer allocator.free(types);
+        const dest_types = try std.fs.path.join(allocator, &.{ options.target, "zant.d.ts" });
+        defer allocator.free(dest_types);
+        const declarations = try cli.readFile(allocator, io, types);
+        defer allocator.free(declarations);
+        try cli.writeFile(allocator, io, dest_types, declarations);
     } else {
         const ignore = try std.fs.path.join(allocator, &.{ options.target, ".gitignore" });
         defer allocator.free(ignore);

@@ -57,6 +57,49 @@ const app = zant_build.addTsxApp(b, zant_dep, .{ .target = target, .optimize = o
 const exe = b.addExecutable(.{ .name = "app", .root_module = app });
 ```
 
+### 新建 TS 项目
+
+```bash
+zant create my-app                 # 交互选择语言，默认 Zig
+zant create my-app --lang ts --yes  # TypeScript + TSX，适合 CI
+cd my-app
+zant run
+zant run --watch
+```
+
+TS 模板在 `scaffold/template-ts/`：`src/App.tsx` 是根组件，`src/components/` 演示父子组件的 props 与
+回调；根组件持有输入值和计数，子组件只发事件。图标与 Zig 模板相同，主题通过 `useTheme()` 跟随系统。
+`src/App.tsx` 存在且没有 `src/main.zig` 时，CLI 将它识别为 TS 项目；可在同一 src/ 内放 Zig 原生模块。
+
+`zant sync` 会生成 `src/app_config.zig`（已加入 TS 模板的 `.gitignore`）。`zant run` / `compile` /
+`package` / `build` 也会先同步配置，再调用 `zig build`；`addTsxApp` 调用 `zant-tsx --main App` 生成
+入口，使用 `zant.tsx.app.run` 启动，应用无需编写 Zig 入口。直接 `zig build` 前先执行 `zant sync`。
+发布和签名沿用 [构建文档](build.md)，不因项目语言改变。
+
+`zant run --watch` 监听 src/ 任意深度的 `.tsx`、`.zig` 及配置文件，改动后重新编译并重启，内存状态会重建。
+编译错误保留 `文件:行:列: error:` 原始诊断；编译失败时的窗口行为和沙盒限制见 [脚手架](scaffold.md)。
+无 GUI 冒烟：`scripts/tsx/create-smoke.sh` 创建临时 TS 项目、同步配置、编译并确认 exe，还检查 `zant run`
+能显示 TSX 错误的位置；脚本不启动应用窗口。
+
+### 编辑器类型
+
+TS 模板包含 `tsconfig.json`（`jsx: "preserve"`、`strict`、`noEmit`、`types: []`）及 `zant.d.ts`，
+`paths` 将 `import … from "zant"` 指向本地声明，无需安装 React 或 npm 依赖。安装了 TypeScript 时可运行：
+
+```bash
+tsc --noEmit -p .
+```
+
+`zig build tsx-dts` 从合并后的标签表（包括别名）生成 `tools/tsx/zant.d.ts`，
+`zant create` 从已安装框架复制声明到项目。生成内容包括组件、属性、枚举、事件、Theme；hooks、Store、
+多窗口、虚拟列表等运行时声明在 `tools/tsx/dts_api.d.ts` 维护。`zig build test` 用 `--check` 检查
+生成文件是否过期；修改组件字段后依次运行 `zig build tsx-tags`、`zig build tsx-dts`。
+
+JSX 的 `IntrinsicElements` 为空，只接受导入的 PascalCase 组件，不接受小写 HTML 标签。
+`Text` 支持嵌套 `Text` / `Link`，容器接受元素，叶子组件没有 children。TypeScript 无法识别所有
+Zant 的静态子集及精确的嵌套限制，最终仍由 `zant-tsx` 检查；`.zig` 模块值在编辑器里按 any 处理，
+`.png` 默认导出为 `Uint8Array`。仓库内的类型检查（含纯 TS 应用示例和正反例）：`tsc --noEmit -p tools/tsx`。
+
 多文件项目用 `addTsxProject`：所有 `.tsx` 一起编译，每个文件生成同名的 `.zig`，放在同一个输出目录里，
 文件之间的 `import { NoteCard, type Note } from "./NoteCard"` 变成 `const _NoteCard = @import("NoteCard.zig");`。
 入口文件导出根组件，其他文件只导出子组件和类型。
@@ -615,4 +658,4 @@ if (peer.kind === "laptop") { … }               // 枚举按字符串字面量
 
 ## 后续阶段
 
-- 第四阶段：`zant.d.ts`（编辑器补全，从标签表生成，参考 nsh）、`zant new --tsx`、`zant run --watch` 监视 `.tsx`。
+- 已完成：`zant create --lang ts`、TS 项目构建与 `.tsx` 热更新、从标签表生成的编辑器类型。
