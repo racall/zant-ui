@@ -16,6 +16,8 @@ const Format = zig_text.Format;
 const Error = core.Error;
 const Fields = @import("jsx_fields.zig").Fields;
 const ChildList = @import("jsx_children.zig").ChildList;
+const values = @import("jsx_values.zig");
+const edges = @import("jsx_edges.zig");
 
 pub fn validTags(g: *Generator) Error![]const u8 {
     var names: std.ArrayList([]const u8) = .empty;
@@ -73,6 +75,7 @@ pub fn attribute(g: *Generator, c: *Context, tag: *const tags.Tag, fields: *Fiel
         const e = attr.value orelse return core.fail(g, attr.name.loc, "style must be an object literal", .{});
         if (e.data != .object) return core.fail(g, e.loc, "style must be an object literal", .{});
         for (e.data.object) |p| {
+            if (p.spread) return core.fail(g, p.value.loc, "object spread is not supported yet", .{});
             if (zig_text.eq(p.key.name, "style")) return core.fail(
                 g,
                 p.key.loc,
@@ -89,10 +92,23 @@ pub fn attribute(g: *Generator, c: *Context, tag: *const tags.Tag, fields: *Fiel
         "unknown prop `{s}` on <{s}>; valid props: {s}",
         .{ attr.name.name, tag.name, try jsx.validProps(g, tag) },
     );
-    const e = attr.value orelse {
+    try property(g, c, prop, fields, attr.value, attr.name.loc);
+}
+
+/// Reuse scalar, node, and collection conversions for tag props and struct items.
+pub fn property(
+    g: *Generator,
+    c: *Context,
+    prop: *const tags.Prop,
+    root: *Fields,
+    value: ?*ast.Expr,
+    loc: ast.Loc,
+) Error!void {
+    const fields = try root.group(prop.parent);
+    const e = value orelse {
         if (prop.kind != .boolean) return core.fail(
             g,
-            attr.name.loc,
+            loc,
             "bare attribute `{s}` is only valid for boolean props",
             .{prop.name},
         );
@@ -107,7 +123,11 @@ pub fn attribute(g: *Generator, c: *Context, tag: *const tags.Tag, fields: *Fiel
         .enumeration => try fields.put(prop.field, try jsx.enumValue(g, c, prop, e)),
         .color => try fields.put(prop.field, try zig_text.color(g, c, e)),
         .dimension => try dimensionProp(g, c, prop, e, fields),
-        .edges => try edgesProp(g, c, prop, e, fields),
+        .edges => try edges.apply(g, c, prop, e, fields),
+        .node, .optional_node => try fields.put(prop.field, try values.node(g, c, prop, e)),
+        .children => try fields.put(prop.field, try values.children(g, c, prop, e)),
+        .string_list => try fields.put(prop.field, try values.strings(g, c, prop, e)),
+        .struct_list => try fields.put(prop.field, try values.structs(g, c, prop, e)),
         .flag => {
             const field = try jsx.enumValue(g, c, prop, e);
             if (field.len > 0) try fields.put(field, "true");
@@ -157,16 +177,6 @@ fn dimensionProp(g: *Generator, c: *Context, prop: *const tags.Prop, e: *ast.Exp
     }
 }
 
-/// Apply an edges prop only to the sides selected by its tag-table entry.
-fn edgesProp(g: *Generator, c: *Context, prop: *const tags.Prop, e: *ast.Expr, fields: *Fields) Error!void {
-    const v = (try expr.emit(g, c, e, .f32, false)).code;
-    const sides = [_]bool{ prop.sides.top, prop.sides.right, prop.sides.bottom, prop.sides.left };
-    const entry = try fields.entry(prop.field);
-    for (sides, 0..) |set_, i| if (set_) {
-        entry.edges[i] = .{ .code = v, .source = e };
-    };
-}
-
 /// Lower container children or joined text according to the tag table content contract.
 pub fn emit(g: *Generator, c: *Context, j: *ast.Jsx) Error!Value {
     if (j.name.len == 0) return core.fail(g, j.loc, "a fragment is only allowed as a child; wrap it in <View>", .{});
@@ -181,10 +191,13 @@ pub fn emit(g: *Generator, c: *Context, j: *ast.Jsx) Error!Value {
     for (j.attrs) |attr| try jsx.attribute(g, c, tag, &fields, attr);
     var text_arg: []const u8 = "";
     switch (tag.content) {
-        .children => try nodeChildren(g, j, &fields, &child_list),
+        .children => try nodeChildren(g, j, tag, &fields, &child_list),
         .text_arg, .text_field => text_arg = try textContent(g, c, j, tag, &fields),
         .none => try noChildren(g, j, tag),
+        .child => try singleChild(g, j, tag, &fields, &child_list),
     }
+    const owner = try zig_text.fmt(g, "<{s}>", .{j.name});
+    try values.required(g, tag.props, &fields, j.loc, owner, "prop");
     if (tag.content == .text_field) fields.contentFirst(tag.content_field);
     const node = try zig_text.fmt(g, "{s}({s}{s})", .{ tag.builder, text_arg, try fields.emit() });
     return .{ .ty = .node, .code = try child_list.wrap(node) };
@@ -200,18 +213,57 @@ pub fn hasFragment(e: *ast.Expr) bool {
 }
 
 /// Build a children array and filter null entries only when necessary.
-fn nodeChildren(g: *Generator, j: *ast.Jsx, fields: *Fields, child_list: *ChildList) Error!void {
+fn nodeChildren(
+    g: *Generator,
+    j: *ast.Jsx,
+    tag: *const tags.Tag,
+    fields: *Fields,
+    child_list: *ChildList,
+) Error!void {
     try child_list.append(j.children, null);
-    if (child_list.values.items.len > 0) {
-        var codes: std.ArrayList([]const u8) = .empty;
-        var optional = false;
-        for (child_list.values.items) |v| {
-            try codes.append(g.a, v.code);
-            optional = optional or v.ty == .optional_node or v.ty == .null_;
-        }
-        const code = try zig_text.fmt(g, "&.{{\n{s},\n}}", .{try std.mem.join(g.a, ",\n", codes.items)});
-        try fields.put("children", if (optional) try zig_text.fmt(g, "tsx.nodes({s})", .{code}) else code);
+    if (child_list.values.items.len == 0) return;
+    const prop = tags.findProp(tag, "children") orelse {
+        return core.fail(g, j.loc, "tag table is missing <{s}> children metadata", .{tag.name});
+    };
+    const target = try fields.group(prop.parent);
+    try target.put(prop.field, try values.childrenCode(g, child_list));
+}
+
+/// A single-node content field accepts either a prop or exactly one JSX child.
+fn singleChild(
+    g: *Generator,
+    j: *ast.Jsx,
+    tag: *const tags.Tag,
+    fields: *Fields,
+    child_list: *ChildList,
+) Error!void {
+    const prop = tags.findProp(tag, tag.content_field) orelse {
+        return core.fail(g, j.loc, "tag table is missing <{s}> child metadata", .{tag.name});
+    };
+    var has_children = false;
+    for (j.children) |child| {
+        if (child != .expr or child.expr != null) has_children = true;
     }
+    if (fields.hasProp(prop)) {
+        if (has_children) return core.fail(
+            g,
+            j.loc,
+            "<{s}> cannot have both `{s}` and child elements",
+            .{ tag.name, tag.content_field },
+        );
+        return;
+    }
+    try child_list.append(j.children, null);
+    if (child_list.values.items.len != 1) return core.fail(
+        g,
+        j.loc,
+        "<{s}> requires exactly one child element or the `{s}` prop",
+        .{ tag.name, tag.content_field },
+    );
+    const child = child_list.values.items[0];
+    if (child.ty != .node) return core.fail(g, j.loc, "<{s}> requires a non-optional node child", .{tag.name});
+    const target = try fields.group(prop.parent);
+    try target.put(prop.field, child.code);
 }
 
 /// Join scalar text children and reject a competing text prop.

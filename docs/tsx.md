@@ -164,10 +164,64 @@ exe.root_module.addImport("counter_tsx", counter);
 
 `key`、`label`（或者写成子文本）、`checked`、`disabled`、`fontSize`、`onChange`（`(checked: boolean) => void`）。
 
+## 第二阶段（进行中）：全部组件与 React 常用写法
+
+### 全部 `ui.*` 组件
+
+每个返回 `ui.Node` 的 `ui.*` 组件都是一个标签，标签名是函数名的 PascalCase：`ui.radioGroup` → `<RadioGroup>`、
+`ui.iconButton` → `<IconButton>`、`ui.@"switch"` → `<Switch>`、`ui.dropdownMenu` → `<DropdownMenu>`。
+标签表（`tools/tsx/ui_tags.zig`）由 `zig build tsx-tags` 在编译期反射 `ui.*` 的选项结构体生成并提交，
+`zig build test` 检查它与源码一致，所以框架新增的组件和字段自动可用。属性名是字段名的 camelCase
+（`on_change` → `onChange`、`width_percent` → `widthPercent`）；第一阶段的 React Native 写法
+（`backgroundColor`、`paddingHorizontal`、`flex`、`position`、`overflow`、`fontSize`、`onPress` …）作为别名保留。
+
+字段类型与 TSX 值：
+
+| Zig 字段 | TSX |
+|---|---|
+| `f32` / 整数 / `bool` / `[]const u8`（可选的 `?T` 同） | number / number / boolean / string |
+| 枚举（含 `Icon`） | 字符串字面量，接受 `chevron_down`、`chevron-down`、`chevronDown` 三种写法 |
+| `?u32` 颜色 | `"#rrggbb"`、`0xAARRGGBB`、主题颜色 |
+| `geometry.Edges` | 数字（四边相同）或 `{ top, right, bottom, left, horizontal, vertical }` 对象 |
+| `ui.Node` / `?ui.Node` | 元素：`<Tooltip text="…" child={<Button … />} />`，或唯一的子元素 |
+| `[]const ui.Node` | 子元素 |
+| `[]const []const u8` | 字符串数组：`<Select options={["A", "B"]} />` |
+| `[]const SomeStruct` | 对象数组：`<Tabs items={[{ label: "A", content: <Text>…</Text> }]} />` |
+| 嵌套的选项结构体（`ClickableOptions.box`） | 展开成同一层的属性 |
+| `?actions.Action` / `BoolAction` / `TextAction` / `IndexAction` | `() => void` / `(on: boolean) => void` / `(text: string) => void` / `(index: usize) => void` |
+
+没有默认值的字段是必填属性，缺了会在标签处报错。暂不支持的字段类型（指针回调等）不出现在标签表里。
+
+### 语言
+
+- **类型**：`T[]`、`Array<T>`、`interface` / `type` 对象类型（字段可选 `x?: T`）、字符串字面量联合
+  （`type Filter = "all" | "done"` → Zig 枚举）、`T | null`。
+- **数组**：字面量和展开 `[...todos, item]`、`.length`、`a[i]`、`.map((x, i) => …)`、`.filter(x => …)`、
+  `.find`、`.some`、`.every`、`.indexOf`、`.includes`、`.slice`、`.join`（字符串数组）。
+- **对象**：字面量、展开 `{ ...todo, done: true }`、成员访问、`?.`、`??`。
+- **状态**：`useState` 可以存数组和对象。React 的不可变更新照常写：
+  `setTodos([...todos, { id, title, done: false }])`、`setTodos(todos.filter((t) => t.id !== id))`。
+  setter 把新值深拷贝进这个状态自己的内存，旧值保留到下一帧开始（事件处理函数里读到的快照一直有效）。
+- **列表渲染**：子节点里的 `{todos.map((t) => <TodoRow key={t.id} … />)}`；`key` 是字符串或数字。
+- **闭包**：事件处理函数可以读 render 里的局部变量和 `.map` 的参数（`onClick={() => remove(t.id)}`），
+  捕获的值按值复制进帧内存。
+- **子组件**：同一文件里的其他函数组件，或 `import { TodoRow } from "./TodoRow"`。参数是一个 props 对象
+  （`function TodoRow(props: Props)` 或解构 `function TodoRow({ todo, onToggle }: Props)`），回调属性的类型写成
+  函数类型（`onToggle: (id: number) => void`）。子组件没有自己的状态（第三阶段），由父组件传值和回调。
+- **主题**：`const theme = useTheme();`，`theme.colorPrimary`、`theme.colorText`、`theme.colorBgContainer` …
+  （`zant.tokens.Theme` 的字段，camelCase）。默认跟随系统浅色 / 深色。
+- **长列表**：`<List data={todos} renderItem={(t, i) => <Row …/>} keyExtractor={(t) => t.id} />`
+  （React Native 的 `FlatList` 写法）编译成虚拟列表 `ui.list`，只构建看得见的行；
+  `estimatedItemHeight`、`itemHeight`、`followTail`、`gap`、`padding` 同 `ui.ListOptions`。
+
+### 性能
+
+生成的代码与手写 Zig 一样：没有虚拟 DOM、没有运行时解释，状态是 struct 字段，事件是函数指针。
+`zig build bench-tsx` 用同样的点击序列对比 TSX 与手写 Zig 的帧耗时（第一阶段：0.099 ms 对 0.098 ms）；
+每次改代码生成都要复测，差距超过 5% 视为回归。
+
 ## 后续阶段
 
-- 第二阶段：所有 `ui.*` 组件（从 `src/ui.zig` 反射生成标签表）、`.map` 列表和 key、闭包捕获、
-  数组 / 对象 / 联合类型的状态、带 props 的子组件、主题 token。
 - 第三阶段：子组件内部状态（`ui.localState`）、`useMemo` / `useRef` / `useEffect`、
-  从 Zig 导入函数、`zant.store`。
-- 第四阶段：`zant.d.ts`（编辑器补全）、`zant new --tsx`、`zant run --watch` 监视 `.tsx`。
+  编译期自动 memo（不依赖状态的子树跳过比对，参考 Solid / React Compiler）、从 Zig 导入函数、`zant.store`。
+- 第四阶段：`zant.d.ts`（编辑器补全，从标签表生成，参考 nsh）、`zant new --tsx`、`zant run --watch` 监视 `.tsx`。

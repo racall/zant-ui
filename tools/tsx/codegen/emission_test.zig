@@ -108,3 +108,52 @@ test "text content, inline tuples, and method spacing remain readable" {
     try contains(zig, "    }\n\n    fn _onClick1");
     try contains(zig, "ui.frameString(self.name.get());\n            self.name.set(tsx.fmt(\"{s}!\", .{p}));");
 }
+
+test "literal list props include empty arrays and nested Clickable children" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const zig = try output(arena.allocator(),
+        \\export default function App() {
+        \\  const [show, setShow] = useState(true);
+        \\  return <Clickable key="box" gap={2} style={{gap: 6}} children={[
+        \\    <Tabs items={[]} />,
+        \\    <Select options={[]} />,
+        \\    show ? <Card children={[]} /> : null
+        \\  ]} />;
+        \\}
+    );
+    try std.testing.expectEqual(@as(usize, 1), std.mem.count(u8, zig, ".box ="));
+    try std.testing.expectEqual(@as(usize, 1), std.mem.count(u8, zig, ".gap ="));
+    try contains(zig, ".gap = 6,");
+    try contains(zig, ".children = tsx.nodes(&.{");
+    try contains(zig, ".items = &[_]ui.TabItem{},");
+    try contains(zig, ".options = &.{},");
+    try contains(zig, ".children = &.{},");
+}
+
+test "style can satisfy required props and same-type assertions are no-ops" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const zig = try output(arena.allocator(),
+        \\export default function App() {
+        \\  const [show, setShow] = useState(true);
+        \\  const yes = true as boolean;
+        \\  const name = "X" as string;
+        \\  const number = (1 as number)!;
+        \\  const choice: u32 = (show ? 1 : 2)!;
+        \\  const sum: u32 = (show ? 1 : 2)! + 3;
+        \\  const optional = show ? <Text>Optional</Text> : null;
+        \\  return <Modal footer={optional!} content={
+        \\    <Tooltip style={{text: "Save", child: <Icon style={{name: "eyeOff"}} />}} />
+        \\  } title={`${name} ${number} ${yes} ${choice} ${sum}`} />;
+        \\}
+    );
+    try contains(zig, "const yes: bool = true;");
+    try contains(zig, "const name: []const u8 = \"X\";");
+    try contains(zig, "const number: f64 = 1;");
+    try contains(zig, "const choice: u32 = if (self.show) 1 else 2;");
+    try contains(zig, "const sum: u32 = @as(u32, if (self.show) 1 else 2) + 3;");
+    try contains(zig, ".footer = optional,");
+    try contains(zig, ".name = .eye_off,");
+    try std.testing.expect(std.mem.indexOf(u8, zig, ".?") == null);
+}

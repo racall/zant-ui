@@ -45,6 +45,15 @@ pub fn fail(g: *Generator, loc: ast.Loc, comptime f: []const u8, args: anytype) 
     return error.Tsx;
 }
 
+/// Add schema context to the first diagnostic without moving its source caret.
+pub fn contextualize(g: *Generator, prefix: []const u8) Error!void {
+    const diagnostic = g.diag.*.?;
+    g.diag.* = .{
+        .loc = diagnostic.loc,
+        .msg = try zig_text.fmt(g, "{s}: {s}", .{ prefix, diagnostic.msg }),
+    };
+}
+
 pub fn hookName(g: *Generator, n: []const u8) bool {
     if (zig_text.eq(n, "useState")) return true;
     for (g.hook_names.items) |name| if (zig_text.eq(n, name)) return true;
@@ -176,6 +185,12 @@ pub fn generate(
     _ = src;
     diag.* = null;
     var g = Generator{ .a = arena, .diag = diag };
+    if (module.types.len > 0) {
+        return core.fail(&g, module.types[0].name.loc, "top-level types are not supported yet", .{});
+    }
+    if (module.consts.len > 0) {
+        return core.fail(&g, module.consts[0].name.loc, "top-level constants are not supported yet", .{});
+    }
     for (module.imports) |imp| {
         if (!zig_text.eq(
             imp.source,

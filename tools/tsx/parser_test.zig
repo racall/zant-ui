@@ -163,11 +163,104 @@ test "`>` joins `>=` only as an operator" {
 }
 
 test "typed arrows report errors inside their parameters" {
-    try expectSyntaxError("function f() { return (v: string[]) => v; }", "array types are not supported yet", "[]");
+    try expectSyntaxError(
+        "function f() { return (v: Record<string, number>) => v; }",
+        "generic type `Record<…>` is not supported; only `Array<T>` is",
+        "Record",
+    );
     try expectSyntaxError("function f() { return (): number => ; }", "unexpected `;`", ";");
 }
 
 test "`>` and `}` in JSX text name the fix" {
     try expectSyntaxError("function f() { return <Text>a > b</Text>; }", "unexpected `>` in JSX text; write `{'>'}` or `&gt;`", "> b");
     try expectSyntaxError("function f() { return <Text>a } b</Text>; }", "unexpected `}` in JSX text; write `{'}'}` or `&rbrace;`", "} b");
+}
+
+test "phase 2 types: interfaces, unions, arrays, function types" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const m = try parseOk(arena.allocator(),
+        \\export interface Todo {
+        \\  id: number;
+        \\  title: string
+        \\  done?: boolean,
+        \\  tags: string[]
+        \\}
+        \\type Filter = "all" | "active" | "done";
+        \\type Rows = Array<Array<Todo>>;
+        \\interface RowProps { todo: Todo; onToggle: (id: number) => void; note: string | null }
+    );
+    try std.testing.expectEqual(@as(usize, 4), m.types.len);
+    const todo = m.types[0];
+    try std.testing.expect(todo.exported);
+    const fields = todo.ty.detail.?.object;
+    try std.testing.expectEqual(@as(usize, 4), fields.len);
+    try std.testing.expect(fields[2].optional);
+    try std.testing.expectEqualStrings("string", fields[3].ty.detail.?.array.name);
+    const filter = m.types[1].ty.detail.?.union_;
+    try std.testing.expectEqual(@as(usize, 3), filter.len);
+    try std.testing.expectEqualStrings("active", filter[1].detail.?.string_lit);
+    // nested generics close with two separate `>` tokens
+    try std.testing.expectEqualStrings("Todo", m.types[2].ty.detail.?.array.detail.?.array.name);
+    const row = m.types[3].ty.detail.?.object;
+    const on_toggle = row[1].ty.detail.?.func;
+    try std.testing.expectEqualStrings("id", on_toggle.params[0].name.name);
+    try std.testing.expectEqualStrings("void", on_toggle.ret.name);
+    try std.testing.expect(row[2].ty.detail.?.union_[1].detail.?.* == .null_);
+}
+
+test "phase 2 expressions: literals with spread, indexing, ?., !, as" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const m = try parseOk(arena.allocator(),
+        \\const empty: Todo[] = [];
+        \\function f() {
+        \\  const [todos, setTodos] = useState<Todo[]>([])
+        \\  const next = [...todos, { id: 1, ...base, done: false }]
+        \\  const first = todos[0]?.title ?? "none"
+        \\  const found = todos.find((t: Todo): boolean => t.done)!
+        \\  const n = count as u32
+        \\  return todos.map((t, i) => <Text key={t.id}>{i}</Text>)
+        \\}
+    );
+    try std.testing.expectEqual(@as(usize, 1), m.consts.len);
+    try std.testing.expectEqual(@as(usize, 0), m.consts[0].value.data.array.len);
+    const body = m.functions[0].func.body.block;
+    try std.testing.expectEqualStrings("Todo", body[0].data.decl.init.?.data.call.type_args[0].detail.?.array.name);
+    const next = body[1].data.decl.init.?.data.array;
+    try std.testing.expect(next[0].data == .spread);
+    const obj = next[1].data.object;
+    try std.testing.expect(obj[1].spread and !obj[0].spread);
+    const coalesce = body[2].data.decl.init.?.data.binary;
+    try std.testing.expectEqualStrings("??", coalesce.op);
+    try std.testing.expect(coalesce.lhs.data.member.optional);
+    try std.testing.expect(coalesce.lhs.data.member.object.data == .index);
+    try std.testing.expect(body[3].data.decl.init.?.data == .non_null);
+    try std.testing.expectEqualStrings("u32", body[4].data.decl.init.?.data.as.ty.name);
+    const map_arrow = body[5].data.ret.?.data.call.args[0].data.arrow;
+    try std.testing.expectEqual(@as(usize, 2), map_arrow.params.len);
+}
+
+test "destructured props and optional parameters" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const m = try parseOk(arena.allocator(),
+        \\function Row({ todo, onToggle }: RowProps) { return <View />; }
+        \\function g(a: number, b?: string) {}
+    );
+    const p = m.functions[0].func.params[0];
+    try std.testing.expectEqualStrings("props", p.name.name);
+    try std.testing.expectEqual(@as(usize, 2), p.destructure.len);
+    try std.testing.expectEqualStrings("onToggle", p.destructure[1].name);
+    try std.testing.expectEqualStrings("RowProps", p.ty.?.name);
+    try std.testing.expect(m.functions[1].func.params[1].optional);
+    try expectSyntaxError("function Row({ todo: t }: P) {}", "renaming destructured props is not supported; read `props.todo` instead", ": t");
+}
+
+test "a parenthesized expression is not taken for an arrow" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const m = try parseOk(arena.allocator(), "function f() { return x ? (a) : b; }");
+    const c = m.functions[0].func.body.block[0].data.ret.?.data.cond;
+    try std.testing.expect(c.then.data == .ident);
 }

@@ -42,6 +42,9 @@ pub fn emit(g: *Generator, c: *Context, e: *ast.Expr, expected: ?Type, child: bo
         .arrow => return unsupportedArrow(g, e.loc),
         .object => return core.fail(g, e.loc, "object literals are only supported in style", .{}),
         .assign, .update => return core.fail(g, e.loc, "assignments and updates are only supported as statements", .{}),
+        .non_null => |inner| try expr.emit(g, c, inner, expected, child),
+        .as => |cast| try explicitCast(g, c, e.loc, cast, child),
+        .array, .spread, .index => return core.fail(g, e.loc, "this expression is not supported yet", .{}),
     };
     return if (expected) |t| types.coerce(g, v, t, e.loc) else v;
 }
@@ -303,4 +306,11 @@ fn relationalOperator(op: []const u8) bool {
         if (zig_text.eq(op, spelling)) return true;
     }
     return false;
+}
+
+/// Assertions change numeric representation explicitly, without enabling general arrays or optionals.
+fn explicitCast(g: *Generator, c: *Context, loc: ast.Loc, cast: ast.As, child: bool) Error!Value {
+    const value = try expr.emit(g, c, cast.expr, null, child);
+    const target = try types.typeRef(g, cast.ty, false);
+    return types.explicitCast(g, value, target, loc);
 }

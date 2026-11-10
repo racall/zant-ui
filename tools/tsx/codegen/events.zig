@@ -35,6 +35,9 @@ pub fn scanExpr(g: *Generator, e: *ast.Expr) Error!void {
             try events.scanExpr(g, b.rhs);
         },
         .unary => |u| try events.scanExpr(g, u.operand),
+        .non_null => |inner| try events.scanExpr(g, inner),
+        .as => |cast| try events.scanExpr(g, cast.expr),
+        .array => |items| for (items) |item| try events.scanExpr(g, item),
         .cond => |v| try scanConditional(g, v),
         .call => |v| {
             for (v.args) |arg| try events.scanExpr(g, arg);
@@ -54,17 +57,17 @@ pub fn scanExpr(g: *Generator, e: *ast.Expr) Error!void {
 /// Register attribute callbacks before recursively scanning JSX children.
 fn scanJsx(g: *Generator, j: *ast.Jsx) Error!void {
     if (tags.find(j.name)) |tag| for (j.attrs) |attr| {
-        if (attr.value) |v| {
-            if (zig_text.eq(attr.name.name, "style") and v.data == .object) {
-                for (v.data.object) |p| {
-                    if (tags.findProp(tag, p.key.name)) |prop| if (events.isAction(prop.kind)) {
-                        try events.event(g, p.value, prop, p.key.loc);
-                    };
+        if (attr.value) |value| {
+            if (zig_text.eq(attr.name.name, "style") and value.data == .object) {
+                for (value.data.object) |property| {
+                    if (property.spread) continue;
+                    if (tags.findProp(tag, property.key.name)) |prop| {
+                        try scanProperty(g, prop, property.value, property.key.loc);
+                    } else try events.scanExpr(g, property.value);
                 }
             } else if (tags.findProp(tag, attr.name.name)) |prop| {
-                if (events.isAction(prop.kind)) try events.event(g, v, prop, attr.name.loc);
-            }
-            try events.scanExpr(g, v);
+                try scanProperty(g, prop, value, attr.name.loc);
+            } else try events.scanExpr(g, value);
         }
     };
     for (j.children) |child| switch (child) {
@@ -268,6 +271,9 @@ fn scanConditional(g: *Generator, v: ast.Cond) Error!void {
 
 /// Prefer an annotation, then infer a parameter from its registered action kind.
 pub fn parameterType(g: *Generator, param: ast.Param, kind: ?tags.Kind) Error!Type {
+    if (param.optional or param.destructure.len > 0) {
+        return core.fail(g, param.name.loc, "optional or destructured parameters are not supported yet", .{});
+    }
     if (param.ty) |ref| return types.typeRef(g, ref, false);
     const action = kind orelse return core.fail(
         g,
@@ -276,4 +282,30 @@ pub fn parameterType(g: *Generator, param: ast.Param, kind: ?tags.Kind) Error!Ty
         .{param.name.name},
     );
     return events.actionType(action);
+}
+
+/// Item actions use their own schema; JSX nested in any supported prop is scanned too.
+fn scanProperty(g: *Generator, prop: *const tags.Prop, value: *ast.Expr, loc: ast.Loc) Error!void {
+    if (events.isAction(prop.kind)) try events.event(g, value, prop, loc);
+    if (prop.kind != .struct_list or value.data != .array) return events.scanExpr(g, value);
+    const schema = tags.Tag{ .name = prop.name, .builder = "", .content = .none, .props = prop.item_props };
+    for (value.data.array, 0..) |item, index| {
+        if (item.data != .object) continue;
+        for (item.data.object) |property| {
+            if (property.spread) continue;
+            if (tags.findProp(&schema, property.key.name)) |field| {
+                scanProperty(g, field, property.value, property.key.loc) catch |err| {
+                    if (err == error.Tsx) {
+                        const prefix = try zig_text.fmt(g, "in {s}[{d}].{s}", .{
+                            prop.name,
+                            index,
+                            property.key.name,
+                        });
+                        try core.contextualize(g, prefix);
+                    }
+                    return err;
+                };
+            } else try events.scanExpr(g, property.value);
+        }
+    }
 }

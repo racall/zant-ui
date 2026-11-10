@@ -36,11 +36,16 @@ test "codegen diagnostics include precise source positions" {
     const cases = [_][2][]const u8{
         .{
             "export default function App() {\n return ~<Unknown/>;\n}",
-            "unknown tag <Unknown>; valid tags: View, Column, Row, Text, Button, Input, Checkbox, Switch",
+            "unknown tag <Unknown>; valid tags: Column, Row, Clickable, Space, Text, Heading, " ++
+                "Title, Paragraph, Button, Link, Input, Checkbox, Switch, RadioGroup, Tabs, Tooltip, " ++
+                "Image, Select, Icon, IconButton, DismissLayer, RichText, PdfPreview, Divider, Tag, " ++
+                "Card, Alert, Avatar, Progress, DropdownMenu, Segmented, Modal, ShortcutList, Message, " ++
+                "HotkeyInput, View",
         },
         .{
             "export default function App() { return <Text ~oops={1}/>; }",
-            "unknown prop `oops` on <Text>; valid props: key, fontSize",
+            "unknown prop `oops` on <Text>; valid props: key, size, weight, color, textAlign, " ++
+                "wrap, lineHeight, maxLines, family, fontSize, fontWeight, numberOfLines, fontFamily",
         },
         .{
             "export default function App() { return <Button variant=~\"fancy\"/>; }",
@@ -72,7 +77,8 @@ test "codegen diagnostics include precise source positions" {
             "cannot convert f64 to u32",
         },
         .{
-            "export default function App() { const [x,sx]=useState<u32>(0); const [y,sy]=useState<u16>(0); const z=~x+y; return <Text>{z}</Text>; }",
+            "export default function App() { const [x,sx]=useState<u32>(0); const " ++
+                "[y,sy]=useState<u16>(0); const z=~x+y; return <Text>{z}</Text>; }",
             "different integer types u32 and u16; use the same integer type",
         },
         .{
@@ -200,7 +206,8 @@ test "codegen diagnostics include precise source positions" {
             "parameter `x` needs a type annotation",
         },
         .{
-            "export default function App() { ~function f(): u32 {} return <Button onClick={() => console.log(f())}/>; }",
+            "export default function App() { ~function f(): u32 {} return <Button onClick={() => " ++
+                "console.log(f())}/>; }",
             "function must return a value on every path",
         },
         .{
@@ -306,7 +313,8 @@ test "additional semantic errors stop before emitting invalid Zig" {
             "void functions cannot return a value",
         },
         .{
-            "export default function App() { const [x,sx]=useState(0); return <Button onClick={() => ~_onClick1()}/>; }",
+            "export default function App() { const [x,sx]=useState(0); return <Button onClick={() " ++
+                "=> ~_onClick1()}/>; }",
             "unknown function `_onClick1`",
         },
         .{
@@ -314,16 +322,125 @@ test "additional semantic errors stop before emitting invalid Zig" {
             "`f` is a local value, not a component function",
         },
         .{
-            "export default function App() { function f(x:u32):u32 { return x; } const y=~f<u32>(1); return <Text>{y}</Text>; }",
+            "export default function App() { function f(x:u32):u32 { return x; } const " ++
+                "y=~f<u32>(1); return <Text>{y}</Text>; }",
             "type arguments are only supported on useState",
         },
         .{
-            "export default function App() { const [a,sa]=useState<u8>(0); const [b,sb]=useState<u32>(0); const x:u32=~a; return <View/>; }",
+            "export default function App() { const [a,sa]=useState<u8>(0); const " ++
+                "[b,sb]=useState<u32>(0); const x:u32=~a; return <View/>; }",
             "cannot convert u8 to u32",
         },
         .{
-            "export default function App() { if (true) { const local=1; } return <Button onClick={() => console.log(~local)}/>; }",
+            "export default function App() { if (true) { const local=1; } return <Button " ++
+                "onClick={() => console.log(~local)}/>; }",
             "event handlers cannot read render locals yet",
+        },
+    };
+    for (cases) |case| try expectDiagnostic(case[0], case[1]);
+}
+
+test "generated component props and explicit casts report source positions" {
+    const cases = [_][2][]const u8{
+        .{
+            "export default function App() { return ~<Icon/>; }",
+            "<Icon> is missing required prop `name`",
+        },
+        .{
+            "export default function App() { return ~<Tooltip><Button/></Tooltip>; }",
+            "<Tooltip> is missing required prop `text`",
+        },
+        .{
+            "export default function App() { return ~<DropdownMenu/>; }",
+            "<DropdownMenu> is missing required prop `items`",
+        },
+        .{
+            "export default function App() { return <RadioGroup options={[{~oops:true}]}/>; }",
+            "options[0]: unknown key `oops`; valid keys: label, disabled",
+        },
+        .{
+            "export default function App() { return <Tabs items={[~{label: \"A\"}]}/>; }",
+            "items[0] is missing required key `content`",
+        },
+        .{
+            "export default function App() { return <RadioGroup options={[~{disabled:false}]}/>; }",
+            "options[0] is missing required key `label`",
+        },
+        .{
+            "export default function App() { return <ShortcutList groups={[{title:\"A\",items:[~{label:\"B\"}]}]}/>; }",
+            "in groups[0].items: items[0] is missing required key `keys`",
+        },
+        .{
+            "export default function App() { return <Tabs items={[{label:\"A\",content:~\"text\"}]}/>; }",
+            "in items[0].content: prop `content` requires an element; wrap text in <Text>",
+        },
+        .{
+            "export default function App() { return <RadioGroup options={[{label:\"A\",disabled:~1}]}/>; }",
+            "in options[0].disabled: cannot convert f64 to bool",
+        },
+        .{
+            "export default function App() { return <RadioGroup options={[~1]}/>; }",
+            "options[0] must be an object literal",
+        },
+        .{
+            "export default function App() { return ~<Tooltip text=\"A\"/>; }",
+            "<Tooltip> requires exactly one child element or the `child` prop",
+        },
+        .{
+            "export default function App() { return ~<Tooltip text=\"A\"><Button/><Button/></Tooltip>; }",
+            "<Tooltip> requires exactly one child element or the `child` prop",
+        },
+        .{
+            "export default function App() { return ~<Tooltip text=\"A\" child={<Button/>}><Button/></Tooltip>; }",
+            "<Tooltip> cannot have both `child` and child elements",
+        },
+        .{
+            "export default function App() { return <Tooltip text=\"A\" child={~123}/>; }",
+            "prop `child` requires an element; wrap text in <Text>",
+        },
+        .{
+            "export default function App() { return <Modal content={<Text/>} footer={~true}/>; }",
+            "prop `footer` requires an element or null",
+        },
+        .{
+            "export default function App() { const x=~true as u32; return <Text>{x}</Text>; }",
+            "cannot cast bool to u32; only numeric conversions are supported",
+        },
+        .{
+            "export default function App() { const x=~1 as string; return <Text>{x}</Text>; }",
+            "cannot cast f64 to []const u8; only numeric conversions are supported",
+        },
+        .{
+            "export default function App() { return <Select options={[~1]}/>; }",
+            "cannot convert f64 to []const u8",
+        },
+        .{
+            "export default function App() { return <Card children={~true}/>; }",
+            "prop `children` requires an array literal",
+        },
+        .{
+            "export default function App() { const x=~[\"A\"]; return <Select options={x}/>; }",
+            "this expression is not supported yet",
+        },
+        .{
+            "export default function App() { return <View padding={{~oops:1}}/>; }",
+            "unknown edge `oops`; valid keys: top, right, bottom, left, horizontal, vertical",
+        },
+        .{
+            "export default function App() { const x=~[1]; return <Text/>; }",
+            "this expression is not supported yet",
+        },
+        .{
+            "const ~x=1; export default function App() { return <Text/>; }",
+            "top-level constants are not supported yet",
+        },
+        .{
+            "type ~Count=number; export default function App() { return <Text/>; }",
+            "top-level types are not supported yet",
+        },
+        .{
+            "export default function App() { return <DropdownMenu items={[{onClick:~(x:boolean)=>{}}]}/>; }",
+            "in items[0].onClick: handler must have signature () => void",
         },
     };
     for (cases) |case| try expectDiagnostic(case[0], case[1]);

@@ -11,6 +11,7 @@ const lexer = @import("lexer.zig");
 const Lexer = lexer.Lexer;
 const Token = lexer.Token;
 const expr_parser = @import("expr_parser.zig");
+const type_parser = @import("type_parser.zig");
 const jsx_parser = @import("jsx_parser.zig");
 
 pub const Error = error{ Syntax, OutOfMemory };
@@ -125,78 +126,106 @@ pub const Parser = struct {
     // ── module ──────────────────────────────────────────────────────────
 
     pub fn parseModule(self: *Parser) Error!ast.Module {
-        var imports: std.ArrayList(ast.Import) = .empty;
-        var functions: std.ArrayList(ast.TopFunction) = .empty;
+        var m: ModuleBuilder = .{};
         while (self.cur.kind != .eof) {
+            if (self.eatP(";")) continue;
             if (self.isKw("import")) {
-                try imports.append(self.arena, try self.parseImport());
-            } else if (self.isKw("export")) {
+                try m.imports.append(self.arena, try self.parseImport());
+                continue;
+            }
+            var exported = false;
+            var default = false;
+            if (self.isKw("export")) {
                 self.advance();
-                const default = self.isKw("default");
+                exported = true;
+                default = self.isKw("default");
                 if (default) self.advance();
-                if (!default and self.isKw("const")) {
-                    const func = try self.parseArrowComponent();
-                    try functions.append(self.arena, .{ .func = func, .exported = true, .default = false });
+                if (default and self.cur.kind == .identifier and !self.isKw("function")) {
+                    try self.markDefault(&m);
                     continue;
                 }
-                if (!self.isKw("function")) {
-                    if (default and self.cur.kind == .identifier) {
-                        // `export default App;` marks an earlier function
-                        const name = try self.expectIdent("a component name");
-                        try self.endStatement();
-                        for (functions.items) |*f| {
-                            if (std.mem.eql(u8, f.func.name, name.name)) {
-                                f.exported = true;
-                                f.default = true;
-                                break;
-                            }
-                        } else return self.fail(name.loc, "`{s}` is not a function declared above", .{name.name});
-                        continue;
-                    }
-                    return self.fail(self.cur.start, "only function components can be exported (`export default function App() {{ ... }}`)", .{});
-                }
+            }
+            if (self.isKw("function")) {
                 const func = try self.parseFunction();
-                try functions.append(self.arena, .{ .func = func, .exported = true, .default = default });
-            } else if (self.isKw("function")) {
-                const func = try self.parseFunction();
-                try functions.append(self.arena, .{ .func = func, .exported = false, .default = false });
-            } else if (self.isKw("const")) {
-                const func = try self.parseArrowComponent();
-                try functions.append(self.arena, .{ .func = func, .exported = false, .default = false });
-            } else if (self.isP(";")) {
-                self.advance();
-            } else if (self.cur.kind == .eof) {
-                break;
+                try m.functions.append(self.arena, .{ .func = func, .exported = exported, .default = default });
+            } else if (!default and self.isKw("const")) {
+                try self.parseTopConst(&m, exported);
+            } else if (!default and (self.isKw("interface") or self.isKw("type"))) {
+                try m.types.append(self.arena, try self.parseTypeDecl(exported));
+            } else if (exported) {
+                return self.fail(self.cur.start, "only functions, constants and types can be exported", .{});
             } else {
-                return self.fail(self.cur.start, "only `import` and function components are supported at the top level", .{});
+                return self.fail(self.cur.start, "only imports, functions, constants and types are supported at the top level", .{});
             }
         }
-        return .{ .imports = imports.items, .functions = functions.items };
+        return .{ .imports = m.imports.items, .functions = m.functions.items, .types = m.types.items, .consts = m.consts.items };
     }
 
-    /// `const App = () => { ... };` / `const App = () => <View />;` at the
-    /// top level: a function component written as an arrow. A concise body
-    /// becomes `{ return body; }`.
-    pub fn parseArrowComponent(self: *Parser) Error!*ast.Function {
-        self.advance(); // const
+    const ModuleBuilder = struct {
+        imports: std.ArrayList(ast.Import) = .empty,
+        functions: std.ArrayList(ast.TopFunction) = .empty,
+        types: std.ArrayList(ast.TypeDecl) = .empty,
+        consts: std.ArrayList(ast.TopConst) = .empty,
+    };
+
+    /// `export default App;` marks an earlier function component.
+    fn markDefault(self: *Parser, m: *ModuleBuilder) Error!void {
         const name = try self.expectIdent("a component name");
-        if (self.eatP(":")) _ = try self.parseType(); // `: React.FC` and friends
-        if (!self.isP("=")) return self.fail(self.cur.start, "only function components are supported at the top level (`const {s} = () => ...`)", .{name.name});
-        self.advance();
-        const value = try expr_parser.parseExpr(self);
-        if (value.data != .arrow) {
-            return self.fail(value.loc, "only function components are supported at the top level; top-level constants arrive in phase 2", .{});
-        }
         try self.endStatement();
+        for (m.functions.items) |*f| {
+            if (std.mem.eql(u8, f.func.name, name.name)) {
+                f.exported = true;
+                f.default = true;
+                return;
+            }
+        }
+        return self.fail(name.loc, "`{s}` is not a function declared above", .{name.name});
+    }
+
+    /// `interface Todo { ... }` / `type Filter = "all" | "done";`
+    fn parseTypeDecl(self: *Parser, exported: bool) Error!ast.TypeDecl {
+        const is_interface = self.isKw("interface");
+        self.advance();
+        const name = try self.expectIdent("a type name");
+        if (self.isP("<")) return self.fail(self.cur.start, "generic type declarations are not supported", .{});
+        if (is_interface) {
+            if (self.isKw("extends")) return self.fail(self.cur.start, "`extends` is not supported; repeat the fields", .{});
+            const loc = self.cur.start;
+            const detail = try self.arena.create(ast.TypeDetail);
+            detail.* = .{ .object = try type_parser.parseMembers(self) };
+            return .{ .name = name, .ty = .{ .name = "", .loc = loc, .detail = detail }, .exported = exported };
+        }
+        try self.expectP("=");
+        const ty = try self.parseType();
+        try self.endStatement();
+        return .{ .name = name, .ty = ty, .exported = exported };
+    }
+
+    /// A top-level `const`: an arrow function is a component, anything else
+    /// a constant.
+    fn parseTopConst(self: *Parser, m: *ModuleBuilder, exported: bool) Error!void {
+        self.advance(); // const
+        const name = try self.expectIdent("a name");
+        var ty: ?ast.TypeRef = null;
+        if (self.eatP(":")) ty = try self.parseType();
+        try self.expectP("=");
+        const value = try expr_parser.parseExpr(self);
+        if (self.isP(",")) return self.fail(self.cur.start, "declare one constant per statement", .{});
+        try self.endStatement();
+        if (value.data != .arrow) {
+            try m.consts.append(self.arena, .{ .name = name, .ty = ty, .value = value, .exported = exported });
+            return;
+        }
         const func = value.data.arrow;
         func.name = name.name;
         if (func.body == .expr) {
+            // a concise body becomes `{ return body; }`
             const ret = try self.new(ast.Stmt, .{ .loc = func.body.expr.loc, .data = .{ .ret = func.body.expr } });
             const block = try self.arena.alloc(*ast.Stmt, 1);
             block[0] = ret;
             func.body = .{ .block = block };
         }
-        return func;
+        try m.functions.append(self.arena, .{ .func = func, .exported = exported, .default = false });
     }
 
     pub fn parseImport(self: *Parser) Error!ast.Import {
@@ -259,20 +288,41 @@ pub const Parser = struct {
         try self.expectP("(");
         var params: std.ArrayList(ast.Param) = .empty;
         while (!self.isP(")")) {
-            if (self.isP("{") or self.isP("[")) {
-                return self.fail(self.cur.start, "destructured parameters are not supported yet", .{});
-            }
+            if (self.isP("[")) return self.fail(self.cur.start, "array destructuring in parameters is not supported", .{});
             if (self.isP("...")) return self.fail(self.cur.start, "rest parameters are not supported", .{});
-            const name = try self.expectIdent("a parameter name");
-            if (self.isP("?")) return self.fail(self.cur.start, "optional parameters are not supported yet", .{});
-            var ty: ?ast.TypeRef = null;
-            if (self.eatP(":")) ty = try self.parseType();
+            var param: ast.Param = undefined;
+            if (self.isP("{")) {
+                // `{ todo, onToggle }: Props` (React props)
+                const loc = self.cur.start;
+                param = .{ .name = .{ .name = "props", .loc = loc }, .ty = null, .destructure = try self.parseDestructure() };
+            } else {
+                param = .{ .name = try self.expectIdent("a parameter name"), .ty = null };
+                param.optional = self.eatP("?");
+            }
+            if (self.eatP(":")) param.ty = try self.parseType();
             if (self.isP("=")) return self.fail(self.cur.start, "default parameter values are not supported yet", .{});
-            try params.append(self.arena, .{ .name = name, .ty = ty });
+            try params.append(self.arena, param);
             if (!self.eatP(",")) break;
         }
         try self.expectP(")");
         return params.items;
+    }
+
+    /// `{ a, b }` in a parameter: the names (renames and defaults are not
+    /// supported).
+    fn parseDestructure(self: *Parser) Error![]const ast.Name {
+        self.advance(); // {
+        var names: std.ArrayList(ast.Name) = .empty;
+        while (!self.isP("}")) {
+            if (self.isP("...")) return self.fail(self.cur.start, "rest properties are not supported", .{});
+            const name = try self.expectIdent("a property name");
+            if (self.isP(":")) return self.fail(self.cur.start, "renaming destructured props is not supported; read `props.{s}` instead", .{name.name});
+            if (self.isP("=")) return self.fail(self.cur.start, "default values for destructured props are not supported yet", .{});
+            try names.append(self.arena, name);
+            if (!self.eatP(",")) break;
+        }
+        try self.expectP("}");
+        return names.items;
     }
 
     pub fn parseReturnType(self: *Parser) Error!?ast.TypeRef {
@@ -281,20 +331,9 @@ pub const Parser = struct {
     }
 
     /// A named type, optionally dotted (`JSX.Element`).
+    /// A type annotation (`type_parser.zig`).
     pub fn parseType(self: *Parser) Error!ast.TypeRef {
-        if (self.cur.kind == .string) return self.fail(self.cur.start, "string literal types are not supported yet", .{});
-        if (self.isP("(") or self.isP("{")) return self.fail(self.cur.start, "only named types (`number`, `string`, `boolean`, `u32`, ...) are supported", .{});
-        const first = try self.expectIdent("a type");
-        var end = first.loc + @as(u32, @intCast(first.name.len));
-        while (self.isP(".")) {
-            self.advance();
-            const part = try self.expectIdent("a type name");
-            end = part.loc + @as(u32, @intCast(part.name.len));
-        }
-        if (self.isP("[")) return self.fail(self.cur.start, "array types are not supported yet", .{});
-        if (self.isP("<")) return self.fail(self.cur.start, "generic types are not supported", .{});
-        if (self.isP("|")) return self.fail(self.cur.start, "union types are not supported yet", .{});
-        return .{ .name = self.src[first.loc..end], .loc = first.loc };
+        return type_parser.parseType(self);
     }
 
     // ── statements ──────────────────────────────────────────────────────

@@ -233,7 +233,7 @@ pub fn addTsx(b: *std.Build, tool: *std.Build.Step.Compile, source: std.Build.La
 }
 
 /// Golden files of the TSX compiler (`tools/tsx/testdata/<name>.tsx` → `.zig`).
-const tsx_golden = [_][]const u8{ "counter", "layout", "text", "events", "conditional" };
+const tsx_golden = [_][]const u8{ "counter", "layout", "text", "events", "conditional", "components" };
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
@@ -311,6 +311,27 @@ pub fn build(b: *std.Build) void {
         }),
     });
     b.installArtifact(tsx_tool);
+
+    // the generated tag table (tools/tsx/ui_tags.zig) comes from reflecting
+    // the ui.* option structs; `zig build tsx-tags` rewrites it and the test
+    // step checks it is up to date
+    const tsx_tags_tool = b.addExecutable(.{
+        .name = "zant-tsx-tags",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tools/tsx/manifest/main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+            .link_libcpp = is_macos,
+            .imports = &.{.{ .name = "zant", .module = zant_mod }},
+        }),
+    });
+    const ui_tags_path = b.fmt("{s}/tools/tsx/ui_tags.zig", .{b.root.root_dir.path orelse "."});
+    const write_tags = b.addRunArtifact(tsx_tags_tool);
+    write_tags.addArg(ui_tags_path);
+    b.step("tsx-tags", "Regenerate the TSX tag table (tools/tsx/ui_tags.zig)").dependOn(&write_tags.step);
+    const check_tags = b.addRunArtifact(tsx_tags_tool);
+    check_tags.addArgs(&.{ "--check", ui_tags_path });
 
     const demo = b.addExecutable(.{
         .name = "zant-demo",
@@ -453,6 +474,24 @@ pub fn build(b: *std.Build) void {
     run_tsx.addPassthruArgs();
     b.step("run-tsx", "Run the TSX counter example (examples/tsx/counter.tsx)").dependOn(&run_tsx.step);
 
+    const tsx_gallery = addTsx(b, tsx_tool, b.path("examples/tsx/gallery.tsx"), "gallery.zig", zant_mod);
+    const tsx_gallery_demo = b.addExecutable(.{
+        .name = "zant-tsx-gallery",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("examples/tsx/gallery_main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+            .link_libcpp = is_macos,
+            .imports = &.{ .{ .name = "zant", .module = zant_mod }, .{ .name = "gallery_tsx", .module = tsx_gallery } },
+        }),
+    });
+    b.installArtifact(tsx_gallery_demo);
+    const run_tsx_gallery = b.addRunArtifact(tsx_gallery_demo);
+    run_tsx_gallery.step.dependOn(b.getInstallStep());
+    run_tsx_gallery.addPassthruArgs();
+    b.step("run-tsx-gallery", "Run the TSX component gallery (examples/tsx/gallery.tsx)").dependOn(&run_tsx_gallery.step);
+
     const tsx_settings = addTsx(b, tsx_tool, b.path("examples/tsx/settings.tsx"), "settings.zig", zant_mod);
     const tsx_bench = b.addExecutable(.{
         .name = "zant-tsx-bench",
@@ -515,8 +554,11 @@ pub fn build(b: *std.Build) void {
             .{ .name = "tsx_tags", .module = b.createModule(.{ .root_source_file = b.path("tools/tsx/tags.zig") }) },
         },
     }) }));
-    b.step("test-tsx-tags", "Check the TSX tag table against the ui options").dependOn(&tsx_tags_tests.step);
+    const tsx_tags_step = b.step("test-tsx-tags", "Check the TSX tag table against the ui options and the source");
+    tsx_tags_step.dependOn(&tsx_tags_tests.step);
+    tsx_tags_step.dependOn(&check_tags.step);
     test_step.dependOn(&tsx_tags_tests.step);
+    test_step.dependOn(&check_tags.step);
 
     const tsx_e2e_mod = b.createModule(.{
         .root_source_file = b.path("tests/tsx_all.zig"),
@@ -541,10 +583,10 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&tsx_e2e_tests.step);
 
     if (target.result.os.tag == .windows) {
-        for ([_]*std.Build.Step.Compile{ exe, demo, math_demo, md_demo, pdf_demo, components_demo, tsx_demo }) |app| {
+        for ([_]*std.Build.Step.Compile{ exe, demo, math_demo, md_demo, pdf_demo, components_demo, tsx_demo, tsx_gallery_demo }) |app| {
             app.win32_manifest = b.path("src/platform/windows/zant.manifest");
             if (optimize != .debug) app.subsystem = .windows;
         }
-        if (bridge_dir) |dir| installRuntime(b, dir, hasPrebuiltBridge(b), &.{ run_demo, run_gallery_cmd, run_math, run_md, run_pdf, run_components, run_tsx, run_tsx_bench, run_tests, run_lib_tests, tsx_tags_tests, tsx_e2e_tests });
+        if (bridge_dir) |dir| installRuntime(b, dir, hasPrebuiltBridge(b), &.{ run_demo, run_gallery_cmd, run_math, run_md, run_pdf, run_components, run_tsx, run_tsx_gallery, run_tsx_bench, run_tests, run_lib_tests, tsx_tags_tests, tsx_e2e_tests });
     }
 }

@@ -6,6 +6,7 @@ const ast = @import("ast.zig");
 const lexer = @import("lexer.zig");
 const parser = @import("parser.zig");
 const jsx_parser = @import("jsx_parser.zig");
+const type_parser = @import("type_parser.zig");
 const Parser = parser.Parser;
 const Error = parser.Error;
 
@@ -26,87 +27,57 @@ pub fn parseAssign(self: *Parser) Error!*ast.Expr {
     return lhs;
 }
 
-/// `x => ...`, `() => ...`, `(a: T, b) => ...`; null when the tokens
-/// are not an arrow function (nothing consumed).
+/// `x => ...`, `() => ...`, `(a: T, b) => ...`, `(t: Todo): string => ...`;
+/// null when the tokens are not an arrow function (nothing consumed).
+/// Arrows are recognised before parsing them (tsc's approach), so errors
+/// inside their parameters are reported as such.
 pub fn tryArrow(self: *Parser) Error!?*ast.Expr {
     const loc = self.cur.start;
-    const s = self.save();
-    var params: std.ArrayList(ast.Param) = .empty;
     if (self.cur.kind == .identifier) {
+        const s = self.save();
         const name: ast.Name = .{ .name = self.text(), .loc = self.cur.start };
         self.advance();
-        if (!self.isP("=>")) {
+        if (!self.isP("=>") or self.cur.nl_before) {
             self.restore(s);
             return null;
         }
-        try params.append(self.arena, .{ .name = name, .ty = null });
-    } else if (self.isP("(")) {
-        if (definitelyArrow(self)) {
-            // parse it as an arrow with real errors (`(v: string[]) =>`)
-            const typed_params = try self.parseParams();
-            const typed_ret = try self.parseReturnType();
-            if (!self.isP("=>")) return self.unexpected("=>");
-            const typed = try arrowBody(self, loc, typed_params, typed_ret);
-            return try self.expr(loc, .{ .arrow = typed });
-        }
-        self.advance();
-        while (!self.isP(")")) {
-            if (self.cur.kind != .identifier) {
-                self.restore(s);
-                return null;
-            }
-            const name: ast.Name = .{ .name = self.text(), .loc = self.cur.start };
-            self.advance();
-            var ty: ?ast.TypeRef = null;
-            if (self.isP(":")) {
-                self.advance();
-                if (self.cur.kind != .identifier) {
-                    self.restore(s);
-                    return null;
-                }
-                ty = .{ .name = self.text(), .loc = self.cur.start };
-                self.advance();
-            }
-            try params.append(self.arena, .{ .name = name, .ty = ty });
-            if (!self.isP(",")) break;
-            self.advance();
-        }
-        if (!self.isP(")")) {
-            self.restore(s);
-            return null;
-        }
-        self.advance();
-        var ret: ?ast.TypeRef = null;
-        if (self.isP(":")) {
-            self.advance();
-            if (self.cur.kind != .identifier) {
-                self.restore(s);
-                return null;
-            }
-            // a dotted name (`JSX.Element`) spans from the first part to the last
-            const start = self.cur.start;
-            var end = self.cur.end;
-            self.advance();
-            while (self.isP(".")) {
-                self.advance();
-                if (self.cur.kind != .identifier) {
-                    self.restore(s);
-                    return null;
-                }
-                end = self.cur.end;
-                self.advance();
-            }
-            ret = .{ .name = self.src[start..end], .loc = start };
-        }
-        if (!self.isP("=>")) {
-            self.restore(s);
-            return null;
-        }
-        const func = try arrowBody(self, loc, params.items, ret);
+        const params = try self.arena.alloc(ast.Param, 1);
+        params[0] = .{ .name = name, .ty = null };
+        const func = try arrowBody(self, loc, params, null);
         return try self.expr(loc, .{ .arrow = func });
-    } else return null;
-    const func = try arrowBody(self, loc, params.items, null);
+    }
+    if (!self.isP("(")) return null;
+    if (!definitelyArrow(self) and !type_parser.followedByArrow(self) and !returnTypedArrow(self)) return null;
+    const params = try self.parseParams();
+    const ret = try self.parseReturnType();
+    if (!self.isP("=>")) return self.unexpected("=>");
+    const func = try arrowBody(self, loc, params, ret);
     return try self.expr(loc, .{ .arrow = func });
+}
+
+/// `(...): Type =>`: the matching `)` is followed by a return type and `=>`
+/// (tried speculatively; nothing consumed, no error kept).
+fn returnTypedArrow(self: *Parser) bool {
+    const s = self.save();
+    defer self.restore(s);
+    const saved_diag = self.diag;
+    defer self.diag = saved_diag;
+    var depth: usize = 0;
+    while (self.cur.kind != .eof) {
+        if (self.isP("(") or self.isP("[") or self.isP("{")) {
+            depth += 1;
+        } else if (self.isP(")") or self.isP("]") or self.isP("}")) {
+            depth -= 1;
+            if (depth == 0) break;
+        }
+        self.advance();
+    }
+    if (!self.isP(")")) return false;
+    self.advance();
+    if (!self.isP(":")) return false;
+    self.advance();
+    _ = self.parseType() catch return false;
+    return self.isP("=>");
 }
 
 /// tsc's quick check (`isParenthesizedArrowFunctionExpression`): `() =>`,
@@ -210,45 +181,62 @@ pub fn parsePostfix(self: *Parser) Error!*ast.Expr {
             const args = try parseArgs(self);
             e = try self.expr(e.loc, .{ .call = .{ .callee = e, .type_args = type_args, .args = args } });
         } else if (self.isP("?.")) {
-            return self.fail(self.cur.start, "optional chaining is not supported yet", .{});
+            self.advance();
+            if (self.isP("[")) {
+                e = try parseIndex(self, e, true);
+            } else if (self.isP("(")) {
+                return self.fail(self.cur.start, "optional calls (`f?.()`) are not supported", .{});
+            } else {
+                const name = try self.expectIdent("a property name");
+                e = try self.expr(e.loc, .{ .member = .{ .object = e, .name = name, .optional = true } });
+            }
         } else if (self.isP("[")) {
-            return self.fail(self.cur.start, "indexing is not supported yet", .{});
+            e = try parseIndex(self, e, false);
+        } else if (self.isP("!") and !self.cur.nl_before) {
+            // `x!`: TypeScript's non-null assertion
+            self.advance();
+            e = try self.expr(e.loc, .{ .non_null = e });
         } else if ((self.isP("++") or self.isP("--")) and !self.cur.nl_before) {
             const op = self.text();
             self.advance();
             e = try self.expr(e.loc, .{ .update = .{ .op = op, .target = e } });
-        } else if (self.isKw("as")) {
-            return self.fail(self.cur.start, "`as` casts are not supported yet", .{});
+        } else if (self.isKw("as") and !self.cur.nl_before) {
+            self.advance();
+            if (self.isKw("const")) return self.fail(self.cur.start, "`as const` is not supported", .{});
+            const ty = try self.parseType();
+            e = try self.expr(e.loc, .{ .as = .{ .expr = e, .ty = ty } });
         } else break;
     }
     return e;
 }
 
-/// `<u32>(` after a callee: a type argument list, or null (nothing
-/// consumed) when `<` is a comparison.
+/// `<Todo[]>(` after a callee: a type argument list, or null (nothing
+/// consumed, no error kept) when `<` is a comparison.
 pub fn tryTypeArgs(self: *Parser) ?[]const ast.TypeRef {
     const s = self.save();
+    const saved_diag = self.diag;
     self.advance(); // <
     var list: std.ArrayList(ast.TypeRef) = .empty;
-    while (self.cur.kind == .identifier) {
-        list.append(self.arena, .{ .name = self.text(), .loc = self.cur.start }) catch {
-            self.restore(s);
-            return null;
-        };
+    while (true) {
+        const ty = self.parseType() catch break;
+        list.append(self.arena, ty) catch break;
+        if (!self.eatP(",")) break;
+    }
+    if (list.items.len > 0 and self.isP(">")) {
         self.advance();
-        if (!self.isP(",")) break;
-        self.advance();
+        if (self.isP("(")) return list.items;
     }
-    if (list.items.len == 0 or !self.isP(">")) {
-        self.restore(s);
-        return null;
-    }
-    self.advance();
-    if (!self.isP("(")) {
-        self.restore(s);
-        return null;
-    }
-    return list.items;
+    self.restore(s);
+    self.diag = saved_diag;
+    return null;
+}
+
+/// `a[i]` (`a?.[i]` when `optional`); `cur` is the `[`.
+fn parseIndex(self: *Parser, object: *ast.Expr, optional: bool) Error!*ast.Expr {
+    self.advance(); // [
+    const index = try parseExpr(self);
+    try self.expectP("]");
+    return self.expr(object.loc, .{ .index = .{ .object = object, .index = index, .optional = optional } });
 }
 
 pub fn parseArgs(self: *Parser) Error![]const *ast.Expr {
@@ -305,7 +293,7 @@ pub fn parsePrimary(self: *Parser) Error!*ast.Expr {
                 return self.expr(loc, .{ .jsx = el });
             }
             if (self.isP("{")) return parseObject(self, loc);
-            if (self.isP("[")) return self.fail(loc, "array literals are not supported yet", .{});
+            if (self.isP("[")) return parseArray(self, loc);
             return self.fail(loc, "unexpected `{s}`", .{self.text()});
         },
         .eof => return self.fail(loc, "expected an expression but the file ended", .{}),
@@ -313,11 +301,41 @@ pub fn parsePrimary(self: *Parser) Error!*ast.Expr {
     }
 }
 
+/// `[a, b, ...rest]` (trailing comma allowed, holes are not).
+fn parseArray(self: *Parser, loc: u32) Error!*ast.Expr {
+    self.advance(); // [
+    var items: std.ArrayList(*ast.Expr) = .empty;
+    while (!self.isP("]")) {
+        if (self.isP(",")) return self.fail(self.cur.start, "array holes are not supported", .{});
+        try items.append(self.arena, try spreadOrExpr(self));
+        if (!self.eatP(",")) break;
+    }
+    try self.expectP("]");
+    return self.expr(loc, .{ .array = items.items });
+}
+
+/// `...x` or an expression (array literal items).
+fn spreadOrExpr(self: *Parser) Error!*ast.Expr {
+    if (!self.isP("...")) return parseAssign(self);
+    const loc = self.cur.start;
+    self.advance();
+    const inner = try parseAssign(self);
+    return self.expr(loc, .{ .spread = inner });
+}
+
 pub fn parseObject(self: *Parser, loc: u32) Error!*ast.Expr {
     self.advance(); // {
     var props: std.ArrayList(ast.Property) = .empty;
     while (!self.isP("}")) {
-        if (self.isP("...")) return self.fail(self.cur.start, "object spread is not supported", .{});
+        if (self.isP("...")) {
+            const loc_spread = self.cur.start;
+            self.advance();
+            const inner = try parseAssign(self);
+            try props.append(self.arena, .{ .key = .{ .name = "", .loc = loc_spread }, .value = inner, .spread = true });
+            if (!self.eatP(",")) break;
+            continue;
+        }
+        if (self.isP("[")) return self.fail(self.cur.start, "computed keys are not supported", .{});
         const key: ast.Name = switch (self.cur.kind) {
             .identifier => .{ .name = self.text(), .loc = self.cur.start },
             .string => .{

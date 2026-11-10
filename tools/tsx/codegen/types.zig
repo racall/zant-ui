@@ -89,6 +89,7 @@ pub const Value = struct {
 };
 
 pub fn typeRef(g: *Generator, ref: ast.TypeRef, allow_void: bool) Error!Type {
+    if (ref.detail != null) return core.fail(g, ref.loc, "structured types are not supported yet", .{});
     for (g.type_aliases.items) |alias| if (zig_text.eq(ref.name, alias.name)) return alias.ty;
     if (zig_text.eq(ref.name, "number")) return .f64;
     if (zig_text.eq(ref.name, "boolean")) return .boolean;
@@ -134,6 +135,29 @@ pub fn coerce(g: *Generator, v: Value, t: Type, loc: ast.Loc) Error!Value {
         );
     }
     return core.fail(g, loc, "cannot convert {s} to {s}; use an explicit matching type", .{ v.ty.zig(), t.zig() });
+}
+
+/// Explicit assertions allow numeric conversions that implicit coercion rejects.
+pub fn explicitCast(g: *Generator, value: Value, target: Type, loc: ast.Loc) Error!Value {
+    var source = value;
+    if (source.ty.literal()) source = try coerce(g, source, source.ty.concrete(), loc);
+    if (source.ty == target) return source;
+    if (!source.ty.numeric() or !target.numeric()) {
+        return core.fail(g, loc, "cannot cast {s} to {s}; only numeric conversions are supported", .{
+            source.ty.zig(),
+            target.zig(),
+        });
+    }
+    const builtin = if (source.ty.integer())
+        (if (target.integer()) "@intCast" else "@floatFromInt")
+    else
+        (if (target.integer()) "@intFromFloat" else "@floatCast");
+    source = try concrete(g, source);
+    return .{
+        .ty = target,
+        .code = try zig_text.fmt(g, "{s}({s})", .{ builtin, source.code }),
+        .inference = .result_location,
+    };
 }
 
 /// Arithmetic operands and generic tuples do not provide a Zig result location.
@@ -201,6 +225,8 @@ pub fn expressionHint(g: *Generator, c: *Context, e: *ast.Expr) ?Type {
     const t: ?Type = switch (e.data) {
         .number => |n| if (types.floatLiteral(n)) .float_literal else .int_literal,
         .ident => |n| nameHint(g, c, n),
+        .non_null => |inner| types.expressionHint(g, c, inner),
+        .as => |cast| castHint(g, cast.ty),
         .call => |call| callHint(g, call),
         .unary => |u| if (zig_text.eq(u.op, "!")) null else types.expressionHint(g, c, u.operand),
         .binary => |b| binaryHint(g, c, b),
@@ -275,6 +301,7 @@ pub fn arithmetic(op: []const u8) bool {
 pub fn numericLiterals(e: *ast.Expr) bool {
     return switch (e.data) {
         .number => true,
+        .non_null => |inner| types.numericLiterals(inner),
         .unary => |u| !zig_text.eq(u.op, "!") and types.numericLiterals(u.operand),
         .binary => |b| types.arithmetic(b.op) and types.numericLiterals(b.lhs) and types.numericLiterals(b.rhs),
         .cond => |v| types.numericLiterals(v.then) and types.numericLiterals(v.else_),
@@ -323,4 +350,13 @@ fn branchHint(g: *Generator, c: *Context, value: ast.Cond) ?Type {
 fn negativeLiteral(g: *Generator, unary: ast.Unary) Error!?[]const u8 {
     if (!zig_text.eq(unary.op, "-") or unary.operand.data != .number) return null;
     return try zig_text.fmt(g, "-{s}", .{unary.operand.data.number});
+}
+
+/// A numeric cast supplies the peer type even when its operand was untyped.
+fn castHint(g: *Generator, ref: ast.TypeRef) ?Type {
+    if (ref.detail != null) return null;
+    for (g.type_aliases.items) |alias| if (zig_text.eq(ref.name, alias.name)) return alias.ty;
+    if (zig_text.eq(ref.name, "number")) return .f64;
+    if (types.numericName(ref.name)) return std.meta.stringToEnum(Type, ref.name);
+    return null;
 }

@@ -1,6 +1,7 @@
 //! Merge option fields and edges in source order, then emit stable builder literals.
 const std = @import("std");
 const ast = @import("../ast.zig");
+const tags = @import("../tags.zig");
 const core = @import("codegen.zig");
 const zig_text = @import("zig_text.zig");
 const Generator = core.Generator;
@@ -12,7 +13,33 @@ pub const Fields = struct {
     g: *Generator,
     list: std.ArrayList(*Entry) = .empty,
     const Edge = struct { code: []const u8, source: *ast.Expr };
-    const Entry = struct { field: []const u8, code: ?[]const u8 = null, edges: [4]?Edge = .{ null, null, null, null } };
+    const Entry = struct {
+        field: []const u8,
+        code: ?[]const u8 = null,
+        edges: [4]?Edge = .{ null, null, null, null },
+        nested: ?*Fields = null,
+    };
+
+    /// Flattened props share one nested options literal for their parent field.
+    pub fn group(f: *Fields, parent: []const u8) Error!*Fields {
+        if (parent.len == 0) return f;
+        const item = try f.entry(parent);
+        if (item.nested) |nested| return nested;
+        const nested = try f.g.a.create(Fields);
+        nested.* = .{ .g = f.g };
+        item.nested = nested;
+        return nested;
+    }
+
+    /// Required props are checked by their actual Zig field, including aliases.
+    pub fn hasProp(f: *Fields, prop: *const tags.Prop) bool {
+        if (prop.parent.len == 0) return f.has(prop.field);
+        for (f.list.items) |item| {
+            if (!zig_text.eq(item.field, prop.parent)) continue;
+            return if (item.nested) |nested| nested.has(prop.field) else false;
+        }
+        return false;
+    }
     pub fn entry(f: *Fields, field: []const u8) Error!*Entry {
         for (f.list.items) |item| if (zig_text.eq(item.field, field)) return item;
         const item = try f.g.a.create(Entry);
@@ -60,7 +87,10 @@ pub const Fields = struct {
         var out: std.ArrayList(u8) = .empty;
         try out.appendSlice(f.g.a, ".{\n");
         for (f.list.items) |item| {
-            const code = item.code orelse try f.edgesValue(item.edges);
+            const code = item.code orelse if (item.nested) |nested|
+                try nested.emit()
+            else
+                try f.edgesValue(item.edges);
             try out.appendSlice(
                 f.g.a,
                 try zig_text.fmt(f.g, ".{s} = {s},\n", .{ try zig_text.id(f.g, item.field), code }),

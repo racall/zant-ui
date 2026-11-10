@@ -18,4 +18,5 @@ test "tsx golden outputs compile" {
     refComponent(@import("tsx_golden_text"));
     refComponent(@import("tsx_golden_events"));
     refComponent(@import("tsx_golden_conditional"));
+    refComponent(@import("tsx_golden_components"));
 }

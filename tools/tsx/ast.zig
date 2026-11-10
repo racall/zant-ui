@@ -9,10 +9,40 @@ pub const Name = struct {
     loc: Loc,
 };
 
-/// A type annotation: `u32`, `string`, `boolean`, ...
+/// A type annotation. Named types (`u32`, `string`, `Todo`, `JSX.Element`)
+/// have `name` and no `detail`; structured types (`Todo[]`, `"a" | "b"`,
+/// `{ id: number }`, `(id: number) => void`) carry a `detail` and an empty
+/// `name`.
 pub const TypeRef = struct {
     name: []const u8,
     loc: Loc,
+    detail: ?*const TypeDetail = null,
+};
+
+pub const TypeDetail = union(enum) {
+    /// `T[]` or `Array<T>`
+    array: TypeRef,
+    /// `A | B | ...` (two or more members)
+    union_: []const TypeRef,
+    /// `"done"`
+    string_lit: []const u8,
+    /// `null` or `undefined`
+    null_,
+    /// `{ id: number; title?: string }` (also an interface body)
+    object: []const TypeField,
+    /// `(id: number) => void`
+    func: FuncType,
+};
+
+pub const TypeField = struct {
+    name: Name,
+    ty: TypeRef,
+    optional: bool = false,
+};
+
+pub const FuncType = struct {
+    params: []const Param,
+    ret: TypeRef,
 };
 
 pub const Expr = struct {
@@ -36,6 +66,16 @@ pub const Expr = struct {
         arrow: *Function,
         jsx: *Jsx,
         object: []const Property,
+        /// `[a, ...rest]`; spread items are `.spread` expressions.
+        array: []const *Expr,
+        /// `...x` inside an array literal, object literal or call.
+        spread: *Expr,
+        /// `a[i]` / `a?.[i]`
+        index: Index,
+        /// `x!` (TypeScript non-null assertion)
+        non_null: *Expr,
+        /// `x as T`
+        as: As,
         assign: Assign,
         update: Update,
     };
@@ -73,11 +113,27 @@ pub const Call = struct {
 pub const Member = struct {
     object: *Expr,
     name: Name,
+    /// `a?.b`
+    optional: bool = false,
+};
+
+pub const Index = struct {
+    object: *Expr,
+    index: *Expr,
+    /// `a?.[i]`
+    optional: bool = false,
+};
+
+pub const As = struct {
+    expr: *Expr,
+    ty: TypeRef,
 };
 
 pub const Property = struct {
     key: Name,
     value: *Expr,
+    /// `{ ...value }`: `key` is unused.
+    spread: bool = false,
 };
 
 /// `x = e`, `x += e`, ...
@@ -123,6 +179,11 @@ pub const Child = union(enum) {
 pub const Param = struct {
     name: Name,
     ty: ?TypeRef,
+    /// `x?: T`
+    optional: bool = false,
+    /// `function Row({ todo, onToggle }: Props)`: the destructured names
+    /// (the param's `name` is then the whole object's, `props`).
+    destructure: []const Name = &.{},
 };
 
 pub const Function = struct {
@@ -189,6 +250,23 @@ pub const ImportName = struct {
 pub const Module = struct {
     imports: []const Import,
     functions: []const TopFunction,
+    /// `interface` / `type` declarations, in source order.
+    types: []const TypeDecl = &.{},
+    /// Top-level `const` values that are not components.
+    consts: []const TopConst = &.{},
+};
+
+pub const TypeDecl = struct {
+    name: Name,
+    ty: TypeRef,
+    exported: bool,
+};
+
+pub const TopConst = struct {
+    name: Name,
+    ty: ?TypeRef,
+    value: *Expr,
+    exported: bool,
 };
 
 pub const TopFunction = struct {
