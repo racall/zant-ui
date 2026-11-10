@@ -13,15 +13,13 @@ pub fn main(init: std.process.Init) !void {
     defer arena_state.deinit();
     const arena = arena_state.allocator();
     const args = try init.minimal.args.toSlice(arena);
+    if (args.len >= 4 and std.mem.eql(u8, args[1], "--out")) return project(io, arena, args[2], args[3..]);
     if (args.len != 3) {
-        std.debug.print("用法: zant-tsx <in.tsx> <out.zig>\n", .{});
+        std.debug.print("用法: zant-tsx <in.tsx> <out.zig>\n      zant-tsx --out <dir> <a.tsx> <b.tsx>...\n", .{});
         std.process.exit(2);
     }
     const in_path = args[1];
-    const src = std.Io.Dir.cwd().readFileAlloc(io, in_path, arena, .limited(16 << 20)) catch |err| {
-        std.debug.print("zant-tsx: 不能读取 {s}（{s}）\n", .{ in_path, @errorName(err) });
-        std.process.exit(1);
-    };
+    const src = read(io, arena, in_path);
     switch (try compile.compile(arena, src, std.fs.path.basename(in_path))) {
         .ok => |zig| try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = args[2], .data = zig }),
         .err => |diag| {
@@ -29,6 +27,35 @@ pub fn main(init: std.process.Init) !void {
             std.process.exit(1);
         },
     }
+}
+
+/// `--out <dir> files...`: one project; `<dir>/<Name>.zig` per `<Name>.tsx`.
+fn project(io: std.Io, arena: std.mem.Allocator, out_dir: []const u8, paths: []const [:0]const u8) !void {
+    const files = try arena.alloc(compile.File, paths.len);
+    for (paths, 0..) |path, i| files[i] = .{ .path = path, .src = read(io, arena, path) };
+    switch (try compile.compileProject(arena, files)) {
+        .ok => |outputs| {
+            try std.Io.Dir.cwd().createDirPath(io, out_dir);
+            for (files, outputs) |file, zig| {
+                const base = std.fs.path.basename(file.path);
+                const stem = if (std.mem.endsWith(u8, base, ".tsx")) base[0 .. base.len - 4] else base;
+                const out = try std.fmt.allocPrint(arena, "{s}/{s}.zig", .{ out_dir, stem });
+                try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = out, .data = zig });
+            }
+        },
+        .err => |e| {
+            const file = files[e.file];
+            std.debug.print("{s}", .{try compile.renderDiag(arena, file.path, file.src, e.diag)});
+            std.process.exit(1);
+        },
+    }
+}
+
+fn read(io: std.Io, arena: std.mem.Allocator, path: []const u8) []const u8 {
+    return std.Io.Dir.cwd().readFileAlloc(io, path, arena, .limited(16 << 20)) catch |err| {
+        std.debug.print("zant-tsx: 不能读取 {s}（{s}）\n", .{ path, @errorName(err) });
+        std.process.exit(1);
+    };
 }
 
 test {

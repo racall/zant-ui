@@ -87,7 +87,7 @@ test "codegen diagnostics include precise source positions" {
         },
         .{
             "import { Text } from ~\"react\"; export default function App() { return <Text/>; }",
-            "only imports from \"zant\" are supported",
+            "imports come from \"zant\" or another .tsx file (\"./Name\")",
         },
         .{
             "~function App() { return <View/>; }",

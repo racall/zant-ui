@@ -8,7 +8,7 @@
 //! The struct lives in the frame arena (`tsx.capture`), so handlers inside the
 //! child keep working until the next frame, like every other callback.
 //! Callback props take action types when their signature matches a ui event
-//! (`() => void` → `actions.Action`, …) and `tsx.Callback(Args)` otherwise.
+//! (`() => void` → `actions.Action`, …) and `tsx.Callback(fn (...) void)` otherwise.
 const std = @import("std");
 const ast = @import("../ast.zig");
 const tags = @import("../tags.zig");
@@ -38,6 +38,9 @@ pub const Component = struct {
     param: []const u8 = "",
     /// Destructured prop names (`{ todo, onToggle }`).
     destructure: []const ast.Name = &.{},
+    /// Imported from another file: `builder` is already Zig code
+    /// (`_TodoRow.todoRow`) and no struct is generated here.
+    external: bool = false,
 };
 
 /// An inline arrow passed to a child component's callback prop.
@@ -71,7 +74,7 @@ pub fn callbackType(g: *Generator, loc: ast.Loc, f: ast.FuncType) Error!Type {
     const zig = if (kind) |k| try zig_text.fmt(g, "zant.actions.{s}", .{actionTypeName(k)}) else blk: {
         var list: std.ArrayList([]const u8) = .empty;
         for (params.items) |t| try list.append(g.a, t.zig(g));
-        break :blk try zig_text.fmt(g, "tsx.Callback(struct {{ {s} }})", .{try std.mem.join(g.a, ", ", list.items)});
+        break :blk try zig_text.fmt(g, "tsx.Callback(fn ({s}) void)", .{try std.mem.join(g.a, ", ", list.items)});
     };
     return model.add(g, .{ .kind = .callback, .zig = zig, .params = params.items });
 }
@@ -108,9 +111,9 @@ pub fn callbackInfo(g: *Generator, ty: Type) ?*model.Info {
 // ── collection ────────────────────────────────────────────────────────
 
 /// Registers every non-default top-level function as a child component.
-pub fn collect(g: *Generator, module: ast.Module, root: *ast.Function) Error!void {
+pub fn collect(g: *Generator, module: ast.Module, root: ?*ast.Function) Error!void {
     for (module.functions) |top| {
-        if (top.func == root) continue;
+        if (root != null and top.func == root.?) continue;
         const f = top.func;
         if (f.params.len > 1) return core.fail(g, f.params[1].name.loc, "components take one props object", .{});
         var comp = Component{ .name = f.name, .builder = try builderName(g, f.name), .func = f, .props = null };
@@ -145,7 +148,7 @@ pub fn collect(g: *Generator, module: ast.Module, root: *ast.Function) Error!voi
 }
 
 /// `TodoRow` → `todoRow`.
-fn builderName(g: *Generator, name: []const u8) Error![]const u8 {
+pub fn builderName(g: *Generator, name: []const u8) Error![]const u8 {
     if (name.len == 0 or !std.ascii.isUpper(name[0])) return core.fail(
         g,
         0,
@@ -331,11 +334,8 @@ pub fn emitCall(g: *Generator, c: *Context, j: *ast.Jsx, comp: *const Component)
             if (zig_text.eq(n, f.name)) break;
         } else return core.fail(g, j.loc, "<{s}> needs the prop `{s}`", .{ comp.name, f.name });
     }
-    var node = try zig_text.fmt(
-        g,
-        "{s}(.{{\n{s}}})",
-        .{ try zig_text.id(g, comp.builder), try std.mem.join(g.a, "", parts.items) },
-    );
+    const builder = if (comp.external) comp.builder else try zig_text.id(g, comp.builder);
+    var node = try zig_text.fmt(g, "{s}(.{{\n{s}}})", .{ builder, try std.mem.join(g.a, "", parts.items) });
     if (key) |k| node = try zig_text.fmt(g, "ui.withKey({s}, {s})", .{ node, k });
     return .{ .ty = .node, .code = node };
 }
@@ -473,7 +473,7 @@ fn callbackValue(g: *Generator, c: *Context, entry: *const model.Info, value: *a
     for (entry.params) |t| try list.append(g.a, t.zig(g));
     return zig_text.fmt(
         g,
-        "tsx.callback(struct {{ {s} }}, {s}, {s})",
+        "tsx.callback(fn ({s}) void, {s}, {s})",
         .{ try std.mem.join(g.a, ", ", list.items), receiver, target },
     );
 }

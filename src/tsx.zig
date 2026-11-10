@@ -287,8 +287,11 @@ test "null-only values lift and compare with unrelated nullable types" {
 }
 
 /// A typed callback prop of a TSX child component (`onToggle: (id: number) =>
-/// void`): a context pointer and an adapter taking the arguments as a tuple.
-pub fn Callback(comptime Args: type) type {
+/// void` → `Callback(fn (u32) void)`): a context pointer and an adapter taking
+/// the arguments as a tuple. Keyed by a function type, which is the same type
+/// in every file, so callbacks cross generated modules.
+pub fn Callback(comptime F: type) type {
+    const Args = std.meta.ArgsTuple(F);
     return struct {
         ctx: *anyopaque,
         func: *const fn (*anyopaque, Args) void,
@@ -299,10 +302,10 @@ pub fn Callback(comptime Args: type) type {
     };
 }
 
-/// Binds `f(ctx, args...)` as a `Callback(Args)`; `Args` is a tuple type
-/// (`struct { f64 }`).
-pub fn callback(comptime Args: type, ctx: anytype, comptime f: anytype) Callback(Args) {
+/// Binds `f(ctx, args...)` as a `Callback(F)`.
+pub fn callback(comptime F: type, ctx: anytype, comptime f: anytype) Callback(F) {
     const Ctx = @TypeOf(ctx);
+    const Args = std.meta.ArgsTuple(F);
     const Adapter = struct {
         fn call(raw: *anyopaque, args: Args) void {
             const typed: Ctx = @ptrCast(@alignCast(raw));
@@ -320,7 +323,9 @@ test "typed callbacks pass their arguments through" {
         }
     };
     var counter = Counter{};
-    const cb = callback(struct { f64, u32 }, &counter, Counter.add);
+    const cb = callback(fn (f64, u32) void, &counter, Counter.add);
+    // the same callback type wherever it is spelled
+    try std.testing.expect(@TypeOf(cb) == Callback(fn (f64, u32) void));
     cb.call(.{ 1.5, 2 });
     cb.call(.{ 1, 1 });
     try std.testing.expectEqual(@as(f64, 4), counter.total);

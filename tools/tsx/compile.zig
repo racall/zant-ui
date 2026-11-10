@@ -27,6 +27,50 @@ pub fn compile(arena: std.mem.Allocator, src: []const u8, source_name: []const u
     return .{ .ok = try format(arena, raw) };
 }
 
+pub const File = struct {
+    /// Path as given on the command line (diagnostics use it).
+    path: []const u8,
+    src: []const u8,
+};
+
+pub const ProjectResult = union(enum) {
+    /// Formatted Zig per file, in the order given.
+    ok: []const []const u8,
+    err: struct { file: usize, diag: Diag },
+};
+
+/// Compiles the `.tsx` files of one project together, so relative imports
+/// (`import { TodoRow } from "./TodoRow"`) resolve. A file without a root
+/// component (child components only) is fine.
+pub fn compileProject(arena: std.mem.Allocator, files: []const File) error{OutOfMemory}!ProjectResult {
+    const imports = @import("codegen/imports.zig");
+    const modules = try arena.alloc(imports.NamedModule, files.len);
+    for (files, 0..) |file, i| {
+        var p = parser.Parser.init(arena, file.src);
+        const module = p.parseModule() catch |err| switch (err) {
+            error.OutOfMemory => return error.OutOfMemory,
+            error.Syntax => return .{ .err = .{ .file = i, .diag = p.diag.? } },
+        };
+        const base = std.fs.path.basename(file.path);
+        const name = if (std.mem.endsWith(u8, base, ".tsx")) base[0 .. base.len - 4] else base;
+        modules[i] = .{ .name = name, .module = module };
+    }
+    const out = try arena.alloc([]const u8, files.len);
+    for (files, 0..) |file, i| {
+        var diag: ?Diag = null;
+        const raw = codegen.generate(arena, file.src, modules[i].module, .{
+            .source_name = std.fs.path.basename(file.path),
+            .project = modules,
+            .require_root = false,
+        }, &diag) catch |err| switch (err) {
+            error.OutOfMemory => return error.OutOfMemory,
+            error.Tsx => return .{ .err = .{ .file = i, .diag = diag.? } },
+        };
+        out[i] = try format(arena, raw);
+    }
+    return .{ .ok = out };
+}
+
 /// Formats generated Zig. Invalid output is a bug in the generator: it
 /// panics with the code and Zig's message instead of hiding it.
 pub fn format(arena: std.mem.Allocator, raw: []const u8) error{OutOfMemory}![]const u8 {
@@ -65,12 +109,15 @@ pub fn renderDiag(arena: std.mem.Allocator, path: []const u8, src: []const u8, d
     const pos = position(src, diag.loc);
     var caret: std.ArrayList(u8) = .empty;
     var col: usize = 1;
-    var it = (std.unicode.Utf8View.init(pos.line_text) catch std.unicode.Utf8View.initUnchecked(pos.line_text)).iterator();
+    const view = std.unicode.Utf8View.init(pos.line_text) catch std.unicode.Utf8View.initUnchecked(pos.line_text);
+    var it = view.iterator();
     while (col < pos.column) : (col += 1) {
         const cp = it.nextCodepoint() orelse break;
         try caret.append(arena, if (cp == '\t') '\t' else ' ');
     }
-    return std.fmt.allocPrint(arena, "{s}:{d}:{d}: error: {s}\n    {s}\n    {s}^\n", .{ path, pos.line, pos.column, diag.msg, pos.line_text, caret.items });
+    return std.fmt.allocPrint(arena, "{s}:{d}:{d}: error: {s}\n    {s}\n    {s}^\n", .{
+        path, pos.line, pos.column, diag.msg, pos.line_text, caret.items,
+    });
 }
 
 test "positions count lines and code points" {
@@ -94,4 +141,50 @@ test "syntax errors render with a caret" {
             "                     ^\n",
         text,
     );
+}
+
+test "a project resolves components and types across files" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const result = try compileProject(a, &.{
+        .{ .path = "src/Row.tsx", .src =
+        \\export interface Todo { id: u32; title: string }
+        \\export interface RowProps { todo: Todo; onPick: (id: u32) => void }
+        \\export function Row({ todo, onPick }: RowProps) {
+        \\  return <Button onClick={() => onPick(todo.id)}>{todo.title}</Button>;
+        \\}
+        },
+        .{ .path = "src/App.tsx", .src =
+        \\import { useState } from "zant";
+        \\import { Row, type Todo } from "./Row";
+        \\export default function App() {
+        \\  const [todo, setTodo] = useState<Todo>({ id: 1, title: "a" });
+        \\  const [picked, setPicked] = useState<u32>(0);
+        \\  return <Row todo={todo} onPick={(id) => setPicked(id)} />;
+        \\}
+        },
+    });
+    const files = result.ok;
+    // Row.zig declares its types and the component, App.zig imports them
+    try std.testing.expect(std.mem.indexOf(u8, files[0], "pub const Todo = struct") != null);
+    try std.testing.expect(std.mem.indexOf(u8, files[0], "pub fn row(props: Row.Props) ui.Node") != null);
+    try std.testing.expect(std.mem.indexOf(u8, files[1], "const _Row = @import(\"Row.zig\");") != null);
+    try std.testing.expect(std.mem.indexOf(u8, files[1], "pub const Todo = struct") == null);
+    try std.testing.expect(std.mem.indexOf(u8, files[1], "tsx.State(_Row.Todo)") != null);
+    try std.testing.expect(std.mem.indexOf(u8, files[1], "_Row.row(.{") != null);
+}
+
+test "imports name exported things of project files" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const result = try compileProject(arena.allocator(), &.{
+        .{ .path = "Row.tsx", .src = "function Hidden(p: { a: string }) { return <View/>; }" },
+        .{
+            .path = "App.tsx",
+            .src = "import { Hidden } from \"./Row\"; export default function App() { return <View/>; }",
+        },
+    });
+    try std.testing.expectEqual(@as(usize, 1), result.err.file);
+    try std.testing.expectEqualStrings("`Hidden` is not exported by `./Row`", result.err.diag.msg);
 }

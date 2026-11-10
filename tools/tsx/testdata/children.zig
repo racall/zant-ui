@@ -12,9 +12,9 @@ pub const Todo = struct {
 
 pub const RowProps = struct {
     todo: Todo,
-    onToggle: tsx.Callback(struct { u32 }),
-    onRemove: tsx.Callback(struct { u32 }),
-    onRename: ?tsx.Callback(struct { u32, []const u8 }) = null,
+    onToggle: tsx.Callback(fn (u32) void),
+    onRemove: tsx.Callback(fn (u32) void),
+    onRename: ?tsx.Callback(fn (u32, []const u8) void) = null,
 };
 
 pub const PanelProps = struct {
@@ -116,8 +116,8 @@ pub const App = struct {
                                     const t: Todo = _item;
                                     break :_callback ui.withKey(todoRow(.{
                                         .todo = t,
-                                        .onToggle = tsx.callback(struct { u32 }, self, App.toggle),
-                                        .onRemove = tsx.callback(struct { u32 }, self, App._onRemove4),
+                                        .onToggle = tsx.callback(fn (u32) void, self, App.toggle),
+                                        .onRemove = tsx.callback(fn (u32) void, self, App._onRemove4),
                                     }), tsx.fmt("{d}", .{t.id}));
                                 };
                                 _count += 1;

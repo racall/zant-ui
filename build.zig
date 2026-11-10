@@ -232,6 +232,29 @@ pub fn addTsx(b: *std.Build, tool: *std.Build.Step.Compile, source: std.Build.La
     });
 }
 
+/// Compiles several `.tsx` files as one project (relative imports resolve;
+/// docs/tsx.md) into one output directory; the module's root is `entry`'s
+/// generated file.
+///
+///     const sources = &.{ b.path("src/App.tsx"), b.path("src/NoteCard.tsx") };
+///     const notes = addTsxProject(b, tsx_tool, sources, "App", zant_mod);
+pub fn addTsxProject(
+    b: *std.Build,
+    tool: *std.Build.Step.Compile,
+    sources: []const std.Build.LazyPath,
+    entry: []const u8,
+    zant_mod: *std.Build.Module,
+) *std.Build.Module {
+    const run = b.addRunArtifact(tool);
+    run.addArg("--out");
+    const out = run.addOutputDirectoryArg("tsx");
+    for (sources) |source| run.addFileArg(source);
+    return b.createModule(.{
+        .root_source_file = out.path(b, b.fmt("{s}.zig", .{entry})),
+        .imports = &.{.{ .name = "zant", .module = zant_mod }},
+    });
+}
+
 /// Golden files of the TSX compiler (`tools/tsx/testdata/<name>.tsx` → `.zig`).
 const tsx_golden = [_][]const u8{ "counter", "layout", "text", "events", "conditional", "components", "todos", "arrays", "children", "theme", "list" };
 
@@ -510,6 +533,27 @@ pub fn build(b: *std.Build) void {
     run_tsx_todos.addPassthruArgs();
     b.step("run-tsx-todos", "Run the TSX todo app (examples/tsx/todos.tsx)").dependOn(&run_tsx_todos.step);
 
+    const tsx_notes = addTsxProject(b, tsx_tool, &.{
+        b.path("examples/tsx/notes/App.tsx"),
+        b.path("examples/tsx/notes/NoteCard.tsx"),
+    }, "App", zant_mod);
+    const tsx_notes_demo = b.addExecutable(.{
+        .name = "zant-tsx-notes",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("examples/tsx/notes_main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+            .link_libcpp = is_macos,
+            .imports = &.{ .{ .name = "zant", .module = zant_mod }, .{ .name = "notes_tsx", .module = tsx_notes } },
+        }),
+    });
+    b.installArtifact(tsx_notes_demo);
+    const run_tsx_notes = b.addRunArtifact(tsx_notes_demo);
+    run_tsx_notes.step.dependOn(b.getInstallStep());
+    run_tsx_notes.addPassthruArgs();
+    b.step("run-tsx-notes", "Run the two-file TSX notes app (examples/tsx/notes/)").dependOn(&run_tsx_notes.step);
+
     const tsx_list_bench = addTsx(b, tsx_tool, b.path("examples/tsx/list_bench.tsx"), "list_bench.zig", zant_mod);
     const tsx_settings = addTsx(b, tsx_tool, b.path("examples/tsx/settings.tsx"), "settings.zig", zant_mod);
     const tsx_bench = b.addExecutable(.{
@@ -590,6 +634,7 @@ pub fn build(b: *std.Build) void {
         .imports = &.{
             .{ .name = "zant", .module = zant_mod },
             .{ .name = "counter_tsx", .module = tsx_counter },
+            .{ .name = "notes_tsx", .module = tsx_notes },
         },
     });
     // every golden output of the TSX compiler must compile against zant
@@ -604,10 +649,10 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&tsx_e2e_tests.step);
 
     if (target.result.os.tag == .windows) {
-        for ([_]*std.Build.Step.Compile{ exe, demo, math_demo, md_demo, pdf_demo, components_demo, tsx_demo, tsx_gallery_demo, tsx_todos_demo }) |app| {
+        for ([_]*std.Build.Step.Compile{ exe, demo, math_demo, md_demo, pdf_demo, components_demo, tsx_demo, tsx_gallery_demo, tsx_todos_demo, tsx_notes_demo }) |app| {
             app.win32_manifest = b.path("src/platform/windows/zant.manifest");
             if (optimize != .debug) app.subsystem = .windows;
         }
-        if (bridge_dir) |dir| installRuntime(b, dir, hasPrebuiltBridge(b), &.{ run_demo, run_gallery_cmd, run_math, run_md, run_pdf, run_components, run_tsx, run_tsx_gallery, run_tsx_todos, run_tsx_bench, run_tests, run_lib_tests, tsx_tags_tests, tsx_e2e_tests });
+        if (bridge_dir) |dir| installRuntime(b, dir, hasPrebuiltBridge(b), &.{ run_demo, run_gallery_cmd, run_math, run_md, run_pdf, run_components, run_tsx, run_tsx_gallery, run_tsx_todos, run_tsx_notes, run_tsx_bench, run_tests, run_lib_tests, tsx_tags_tests, tsx_e2e_tests });
     }
 }

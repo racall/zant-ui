@@ -114,9 +114,16 @@ pub fn resolve(g: *Generator, ref: ast.TypeRef, name: ?[]const u8) Error!Type {
 }
 
 fn object(g: *Generator, fields: []const ast.TypeField, name: ?[]const u8) Error!Type {
-    const zig = if (name) |n| try text.id(g, n) else try text.fmt(g, "_Object{d}", .{g.compounds.items.len});
+    const external = if (name) |n| try @import("imports.zig").externalName(g, n) else null;
+    if (name == null and g.type_scope != null) return anonymousExternal(g);
+    const zig = external orelse if (name) |n|
+        try text.id(g, n)
+    else
+        try text.fmt(g, "_Object{d}", .{g.compounds.items.len});
     const ty = try add(g, .{ .kind = .object, .zig = zig });
-    if (name) |n| try g.type_aliases.append(g.a, .{ .name = n, .ty = ty });
+    // another file's type keeps its alias key (`_TodoRow.Todo`) so it never
+    // shadows a type of this file
+    if (name) |n| try g.type_aliases.append(g.a, .{ .name = if (external != null) zig else n, .ty = ty });
     var result: std.ArrayList(Field) = .empty;
     var code: std.ArrayList(u8) = .empty;
     for (fields) |field| {
@@ -134,8 +141,20 @@ fn object(g: *Generator, fields: []const ast.TypeField, name: ?[]const u8) Error
     }
     const declaration = try text.fmt(g, "pub const {s} = struct {{\n{s}}};\n\n", .{ zig, code.items });
     info(g, ty).?.fields = result.items;
-    info(g, ty).?.declaration = declaration;
+    // declared by the other file
+    info(g, ty).?.declaration = if (external != null) null else declaration;
     return ty;
+}
+
+/// Inline object / union types inside another file's declarations would be
+/// separate Zig types in each file.
+fn anonymousExternal(g: *Generator) Error {
+    return core.fail(
+        g,
+        0,
+        "types shared between files must be named: declare nested object and union types as interfaces or type aliases",
+        .{},
+    );
 }
 
 fn unionType(g: *Generator, loc: ast.Loc, members: []const ast.TypeRef, name: ?[]const u8) Error!Type {
@@ -167,7 +186,12 @@ fn unionType(g: *Generator, loc: ast.Loc, members: []const ast.TypeRef, name: ?[
 }
 
 fn enumeration(g: *Generator, members: []const []const u8, name: ?[]const u8) Error!Type {
-    const zig = if (name) |n| try text.id(g, n) else try text.fmt(g, "_Enum{d}", .{g.compounds.items.len});
+    const external = if (name) |n| try @import("imports.zig").externalName(g, n) else null;
+    if (name == null and g.type_scope != null) return anonymousExternal(g);
+    const zig = external orelse if (name) |n|
+        try text.id(g, n)
+    else
+        try text.fmt(g, "_Enum{d}", .{g.compounds.items.len});
     var names: std.ArrayList([]const u8) = .empty;
     for (members) |member| {
         var duplicate = false;
@@ -182,7 +206,7 @@ fn enumeration(g: *Generator, members: []const []const u8, name: ?[]const u8) Er
         .kind = .enumeration,
         .zig = zig,
         .members = names.items,
-        .declaration = try text.fmt(g, "pub const {s} = enum {{ {s}, }};\n\n", .{
+        .declaration = if (external != null) null else try text.fmt(g, "pub const {s} = enum {{ {s}, }};\n\n", .{
             zig, try std.mem.join(g.a, ", ", fields.items),
         }),
     });
@@ -190,7 +214,10 @@ fn enumeration(g: *Generator, members: []const []const u8, name: ?[]const u8) Er
 
 /// Lazily resolve named declarations, permitting references to later declarations.
 pub fn named(g: *Generator, name: []const u8) Error!?Type {
+    // inside another file's declarations, or a type imported from one
+    if (g.type_scope != null) return @import("imports.zig").named(g, name);
     for (g.type_aliases.items) |alias| if (text.eq(name, alias.name)) return alias.ty;
+    if (try @import("imports.zig").named(g, name)) |ty| return ty;
     for (g.type_decls, 0..) |decl, i| {
         if (!text.eq(name, decl.name.name)) continue;
         if (g.resolving[i]) return core.fail(g, decl.name.loc, "recursive types are not supported yet", .{});

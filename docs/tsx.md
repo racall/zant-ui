@@ -47,6 +47,20 @@ exe.root_module.addImport("counter_tsx", counter);
 
 `addTsx`（`build.zig`）在构建时运行 `zant-tsx`，把输出作为导入 `zant` 的模块。
 
+多文件项目用 `addTsxProject`：所有 `.tsx` 一起编译，每个文件生成同名的 `.zig`，放在同一个输出目录里，
+文件之间的 `import { NoteCard, type Note } from "./NoteCard"` 变成 `const _NoteCard = @import("NoteCard.zig");`。
+入口文件导出根组件，其他文件只导出子组件和类型。
+
+```zig
+const notes = addTsxProject(b, tsx_tool, &.{
+    b.path("examples/tsx/notes/App.tsx"),
+    b.path("examples/tsx/notes/NoteCard.tsx"),
+}, "App", zant_mod);
+exe.root_module.addImport("notes_tsx", notes);
+```
+
+命令行：`zant-tsx in.tsx out.zig`（单文件），`zant-tsx --out <目录> a.tsx b.tsx …`（项目）。
+
 ## 第一阶段支持的子集
 
 ### 文件结构
@@ -205,7 +219,8 @@ exe.root_module.addImport("counter_tsx", counter);
 - **列表渲染**：子节点里的 `{todos.map((t) => <TodoRow key={t.id} … />)}`；`key` 是字符串或数字。
 - **闭包**：事件处理函数可以读 render 里的局部变量和 `.map` 的参数（`onClick={() => remove(t.id)}`），
   捕获的值按值复制进帧内存。
-- **子组件**：同一文件里的其他函数组件，或 `import { TodoRow } from "./TodoRow"`。参数是一个 props 对象
+- **子组件**：同一文件里的其他函数组件，或从项目里另一个文件导入（`import { TodoRow, type Todo } from "./TodoRow"`，
+  被导入的组件和类型要 `export`；跨文件共享的嵌套对象类型和联合类型要写成具名的 `interface` / `type`）。参数是一个 props 对象
   （`function TodoRow(props: Props)` 或解构 `function TodoRow({ todo, onToggle }: Props)`），回调属性的类型写成
   函数类型（`onToggle: (id: number) => void`）。子组件没有自己的状态（第三阶段），由父组件传值和回调。
 - **主题**：`const theme = useTheme();`，`theme.colorPrimary`、`theme.colorText`、`theme.colorBgContainer` …
@@ -222,7 +237,8 @@ exe.root_module.addImport("counter_tsx", counter);
 对 `todos_manual.zig`，React 式不可变更新对原地修改）添加 0.89 / 0.88 ms、勾选 1.55 / 1.55 ms、筛选 3.3 / 3.4 ms；
 1 万行 `<List>`（`list_bench.tsx` 对 `list_manual.zig`）滚动 0.41 / 0.41 ms、点击 0.37 / 0.38 ms。
 
-示例：`zig build run-tsx`（计数器）、`run-tsx-gallery`（组件展示）、`run-tsx-todos`（待办）。
+示例：`zig build run-tsx`（计数器）、`run-tsx-gallery`（组件展示）、`run-tsx-todos`（待办）、
+`run-tsx-notes`（两个文件的便签：`examples/tsx/notes/`）。
 
 ## 后续阶段
 
