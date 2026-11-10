@@ -54,9 +54,9 @@
 
 | # | 内容 | 负责 | 状态 |
 |---|---|---|---|
-| D1 | `zant create` 选择语言（Zig / TS + TSX），TS 模板 | Codex | ⬜ |
-| D2 | `zant run` / `compile` / `build` / `run --watch` 支持 TS 项目 | Codex | ⬜ |
-| D3 | 编辑器：从标签表生成 `zant.d.ts`，模板带 `tsconfig.json` | Codex | ⬜ |
+| D1 | `zant create` 选择语言（Zig / TS + TSX），TS 模板 | Codex | ✅ |
+| D2 | `zant run` / `compile` / `build` / `run --watch` 支持 TS 项目 | Codex | ✅ |
+| D3 | 编辑器：从标签表生成 `zant.d.ts`，模板带 `tsconfig.json` | Codex | ✅ |
 
 ## E. ClipHop TS + TSX 版
 

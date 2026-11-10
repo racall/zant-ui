@@ -1,0 +1,7 @@
+zig-out*/
+.zig-cache/
+.zant/
+# Generated from app.config.json by zant sync/run/compile/package/build.
+src/app_config.zig
+Info.plist
+app.entitlements

@@ -424,6 +424,23 @@ pub fn build(b: *std.Build) void {
     const check_tags = b.addRunArtifact(tsx_tags_tool);
     check_tags.addArgs(&.{ "--check", ui_tags_path });
 
+    const tsx_dts_tool = b.addExecutable(.{
+        .name = "zant-tsx-dts",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tools/tsx/dts.zig"),
+            .target = b.graph.host,
+            .optimize = optimize,
+        }),
+    });
+    // `zant create` copies it into TS projects
+    const dts_paths = &.{b.fmt("{s}/tools/tsx/zant.d.ts", .{b.root.root_dir.path orelse "."})};
+    const write_dts = b.addRunArtifact(tsx_dts_tool);
+    write_dts.addArgs(dts_paths);
+    b.step("tsx-dts", "Regenerate the TSX editor declarations").dependOn(&write_dts.step);
+    const check_dts = b.addRunArtifact(tsx_dts_tool);
+    check_dts.addArg("--check");
+    check_dts.addArgs(dts_paths);
+
     const demo = b.addExecutable(.{
         .name = "zant-demo",
         .root_module = b.createModule(.{
@@ -746,6 +763,7 @@ pub fn build(b: *std.Build) void {
     tsx_tags_step.dependOn(&check_tags.step);
     test_step.dependOn(&tsx_tags_tests.step);
     test_step.dependOn(&check_tags.step);
+    test_step.dependOn(&check_dts.step);
 
     const tsx_e2e_mod = b.createModule(.{
         .root_source_file = b.path("tests/tsx_all.zig"),

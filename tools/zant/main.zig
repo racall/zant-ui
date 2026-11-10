@@ -1,4 +1,7 @@
 const std = @import("std");
+const project = @import("project.zig");
+const scaffold = @import("scaffold.zig");
+const sources = @import("sources.zig");
 const build_options = @import("build_options");
 const Io = std.Io;
 const Dir = Io.Dir;
@@ -899,9 +902,14 @@ pub fn pathExists(io: Io, path: []const u8) bool {
 }
 
 fn cmdCreate(allocator: std.mem.Allocator, io: Io, args: []const [:0]const u8) !void {
-    if (args.len < 3) fail("用法: zant create <项目名> [--yes] [--title ...] [--style ...] [--bundle-id ...] [--sandbox true|false] [--sign ...]", .{});
+    if (args.len < 3) fail(
+        "用法: zant create <项目名> [--yes] [--lang zig|ts] [--title ...] " ++
+            "[--style ...] [--bundle-id ...] [--sandbox true|false] [--sign ...]",
+        .{},
+    );
     const name = args[2];
     var assume_yes = false;
+    var language_arg: ?project.Language = null;
     var title_arg: ?[]const u8 = null;
     var style_arg: ?[]const u8 = null;
     var bundle_arg: ?[]const u8 = null;
@@ -913,6 +921,9 @@ fn cmdCreate(allocator: std.mem.Allocator, io: Io, args: []const [:0]const u8) !
         if (std.mem.eql(u8, args[i], "--yes")) assume_yes = true else if (std.mem.eql(u8, args[i], "--force")) force = true else if (std.mem.eql(u8, args[i], "--title") and i + 1 < args.len) {
             i += 1;
             title_arg = args[i];
+        } else if (std.mem.eql(u8, args[i], "--lang") and i + 1 < args.len) {
+            i += 1;
+            language_arg = project.Language.parse(args[i]) orelse fail("语言必须是 zig 或 ts", .{});
         } else if (std.mem.eql(u8, args[i], "--style") and i + 1 < args.len) {
             i += 1;
             style_arg = args[i];
@@ -944,6 +955,7 @@ fn cmdCreate(allocator: std.mem.Allocator, io: Io, args: []const [:0]const u8) !
     const default_bundle = try std.fmt.allocPrint(allocator, "dev.zant.{s}", .{slug});
     defer allocator.free(default_bundle);
 
+    var language = language_arg orelse .zig;
     var title: []const u8 = title_arg orelse default_title;
     var style: []const u8 = style_arg orelse "native";
     // app identifier (bundle_id): the macOS bundle id and the Windows data
@@ -953,6 +965,20 @@ fn cmdCreate(allocator: std.mem.Allocator, io: Io, args: []const [:0]const u8) !
 
     if (!assume_yes) {
         std.debug.print("\nZant UI 项目生成器\n\n", .{});
+        if (language_arg == null) {
+            std.debug.print("语言：\n  1) Zig\n  2) TypeScript + TSX\n", .{});
+            while (true) {
+                const value = try prompt(allocator, "选择", "1");
+                var choice: []const u8 = value;
+                if (std.mem.eql(u8, value, "1")) choice = "zig";
+                if (std.mem.eql(u8, value, "2")) choice = "ts";
+                if (project.Language.parse(choice)) |chosen| {
+                    language = chosen;
+                    break;
+                }
+                std.debug.print("请输入 1（Zig）或 2（TypeScript + TSX）\n", .{});
+            }
+        }
         if (title_arg == null) {
             const value = try prompt(allocator, "应用标题", title);
             title = value;
@@ -993,111 +1019,19 @@ fn cmdCreate(allocator: std.mem.Allocator, io: Io, args: []const [:0]const u8) !
 
     step("写入模板、配置和自定义组件", .{});
     const zroot = zant_root;
-    const build_zig = try readFile(allocator, io, try std.fs.path.join(allocator, &.{ zroot, "scaffold/template/build.zig" }));
-    defer allocator.free(build_zig);
-    const build_zon = try readFile(allocator, io, try std.fs.path.join(allocator, &.{ zroot, "scaffold/template/build.zig.zon" }));
-    defer allocator.free(build_zon);
-    const main_zig = try readFile(allocator, io, try std.fs.path.join(allocator, &.{ zroot, "scaffold/template/src/main.zig" }));
-    defer allocator.free(main_zig);
-    const state_zig = try readFile(allocator, io, try std.fs.path.join(allocator, &.{ zroot, "scaffold/template/src/state.zig" }));
-    defer allocator.free(state_zig);
-    const stat_card = try readFile(allocator, io, try std.fs.path.join(allocator, &.{ zroot, "scaffold/template/src/components/stat_card.zig" }));
-    defer allocator.free(stat_card);
-    const counter_card = try readFile(allocator, io, try std.fs.path.join(allocator, &.{ zroot, "scaffold/template/src/components/counter_card.zig" }));
-    defer allocator.free(counter_card);
-    const dashboard = try readFile(allocator, io, try std.fs.path.join(allocator, &.{ zroot, "scaffold/template/src/components/dashboard.zig" }));
-    defer allocator.free(dashboard);
-    const readme = try readFile(allocator, io, try std.fs.path.join(allocator, &.{ zroot, "scaffold/template/README.md" }));
-    defer allocator.free(readme);
-    const agents = try readFile(allocator, io, try std.fs.path.join(allocator, &.{ zroot, "scaffold/template/AGENTS.md" }));
-    defer allocator.free(agents);
-    const claude = try readFile(allocator, io, try std.fs.path.join(allocator, &.{ zroot, "scaffold/template/CLAUDE.md" }));
-    defer allocator.free(claude);
-    const design = try readFile(allocator, io, try std.fs.path.join(allocator, &.{ zroot, "scaffold/template/DESIGN.md" }));
-    defer allocator.free(design);
-
     const zant_rel = try zantDependencyPath(allocator, io, cwd, target, zroot);
     defer allocator.free(zant_rel);
-    // a Zig string literal in build.zig.zon: "\\" would be an escape
     std.mem.replaceScalar(u8, zant_rel, '\\', '/');
-    const fingerprint = (@as(u64, std.hash.Crc32.hash(zig_name)) << 32) | 0x9e3779b9;
-    const zon_path = try std.fs.path.join(allocator, &.{ target, "build.zig.zon" });
-    defer allocator.free(zon_path);
-    const zon_text = try std.fmt.allocPrint(allocator, "{s}", .{build_zon});
-    defer allocator.free(zon_text);
-    var zon_owned = try allocator.dupe(u8, zon_text);
-    defer allocator.free(zon_owned);
-    zon_owned = try replace(allocator, zon_owned, "__APP_NAME_SNAKE__", zig_name);
-    zon_owned = try replace(allocator, zon_owned, "__APP_FINGERPRINT__", try std.fmt.allocPrint(allocator, "0x{x:0>16}", .{fingerprint}));
-    zon_owned = try replace(allocator, zon_owned, "__ZANT_PATH__", zant_rel);
-    try writeFile(allocator, io, zon_path, zon_owned);
-
-    const build_path = try std.fs.path.join(allocator, &.{ target, "build.zig" });
-    defer allocator.free(build_path);
-    try writeFile(allocator, io, build_path, build_zig);
-    const main_path = try std.fs.path.join(allocator, &.{ target, "src", "main.zig" });
-    defer allocator.free(main_path);
-    const top_padding = if (std.mem.eql(u8, style, "hidden-titlebar")) "56" else "24";
-    const main_text = try replace(allocator, try allocator.dupe(u8, main_zig), "__TOP_PADDING__", top_padding);
-    try writeFile(allocator, io, main_path, main_text);
-    const state_path = try std.fs.path.join(allocator, &.{ target, "src", "state.zig" });
-    defer allocator.free(state_path);
-    try writeFile(allocator, io, state_path, state_zig);
-    const stat_path = try std.fs.path.join(allocator, &.{ target, "src", "components", "stat_card.zig" });
-    defer allocator.free(stat_path);
-    try writeFile(allocator, io, stat_path, stat_card);
-    const counter_path = try std.fs.path.join(allocator, &.{ target, "src", "components", "counter_card.zig" });
-    defer allocator.free(counter_path);
-    try writeFile(allocator, io, counter_path, counter_card);
-    const dashboard_path = try std.fs.path.join(allocator, &.{ target, "src", "components", "dashboard.zig" });
-    defer allocator.free(dashboard_path);
-    try writeFile(allocator, io, dashboard_path, dashboard);
-    var agents_text = try allocator.dupe(u8, agents);
-    agents_text = try replace(allocator, agents_text, "__APP_TITLE__", title);
-    agents_text = try replace(allocator, agents_text, "__BUNDLE_ID__", bundle);
-    const agents_path = try std.fs.path.join(allocator, &.{ target, "AGENTS.md" });
-    defer allocator.free(agents_path);
-    try writeFile(allocator, io, agents_path, agents_text);
-    var claude_text = try allocator.dupe(u8, claude);
-    claude_text = try replace(allocator, claude_text, "__APP_TITLE__", title);
-    claude_text = try replace(allocator, claude_text, "__BUNDLE_ID__", bundle);
-    const claude_path = try std.fs.path.join(allocator, &.{ target, "CLAUDE.md" });
-    defer allocator.free(claude_path);
-    try writeFile(allocator, io, claude_path, claude_text);
-    try writeFile(allocator, io, try std.fs.path.join(allocator, &.{ target, ".gitignore" }),
-        \\# build output and caches
-        \\zig-out*/
-        \\.zig-cache/
-        \\# Zant UI link for projects on another drive (Windows)
-        \\.zant/
-        \\# generated by `zant` on macOS from app.config.json
-        \\Info.plist
-        \\app.entitlements
-        \\
-    );
-    // default icons (both platforms' guidelines); replace the PNGs, the SVGs are editable sources
-    try Dir.cwd().createDirPath(io, try std.fs.path.join(allocator, &.{ target, "assets", "icons" }));
-    for ([_][]const u8{ "app-macos", "app-windows", "tray-dark", "tray-light", "statusbar" }) |icon| {
-        for ([_][]const u8{ ".png", ".svg" }) |ext| {
-            const file = try std.mem.concat(allocator, u8, &.{ icon, ext });
-            const data = try readFile(allocator, io, try std.fs.path.join(allocator, &.{ zroot, "scaffold/template/assets/icons", file }));
-            try writeFile(allocator, io, try std.fs.path.join(allocator, &.{ target, "assets", "icons", file }), data);
-        }
-    }
-    // UI/UX design guide (highest-priority rules for AI agents)
-    const design_path = try std.fs.path.join(allocator, &.{ target, "DESIGN.md" });
-    defer allocator.free(design_path);
-    try writeFile(allocator, io, design_path, design);
-
-    const readme_text = try std.fmt.allocPrint(allocator, "{s}", .{readme});
-    defer allocator.free(readme_text);
-    var readme_owned = try allocator.dupe(u8, readme_text);
-    defer allocator.free(readme_owned);
-    readme_owned = try replace(allocator, readme_owned, "__APP_TITLE__", title);
-    readme_owned = try replace(allocator, readme_owned, "__BUNDLE_ID__", bundle);
-    const readme_path = try std.fs.path.join(allocator, &.{ target, "README.md" });
-    defer allocator.free(readme_path);
-    try writeFile(allocator, io, readme_path, readme_owned);
+    try scaffold.write(allocator, io, .{
+        .framework = zroot,
+        .target = target,
+        .language = language,
+        .title = title,
+        .bundle = bundle,
+        .zig_name = zig_name,
+        .dependency = zant_rel,
+        .hidden_titlebar = std.mem.eql(u8, style, "hidden-titlebar"),
+    });
 
     // optional macOS section when --sandbox / --sign were given
     const macos_section = if (sandbox_arg != null or sign_arg != null)
@@ -1274,45 +1208,6 @@ fn buildOnce(allocator: std.mem.Allocator, io: Io, root: []const u8, release: bo
     return term.success();
 }
 
-fn hashFileStamp(hash: *std.hash.Wyhash, io: Io, path: []const u8) void {
-    const st = Dir.cwd().statFile(io, path, .{}) catch return;
-    hash.update(path);
-    hash.update(std.mem.asBytes(&st.mtime.nanoseconds));
-    hash.update(std.mem.asBytes(&st.size));
-}
-
-fn hashTree(allocator: std.mem.Allocator, io: Io, hash: *std.hash.Wyhash, dir_path: []const u8, depth: usize) void {
-    if (depth > 8) return;
-    var dir = Dir.cwd().openDir(io, dir_path, .{ .iterate = true }) catch return;
-    defer dir.close(io);
-    var it = dir.iterate();
-    while (it.next(io) catch null) |entry| {
-        const path = std.fs.path.join(allocator, &.{ dir_path, entry.name }) catch continue;
-        defer allocator.free(path);
-        switch (entry.kind) {
-            .directory => hashTree(allocator, io, hash, path, depth + 1),
-            .file => if (std.mem.endsWith(u8, entry.name, ".zig")) hashFileStamp(hash, io, path),
-            else => {},
-        }
-    }
-}
-
-/// Fingerprint of everything that affects the app build: the config files
-/// and every `.zig` file under `src/` (any depth).
-fn sourceStamp(allocator: std.mem.Allocator, io: Io, root: []const u8) !u64 {
-    var hash = std.hash.Wyhash.init(0);
-    const files = [_][]const u8{ "app.config.json", "build.zig", "build.zig.zon" };
-    for (files) |rel| {
-        const path = try std.fs.path.join(allocator, &.{ root, rel });
-        defer allocator.free(path);
-        hashFileStamp(&hash, io, path);
-    }
-    const src = try std.fs.path.join(allocator, &.{ root, "src" });
-    defer allocator.free(src);
-    hashTree(allocator, io, &hash, src, 0);
-    return hash.final();
-}
-
 /// Harmless macOS framework log lines (InputMethodKit / Text Services
 /// Manager) that unbundled apps launched from a terminal print when an input
 /// method attaches. They do not affect input; `zant run` hides them unless
@@ -1359,7 +1254,7 @@ fn cmdWatch(allocator: std.mem.Allocator, io: Io, release: bool) !void {
     if (!try buildOnce(allocator, io, root, release)) fail("编译失败", .{});
     ok("编译完成", .{});
 
-    var last = try sourceStamp(allocator, io, root);
+    var last = try sources.stamp(allocator, io, root);
     const exe_path = try appExePath(allocator, root);
     defer allocator.free(exe_path);
     var child = try spawnApp(io, exe_path, root);
@@ -1367,7 +1262,7 @@ fn cmdWatch(allocator: std.mem.Allocator, io: Io, release: bool) !void {
 
     while (true) {
         std.Io.sleep(io, .fromMilliseconds(400), .awake) catch {};
-        const now = try sourceStamp(allocator, io, root);
+        const now = try sources.stamp(allocator, io, root);
         if (now == last) continue;
         last = now;
         std.debug.print("\n检测到改动，重新编译...\n", .{});
@@ -1609,7 +1504,7 @@ pub fn main(init: std.process.Init) !void {
     if (args.len < 2) {
         std.debug.print(
             \\用法: zant <命令>
-            \\  create <项目名>       生成项目
+            \\  create <项目名>       生成项目（--lang zig|ts，默认 Zig）
             \\  run [--watch]         编译并运行（--watch 热更新）
             \\  compile [--release]   只编译
             \\  package               生成本机测试用的 .app / 程序目录
@@ -1648,4 +1543,6 @@ pub fn main(init: std.process.Init) !void {
 
 test {
     _ = distribute;
+    _ = project;
+    _ = sources;
 }

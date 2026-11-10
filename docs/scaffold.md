@@ -39,9 +39,10 @@ zant create my-app
 
 会询问（都是两端通用的）：
 
-1. 应用标题
-2. 窗口风格：原生标题栏 / 隐藏标题栏 / 无边框
-3. 应用标识（反向域名，如 `com.xx.test`）：macOS 的 Bundle ID，也是 Windows 上
+1. 语言：Zig / TypeScript + TSX（默认 Zig）
+2. 应用标题
+3. 窗口风格：原生标题栏 / 隐藏标题栏 / 无边框
+4. 应用标识（反向域名，如 `com.xx.test`）：macOS 的 Bundle ID，也是 Windows 上
    `zant.paths.appDataDir` 的数据目录名（`%APPDATA%\<id>`）
 
 应用标识同时符合苹果与微软的规范，不合规就不能创建项目：
@@ -76,6 +77,18 @@ Windows 的命令行窗口（包括代码页 936 的中文系统）中文显示�
 ```
 
 `--sandbox`、`--sign` 可选：给出时直接写入 `macos` 段。
+
+语言也可以用 `--lang zig|ts` 指定；`--yes` 不指定时仍生成 Zig 项目：
+
+```bash
+zant create my-ts-app --lang ts --yes
+```
+
+TS 项目使用 `src/App.tsx` 的默认导出作为根组件，`src/components/*.tsx` 放业务组件；不需要手写
+`src/main.zig`。`build.zig` 使用 `addTsxApp` 和 `configureApp`，TSX 在编译期转成原生 Zig。
+两种模板共用默认图标和窗口配置，`zant sync` 都会生成 `src/app_config.zig`，TS 模板已忽略该生成文件。
+TS 模板还带 `zant.d.ts` / `tsconfig.json`，为 `import … from "zant"` 提供补全和严格类型检查，
+不需要 npm 或 React。详见 [TSX：新建 TS 项目与编辑器类型](tsx.md#新建-ts-项目)。
 
 ## 运行
 
@@ -112,9 +125,11 @@ zant run --watch
 
 监听：
 
-- `src/` 下所有 `.zig`（任意深度）
+- `src/` 下所有 `.zig`、`.tsx`（任意深度）
 - `app.config.json`
 - `build.zig`、`build.zig.zon`
+
+TSX 编译错误会直接显示原始文件、行、列，不被应用的 macOS 日志过滤器隐藏。
 
 文件变化后自动重新编译并重启应用。当前是**重启式热更新**：
 

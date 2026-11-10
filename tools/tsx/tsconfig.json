@@ -1,0 +1,7 @@
+{
+  "extends": "../../scaffold/template-ts/tsconfig.json",
+  "compilerOptions": {
+    "paths": { "zant": ["./zant.d.ts"] }
+  },
+  "include": ["zant.d.ts", "dts_test.tsx", "../../examples/tsx/app/**/*.tsx"]
+}
