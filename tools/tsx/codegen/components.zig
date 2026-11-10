@@ -389,6 +389,8 @@ fn fieldList(g: *Generator, comp: *const Component) Error![]const u8 {
 /// list for `ReactNode[]` (elements, `{cond && <X/>}` and arrays such as
 /// `{todos.map(...)}` mixed).
 fn childrenValue(g: *Generator, c: *Context, j: *ast.Jsx, comp: *const Component) Error!?[]const u8 {
+    const declared = if (comp.props) |p| fieldType(g, p, "children") else null;
+    if (declared) |ty| if ((model.optionalChild(g, ty) orelse ty) == .string) return textChildren(g, c, j, comp);
     const Part = struct { code: []const u8, ty: Type };
     var parts: std.ArrayList(Part) = .empty;
     for (j.children) |child| switch (child) {
@@ -435,6 +437,29 @@ fn childrenValue(g: *Generator, c: *Context, j: *ast.Jsx, comp: *const Component
         try zig_text.fmt(g, "tsx.concat(ui.Node, &.{{ {s} }})", .{joined})
     else
         try zig_text.fmt(g, "tsx.nodes(&.{{ {s} }})", .{joined});
+}
+
+/// `children: string`: `<Badge>new {count}</Badge>` passes its text.
+fn textChildren(g: *Generator, c: *Context, j: *ast.Jsx, comp: *const Component) Error!?[]const u8 {
+    var f = zig_text.Format{ .g = g };
+    var any = false;
+    for (j.children) |child| switch (child) {
+        .text => |t| {
+            try f.text(t.value);
+            any = true;
+        },
+        .expr => |x| if (x) |e| {
+            try f.expression(c, try @import("nesting.zig").textExpression(g, e));
+            any = true;
+        },
+        .element => |el| return core.fail(
+            g,
+            el.loc,
+            "<{s}> can't be inside <{s}>; its children are text (`children: string`)",
+            .{ if (el.name.len == 0) "a fragment" else el.name, comp.name },
+        ),
+    };
+    return if (any) try f.finish(false) else null;
 }
 
 fn propValue(g: *Generator, c: *Context, ty: Type, value: *ast.Expr) Error![]const u8 {

@@ -261,6 +261,8 @@ exe.root_module.addImport("notes_tsx", notes);
   给它一个高度有限的普通容器。
 - 同一层的字面量 `key` 不能重复；`.map` 和 `<List>` 行里的**有状态子组件必须有 `key`**，否则它们的状态会混在一起。
   子组件的 `key` 会覆盖它根元素上的 `key`（和 React 一样，`key` 属于组件实例）。
+- 子组件的 `children` 类型决定能放什么：`ReactNode` 一个元素，`ReactNode[]` 任意元素，`string` 文字和 `{值}`
+  （`<Badge>new {count}</Badge>`）。
 - 整数属性（`page`、`maxLines` …）也接受 TS 的 `number`：向零取整，并钳到字段的取值范围。
 
 ### 性能

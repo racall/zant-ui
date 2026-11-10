@@ -6,6 +6,7 @@ const compile = @import("../compile.zig");
 
 const App = "export default function App() {\n  const items = [1, 2];\n  return (";
 const End = ");\n}";
+const Badge = "function Badge({ children }: { children: string }) { return <Tag>{children}</Tag>; }\n";
 const Counter = "function Counter() { const [n, setN] = useState(0); return <Text>{n}</Text>; }\n";
 
 test "misplaced elements and children" {
@@ -26,6 +27,7 @@ test "misplaced elements and children" {
         },
         .{ App ++ "<Heading level={2}>a ~<Text>b</Text></Heading>" ++ End, "use <Text> for spans" },
         .{ App ++ "<Input>~<Text>x</Text></Input>" ++ End, "<Input> has no children" },
+        .{ Badge ++ App ++ "<Badge>~<View /></Badge>" ++ End, "its children are text (`children: string`)" },
         .{ App ++ "<Text ~maxLines={2}>a <Text>b</Text></Text>" ++ End, "`maxLines` can't be used on text with spans" },
         .{ App ++ "<Text>a <Link ~href=\"x\">b</Link></Text>" ++ End, "an inline <Link> takes onClick only" },
         .{ App ++ "<Text>a <Text ~textAlign=\"center\">b</Text></Text>" ++ End, "can't be used on text with spans" },
@@ -69,6 +71,7 @@ test "allowed nestings compile" {
         Counter ++ App ++ "<View>{items.map((n) => <Counter key={n} />)}</View>" ++ End,
         App ++ "<Text>{items.length > 1 && \"many\"}</Text>" ++ End,
         App ++ "<View><Text key=\"a\">1</Text><View><Text key=\"a\">2</Text></View></View>" ++ End,
+        Badge ++ App ++ "<Row><Badge>new {items.length}</Badge><Badge>{items.length > 1 && \"hot\"}</Badge></Row>" ++ End,
     };
     for (sources) |src| {
         var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
