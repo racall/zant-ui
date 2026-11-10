@@ -1,9 +1,12 @@
 //! Child components (docs/tsx.md, "子组件"): functions other than the default
 //! export, called as tags. Each becomes a struct whose `props` field plays the
-//! part state plays in the root component, plus a builder function:
+//! part state plays in the root component, with its builder inside:
 //!
-//!     pub const TodoRow = struct { props: Props, pub const Props = RowProps; ... };
-//!     pub fn todoRow(props: TodoRow.Props) ui.Node { ... }
+//!     pub const TodoRow = struct {
+//!         props: Props,
+//!         pub const Props = RowProps;
+//!         pub fn build(props: Props) ui.Node { ... }   // called as `TodoRow.build(.{ … })`
+//!     };
 //!
 //! The struct lives in the frame arena (`tsx.capture`), so handlers inside the
 //! child keep working until the next frame, like every other callback.
@@ -152,17 +155,11 @@ pub fn collect(g: *Generator, module: ast.Module, root: ?*ast.Function) Error!vo
         for (g.components.items) |other| if (zig_text.eq(other.name, comp.name)) {
             return core.fail(g, f.loc, "duplicate component `{s}`", .{comp.name});
         };
-        if (@import("functions.zig").find(g, comp.builder) != null) return core.fail(
-            g,
-            f.loc,
-            "<{s}> compiles to the function `{s}`, which is also a function of this file; rename one",
-            .{ comp.name, comp.builder },
-        );
         try g.components.append(g.a, comp);
     }
 }
 
-/// `TodoRow` → `todoRow`.
+/// `TodoRow` → `TodoRow.build` (the builder inside the component's struct).
 pub fn builderName(g: *Generator, name: []const u8) Error![]const u8 {
     if (name.len == 0 or !std.ascii.isUpper(name[0])) return core.fail(
         g,
@@ -170,9 +167,7 @@ pub fn builderName(g: *Generator, name: []const u8) Error![]const u8 {
         "component `{s}` must start with a capital letter",
         .{name},
     );
-    const out = try g.a.dupe(u8, name);
-    out[0] = std.ascii.toLower(out[0]);
-    return out;
+    return zig_text.fmt(g, "{s}.build", .{try zig_text.id(g, name)});
 }
 
 pub fn find(g: *Generator, name: []const u8) ?*Component {
@@ -367,7 +362,7 @@ pub fn emitCall(g: *Generator, c: *Context, j: *ast.Jsx, comp: *const Component)
             if (zig_text.eq(n, f.name)) break;
         } else return core.fail(g, j.loc, "<{s}> needs the prop `{s}`", .{ comp.name, f.name });
     }
-    const builder = if (comp.external) comp.builder else try zig_text.id(g, comp.builder);
+    const builder = comp.builder;
     if (comp.stateful and raw_key == null and g.loop_depth > 0) return core.fail(
         g,
         j.loc,

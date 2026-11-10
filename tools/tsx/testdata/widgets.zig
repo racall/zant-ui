@@ -28,11 +28,11 @@ pub const Reply = struct {
             .source = self.props.source,
         });
     }
-};
 
-pub fn reply(props: Reply.Props, id: u64) ui.Node {
-    return tsx.capture(Reply{ .props = props, ._id = id }).render();
-}
+    pub fn build(props: Props, id: u64) ui.Node {
+        return tsx.capture(Reply{ .props = props, ._id = id }).render();
+    }
+};
 
 pub const Document = struct {
     props: Props,
@@ -50,11 +50,11 @@ pub const Document = struct {
             .height = 240,
         });
     }
-};
 
-pub fn document(props: Document.Props, id: u64) ui.Node {
-    return tsx.capture(Document{ .props = props, ._id = id }).render();
-}
+    pub fn build(props: Props, id: u64) ui.Node {
+        return tsx.capture(Document{ .props = props, ._id = id }).render();
+    }
+};
 
 pub const App = struct {
     source: tsx.String = .{ .initial = "# Title\n\nFirst paragraph.\n\nSecond **bo" },
@@ -75,10 +75,10 @@ pub const App = struct {
                     .height = 80,
                     .on_change = ui.action(self, App._onChange1),
                 }),
-                if (self.visible) ui.withKey(reply(.{
+                if (self.visible) ui.withKey(Reply.build(.{
                     .source = self.source.get(),
                 }, tsx.childId(0, "Reply", "answer")), "answer") else null,
-                if (self.visible) ui.withKey(document(.{
+                if (self.visible) ui.withKey(Document.build(.{
                     .src = self.path.get(),
                     .onChange = ui.action(self, App._onChange2),
                 }, tsx.childId(0, "Document", "file")), "file") else null,

@@ -154,7 +154,8 @@ pub fn collect(g: *Generator, f: *ast.Function) Error!void {
 }
 
 pub fn collectMethod(g: *Generator, n: []const u8, f: *ast.Function) Error!void {
-    const reserved = zig_text.eq(n, "render") or zig_text.eq(n, "self") or zig_text.eq(n, g.name);
+    const reserved = zig_text.eq(n, "render") or zig_text.eq(n, "build") or zig_text.eq(n, "self") or
+        zig_text.eq(n, g.name);
     if (scope.methodIndex(g, n) != null or scope.stateIndex(g, n) != null or reserved) {
         return core.fail(g, f.loc, "duplicate or reserved method name `{s}`; rename it", .{n});
     }
@@ -458,8 +459,8 @@ fn emitComponent(g: *Generator, f: *ast.Function, comp: ?*components.Component) 
         try out.appendSlice(arena, "\n");
         try out.appendSlice(arena, code);
     }
-    try out.appendSlice(arena, "};\n");
     if (comp) |child| try out.appendSlice(arena, try builderFunction(g, child, name, fields.len > 0));
+    try out.appendSlice(arena, "};\n");
     return out.items;
 }
 
@@ -487,20 +488,20 @@ fn stateFields(g: *Generator) Error![]const u8 {
     return out.items;
 }
 
-/// `pub fn todoRow(props: TodoRow.Props[, id: u64]) ui.Node`.
+/// `pub fn build(props: Props[, id: u64]) ui.Node` inside the component's
+/// struct (`TodoRow.build(…)`): no file-level name to clash with.
 fn builderFunction(g: *Generator, child: *const components.Component, name: []const u8, local: bool) Error![]const u8 {
-    const builder = try zig_text.id(g, child.builder);
     if (!child.stateful) return zig_text.fmt(
         g,
-        "\npub fn {s}(props: {s}.Props) ui.Node {{\nreturn tsx.capture({s}{{ .props = props }}).render();\n}}\n",
-        .{ builder, name, name },
+        "\npub fn build(props: Props) ui.Node {{\nreturn tsx.capture({s}{{ .props = props }}).render();\n}}\n",
+        .{name},
     );
-    const slot = if (local) try zig_text.fmt(g, ", ._s = ui.localState({s}._Local, id, .{{}})", .{name}) else "";
+    const slot = if (local) ", ._s = ui.localState(_Local, id, .{})" else "";
     return zig_text.fmt(
         g,
-        "\npub fn {s}(props: {s}.Props, id: u64) ui.Node {{\n" ++
+        "\npub fn build(props: Props, id: u64) ui.Node {{\n" ++
             "return tsx.capture({s}{{ .props = props, ._id = id{s} }}).render();\n}}\n",
-        .{ builder, name, name, slot },
+        .{ name, slot },
     );
 }
 

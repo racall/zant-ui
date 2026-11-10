@@ -207,11 +207,11 @@ test "a project resolves components and types across files" {
     const files = result.ok;
     // Row.zig declares its types and the component, App.zig imports them
     try std.testing.expect(std.mem.indexOf(u8, files[0], "pub const Todo = struct") != null);
-    try std.testing.expect(std.mem.indexOf(u8, files[0], "pub fn row(props: Row.Props) ui.Node") != null);
+    try std.testing.expect(std.mem.indexOf(u8, files[0], "pub fn build(props: Props) ui.Node") != null);
     try std.testing.expect(std.mem.indexOf(u8, files[1], "const _Row = @import(\"Row.zig\");") != null);
     try std.testing.expect(std.mem.indexOf(u8, files[1], "pub const Todo = struct") == null);
     try std.testing.expect(std.mem.indexOf(u8, files[1], "tsx.State(_Row.Todo)") != null);
-    try std.testing.expect(std.mem.indexOf(u8, files[1], "_Row.row(.{") != null);
+    try std.testing.expect(std.mem.indexOf(u8, files[1], "_Row.Row.build(.{") != null);
 }
 
 test "imports name exported things of project files" {

@@ -66,11 +66,11 @@ pub const Stats = struct {
     fn _effect1(self: *Stats) void {
         self._s.renders = self._s.renders + 1;
     }
-};
 
-pub fn stats(props: Stats.Props, id: u64) ui.Node {
-    return tsx.capture(Stats{ .props = props, ._id = id, ._s = ui.localState(Stats._Local, id, .{}) }).render();
-}
+    pub fn build(props: Props, id: u64) ui.Node {
+        return tsx.capture(Stats{ .props = props, ._id = id, ._s = ui.localState(_Local, id, .{}) }).render();
+    }
+};
 
 pub const Ticker = struct {
     props: Props,
@@ -116,11 +116,11 @@ pub const Ticker = struct {
         }), Ticker._cleanup3, true);
         return;
     }
-};
 
-pub fn ticker(props: Ticker.Props, id: u64) ui.Node {
-    return tsx.capture(Ticker{ .props = props, ._id = id, ._s = ui.localState(Ticker._Local, id, .{}) }).render();
-}
+    pub fn build(props: Props, id: u64) ui.Node {
+        return tsx.capture(Ticker{ .props = props, ._id = id, ._s = ui.localState(_Local, id, .{}) }).render();
+    }
+};
 
 pub const App = struct {
     items: tsx.State([]const Item) = .{ .initial = &[_]Item{} },
@@ -197,10 +197,10 @@ pub const App = struct {
                 ui.text(tsx.fmt("{d} shown{s}", .{ visible.len, if (self.loaded) "" else " (loading)" }), .{
                     .key = "visible",
                 }),
-                stats(.{
+                Stats.build(.{
                     .items = self.items.get(),
                 }, tsx.siteId(0, "Stats", 1)),
-                if (self.ticking) ticker(.{
+                if (self.ticking) Ticker.build(.{
                     .label = "tick",
                 }, tsx.siteId(0, "Ticker", 2)) else null,
                 ui.button(.{

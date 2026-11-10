@@ -35,11 +35,11 @@ pub const Counter = struct {
         const n: f64 = self._s.n;
         self._s.n = n + 1;
     }
-};
 
-pub fn counter(props: Counter.Props, id: u64) ui.Node {
-    return tsx.capture(Counter{ .props = props, ._id = id, ._s = ui.localState(Counter._Local, id, .{}) }).render();
-}
+    pub fn build(props: Props, id: u64) ui.Node {
+        return tsx.capture(Counter{ .props = props, ._id = id, ._s = ui.localState(_Local, id, .{}) }).render();
+    }
+};
 
 pub const App = struct {
     open: bool = false,
@@ -129,7 +129,7 @@ pub const App = struct {
                     for (_items) |_item| {
                         _result[_count] = _callback: {
                             const name: []const u8 = _item;
-                            break :_callback ui.withKey(counter(.{
+                            break :_callback ui.withKey(Counter.build(.{
                                 .label = name,
                             }, tsx.childId(0, "Counter", name)), name);
                         };

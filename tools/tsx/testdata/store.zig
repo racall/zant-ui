@@ -41,11 +41,11 @@ pub const ThemeToggle = struct {
             .dark = on,
         });
     }
-};
 
-pub fn themeToggle(props: ThemeToggle.Props) ui.Node {
-    return tsx.capture(ThemeToggle{ .props = props }).render();
-}
+    pub fn build(props: Props) ui.Node {
+        return tsx.capture(ThemeToggle{ .props = props }).render();
+    }
+};
 
 pub const FontSize = struct {
     props: Props,
@@ -100,11 +100,11 @@ pub const FontSize = struct {
             .fontSize = settings.get().fontSize + 1,
         });
     }
-};
 
-pub fn fontSize(props: FontSize.Props) ui.Node {
-    return tsx.capture(FontSize{ .props = props }).render();
-}
+    pub fn build(props: Props) ui.Node {
+        return tsx.capture(FontSize{ .props = props }).render();
+    }
+};
 
 pub const App = struct {
     _deps6: tsx.Deps(struct {}) = .{},
@@ -126,8 +126,8 @@ pub const App = struct {
                 ui.text(tsx.fmt("{s}: {s}, {d}px, {d} recent", .{ s.user, if (s.dark) "dark" else "light", s.fontSize, s.recent.len }), .{
                     .key = "summary",
                 }),
-                themeToggle(.{}),
-                fontSize(.{}),
+                ThemeToggle.build(.{}),
+                FontSize.build(.{}),
                 ui.button(.{
                     .key = "remember",
                     .text = "Remember",

@@ -61,11 +61,11 @@ pub const Badge = struct {
             .key = "badge",
         });
     }
-};
 
-pub fn badge(props: Badge.Props) ui.Node {
-    return tsx.capture(Badge{ .props = props }).render();
-}
+    pub fn build(props: Props) ui.Node {
+        return tsx.capture(Badge{ .props = props }).render();
+    }
+};
 
 pub const App = struct {
     count: f64 = 0,
@@ -79,7 +79,7 @@ pub const App = struct {
                 ui.text(tsx.fmt("{s}, {d} digits, {s}", .{ label, digits(self.count * 100), size(self.count, null) }), .{
                     .key = "label",
                 }),
-                badge(.{
+                Badge.build(.{
                     .count = clamp(self.count, 0, 3),
                 }),
                 ui.button(.{

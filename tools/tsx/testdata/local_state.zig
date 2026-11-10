@@ -67,11 +67,11 @@ pub const Counter = struct {
     fn _setDraft(self: *Counter, value: []const u8) void {
         self._s.draft.set(value);
     }
-};
 
-pub fn counter(props: Counter.Props, id: u64) ui.Node {
-    return tsx.capture(Counter{ .props = props, ._id = id, ._s = ui.localState(Counter._Local, id, .{}) }).render();
-}
+    pub fn build(props: Props, id: u64) ui.Node {
+        return tsx.capture(Counter{ .props = props, ._id = id, ._s = ui.localState(_Local, id, .{}) }).render();
+    }
+};
 
 pub const Section = struct {
     props: Props,
@@ -83,20 +83,20 @@ pub const Section = struct {
         return ui.view(.{
             .gap = 4,
             .children = &.{
-                counter(.{
+                Counter.build(.{
                     .label = self.props.label,
                 }, tsx.siteId(self._id, "Counter", 1)),
-                counter(.{
+                Counter.build(.{
                     .label = tsx.fmt("{s} 2", .{self.props.label}),
                 }, tsx.siteId(self._id, "Counter", 2)),
             },
         });
     }
-};
 
-pub fn section(props: Section.Props, id: u64) ui.Node {
-    return tsx.capture(Section{ .props = props, ._id = id }).render();
-}
+    pub fn build(props: Props, id: u64) ui.Node {
+        return tsx.capture(Section{ .props = props, ._id = id }).render();
+    }
+};
 
 pub const Feed = struct {
     props: Props,
@@ -143,11 +143,11 @@ pub const Feed = struct {
         _ = self;
         return ui.text(tsx.fmt("{d}", .{n}), .{});
     }
-};
 
-pub fn feed(props: Feed.Props, id: u64) ui.Node {
-    return tsx.capture(Feed{ .props = props, ._id = id, ._s = ui.localState(Feed._Local, id, .{}) }).render();
-}
+    pub fn build(props: Props, id: u64) ui.Node {
+        return tsx.capture(Feed{ .props = props, ._id = id, ._s = ui.localState(_Local, id, .{}) }).render();
+    }
+};
 
 pub const Title = struct {
     props: Props,
@@ -157,11 +157,11 @@ pub const Title = struct {
     pub fn render(self: *Title) ui.Node {
         return ui.text(self.props.label, .{});
     }
-};
 
-pub fn title(props: Title.Props) ui.Node {
-    return tsx.capture(Title{ .props = props }).render();
-}
+    pub fn build(props: Props) ui.Node {
+        return tsx.capture(Title{ .props = props }).render();
+    }
+};
 
 pub const App = struct {
     ids: tsx.State([]const u32) = .{ .initial = &[_]u32{ 1, 2 } },
@@ -172,7 +172,7 @@ pub const App = struct {
             .padding = ui.inset(16),
             .gap = 8,
             .children = tsx.concat(ui.Node, &.{ &.{
-                title(.{
+                Title.build(.{
                     .label = "Counters",
                 }),
             }, _array: {
@@ -183,7 +183,7 @@ pub const App = struct {
                     for (_items) |_item| {
                         _result[_count] = _callback: {
                             const id: u32 = _item;
-                            break :_callback ui.withKey(counter(.{
+                            break :_callback ui.withKey(Counter.build(.{
                                 .label = tsx.fmt("#{d}", .{id}),
                             }, tsx.childId(0, "Counter", id)), tsx.fmt("{d}", .{id}));
                         };
@@ -192,11 +192,11 @@ pub const App = struct {
                     break :_loop _result;
                 };
             }, &.{
-                section(.{
+                Section.build(.{
                     .label = "Section",
                 }, tsx.siteId(0, "Section", 1)),
             }, &.{
-                feed(.{}, tsx.siteId(0, "Feed", 2)),
+                Feed.build(.{}, tsx.siteId(0, "Feed", 2)),
             }, &.{
                 ui.button(.{
                     .key = "drop",

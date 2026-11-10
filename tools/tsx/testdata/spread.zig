@@ -34,11 +34,11 @@ pub const Card = struct {
             .key = self.props.title,
         });
     }
-};
 
-pub fn card(props: Card.Props) ui.Node {
-    return tsx.capture(Card{ .props = props }).render();
-}
+    pub fn build(props: Props) ui.Node {
+        return tsx.capture(Card{ .props = props }).render();
+    }
+};
 
 pub const App = struct {
     n: f64 = 0,
@@ -48,7 +48,7 @@ pub const App = struct {
             .variant = .primary,
             .size = .small,
         };
-        const card_2: CardProps = CardProps{
+        const card: CardProps = CardProps{
             .title = "Clicks",
             .count = self.n,
         };
@@ -84,12 +84,12 @@ pub const App = struct {
                         }),
                     },
                 }),
-                card(.{
-                    .title = card_2.title,
-                    .count = card_2.count,
+                Card.build(.{
+                    .title = card.title,
+                    .count = card.count,
                 }),
-                card(.{
-                    .count = card_2.count,
+                Card.build(.{
+                    .count = card.count,
                     .title = "Override",
                 }),
             },

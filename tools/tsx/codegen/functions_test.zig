@@ -24,12 +24,18 @@ test "function diagnostics" {
             "function f(): void { const x = ~useState(0); }\n" ++ App,
             "hooks must be called at the top level of the component",
         },
-        .{
-            "function todoRow(): number { return 1; }\n~function TodoRow() { return <View/>; }\n" ++ App,
-            "<TodoRow> compiles to the function `todoRow`",
-        },
     };
     for (cases) |case| try expectDiagnostic(case[0], case[1]);
+}
+
+test "a function and a component may share a name up to case" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const src = "function todoRow(): number { return 1; }\nfunction TodoRow() { return <Text>{todoRow()}</Text>; }\n" ++
+        "export default function App() {\n  return <TodoRow/>;\n}\n";
+    const result = try compile.compile(arena.allocator(), src, "a.tsx");
+    try std.testing.expect(result == .ok);
+    try std.testing.expect(std.mem.indexOf(u8, result.ok, "TodoRow.build(.{})") != null);
 }
 
 test "functions are shared between files" {

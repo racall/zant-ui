@@ -39,11 +39,11 @@ pub const Sum = struct {
         }
         return total;
     }
-};
 
-pub fn sum(props: Sum.Props) ui.Node {
-    return tsx.capture(Sum{ .props = props }).render();
-}
+    pub fn build(props: Props) ui.Node {
+        return tsx.capture(Sum{ .props = props }).render();
+    }
+};
 
 pub const App = struct {
     result: f64 = 0,
@@ -105,7 +105,7 @@ pub const App = struct {
                 ui.text(tsx.fmt("{d}", .{self.visits}), .{
                     .key = "visits",
                 }),
-                sum(.{
+                Sum.build(.{
                     .values = self.items.get(),
                 }),
                 ui.button(.{

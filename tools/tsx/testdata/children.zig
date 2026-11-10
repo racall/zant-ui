@@ -56,11 +56,11 @@ pub const TodoRow = struct {
     fn _onClick2(self: *TodoRow) void {
         self.props.onRemove.call(.{self.props.todo.id});
     }
-};
 
-pub fn todoRow(props: TodoRow.Props) ui.Node {
-    return tsx.capture(TodoRow{ .props = props }).render();
-}
+    pub fn build(props: Props) ui.Node {
+        return tsx.capture(TodoRow{ .props = props }).render();
+    }
+};
 
 pub const Panel = struct {
     props: Props,
@@ -81,11 +81,11 @@ pub const Panel = struct {
             } }),
         });
     }
-};
 
-pub fn panel(props: Panel.Props) ui.Node {
-    return tsx.capture(Panel{ .props = props }).render();
-}
+    pub fn build(props: Props) ui.Node {
+        return tsx.capture(Panel{ .props = props }).render();
+    }
+};
 
 pub const App = struct {
     todos: tsx.State([]const Todo) = .{ .initial = &[_]Todo{Todo{
@@ -102,7 +102,7 @@ pub const App = struct {
             .padding = ui.inset(16),
             .gap = 8,
             .children = &.{
-                panel(.{
+                Panel.build(.{
                     .title = "Todos",
                     .count = @intCast(self.todos.get().len),
                     .onClear = ui.action(self, App._onClear3),
@@ -114,7 +114,7 @@ pub const App = struct {
                             for (_items) |_item| {
                                 _result[_count] = _callback: {
                                     const t: Todo = _item;
-                                    break :_callback ui.withKey(todoRow(.{
+                                    break :_callback ui.withKey(TodoRow.build(.{
                                         .todo = t,
                                         .onToggle = tsx.callback(fn (u32) void, self, App.toggle),
                                         .onRemove = tsx.callback(fn (u32) void, self, App._onRemove4),
