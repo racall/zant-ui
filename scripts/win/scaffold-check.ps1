@@ -8,7 +8,9 @@
 #     -Arguments "-NoProfile -ExecutionPolicy Bypass -File <repo>\scripts\win\scaffold-check.ps1" -Wait 120
 param(
     [string]$Zant = "",
-    [string]$Out = ""
+    [string]$Out = "",
+    # the language answer: 1 = Zig, 2 = TypeScript + TSX
+    [ValidateSet("1", "2")][string]$Lang = "1"
 )
 if (!$Zant) { $Zant = (Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) "zig-out\bin\zant.exe") }
 if (!$Out) { $Out = (Join-Path $env:TEMP "zant-checks\scaffold") }
@@ -85,6 +87,8 @@ Start-Sleep -Seconds 2
 [ZantKeys]::SetForegroundWindow($h) | Out-Null
 Start-Sleep -Milliseconds 300
 Shot $h "01-prompt"
+# language first
+[ZantKeys]::Type($Lang); [ZantKeys]::Enter(); Start-Sleep -Milliseconds 800
 [ZantKeys]::Type($title); Start-Sleep -Milliseconds 300
 Shot $h "02-typed"
 [ZantKeys]::Enter()
@@ -103,6 +107,13 @@ Result ($cfg -and $cfg.bundle_id -eq $bundle) ("app.config.json bundle_id: '{0}'
 Result ($cfg -and $cfg.window.style -eq "hidden-titlebar") ("window style: '{0}'" -f $cfg.window.style)
 # only shared settings on Windows: no macOS section or bundle files
 Result ($cfg -and !$cfg.macos -and !(Test-Path (Join-Path $work "demo-app\Info.plist"))) "no macOS-only settings or files"
+$app = Join-Path $work "demo-app"
+if ($Lang -eq "2") {
+    $ts = (Test-Path "$app\src\App.tsx") -and !(Test-Path "$app\src\main.zig") -and (Test-Path "$app\zant.d.ts")
+    Result $ts "TS project: src\App.tsx and zant.d.ts, no src\main.zig"
+} else {
+    Result ((Test-Path "$app\src\main.zig") -and !(Test-Path "$app\src\App.tsx")) "Zig project: src\main.zig"
+}
 & cmd.exe /c "chcp" | Out-File -Encoding UTF8 (Join-Path $Out "chcp.txt")
 Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
 Get-Process cmd -ErrorAction SilentlyContinue | Where-Object { $_.Parent.Id -eq $p.Id } | Stop-Process -Force -ErrorAction SilentlyContinue
