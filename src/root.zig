@@ -46,6 +46,7 @@ pub const markdown = @import("markdown/mod.zig");
 
 test {
     _ = markdown;
+    _ = ui.widgets;
     _ = math;
     _ = keys;
     _ = paths;

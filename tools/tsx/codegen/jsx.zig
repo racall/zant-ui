@@ -197,6 +197,11 @@ pub fn emit(g: *Generator, c: *Context, j: *ast.Jsx) Error!Value {
         "unknown tag <{s}>; valid tags: {s}",
         .{ j.name, try jsx.validTags(g) },
     );
+    if (tag.instance_id) {
+        // widgets that keep state per instance (and scroll by themselves)
+        if (zig_text.eq(j.name, "PdfViewer")) try nesting.notInScroll(g, j);
+        return @import("widgets.zig").emit(g, c, j, tag);
+    }
     if (zig_text.eq(j.name, "Text") and @import("rich_text.zig").hasElements(j)) {
         return @import("rich_text.zig").emit(g, c, j);
     }

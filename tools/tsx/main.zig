@@ -66,6 +66,7 @@ test {
     _ = @import("codegen/emission_test.zig");
     _ = @import("codegen/stateful.zig");
     _ = @import("codegen/hooks_test.zig");
+    _ = @import("codegen/widgets_test.zig");
     _ = @import("codegen/stores_test.zig");
     _ = @import("codegen/nesting_test.zig");
     _ = @import("codegen/strings_test.zig");

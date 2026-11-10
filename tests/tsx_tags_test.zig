@@ -163,6 +163,9 @@ test "tsx tag table matches reflected ui options recursively" {
     @setEvalBranchQuota(200_000);
     inline for (tags.all, 0..) |tag, i| {
         const Options = optionsType(tag);
+        const f = @typeInfo(@TypeOf(@field(ui, builderName(tag.builder)))).@"fn";
+        const instance_id = f.param_types.len == 2 and f.param_types[0] == u64;
+        try std.testing.expectEqual(instance_id, tag.instance_id);
         switch (tag.content) {
             .children => {
                 var found = false;
@@ -173,7 +176,6 @@ test "tsx tag table matches reflected ui options recursively" {
             },
             .text_field => try expectFieldType(Options, tag.content_field, []const u8),
             .text_arg => {
-                const f = @typeInfo(@TypeOf(@field(ui, builderName(tag.builder)))).@"fn";
                 try std.testing.expectEqual(@as(usize, 2), f.param_types.len);
                 try std.testing.expect(f.param_types[0] == []const u8);
                 try std.testing.expectEqualStrings("", tag.content_field);

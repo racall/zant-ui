@@ -124,6 +124,7 @@ const button_props: []const Prop = &.{
 
 /// Phase-1 names, CSS spellings, and text-child conventions.
 pub const all: []const Alias = &.{
+    .{ .name = "Markdown", .props = &.{}, .content = .text_field, .content_field = "source" },
     .{ .name = "View", .props = view_props },
     .{ .name = "Column", .props = box_props },
     .{ .name = "Row", .props = box_props },

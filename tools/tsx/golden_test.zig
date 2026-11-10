@@ -6,6 +6,7 @@ test "TSX golden files match formatted compiler output" {
     inline for (.{
         "counter",  "layout", "text", "events",      "conditional", "components", "todos", "arrays",
         "children", "theme",  "list", "local_state", "hooks",       "strings",    "store", "nesting",
+        "widgets",
     }) |name| {
         var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
         defer arena.deinit();
@@ -54,7 +55,7 @@ test "components golden covers every generated tag" {
     const source = @embedFile("testdata/components.tsx");
     for (@import("tags.zig").all) |tag| {
         const prefix = try std.fmt.allocPrint(arena.allocator(), "<{s}", .{tag.name});
-        if (!hasTag(source, prefix)) {
+        if (!hasTag(source, prefix) and !hasTag(@embedFile("testdata/widgets.tsx"), prefix)) {
             std.debug.print("components.tsx is missing <{s}>\n", .{tag.name});
             return error.MissingTagCoverage;
         }

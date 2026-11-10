@@ -174,8 +174,9 @@ pub fn source() []const u8 {
         var reason = skipReason(name);
         var Options: ?type = null;
         const text_arg = f.param_types.len == 2 and f.param_types[0] == []const u8;
+        const instance_id = f.param_types.len == 2 and f.param_types[0] == u64;
         if (reason == null and !f.attrs.varargs and !f.is_generic) {
-            if (f.param_types.len == 1 or text_arg) {
+            if (f.param_types.len == 1 or text_arg or instance_id) {
                 if (f.param_types[f.param_types.len - 1]) |T| {
                     if (@typeInfo(T) == .@"struct") Options = T;
                 }
@@ -190,6 +191,7 @@ pub fn source() []const u8 {
             } else {
                 const content = if (text_arg) "text_arg" else if (fields.children) "children" else if (fields.child_count == 1) "child" else "none";
                 table = table ++ ".{ .name = " ++ quote(names.pascal(name)) ++ ", .builder = " ++ quote(expression(name)) ++
+                    (if (instance_id) ", .instance_id = true" else "") ++
                     ", .content = ." ++ content ++ (if (std.mem.eql(u8, content, "child")) ", .content_field = " ++ quote(fields.child_field) else "") ++
                     ", .props = &.{\n" ++ fields.source ++ "} },\n";
             }

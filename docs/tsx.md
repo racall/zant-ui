@@ -243,7 +243,8 @@ exe.root_module.addImport("notes_tsx", notes);
 | `Heading` `Title` `Paragraph` | 文字和 `{值}` | 元素（局部样式用 `<Text>`） |
 | 标签类：`Button` `Link` `Checkbox` `Switch` `Tag` | 文字和 `{值}`（就是它的文字）；`Button` 还可以放一个 `<Icon name>` | 其他元素 |
 | 单子元素：`Tooltip` `Modal` | 恰好一个元素（或用 `child` / `content` 属性） | 多个元素、文字 |
-| 叶子：`Input` `Image` `Icon` `Divider` `PdfPreview` … | 无 | 任何子节点 |
+| `Markdown` | Markdown 文字和 `{值}`（等同 `source`） | 元素 |
+| 叶子：`Input` `Image` `Icon` `Divider` `PdfPreview` `PdfViewer` … | 无 | 任何子节点 |
 
 ```tsx
 <Text size={16}>
@@ -257,9 +258,9 @@ exe.root_module.addImport("notes_tsx", notes);
   带 span 的文字不能用 `maxLines` / `textAlign` / `wrap`。
 - 点击只给最里层的可点击元素（不冒泡），所以 `<Clickable>` 卡片里放 `<Button>` 是安全的：点按钮只触发按钮。
 - `Modal`、`Message` 可以写在任何位置，渲染时放到窗口根节点（`ui.portal`，同 React portal），总是盖住整个窗口。
-- 会自己滚动的元素（`<List>`）不能放进滚动容器（`scroll` / `overflow="scroll"`）里，也不能放进另一个 `<List>` 的行里：
+- 会自己滚动的元素（`<List>`、`<PdfViewer>`）不能放进滚动容器（`scroll` / `overflow="scroll"`）里，也不能放进另一个 `<List>` 的行里：
   给它一个高度有限的普通容器。
-- 同一层的字面量 `key` 不能重复；`.map` 和 `<List>` 行里的**有状态子组件必须有 `key`**，否则它们的状态会混在一起。
+- 同一层的字面量 `key` 不能重复；`.map` 和 `<List>` 行里的**有状态子组件（以及 `<Markdown>`、`<PdfViewer>`）必须有 `key`**，否则它们的状态会混在一起。
   子组件的 `key` 会覆盖它根元素上的 `key`（和 React 一样，`key` 属于组件实例）。
 - 子组件的 `children` 类型决定能放什么：`ReactNode` 一个元素，`ReactNode[]` 任意元素，`string` 文字和 `{值}`
   （`<Badge>new {count}</Badge>`）。
@@ -296,7 +297,7 @@ function Counter({ label }: { label: string }) {
 带 key 的实例状态跟着 key 走。`.map` 里的有状态组件一定要给 `key`（React 也要求），否则它们共用一份状态。
 `<List>` 的滚动状态同样保存在所在组件的实例里，子组件里也可以用 `<List>`。
 
-只有有状态的组件（用了 `useState` / `<List>`，或者渲染了有状态的子组件，跨文件也会分析）才带 id，
+只有有状态的组件（用了 `useState` / `<List>` / 文档组件，或者渲染了有状态的子组件，跨文件也会分析）才带 id，
 无状态组件的生成代码和以前一样，没有额外开销。
 
 性能（ReleaseFast）：300 行、每行一个有状态 `<Counter>`（`local_bench.tsx` 对手写 `ui.localState` 的
@@ -320,6 +321,44 @@ function Counter({ label }: { label: string }) {
 - 这三个 hook 都只能在组件体顶层调用，不能改名导入；用了它们的子组件算有状态组件（带实例 id）。
 
 框架接口 `ui.effect(action)` / `ui.requestRebuild()` 手写 Zig 也能用。
+
+### Markdown 与 PDF
+
+`<Markdown>` 和 `<PdfViewer>` 是有独立状态的原生文档组件，标签和属性由同一份
+`ui.*` 反射表生成（`zig build tsx-tags`）。`(u64, Options)` builder 的标签带
+`instance_id` 标记，编译器自动传入父实例 + 标签名 + key / 调用位置计算的 id；
+包含它们的子组件也自动带 id。`.map` 中请给每个实例稳定的 `key`。
+
+```tsx
+<Markdown source={reply} streaming={busy} caret="block" onLink={openLink} />
+<Markdown>{reply}</Markdown>
+<PdfViewer src={path} toolbar annotationTools onChange={() => console.log("changed")} height={600} />
+```
+
+Markdown 的 `source` 必填，也可以用字符串子节点（不能同时写两者，不能放元素子节点）。
+`streaming` 开启 Streamdown 的未完成语法修复，复用块缓存，只重新解析变化的块；
+`caret` 为 `none` / `block` / `circle`，只在 streaming 时显示。常用属性还包括
+`fontSize`、`contentWidth`、`lineNumbers`、`codeMaxHeight`、`codeCopy` / `codeDownload`、
+`tableCopy` / `tableDownload`、`mermaidCopy` / `mermaidDownload`、`onLink`、`baseDir`、
+`selectable`、`parseIncomplete`、`singleDollarMath`、`latexDelimiters`。默认随浅色 / 深色主题切换。
+
+PDF 的 `src` 必填（空字符串显示提示），不接受子节点。`password` 改变也会重新打开文档；
+路径 / 密码未变时保留滚动、缩放、选择、搜索和批注，打开失败不会逐帧重试。
+文件在协调后的 effect 中打开，页面仍由 PDF 阅读器的后台线程分块渲染。
+`toolbar`、`annotationTools`、`selectionMenu`、`pageGap`、`padding`、`background`、
+`onLink`、`onChange`、`onAnnotation` 同 `pdf.ViewOptions`；`width` / `height` / `grow`
+控制容器尺寸，指定 height 时默认不伸长。空 / 加载提示可用 `emptyText` / `loadingText` 修改。
+
+每个实例的缓存或 `Viewer` 都由 `ui.localSlot` 持有，卸载时自动 `deinit`；再次挂载从初始状态开始。
+内部节点 key 使用实例 id 命名空间，多个文档不会互相影响。手写 Zig 对应
+`ui.markdown(id, options)` / `ui.pdfViewer(id, options)`，复杂的 Markdown 渲染扩展和 PDF `labels`
+结构体仍可从 Zig 传入；TSX 只反射支持的字段类型。
+
+示例：`zig build run-tsx-reader`（`examples/tsx/reader.tsx`），用按钮逐块追加回复，PDF 使用仓库内的
+小型测试文件 `tests/fixtures/widgets.pdf`，也可输入其他路径。
+基准：`zig build bench-tsx -Doptimize=ReleaseFast -- markdown`，同样的输入逐帧对比手写 Streamdown。
+本机 ReleaseFast（640×900 CPU 光栅、8208 字节、每帧追加 24 字节、各 1368 帧）：
+TSX 平均 0.348 ms，手写 0.339 ms，差距 2.61%。
 
 ### 从 Zig 导入函数
 

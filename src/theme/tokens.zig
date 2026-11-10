@@ -1,4 +1,7 @@
+const std = @import("std");
+
 pub const Theme = struct {
+    const std = @import("std");
     color_primary: u32 = 0xff1677ff,
     color_primary_hover: u32 = 0xff4096ff,
     color_primary_active: u32 = 0xff0958d9,
@@ -100,6 +103,19 @@ pub fn antDark() Theme {
         .color_error_bg = 0xff2c1618,
         .color_error_text = 0xffdc4446,
     };
+}
+
+/// Whether `theme` is a dark one (its container background is dark), for
+/// components with their own light / dark palettes (Markdown, code).
+pub fn isDark(theme: Theme) bool {
+    const bg = theme.color_bg_container;
+    const luminance = ((bg >> 16) & 255) * 299 + ((bg >> 8) & 255) * 587 + (bg & 255) * 114;
+    return luminance < 128_000;
+}
+
+test isDark {
+    try std.testing.expect(!isDark(antLight()));
+    try std.testing.expect(isDark(antDark()));
 }
 
 pub fn forMode(mode: ThemeMode) Theme {

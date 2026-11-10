@@ -1933,3 +1933,14 @@ pub const ViewOptions = view_mod.ViewOptions;
 /// General-purpose container like React Native `View` / HTML `div`
 /// (`docs/components/view.md`).
 pub const view = view_mod.view;
+
+/// Document widgets with runtime-owned per-instance state.
+pub const widgets = @import("components/widgets.zig");
+/// Flattened Markdown renderer options.
+pub const MarkdownOptions = widgets.MarkdownOptions;
+/// Full PDF reader options, source and sizing.
+pub const PdfViewerOptions = widgets.PdfViewerOptions;
+/// Cached Markdown whose state is released on unmount.
+pub const markdown = widgets.markdown;
+/// Full PDF reader whose document is closed on unmount.
+pub const pdfViewer = widgets.pdfViewer;
