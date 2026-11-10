@@ -27,4 +27,5 @@ test "tsx golden outputs compile" {
     refComponent(@import("tsx_golden_local_state"));
     refComponent(@import("tsx_golden_hooks"));
     refComponent(@import("tsx_golden_store"));
+    refComponent(@import("tsx_golden_strings"));
 }

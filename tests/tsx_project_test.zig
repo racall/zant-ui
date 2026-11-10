@@ -42,6 +42,7 @@ fn checkNotes(width: u32, height: u32, theme: zant.tokens.Theme) !void {
     var notes = Notes{};
     defer notes.notes.deinit();
     defer notes.text.deinit();
+    defer notes.query.deinit();
     const runtime = try Runtime.init(std.testing.allocator, &notes, render, .{
         .window = .{ .width = @floatFromInt(width), .height = @floatFromInt(height) },
         .theme = theme,
@@ -70,6 +71,30 @@ fn checkNotes(width: u32, height: u32, theme: zant.tokens.Theme) !void {
         if (!std.mem.eql(u8, node.key orelse continue, "summary")) continue;
         try std.testing.expectEqual(theme.color_text_secondary, node.data.text.style.color);
     }
+
+    // Search participates in normal flex layout in both themes and window sizes.
+    const search = runtime.tree.boundsOfKey("search").?;
+    try std.testing.expect(search.x >= 0 and search.x + search.width <= @as(f32, @floatFromInt(width)));
+    try std.testing.expect(input.y + input.height <= search.y);
+    try click(runtime, &renderer, "search");
+    _ = runtime.dispatch(.{ .text_input = "  bREaD  " });
+    frame(runtime, &renderer);
+    try std.testing.expect(runtime.tree.boundsOfKey("pin-1") == null);
+    try std.testing.expect(runtime.tree.boundsOfKey("pin-2") != null);
+    notes.query.set("no match");
+    runtime.invalidate();
+    frame(runtime, &renderer);
+    try std.testing.expectEqualStrings("No matching notes.", textOf(runtime, "no-results").?);
+    notes.query.set("");
+    runtime.invalidate();
+    frame(runtime, &renderer);
+
+    // Blank titles are ignored, including non-ASCII JS whitespace.
+    try click(runtime, &renderer, "new");
+    _ = runtime.dispatch(.{ .text_input = " \t\u{3000}" });
+    _ = runtime.dispatch(.{ .key_down = .{ .key = .enter } });
+    frame(runtime, &renderer);
+    try std.testing.expectEqual(@as(usize, 2), notes.notes.get().len);
 
     // NoteCard (NoteCard.tsx) → onPin={pin} (App.tsx method)
     try click(runtime, &renderer, "pin-1");

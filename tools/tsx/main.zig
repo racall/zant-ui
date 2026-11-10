@@ -67,6 +67,7 @@ test {
     _ = @import("codegen/stateful.zig");
     _ = @import("codegen/hooks_test.zig");
     _ = @import("codegen/stores_test.zig");
+    _ = @import("codegen/strings_test.zig");
     _ = compile;
     _ = @import("project_test.zig");
     _ = @import("codegen/zig_imports.zig");

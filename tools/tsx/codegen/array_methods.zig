@@ -24,7 +24,11 @@ const methods = std.StaticStringMap(Kind).initComptime(.{
 pub fn emit(g: *Generator, c: *Context, loc: ast.Loc, call: ast.Call, expected: ?Type) Error!Value {
     const member = call.callee.data.member;
     const value = try expr.emit(g, c, member.object, null, false);
-    if (model.optionalChild(g, value.ty) != null) return core.fail(g, loc, "optional array needs ?? or !", .{});
+    if (value.ty == .string) return @import("string_methods.zig").emit(g, c, loc, call, value);
+    if (model.optionalChild(g, value.ty)) |child_type| {
+        const message = if (child_type == .string) "optional value needs ?? or !" else "optional array needs ?? or !";
+        return core.fail(g, loc, "{s}", .{message});
+    }
     const child = model.element(g, value.ty) orelse return core.fail(g, loc, "array method needs an array", .{});
     const kind = methods.get(member.name.name) orelse return core.fail(
         g,

@@ -8,10 +8,11 @@ import { plural } from "./format.zig";
 export default function Notes() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [text, setText] = useState("");
+  const [query, setQuery] = useState("");
   const [nextId, setNextId] = useState<u32>(1);
 
   function add() {
-    if (text.length === 0) return;
+    if (text.trim().length === 0) return;
     setNotes([...notes, { id: nextId, title: text, pinned: false }]);
     setNextId(nextId + 1);
     setText("");
@@ -22,8 +23,10 @@ export default function Notes() {
   }
 
   const theme = useTheme();
+  const needle = query.trim().toLowerCase();
+  const visible = notes.filter((note) => note.title.toLowerCase().includes(needle));
   // pinned notes first
-  const ordered = [...notes.filter((n) => n.pinned), ...notes.filter((n) => !n.pinned)];
+  const ordered = [...visible.filter((n) => n.pinned), ...visible.filter((n) => !n.pinned)];
 
   return (
     <View padding={24} gap={12}>
@@ -41,8 +44,11 @@ export default function Notes() {
           Add
         </Button>
       </Row>
+      <Input key="search" value={query} placeholder="Search notes" onChange={setQuery} />
       {notes.length === 0 ? (
         <Text key="empty" color={theme.colorTextSecondary}>No notes yet.</Text>
+      ) : ordered.length === 0 ? (
+        <Text key="no-results" color={theme.colorTextSecondary}>No matching notes.</Text>
       ) : (
         <View key="notes" gap={4}>
           {ordered.map((n) => (

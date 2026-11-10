@@ -174,11 +174,11 @@ pub fn parsePostfix(self: *Parser) Error!*ast.Expr {
             const name = try self.expectIdent("a property name");
             e = try self.expr(e.loc, .{ .member = .{ .object = e, .name = name } });
         } else if (self.isP("(")) {
-            const args = try parseArgs(self);
+            const args = try parseArgs(self, e);
             e = try self.expr(e.loc, .{ .call = .{ .callee = e, .type_args = &.{}, .args = args } });
         } else if (self.isP("<") and e.data == .ident) {
             const type_args = tryTypeArgs(self) orelse break;
-            const args = try parseArgs(self);
+            const args = try parseArgs(self, e);
             e = try self.expr(e.loc, .{ .call = .{ .callee = e, .type_args = type_args, .args = args } });
         } else if (self.isP("?.")) {
             self.advance();
@@ -239,12 +239,24 @@ fn parseIndex(self: *Parser, object: *ast.Expr, optional: bool) Error!*ast.Expr 
     return self.expr(object.loc, .{ .index = .{ .object = object, .index = index, .optional = optional } });
 }
 
-pub fn parseArgs(self: *Parser) Error![]const *ast.Expr {
+/// Parse arguments, retaining method context for unsupported regex overload diagnostics.
+pub fn parseArgs(self: *Parser, callee: *const ast.Expr) Error![]const *ast.Expr {
     try self.expectP("(");
     var args: std.ArrayList(*ast.Expr) = .empty;
     while (!self.isP(")")) {
         if (self.isP("...")) return self.fail(self.cur.start, "spread arguments are not supported", .{});
-        try args.append(self.arena, try parseAssign(self));
+        const arg = parseAssign(self) catch |err| {
+            if (err == error.Syntax and self.isP("/") and callee.data == .member) {
+                self.diag = null;
+                return self.fail(
+                    self.cur.start,
+                    "unknown string method `{s}` for a regex argument; supported (string patterns only): {s}",
+                    .{ callee.data.member.name.name, @import("string_method_names.zig").supported },
+                );
+            }
+            return err;
+        };
+        try args.append(self.arena, arg);
         if (!self.eatP(",")) break;
     }
     try self.expectP(")");

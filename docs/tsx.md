@@ -329,10 +329,41 @@ const dark = useStore(settings, (s) => s.dark);   // 选择器可省略：useSto
 - 和根组件的状态一样，旧值在下一次读取它的构建开始时释放；多个窗口共用时，一个窗口在另一个窗口重建之前
   收到事件、并且回调里用到旧值，是目前已知的边界情况。
 
+### 字符串方法
+
+字符串保持 UTF-8 存储，位置和长度按 UTF-16 码元计算（与 `.length` 一致）：
+
+- 查询：`includes(s)`、`startsWith(s)`、`endsWith(s)`、`indexOf(s)`、`lastIndexOf(s)`。
+  查询不分配内存；索引返回 `isize`，未找到为 `-1`，可以直接写 `i >= 0`。
+- 清理与大小写：`trim()`、`trimStart()`、`trimEnd()`，支持 JS 空白（包括 Unicode Zs、BOM、行分隔符）；
+  `toLowerCase()` / `toUpperCase()` **只转换 ASCII**，其他 UTF-8 字节保持不变。
+- 截取：`slice(start, end?)` 支持负数从末尾计数；`substring(start, end?)` 把负数钳到零，
+  起止倒置时交换。数值向零取整，越界钳到字符串长度。
+- 构造：`padStart(n, fill?)`、`padEnd(n, fill?)`（默认空格）、`repeat(n)`。
+  `repeat` 截断后为负或无穷的计数、无法分配的长度在原生运行时 panic（没有 JS 异常机制）。
+- 替换：`replace(a, b)`（首个匹配）、`replaceAll(a, b)`，只接受字符串模式；
+  替换文本支持 JS 的 `$$`、`$&`、`` $` ``、`$'`，无捕获组时 `$1` 等保留原文。
+- 分割：`split(sep)` 返回 `string[]`，保留空字段；空分隔符按 **Unicode 码点** 分割，
+  不把 emoji 拆成两个 UTF-16 码元。
+- 取字符：`charAt(i)` 越界返回 `""`；`at(i)` 支持负索引，返回可选字符串 `?[]const u8`，
+  越界为 `null`（TS 的 `undefined` 在此沿用可选值模型），可用 `??` / `!`。
+
+所有返回的新字符串和数组在当前帧内有效，与 `tsx.fmt` 相同；存入状态时会深拷贝。
+位置落在代理对内部时沿用 `unicode.utf16ToByte` **向前取 UTF-8 码点边界**，始终保持合法 UTF-8。
+例如 `"😀".slice(0, 1)` / `.charAt(0)` 是空串，`.slice(1, 2)` / `.charAt(1)` 是完整 emoji；
+填充文本截断也向前取边界，可能比目标少一个码元；空模式 `replaceAll` 的两个代理对内部相邻边界
+会映射到同一位置（`"😀".replaceAll("", "-")` 为 `"--😀-"`）。这些与 JS 的孤立代理项结果有意不同。
+可选接收者先用 `??` 或 `!` 解包，暂不支持 `name?.trim()`；不支持正则、locale/normalize 等方法，
+未知方法会列出支持项。查询暂不接受额外的起止位置参数。
+
+```tsx
+const needle = query.trim().toLowerCase();
+const visible = notes.filter((note) => note.title.toLowerCase().includes(needle));
+```
+
 ### 待做
 
-- 编译期自动 memo（不依赖状态的子树跳过比对，参考 Solid / React Compiler）、
-  字符串方法（`includes`、`startsWith`、`trim` …）。
+- 编译期自动 memo（不依赖状态的子树跳过比对，参考 Solid / React Compiler）。
 
 ## 后续阶段
 
