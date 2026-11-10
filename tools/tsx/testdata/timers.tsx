@@ -17,6 +17,12 @@ export default function App() {
     const t = setTimeout(() => setNote("mounted"), 10);
     return () => clearTimeout(t);
   }, []);
+  // a timer inside an effect reads what the effect captured from the render
+  const doubled = left * 2;
+  useEffect(() => {
+    const t = setTimeout(() => setNote(`doubled ${doubled}`), 20000);
+    return () => clearTimeout(t);
+  }, [doubled]);
   return (
     <View padding={16} gap={8}>
       <Text key="note">

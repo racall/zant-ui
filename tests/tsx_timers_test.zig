@@ -51,7 +51,7 @@ test "tsx timers" {
     defer renderer.deinit();
     frame(runtime, &renderer);
     frame(runtime, &renderer); // the mount effect ran: its timer waits
-    try std.testing.expectEqual(@as(usize, 1), timers.pending());
+    try std.testing.expectEqual(@as(usize, 2), timers.pending());
     try std.testing.expect(timers.fire(later(20)));
     runtime.invalidate(); // what the app's wake does after running timers
     frame(runtime, &renderer);
@@ -68,6 +68,10 @@ test "tsx timers" {
     // cleared before it is due: nothing happens
     try click(runtime, &renderer, "start");
     try click(runtime, &renderer, "stop");
-    try std.testing.expectEqual(@as(usize, 0), timers.pending());
-    try std.testing.expect(!timers.fire(later(9000)));
+    // the effect's timer (captured `doubled` = 6, through the effect) is still due later
+    try std.testing.expectEqual(@as(usize, 1), timers.pending());
+    try std.testing.expect(timers.fire(later(30000)));
+    runtime.invalidate();
+    frame(runtime, &renderer);
+    try std.testing.expectEqualStrings("doubled 4 2", text(runtime, "note"));
 }

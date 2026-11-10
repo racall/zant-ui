@@ -303,7 +303,14 @@ pub fn scan(g: *Generator, j: *ast.Jsx, comp: *const Component) Error!void {
         };
         const f = switch (value.data) {
             .arrow => |f| f,
-            .ident => |n| core.inlineFunction(g, n) orelse continue,
+            .ident => |n| core.inlineFunction(g, n) orelse blk: {
+                // a plain function of this file or an imported one, or a
+                // state setter: `(v) => fn(v)`
+                const plain = scope.sourceMethod(g, n) == null and (try readProp(g, n)) == null and
+                    (@import("functions.zig").find(g, n) != null or scope.setterIndex(g, n) != null);
+                if (!plain) continue;
+                break :blk (try events.forwardArrow(g, value, entry.params.len)).data.arrow;
+            },
             else => continue,
         };
         g.counter += 1;

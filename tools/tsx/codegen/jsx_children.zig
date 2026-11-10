@@ -120,7 +120,10 @@ pub const ChildList = struct {
             defer @import("narrowing.zig").restore(list.c, mark);
             return list.expression(b.rhs, cond);
         }
-        if (e.data == .cond and (jsx.hasFragment(e.data.cond.then) or jsx.hasFragment(e.data.cond.else_))) {
+        const splits = e.data == .cond and (jsx.hasFragment(e.data.cond.then) or jsx.hasFragment(e.data.cond.else_) or
+            (isList(e.data.cond.then) and e.data.cond.else_.data == .jsx) or
+            (isList(e.data.cond.else_) and e.data.cond.then.data == .jsx));
+        if (splits) {
             const v = e.data.cond;
             const cond = try list.condition(v.cond, guard);
             const narrowing = @import("narrowing.zig");
@@ -148,3 +151,17 @@ pub const ChildList = struct {
         );
     }
 };
+
+/// An expression that gives several children (`items.map(…)`, `[a, b]`): a
+/// ternary with one in a branch and an element in the other becomes two
+/// guarded children (`ok ? <Hint/> : peers.map(…)`).
+fn isList(e: *const ast.Expr) bool {
+    return switch (e.data) {
+        .array => true,
+        .call => |c| c.callee.data == .member and (zig_text.eq(c.callee.data.member.name.name, "map") or
+            zig_text.eq(c.callee.data.member.name.name, "filter")),
+        .cond => |v| isList(v.then) or isList(v.else_),
+        .non_null => |inner| isList(inner),
+        else => false,
+    };
+}

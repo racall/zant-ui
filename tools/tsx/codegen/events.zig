@@ -410,6 +410,28 @@ fn registerArrow(g: *Generator, prop: *const tags.Prop, e: *ast.Expr) Error!usiz
 }
 
 /// `fn` passed as a handler, as the arrow `() => fn()` / `(v) => fn(v)`.
+/// `fn` passed as a child component's callback prop of `count` parameters:
+/// `(_a0, …) => fn(_a0, …)` (the prop gives the parameter types).
+pub fn forwardArrow(g: *Generator, e: *ast.Expr, count: usize) Error!*ast.Expr {
+    const callee = try g.a.create(ast.Expr);
+    callee.* = e.*;
+    const args = try g.a.alloc(*ast.Expr, count);
+    const params = try g.a.alloc(ast.Param, count);
+    for (args, params, 0..) |*arg, *param, i| {
+        const name = try zig_text.fmt(g, "_a{d}", .{i});
+        arg.* = try g.a.create(ast.Expr);
+        arg.*.* = .{ .loc = e.loc, .data = .{ .ident = name } };
+        param.* = .{ .name = .{ .name = name, .loc = e.loc }, .ty = null };
+    }
+    const call = try g.a.create(ast.Expr);
+    call.* = .{ .loc = e.loc, .data = .{ .call = .{ .callee = callee, .type_args = &.{}, .args = args } } };
+    const f = try g.a.create(ast.Function);
+    f.* = .{ .loc = e.loc, .name = "", .params = params, .ret = null, .body = .{ .expr = call } };
+    const arrow = try g.a.create(ast.Expr);
+    arrow.* = .{ .loc = e.loc, .data = .{ .arrow = f } };
+    return arrow;
+}
+
 pub fn functionArrow(g: *Generator, e: *ast.Expr, kind: tags.Kind) Error!*ast.Expr {
     const callee = try g.a.create(ast.Expr);
     callee.* = e.*;

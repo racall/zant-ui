@@ -10,8 +10,9 @@ export default function App() {
   return (
     <View>
       <Row key="first" entry={sample()[0]} onPick={(r) => setPicked(r)} />
-      <Rows key="all" items={sample()} onPick={(r) => setPicked(r)} />
+      <Rows key="all" items={sample()} onPick={setPicked} />
       <Text key="picked">{picked}</Text>
+      {picked == 0 ? <Text key="none">none</Text> : sample().map((d) => <Text key={`label-${d.row}`}>{d.label}</Text>)}
       <Text key="consts">
         {rowPrefix}
         {maxLabel}

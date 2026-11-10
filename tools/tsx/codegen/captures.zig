@@ -19,7 +19,14 @@ pub fn prepare(g: *core.Generator, c: *scope.Context, index: usize) core.Error!v
 
 pub fn read(g: *core.Generator, c: *scope.Context, n: []const u8) core.Error!?types.Value {
     const source = c.capture_source orelse return null;
-    const binding = scope.local(source, n) orelse return null;
+    // a local where the arrow is made, or what that place captured itself
+    // (an arrow inside an arrow: `useEffect(() => setTimeout(() => hide(id), 5))`)
+    var outer: ?types.Value = null;
+    const binding = scope.local(source, n);
+    if (binding == null) {
+        if (scope.local(c, n) != null) return null;
+        outer = (try read(g, source, n)) orelse return null;
+    }
     // narrowed where the arrow is made (`peer && <Button onClick={() => use(peer.name)}/>`)
     const narrowed = @import("narrowing.zig").find(source, n);
     const index = c.capture_method.?;
@@ -32,12 +39,12 @@ pub fn read(g: *core.Generator, c: *scope.Context, n: []const u8) core.Error!?ty
     while (captureFieldTaken(g.methods.items[index], field)) : (suffix += 1) {
         field = try text.fmt(g, "{s}_{d}", .{ n, suffix });
     }
-    const ty = if (narrowed) |v| v.ty else binding.ty;
+    const ty = if (narrowed) |v| v.ty else if (outer) |v| v.ty else binding.?.ty;
     try g.methods.items[index].captures.append(g.a, .{
         .name = n,
         .field = field,
         .ty = ty,
-        .source = if (narrowed) |v| v.code else binding.zig,
+        .source = if (narrowed) |v| v.code else if (outer) |v| v.code else binding.?.zig,
     });
     return .{ .ty = ty, .code = try text.fmt(g, "cap.{s}", .{try text.id(g, field)}) };
 }

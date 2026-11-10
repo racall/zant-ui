@@ -47,10 +47,14 @@ test "tsx types across files" {
     frame(runtime, &renderer);
     try std.testing.expectEqualStrings("0", text(runtime, "picked"));
     try std.testing.expectEqualStrings("#12", text(runtime, "consts"));
+    try std.testing.expectEqualStrings("none", text(runtime, "none"));
     // the second row comes through Rows (another file, a virtual list) with
     // the Zig type, and Rows forwards its own callback prop
     // the list is Rows' root and gets Rows' key ("all"): it still finds its viewport
     frame(runtime, &renderer);
     try click(runtime, &renderer, "pick-2");
+    // a setter passed as the callback prop; the ternary switched to the list
+    try std.testing.expect(runtime.tree.idOfKey("none") == null);
+    try std.testing.expectEqualStrings("two", text(runtime, "label-2"));
     try std.testing.expectEqualStrings("2", text(runtime, "picked"));
 }
