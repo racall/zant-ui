@@ -5,6 +5,15 @@
 #![forbid(unsafe_code)]
 
 pub mod ast;
+pub mod dump;
+pub mod error;
+pub mod expr_parser;
+pub mod import_parser;
 pub mod jsx_entities;
+pub mod jsx_parser;
 pub mod jsx_text;
 pub mod lexer;
+pub mod loop_parser;
+pub mod parser;
+pub mod react_compat;
+pub mod type_parser;
