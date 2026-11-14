@@ -1,12 +1,16 @@
-//! The builders ported by WP-1.2: `column`, `row`, `text`, `button`.
+//! The `ui::*` builders of `src/ui.zig`.
 //!
-//! Port of `src/ui.zig` (`make`, `layoutFrom`, `visualFrom`, `hoverFrom`,
-//! `textStyle`, `column`, `row`, `text`, `button`). Every builder creates a
-//! fresh `Element` and wraps it in an `Rc`: Zig's `make()` deep-copied into the
-//! frame arena, which Rust does not need because nodes own their data.
+//! WP-1.2 ported the contract and the `column` / `row` / `text` / `button`
+//! builders; WP-2.3 added every remaining builder of `ui.zig` except `memo`
+//! (WP-2.4) and the composite components of `components/` (WP-2.5). Every
+//! builder creates a fresh `Element` and wraps it in an `Rc`: Zig's `make()`
+//! deep-copied into the frame arena, which Rust does not need because nodes
+//! own their data.
 //!
-//! The option structs of the remaining builders (WP-2.1 … WP-2.5) are declared
-//! in `ui::options`; those WPs add the builder bodies here.
+//! Layout: this file keeps the Zig helpers (`make` → `Node::new`,
+//! `layoutFrom`, `visualFrom`, `hoverFrom`, `textStyle`) and the four WP-1.2
+//! builders; the rest live in the submodules below, grouped like the Zig
+//! sections they come from (each file is kept under ~500 lines).
 #![forbid(unsafe_code)]
 
 use crate::Str;
@@ -17,6 +21,24 @@ use crate::renderer::text;
 use super::context::current_theme;
 use super::element::{Element, Node};
 use super::options::{BoxOptions, ButtonOptions, TextOptions};
+
+pub mod choice;
+pub mod containers;
+pub mod feedback;
+pub mod form;
+pub mod interaction;
+pub mod media;
+pub mod pdf_preview;
+pub mod typography;
+
+pub use choice::{radio_group, select, tabs};
+pub use containers::{card, divider, space, tag};
+pub use feedback::{alert, avatar, progress};
+pub use form::{checkbox, input, r#switch};
+pub use interaction::{clickable, dismiss_layer, pointer_area, tooltip};
+pub use media::{icon, icon_button, image, vector};
+pub use pdf_preview::pdf_preview;
+pub use typography::{heading, link, paragraph, rich_text, title};
 
 /// Zig `layoutFrom`: the `BoxOptions` half of a container's `FlexStyle`.
 fn layout_from(box_options: &BoxOptions, direction: flex::Direction) -> FlexStyle {
