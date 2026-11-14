@@ -486,14 +486,22 @@ React Native 写法（`backgroundColor`、`paddingHorizontal`、`flex`、`positi
 ### 性能
 
 生成的代码与手写 Rust 一样：没有虚拟 DOM、没有运行时解释，状态是 struct 字段，事件是 action / 闭包。
-`bench-tsx`（Zig 版既有基准；Rust 侧仍是既有 Zig 入口）用同样的输入对比 TSX 生成代码与手写 Rust
-的帧耗时；每次改代码生成都要复测，差距超过 5% 视为回归。回归门槛：TSX 生成代码不慢于手写 Rust
+每次改代码生成都要用 `bench-tsx` 复测；差距超过 5% 视为回归。回归门槛：TSX 生成代码不慢于手写 Rust
 对照组 **1.2 倍**。
 
-Rust 侧的编译基准已经落地（WP-5.10）：`zant-tsx-bench`（`crates/zant-examples/src/bin/`）把
-`tools/tsx/testdata/*.tsx` 逐个在进程内编译（预热 + 迭代），对照 Zig 编译器进程内基线
-（`tools/tsx/compile_bench.zig`），由 `scripts/tsx/examples-check.sh` 跑并判 ≤1.25×；本机平均
-**1.08×**。编译耗时不是帧耗时——帧对比基准（TSX 生成代码 vs 手写 Rust）仍未移植。
+Rust 侧的**帧对比基准**（WP-5.10c）是 `zant-tsx-frame-bench`
+（`crates/zant-examples/src/bin/zant-tsx-frame-bench.rs`）：`crates/zant-examples/build.rs` 用
+`zant_build::tsx_app_in` 把 `examples/tsx/` 的六个基准页（`counter` / `todos` / `list_bench` /
+`local_bench` / `markdown_bench` / `settings`）编成 Rust，和 `controls/` 里手写的 `ui::App`
+对照组（`*_manual.zig` 的逐行移植 + 一个 settings 对照）跑同一个无窗口帧循环（640×900 raster、
+假时钟、每帧 `renderFrame` 全量重建/布局/绘制），交替重复取每侧最好一轮，逐场景（以及每个 app 的
+汇总行）判 ≤1.2×。`scripts/tsx/bench-tsx.sh` 构建 Release 并打印对照表与闸门结论；本机 best-of-3
+全部通过（最高 `local-mount` ≈1.10×，其余 ≤1.08×；见 `docs/rust-port/status.md` WP-5.10c）。
+Zig 的 `bench-tsx`（`examples/tsx/bench.zig`）已被这份 Rust 基准取代。
+
+编译基准（WP-5.10）是另一件事：`zant-tsx-bench` 把 `tools/tsx/testdata/*.tsx` 逐个在进程内编译
+（预热 + 迭代），对照 Zig 编译器进程内基线（`tools/tsx/compile_bench.zig`），由
+`scripts/tsx/examples-check.sh` 跑并判 ≤1.25×；本机平均 **1.08×**。
 
 > **示例**：仓库内的 TSX 示例现在有 Rust 入口（WP-5.10 / WP-5.10b）：`crates/zant-examples/tsx/`
 > 下 `tsx-counter`（`examples/tsx/counter.tsx`）、`tsx-demo`（`examples/tsx/app/App.tsx`）、
@@ -864,7 +872,6 @@ const visible = notes.filter((note) => note.title.toLowerCase().includes(needle)
 - 已完成：`zant create` 的 TS 模板、TSX 编译器前端（lexer / parser / hooks）与 codegen 核心、
   `#[derive(TsxProps)]` 标签表、`zant.d.ts` 生成、框架的 TSX 运行时（`zant::tsx`）、`zant_build::tsx_app()`
   （WP-6.2）、`zant-tsx` CLI 与应用层（WP-5.6）、native 模块 trait 生成（WP-5.8）、黄金用例（WP-5.9）、
-  TSX 示例与编译基准（WP-5.10）。
-- 迁移中：帧对比基准 `bench-tsx`（TSX 生成代码 vs 手写 Rust 的 clicks/typing/todos/list/markdown/local
-  场景，需要把 `examples/tsx/*_manual.zig` 对照组与 `bench_harness` 移植到 Rust）。逐项进度见
-  [`docs/rust-port/status.md`](rust-port/status.md)。
+  TSX 示例与编译基准（WP-5.10）、帧对比基准 `bench-tsx`（WP-5.10c，`zant-tsx-frame-bench`，
+  TSX 生成代码 vs 手写 Rust 的 counter / todos / list / markdown / local / settings 场景，≤1.2× PASS）。
+- 迁移中：M5 收尾与 Windows 验证。逐项进度见 [`docs/rust-port/status.md`](rust-port/status.md)。
