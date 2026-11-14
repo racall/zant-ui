@@ -16,6 +16,7 @@ pub mod jsx_parser;
 pub mod jsx_text;
 pub mod lexer;
 pub mod loop_parser;
+pub mod native_specs;
 pub mod parser;
 pub mod react_compat;
 pub mod string_method_names;
