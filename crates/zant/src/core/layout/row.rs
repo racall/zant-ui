@@ -32,7 +32,8 @@ pub(crate) fn layout_row(
         return;
     }
     let main_gap = gap_main(&style);
-    let mut items: Vec<flex::Item> = Vec::with_capacity(n);
+    let mut items = super::ScratchItems::take();
+    items.reserve(n);
     for &child_id in ids {
         let child_style = nodes[child_id].style;
         let mut base = child_style
@@ -51,7 +52,8 @@ pub(crate) fn layout_row(
         });
     }
 
-    let mut widths = vec![0.0f32; n];
+    let mut widths = super::ScratchFloats::take();
+    widths.resize(n, 0.0);
     let mut free = flex::resolve(&items, inner_width, main_gap, &mut widths);
     if free < 0.0 {
         free = 0.0;

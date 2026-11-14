@@ -33,9 +33,12 @@ pub(crate) fn layout_column(
         return;
     }
     let main_gap = gap_main(&style);
-    let mut widths: Vec<f32> = vec![0.0; n];
-    let mut heights: Vec<f32> = vec![0.0; n];
-    let mut items: Vec<flex::Item> = Vec::with_capacity(n);
+    let mut widths = super::ScratchFloats::take();
+    widths.resize(n, 0.0);
+    let mut heights = super::ScratchFloats::take();
+    heights.resize(n, 0.0);
+    let mut items = super::ScratchItems::take();
+    items.reserve(n);
 
     for (i, &child_id) in ids.iter().enumerate() {
         let child_style = nodes[child_id].style;

@@ -325,9 +325,14 @@ Release、窗口模式（Metal），`ZANT_FRAME_STATS=1 ZANT_STREAM_CHARS=6 ZANT
    `core/layout/{intrinsic,container}.rs` 改为按索引访问子节点；bench `stream` layout 1.69 → ~1.4 ms。
 2. **`key_bounds` 快照不再每帧分配字符串**：`HashMap<String, Rect>` → `HashMap<Str, Rect>`（`Str` 克隆是引用计数），
    `refresh_key_bounds` 每帧省下 ~3000 次 `String` 分配（bench 中 ~0.16 ms/帧）。
-3. 优化后 `scripts/parity/bench.sh` 仍 **PASS 7/7（默认 + 虚拟列表两种模式）**，`stream` 1.23×、`typing` 1.16×、
-   `resize` 1.13×、其余 ≤1.05×；所有稳态帧 0.6–5.5 ms（远低于 16.7 ms），峰值内存比 Zig 低 2%。
-   机器负载高（并行构建）时波动 ±0.05×，正式闸门应在空闲机器上复测（`ZANT_BENCH_REPEAT=8`）。
+3. **布局临时缓冲池**（lead）：`core/layout` 的 `visible`/`flow`/`absolute`/`items`/`widths`/`heights`
+   改为线程本地 scratch 池复用（Zig 用 arena/栈数组），`order_ids` 改为原地排序。
+   这是 `stream` 场景（约 10,900 节点整树重建）的主要剩余分配来源。
+4. 三轮优化后 `scripts/parity/bench.sh` **PASS 7/7（默认 + 虚拟列表）**：
+   `stream` **0.89×**（Rust 1.96 ms vs Zig 2.20 ms，已反超 Zig）、`resize` 0.93×、`scroll` 0.99×、
+   `typing` 1.13×、`caret`/`hover` ≈1.0×；虚拟列表模式全部 1.00–1.03×。
+   所有稳态帧 0.6–4.3 ms（远低于 16.7 ms），峰值内存比 Zig 低 2%；
+   同时 `zant-demo`/`zant-components`/`zant-markdown` parity 仍 6/6、0 像素。
 
 ## 待决问题
 

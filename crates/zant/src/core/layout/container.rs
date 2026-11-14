@@ -202,7 +202,7 @@ fn layout_container(
     definite_height: Option<f32>,
     theme: Theme,
 ) {
-    let mut visible: Vec<NodeId> = Vec::new();
+    let mut visible = super::ScratchIds::take();
     let child_count = nodes[id].children.len();
     for child_index in 0..child_count {
         let child = nodes[id].children[child_index];
@@ -210,12 +210,12 @@ fn layout_container(
             visible.push(child);
         }
     }
-    let ordered = order_ids(nodes, &visible);
+    order_ids(nodes, &mut visible);
 
     let style = nodes[id].style;
-    let mut flow: Vec<NodeId> = Vec::new();
-    let mut absolute: Vec<NodeId> = Vec::new();
-    for child in ordered {
+    let mut flow = super::ScratchIds::take();
+    let mut absolute = super::ScratchIds::take();
+    for &child in visible.iter() {
         if nodes[child].style.absolute {
             absolute.push(child);
         } else {
@@ -277,8 +277,8 @@ fn layout_container(
             .container()
             .map(|data| data.scroll_offset)
             .unwrap_or(0.0);
-        for child in &flow {
-            translate_subtree_y_in(nodes, *child, -offset);
+        for &child in flow.iter() {
+            translate_subtree_y_in(nodes, child, -offset);
         }
     } else {
         layout_column(
@@ -300,7 +300,7 @@ fn layout_container(
     let box_y = nodes[id].bounds.y;
     let box_w = nodes[id].bounds.width;
     let box_h = nodes[id].bounds.height;
-    for child_id in absolute {
+    for &child_id in absolute.iter() {
         let child_style = nodes[child_id].style;
         // CSS: `left` + `right` without a width stretch between the insets
         let inset_w: Option<f32> = if child_style.left.is_some()
@@ -412,20 +412,22 @@ fn layout_container(
 }
 
 /// Stable insertion sort of the child ids by `order` (Zig `orderIds`).
-fn order_ids(nodes: &Nodes<'_>, ids: &[NodeId]) -> Vec<NodeId> {
-    let mut copy = ids.to_vec();
+fn order_ids(nodes: &Nodes<'_>, ids: &mut [NodeId]) {
+    // insertion sort, stable, in place (most containers leave `order` at 0)
+    if ids.iter().all(|id| nodes[*id].style.order == 0) {
+        return;
+    }
     let mut i = 1usize;
-    while i < copy.len() {
-        let value = copy[i];
+    while i < ids.len() {
+        let value = ids[i];
         let mut j = i;
-        while j > 0 && nodes[copy[j - 1]].style.order > nodes[value].style.order {
-            copy[j] = copy[j - 1];
+        while j > 0 && nodes[ids[j - 1]].style.order > nodes[value].style.order {
+            ids[j] = ids[j - 1];
             j -= 1;
         }
-        copy[j] = value;
+        ids[j] = value;
         i += 1;
     }
-    copy
 }
 
 /// Translates a subtree horizontally (public slice-shaped wrapper).
