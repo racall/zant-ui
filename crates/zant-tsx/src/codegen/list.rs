@@ -332,7 +332,13 @@ pub fn emit(g: &mut Generator<'_>, c: &mut scope::Context, jsx: &ast::Jsx) -> Re
     }
     block.push_str(&capture_decls);
     block.push_str(&follow);
-    block.push_str(&format!("ui::list(&self.{field}, {options})\n"));
+    // the row closures must not borrow `self`: clone the list state, and the
+    // component's local-state slot the actions upgrade, into locals first
+    block.push_str(&format!("let _list = self.{field}.clone();\n"));
+    if g.current_component.is_some() {
+        block.push_str("let _state = self._state.clone();\n");
+    }
+    block.push_str(&format!("ui::list(&_list, {options})\n"));
     Ok(Value::new(Type::Node, format!("{{\n{block}}}")))
 }
 
@@ -469,9 +475,14 @@ fn item_closure(
         let binding = scope::bind(g, &mut c, &capture.name, capture.ty, false)?;
         c.bindings[binding].zig = capture.local.clone();
     }
-    // inside the closure prop reads go through the `_cap_props` local, not
-    // `self.props` (the closure outlives the `&mut self` borrow)
-    let component = std::mem::take(&mut g.current_component);
+    // the closure is built while rendering the component: it must not borrow
+    // `self` (it outlives the `&mut self` build), so prop reads go through the
+    // `_cap_props` local and actions upgrade the hoisted `_state` local
+    let previous = if g.current_component.is_some() {
+        g.handler_state.replace("_state".to_owned())
+    } else {
+        None
+    };
     let prologue = bind_item(g, &mut c, function, element, rows)?;
     let mut body = prologue;
     match &function.body {
@@ -491,7 +502,7 @@ fn item_closure(
         }
     }
     let finished = scope::finish(g, &c, body)?;
-    g.current_component = component;
+    g.handler_state = previous;
     Ok(format!(
         "std::rc::Rc::new(move |_index: usize| -> ui::Node {{\n{finished}}})"
     ))
@@ -572,30 +583,23 @@ fn collect_captures(
             });
             continue;
         }
-        if let Some(component) = g.current_component.map(|index| g.components[index].clone())
-            && component.destructure.is_empty()
-            && !component.param.is_empty()
-            && component.param.as_bytes() == name.as_slice()
-        {
-            // Staged port fix (M7.1): a renderItem body reading `props.x`
-            // (a non-destructured props parameter) must capture the props
-            // struct before the closure, like render locals and state.
-            let Some(props) = component.props else {
+        if g.current_component.is_some() {
+            // a renderItem body reading a prop (`props.x` or a destructured
+            // `onDelete`) must capture it before the closure: the row closures
+            // outlive the `&mut self` build and cannot read `self.props`
+            let name_str = String::from_utf8_lossy(&name).into_owned();
+            if let Some(value) = super::components::read_prop(g, &name_str)? {
+                let ty = value.ty;
+                let init = value.code;
+                let local = format!("_cap_{}", String::from_utf8_lossy(&name));
+                captures.push(Capture {
+                    name,
+                    local,
+                    ty,
+                    init,
+                });
                 continue;
-            };
-            let init = if props.copy(g) {
-                "self.props".to_owned()
-            } else {
-                "self.props.clone()".to_owned()
-            };
-            let local = format!("_cap_{}", String::from_utf8_lossy(&name));
-            captures.push(Capture {
-                name,
-                local,
-                ty: props,
-                init,
-            });
-            continue;
+            }
         }
         if let Some(index) = scope::state_index(g, &name) {
             let state = g.states[index].clone();
@@ -615,6 +619,21 @@ fn collect_captures(
         }
     }
     Ok(captures)
+}
+
+fn collect_jsx_names(jsx: &ast::Jsx, out: &mut Vec<Vec<u8>>) {
+    for attr in &jsx.attrs {
+        if let Some(value) = attr.value.as_deref() {
+            collect_expr_names(value, out);
+        }
+    }
+    for child in &jsx.children {
+        match child {
+            ast::Child::Element(element) => collect_jsx_names(element, out),
+            ast::Child::Expr(Some(value)) => collect_expr_names(value, out),
+            ast::Child::Expr(None) | ast::Child::Text(_) => {}
+        }
+    }
 }
 
 fn collect_body_names(body: &ast::Body, out: &mut Vec<Vec<u8>>) {
@@ -712,31 +731,7 @@ fn collect_expr_names(e: &ast::Expr, out: &mut Vec<Vec<u8>>) {
         }
         ast::ExprData::Member(member) => collect_expr_names(&member.object, out),
         ast::ExprData::Arrow(function) => collect_body_names(&function.body, out),
-        ast::ExprData::Jsx(jsx) => {
-            for attr in &jsx.attrs {
-                if let Some(value) = attr.value.as_deref() {
-                    collect_expr_names(value, out);
-                }
-            }
-            for child in &jsx.children {
-                match child {
-                    ast::Child::Element(element) => {
-                        for attr in &element.attrs {
-                            if let Some(value) = attr.value.as_deref() {
-                                collect_expr_names(value, out);
-                            }
-                        }
-                        for child in &element.children {
-                            if let ast::Child::Expr(Some(value)) = child {
-                                collect_expr_names(value, out);
-                            }
-                        }
-                    }
-                    ast::Child::Expr(Some(value)) => collect_expr_names(value, out),
-                    ast::Child::Expr(None) | ast::Child::Text(_) => {}
-                }
-            }
-        }
+        ast::ExprData::Jsx(jsx) => collect_jsx_names(jsx, out),
         ast::ExprData::Object(properties) => {
             for property in properties {
                 collect_expr_names(&property.value, out);

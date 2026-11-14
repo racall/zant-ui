@@ -79,6 +79,8 @@ fn closure_body(
         // a closure nested in a handler still reads the handler's captures
         // (`cap.field`) instead of re-capturing them
         capture_method: outer.capture_method,
+        // emitted inside the handler: its runtime context stays visible
+        cx_var: outer.cx_var.clone(),
         ..scope::Context::default()
     };
     for (param, ty) in function.params.iter().zip(arguments) {

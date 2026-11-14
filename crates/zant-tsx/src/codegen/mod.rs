@@ -70,6 +70,7 @@
 //! | `app_hooks.zig` / `jsx.zig` (`imageType`) | `hooks.key_event_type` / `hooks.image_type` | `fn(&mut Generator) -> Result<Type>` |
 //! | hook predicates | `extensions.extra_hook` / `is_app_hook` / `is_desktop_hook` / `component_shadow` | `fn(..) -> bool` |
 
+pub mod action_cx;
 pub mod aggregate;
 pub mod app_hooks;
 pub mod app_state;
@@ -505,6 +506,10 @@ pub struct Generator<'a> {
     /// Names of stores, windows and child components (WP-5.5/5.6): they shadow
     /// locals like the module-level declarations of `scope.globalName`.
     pub extra_globals: Vec<String>,
+    /// A local `Weak<RefCell<Component>>` that generated actions must capture
+    /// instead of `self._state`: `<List>` row closures cannot borrow `self`
+    /// (the closures outlive the `&mut self` build). Set by `list.rs`.
+    pub handler_state: Option<String>,
     pub extensions: Extensions,
 }
 
@@ -551,6 +556,7 @@ impl<'a> Generator<'a> {
             child_component: false,
             type_scope: false,
             extra_globals: Vec::new(),
+            handler_state: None,
             extensions: Extensions::default(),
         }
     }

@@ -51,19 +51,13 @@ impl Stepper {
                 ui::button(ui::ButtonOptions { key : Some(zant::Str::from("plus")), text
                 : zant::Str::from("+"), on_click : Some(ui::Action::new({ let _state =
                 self._state.clone(); move | _cx | { if let Some(state) = _state.upgrade()
-                { state.borrow_mut()._on_click1(); } } })), ..Default::default() })
+                { state.borrow_mut()._on_click1(_cx); } } })), ..Default::default() })
             ],
             ..Default::default()
         });
     }
-    fn _on_click1(&mut self) {
-        ui::effect(
-            ui::Action::new({
-                let callback = self.props.onStep.clone();
-                let _arg0: f64 = 1.0f64;
-                move |cx| (callback)(cx, _arg0)
-            }),
-        );
+    fn _on_click1(&mut self, _cx: &mut ui::ActionCx<'_>) {
+        (self.props.onStep.clone())(_cx, 1.0f64);
     }
 }
 pub struct App {

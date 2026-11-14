@@ -31,6 +31,13 @@
 | 下一步 | lead 合并 → 全量验收（macOS + Windows）→ 补齐 WP-5.9 / WP-5.10 / WP-5.10c 报告的框架 API 与编译器 bug（`ui` 的 markdown/pdf_viewer 导出、跨文件窗口组件、`Uint8Array` 映射、非根 `<List>` 生成代码、生成代码 lint 兜底）→ M8 切换（需用户确认） |
 | Windows | 测试机 192.168.31.24 全程不可达；所有 Windows 验收待补 |
 
+| Rust 测试 | `cargo test --workspace` 全绿（`rust/wp-tsx-bugs`）：**81 个测试结果（含 doc-tests）/ 1092 passed / 0 failed**，含 WP-TSX-BUGS 新增 7 条（`crates/zant-tsx/tests/compile_regressions.rs` 6 条编译器回归 + `crates/zant/tests/tsx_callbacks_test.rs` 1 条同步回调运行期用例）；工作区全量以 lead 合并后为准 |
+| Zig 测试 | 本 WP 未改任何 `.zig`（Zig 树冻结，未跑 `zig build test`） |
+| 质量门 | `cargo fmt --all -- --check` 干净；`cargo clippy --workspace --all-targets -- -D warnings` 0 告警 |
+| 已完成 | **WP-TSX-BUGS（`zant-tsx` 四个已验证代码生成 bug：子组件回调 prop 同步执行、`Option<Node>` 裸元素、富文本末尾字面量、非根 `<List>`；gallery/todos/reader/notes 与 Zig 基线 0 px，见下方「WP-TSX-BUGS 完成情况」）** |
+| 进行中 | —（WP-TSX-BUGS 已完成；待 lead 合并并做全量验收） |
+| 下一步 | lead 合并 → 复跑 `examples-check`（gallery 0 px）/ `bench-tsx` / `parity`；Windows 验收待补 |
+
 ## 环境与基线（M0 记录）
 
 | 项 | 值 |
@@ -205,6 +212,7 @@ Release、窗口模式（Metal），`ZANT_FRAME_STATS=1 ZANT_STREAM_CHARS=6 ZANT
 
 | 5.10 | examples/tsx 入口、bench-tsx | wp-5-10 | 完成（worktree wp-5.10，待并入） | 分支 `rust/wp-5.10`。3 个 TSX 示例应用改成 Cargo workspace 成员（`crates/zant-examples/tsx/{tsx-counter,tsx-demo,tsx-bench}`，template 形态：`build.rs` → `zant_build::try_tsx_app()`）；`scripts/tsx/examples-check.sh` 无窗口跑 3 个应用并断言 PNG 非空白 / 尺寸 / 确定性 / `ZANT_LAYOUT_FILE` keyed 控件；`zant-tsx-bench` 编译基准（32 个语料，Rust 编译 30 个，best-of-3 平均 **1.08×** Zig in-process，闸门 ≤1.25× PASS）。详见下方「WP-5.10 完成情况」与「WP-5.10 提出」。 |
 | 5.10c | `bench-tsx`：TSX 生成代码 vs 手写 Rust 帧对比 | wp-5-10c | 完成（worktree wp-5.10c，待并入） | 分支 `rust/wp-5.10c`。M5 验收「TSX 生成代码不慢于手写 Rust 对照组 1.2 倍」**全部通过**：`zant-tsx-frame-bench`（`crates/zant-examples/src/bin/`，`build.rs` 用 `zant_build::tsx_app_in` 把 `examples/tsx/` 六个基准页编成 Rust）+ `scripts/tsx/bench-tsx.sh`（Release、best-of-3、交替先后、逐 app 及逐场景判 ≤1.2×）。本机 6/6 apps、11/11 scenarios PASS，最高 **1.11×**。详见下方「WP-5.10c 完成情况」与「WP-5.10c 提出」。 |
+| TSX-BUGS | `zant-tsx` 已验证编译器 bug 修复（子组件回调同步执行 / `Option<Node>` 裸元素 / 富文本末尾字面量 / 非根 `<List>`） | wp-tsx-bugs | 完成（worktree wp-tsx-bugs，待并入） | 分支 `rust/wp-tsx-bugs`。子组件 handler 现在带 `_cx: &mut ui::ActionCx<'_>` 同步调用回调 prop（去掉被 `begin_frame` 清掉的 `ui::effect`）；`<List>` 把 `_list`/`_state` 提到行闭包外、闭包内 action 用 hoisted `_state`（原 workaround 生成根 action，运行期 `ActionCx::state` 会 panic）；bug 2/3 的 base staged fix 补上回归测试。golden 重新生成 5 个（其余逐字节不变）；gallery/todos/reader/notes 与 Zig 基线 **0 px**，bench-tsx 6/6 apps、11/11 scenarios PASS。详见下方「WP-TSX-BUGS 完成情况」。 |
 
 ### M6 CLI / 构建 / 脚手架 / 发布
 
@@ -1112,7 +1120,7 @@ workspace 成员没有 `zant sync` 时，`zant_build::try_tsx_app()` 在打印
 
 ### WP-5.10b 提出（2026-11-14）
 
-**1. 子组件的回调 prop 在事件里被 `ui::effect` 吞掉（`crates/zant-tsx/src/codegen/components.rs` + `crates/zant/src/ui/context.rs`）**
+**1. 子组件的回调 prop 在事件里被 `ui::effect` 吞掉（`crates/zant-tsx/src/codegen/components.rs` + `crates/zant/src/ui/context.rs`）**——**已修**：WP-TSX-BUGS 按建议的直接调用修法实现，见下方「WP-TSX-BUGS 完成情况」1。
 codegen 把子组件里的 `onX(arg)` 生成成 `ui::effect(ui::Action::new(move |cx| (callback)(cx, arg)))`
 （`components.rs:426`、`:440`，注释假设“>= 1 frame later”运行）。但 `ui::effect` 只是把 action
 push 进当前 `BuildCx.effects`，而下一帧 `Runtime::rebuild()` 先 `build_tree()` → `ui::begin_frame()`
@@ -1134,7 +1142,7 @@ Zig ： 01-after-delete.layout 回到 empty 状态（笔记删除成功）
 `(self.props.onDelete)(cx, arg)`（事件 action 本来就有 cx）；或 `begin_frame` 不丢事件期入队的
 effect（先 drain 再清）；直接调用更贴近 Zig。
 
-**2. `Option<Node>` 属性收到裸元素时生成 `Node` 而不是 `Some(..)`（`crates/zant-tsx/src/codegen/jsx_values.rs:322-324`）**
+**2. `Option<Node>` 属性收到裸元素时生成 `Node` 而不是 `Some(..)`（`crates/zant-tsx/src/codegen/jsx_values.rs:322-324`）**——**已修**：分支 base 的 M7.1 staged fix 已按此修法修改，WP-TSX-BUGS 补回归测试并复验（见下方「WP-TSX-BUGS 完成情况」2）。
 `node()` 先 `if value.ty == Type::Node { return Ok(value.code); }`，然后才走 `optional` 的
 `types::coerce(.., OptionalNode)`（会生成 `Some(..)`），所以 `<Modal footer={<Row>…</Row>}>` 报：
 
@@ -1148,7 +1156,7 @@ Repro：`examples/tsx/gallery.tsx` 的 Modal `footer={<Row …>…</Row>}`（`to
 `footer={open ? (<Row>…) : null}`。修法：`optional && value.ty == Type::Node` 时也走
 `coerce(.., OptionalNode)`。
 
-**3. 富文本里紧跟表达式子节点的字面量文本被丢掉**
+**3. 富文本里紧跟表达式子节点的字面量文本被丢掉**——**已修**：分支 base 的 M7.1 `Format::text` fix 已修，WP-TSX-BUGS 补回归测试并复验 gallery **0 px**（见下方 3）。
 `examples/tsx/gallery.tsx` 的 `<Text key="rich">…<Link>link</Link>{docs > 0 && ` (opened …)`}.</Text>`
 生成的 `spans` 里最后一个 span 是条件表达式，**末尾的 `.` 没有生成**（`crates/zant-tsx/src/codegen/rich_text.rs`
 的 JSX 文本子节点处理）。Rust/Zig gallery 快照恰好差 21 个像素（逻辑坐标约 (448–450, 532–534)，
@@ -1162,7 +1170,7 @@ type/key/resize 步骤本身全部成功（`scenario ok`）。
 
 ### WP-5.10c 提出（2026-11-14）
 
-**1. 非根组件渲染 `<List>` 生成代码不编译（`crates/zant-tsx/src/codegen/list.rs`）**
+**1. 非根组件渲染 `<List>` 生成代码不编译（`crates/zant-tsx/src/codegen/list.rs`）**——**已修**：WP-TSX-BUGS 按建议 hoist `_list`/`_state`，并顺带修掉 base workaround 的**运行期 panic**（根 action 形态），见下方「WP-TSX-BUGS 完成情况」4。
 
 带 props 的组件（非根）里写 `<List renderItem={…}>`，只要 item 闭包引用组件自身的状态/回调
 （例如 `const [picked, setPicked] = useState(0)` 后 `onClick={() => setPicked(row.id)}`），生成的
@@ -1290,6 +1298,9 @@ Zig 的 `tsx.State` 可以写根状态，所以 `bench_list` 直接把 10 000 �
    `ui::Action` 族，子 handler 调用时经 `ui::effect(...)` 延迟一帧执行（能编译、语义等价但晚一帧）；
    非 ui 事件签名（如 `(id: number) => void`）目前报诊断。要彻底解决需要在 `ui` 里增加
    “在 handler 中调用 Action”的能力（或给 handler 传 `ActionCx`）。
+   **已解决**（WP-TSX-BUGS）：生成的 handler 需要时带 `_cx: &mut ui::ActionCx<'_>` 参数，回调 prop
+   直接同步调用（`Action` 族 `.call(_cx, …)`、其余 `Rc<dyn Fn(&mut ActionCx, …)>` 直接调用）；
+   根组件 handler 不受影响，也不需要改 `ui` 的 Action API。
 3. **`tsx::Store<T>` 的契约**（给 WP-5.7）：生成代码假设 `tsx::Store::new(initial)` 与 `&self` 方法
    `get/read/set/update(impl FnOnce(&mut T))`；每个 `createStore` 生成
    `thread_local!` 静态 + `settings_{get,read,set,update}` 四个 `pub fn`（Rust 无可变 `static`）。
@@ -1419,6 +1430,108 @@ Zig 的 `tsx.State` 可以写根状态，所以 `bench_list` 直接把 10 000 �
    `let _ = (…)` 引用它们保持新项目零告警。
 7. **Windows**：本机不可达，未验证；新增代码只有平台无关的路径/文件写入，
    `#[cfg(windows)]` 分支未改动。
+
+## WP-TSX-BUGS：`zant-tsx` 已验证编译器 bug 修复（2026-11-14）
+
+分支 `rust/wp-tsx-bugs`。修「WP-5.10b 提出」1–3 与「WP-5.10c 提出」1 四个**已验证**的代码生成
+bug；提交信息 `WP-TSX-BUGS: synchronous child callbacks, optional node props, rich-text tails, List in children`。
+
+### 1. 子组件回调 prop 同步执行（最高优先级）
+
+**根因**：子组件 handler 里的 `onX(arg)` 生成 `ui::effect(ui::Action::new(move |cx| (callback)(cx, arg)))`。
+`ui::effect` 只把 action push 进 `BuildCx.effects`，而 `Runtime::rebuild()` 先 `build_tree()` →
+`ui::begin_frame()`（`crates/zant/src/ui/context.rs`，`build.effects.clear()`）再 `run_effects()`：
+事件期排队的回调在运行前被清掉，永远不执行（Zig 是同步 `{callee}.func({callee}.ctx, …)`）。
+
+**修法**（不改运行时 API，只改生成代码）：
+- 新增 `crates/zant-tsx/src/codegen/action_cx.rs`：生成 handler 前扫描它的 body，决定它是否需要运行时
+  上下文——直接调用本组件回调 prop、经 `props.onX`，或调用另一个（传递地）需要它的生成函数
+  （`function add(delta) { …; onChange(delta); }` 这种真实写法）；事件/回调箭头是独立方法（跳过），
+  数组回调闭包按内联代码继续走。带调用图记忆、递归防护与局部变量遮蔽分析。
+- 需要时 handler 签名变成 `fn _on_click3(&mut self, _cx: &mut ui::ActionCx<'_>)`；
+  `components::try_call` 生成 `(self.props.onDelete.clone())(_cx, arg)`（`ui::*Action` 族用
+  `.call(_cx, arg)`，`string` 参数用 `.as_str()`）。`generate::action_value` / `callback_value`
+  把 action 闭包里的 `_cx` 传进去；直接调用（`self.add(_cx, 1)`）由 `expr::call_value` 注入；
+  数组回调闭包继承 `cx_var`。`scope::Context.cx_var` 同时保证 TSX 局部变量不能遮蔽 `_cx`。
+- 根组件 handler 保持原样（根组件没有 callback props → 不需要 cx；输出与之前逐字节一致）。
+
+**测试**：
+- `crates/zant-tsx/tests/compile_regressions.rs`：`child_callback_props_run_synchronously`（Action /
+  `Rc<dyn Fn>` / TextAction / BoolAction 四种签名 + 经 helper 的传递调用）、
+  `a_props_object_callback_prop_also_runs_synchronously`，断言不再出现 `ui::effect`、签名带 `_cx`，
+  并把模块写进 workspace 外临时 crate `cargo check` 通过。
+- `crates/zant/tests/tsx_callbacks_test.rs`：手写生成代码的形态（`local_state` + `Weak` 升级 +
+  `_on_click(&mut self, cx)` → 父回调）并真正 `Runtime::dispatch` 一次点击，断言父状态在**同一次
+  dispatch** 内改变、下一帧文本更新（旧的 `ui::effect` 形态在这里必然失败）。
+
+### 2. `Option<Node>` prop 收到裸元素
+
+**状态**：分支 base（提交 `060601e` 的 M7.1 staged fix）已按报告修法在 `jsx_values::node` 里
+`value.ty == Type::Node && optional` 时包 `Some(..)`。本 WP 复验并补回归测试：
+`<Modal footer={<Row>…</Row>}>` 生成 `footer: Some(ui::row(…))`、能编译。
+`crates/zant-examples/tsx/tsx-gallery/src/App.tsx` 里的三元 workaround 保留（不在本 WP 范围；
+渲染树与 Zig 相同）。
+
+### 3. 富文本末尾字面量
+
+**状态**：base 的 M7.1 staged fix（`rust_text::Format::text` 不再保留 `only_string`）已修：
+`<Link>link</Link>{cond}.` 生成 `format!("{}.", if …)`。本 WP 补回归测试
+（`rich_text_keeps_a_literal_after_an_expression`）；`examples-check.sh` 的 Zig 基线对照
+gallery **0/2918400 像素**（WP-5.10b 的 21 px 差异消失），todos/reader/notes 同为 0 px。
+
+### 4. 非根组件里的 `<List>`
+
+**根因（比报告更深一层）**：base 的 workaround 在 `item_closure`/`id_closure` 里把
+`g.current_component` 置空，行闭包不再捕获 `self`，于是**能编译**；但闭包里生成的 action 走的是
+**根组件**形态 `ui::action(|s: &mut Child| …)`，运行期 `ActionCx::state::<Child>()` 会在根状态是
+`App` 时 panic——报告里的 E0505 只是表象。
+
+**修法**：按报告建议 hoist——
+
+```rust
+let _list = self._list1.clone();
+let _state = self._state.clone();   // 仅非根组件
+ui::list(&_list, ui::ListOptions { item: std::rc::Rc::new(move |_index| { … }), .. })
+```
+
+- `list.rs::emit` 把 `_list`（以及子组件的 `_state`）提到 options 前，`ui::list(&_list, …)`；
+- `Generator::handler_state` 让行闭包里生成的 action 用 hoisted `_state.clone()` 升级**本组件**的
+  `local_state`（仍是子组件形态，不再借 `self`），语义正确；
+- `item_closure` 保留 `current_component`（不再置空），`collect_captures` 用 `components::read_prop`
+  捕获解构的 props（`onDelete`）与非解构 props 对象，并把 JSX 收集递归到嵌套元素。
+
+**测试**：`list_in_a_child_component_clones_its_state_slot`（断言 `let _list` / `let _state` /
+`ui::list(&_list,` / 闭包内 `_state.clone()` / `(cap.onPick.clone())(_cx,`，并编译）；
+`codegen_jsx` 的 list 用例同步更新。`local_state`/`list`/`list_scroll` golden 更新。
+
+### 重新生成的 golden
+
+`crates/zant-tsx/testdata/{children,named_handlers,list,list_scroll,local_state}.rs` 5 个（其余 26 个
+golden 逐字节不变；`tests/snapshots/` 不变）。逐行审阅：`children`/`named_handlers` 是 handler 签名 +
+同步调用（`ui::effect` 消失）；`list`/`list_scroll`/`local_state` 是 `_list`/`_state` hoist。
+
+### 验证（全部通过）
+
+| 命令 | 结果 |
+|---|---|
+| `./scripts/cargo.sh test --workspace` | 81 个测试结果（含 doc-tests）/**1092 passed / 0 failed**；新增 7 条（compile_regressions 6 + tsx_callbacks_test 1） |
+| `./scripts/cargo.sh clippy --workspace --all-targets -- -D warnings` | 0 告警 |
+| `./scripts/cargo.sh fmt --all -- --check` | 干净 |
+| `./scripts/tsx/build-template-check.sh` | OK（scaffold 模板 build + 快照） |
+| `ZANT_ZIG_BIN=<baseline> ./scripts/tsx/examples-check.sh` | OK：7 个应用两次运行字节一致；4 个 Zig 对照 layout 全等且像素全 **0 px**（gallery 0/2918400、todos 0/1433600、reader 0/3404800、notes 0/1164800）；编译基准 **1.10×** Zig PASS |
+| `./scripts/tsx/bench-tsx.sh` | **PASS 6/6 apps、11/11 scenarios ≤1.20×**（最高 `todos-add` 1.11×、`local-mount` 1.10×） |
+| `ZANT_ZIG_BIN=<baseline> ./scripts/parity/compare.sh zant-demo` | **6/6 组合 layout 相同、0 px**（light/dark × 3 尺寸） |
+
+### 剩余 / 注意
+
+1. 本 WP 未改 `crates/zant/src/ui/**` 或 `runtime/**`：不需要运行时 API 变更，`ui::effect` 仍是
+   `useEffect` 的排队机制。
+2. base 的两个 staged fix（bug 2/3）原先没有回归测试；现由 `compile_regressions.rs` 覆盖。
+3. 回调 prop 的调用只支持「本组件 props 里的回调」——`const f = onDelete; f(1)`（别名）仍是
+   “local value, not a component function” 诊断（Zig 同样不支持）。
+4. `<List>` 行闭包里回调 prop 的捕获依赖 `collect_captures` 的解构 props 捕获；嵌套 `<List>`
+   仍不在支持范围。
+5. Windows 测试机不可达，未验证；本 WP 只改平台无关的代码生成器与测试。
 
 ## Zig 变更日志
 

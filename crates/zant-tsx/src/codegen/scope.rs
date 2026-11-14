@@ -69,6 +69,9 @@ pub struct Context {
     pub no_self: bool,
     /// Optionals proven non-null here (`narrowing.zig`).
     pub narrowed: Vec<narrowing::Narrow>,
+    /// The runtime context parameter available in this handler (see
+    /// [`super::action_cx`]): a local must not shadow it.
+    pub cx_var: Option<String>,
 }
 
 impl Default for Context {
@@ -91,6 +94,7 @@ impl Default for Context {
             cleanup: false,
             no_self: false,
             narrowed: Vec::new(),
+            cx_var: None,
         }
     }
 }
@@ -165,7 +169,11 @@ pub fn bind(
 
 pub fn name_taken(g: &Generator<'_>, c: &Context, n: &[u8]) -> bool {
     let receiver = n == b"self" || (c.capture_method.is_some() && n == b"cap");
-    if receiver || n == b"_" || global_name(g, n) {
+    if receiver
+        || n == b"_"
+        || global_name(g, n)
+        || c.cx_var.as_ref().is_some_and(|cx| cx.as_bytes() == n)
+    {
         return true;
     }
     for binding in &c.bindings {

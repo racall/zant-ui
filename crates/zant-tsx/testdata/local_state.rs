@@ -167,8 +167,10 @@ impl Feed {
         return {
             let _data = tsx::List::from_vec(vec![1.0f64, 2.0f64, 3.0f64]);
             let _rows = _data.clone();
+            let _list = self._list2.clone();
+            let _state = self._state.clone();
             ui::list(
-                &self._list2,
+                &_list,
                 ui::ListOptions {
                     count: _data.len(),
                     item: std::rc::Rc::new(move |_index: usize| -> ui::Node {
