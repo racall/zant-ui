@@ -488,6 +488,15 @@ Rust 编译器仍拒绝（见「WP-5.10 提出」4），基准输出 `failed: 2 
 - 最终校验：71 个测试套件全绿、clippy 0、fmt 干净、`build-template-check.sh` / `build-check.sh` /
   `examples-check.sh` 全通过、`zant-demo` parity 6/6、bench 闸门 7/7 PASS（两种模式）。
 
+## CLI 端到端（本轮验证）
+
+- `zant create` → `cargo build`：新项目直接可编译（模板 `scaffold/template-ts`）。
+- `zant package`：release 编译 → 生成 AppIcon.icns → ad-hoc 签名 → `target/<标题>.app`；打出的 .app
+  内二进制用 `ZANT_SNAPSHOT` 运行渲染正常（截图 `/tmp/pkg-shot/pkg.png`）。
+- `zant run`：已修掉原来用 bash 进程替换过滤 macOS 输入法日志的做法（沙箱/受限环境会
+  `Operation not permitted`），改为 Rust 侧管道过滤（`is_benign_log` + 后台线程），现在在沙箱里也能
+  编译并启动窗口；`ZANT_RAW_LOGS=1` 仍可看原始输出。
+
 ## 待决问题
 
 ### WP-5.9 提出（2026-11-14）
