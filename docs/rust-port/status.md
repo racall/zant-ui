@@ -224,9 +224,10 @@ Zig 构建脚本，改写 `build.rs`、bindgen、预编译库列表、CI、relea
 `crates/zant-examples/tsx/corpus/`，CLI 删除 `--lang zig`。切换后 parity 只能对旧基线手工跑，
 `scripts/parity/bench.sh` 无 Zig 基线时进入 Rust-only 模式并对照本文件记录的数字；
 `scripts/tsx/examples-check.sh` 只跑 Rust 侧编译基准。**未执行任何切换**（需用户批准；本机 Windows
-验收仍缺）。一次性 `/tmp` 副本演练通过：71 个测试套件 / 1057 passed / 0 failed（比切换前少 2 条纯
-Zig 模板测试）、clippy 0、fmt 干净、模板 / TSX 示例检查通过、bench（Rust-only，best-of-8）default
-7/7 + list 7/7 PASS。细节见 `docs/rust-port/m8-cutover.md`「演练记录」。
+验收仍缺）。以最新 `feat/rust-port`（`1429d69`）为基的一次性 `/tmp` 副本演练通过：74 个测试套件 /
+1074 passed / 0 failed（比切换前 1076 少 2 条纯 Zig 模板测试）、clippy 0、fmt 干净、模板 / TSX 示例
+检查通过、bench（Rust-only，best-of-12）default 7/7 + list 7/7 PASS。细节见
+`docs/rust-port/m8-cutover.md`「演练记录」。
 
 ## 并行执行与合并方式
 

@@ -905,7 +905,7 @@ edit("crates/zant/src/math/mhchem/mod.rs", [(
 )])
 edit("crates/zant/src/math/mhchem/tests.rs", [(
     'from_str(FIXTURE_JSON).expect("src/math/mhchem_cases.json")',
-    'from_str(FIXTURE_JSON).expect("crates/zant/src/math/mhchem_cases.json")',
+    'from_str(FIXTURE_JSON).expect("mhchem_cases.json")',
 )])
 edit("crates/zant/tests/mhchem_render_test.rs", [(
     'from_str(mhchem::FIXTURE_JSON).expect("src/math/mhchem_cases.json")',
@@ -917,8 +917,9 @@ edit("crates/zant-build/src/lib.rs", [(
     "//! and the GUI\n",
 )])
 edit("crates/zant-build/src/windows.rs", [(
-    'crate::zant_ui_root().join("src/platform/windows/zant.manifest")',
-    'crate::zant_ui_root().join("crates/zant-sys/native/platform/windows/zant.manifest")',
+    '    let manifest = crate::zant_ui_root().join("src/platform/windows/zant.manifest");\n',
+    '    let manifest =\n'
+    '        crate::zant_ui_root().join("crates/zant-sys/native/platform/windows/zant.manifest");\n',
 )])
 
 edit("crates/zant-tsx/tests/golden.rs", [
@@ -1073,8 +1074,9 @@ edit("crates/zant-cli/src/main.rs", [
     ),
     (
         "    if project::detect(root)? == project::Language::Ts\n"
-        "        && !Path::new(root).join(\"build.rs\").is_file()\n",
-        "    if project::is_tsx_app(root) && !Path::new(root).join(\"build.rs\").is_file()\n",
+        "        && !Path::new(root).join(\"build.rs\").is_file()\n"
+        "    {\n",
+        "    if project::is_tsx_app(root) && !Path::new(root).join(\"build.rs\").is_file() {\n",
     ),
     (
         "            \"{root} 没有 Cargo.toml：zant run/compile/package 用 cargo build 构建 Cargo 应用；`--lang zig` 的旧模板只保留到 M8（没有 Cargo.toml，不能构建）\"\n",
@@ -1314,9 +1316,7 @@ edit("crates/zant-cli/src/scaffold.rs", [
         "    #[test]\n"
         "    fn template_directory_is_the_tsx_template() {\n"
         "        assert!(Path::new(&repo_root()).join(TEMPLATE_TS).is_dir());\n"
-        "        assert!(!Path::new(&repo_root())\n"
-        "            .join(\"scaffold/template\")\n"
-        "            .exists());\n"
+        "        assert!(!Path::new(&repo_root()).join(\"scaffold/template\").exists());\n"
         "    }\n"
         "\n"
         "    #[test]\n"
@@ -2344,12 +2344,6 @@ if [ "$APPLY" = 1 ]; then
     log "applying the cutover"
     "$PYTHON" "$PY_FILE" apply "$ROOT"
     ok "native sources moved, Zig removed and references updated"
-    # The text replacements can push Rust lines over rustfmt's width; the
-    # pre-M8 tree is already formatted, so formatting here only touches the
-    # lines the cutover rewrote.
-    log "formatting (cargo fmt --all)"
-    "$CARGO" fmt --all || die "cargo fmt --all failed (is the rustfmt component installed?)"
-    ok "cargo fmt --all"
     if [ "$SKIP_GATES" = 0 ]; then
         verify
     else

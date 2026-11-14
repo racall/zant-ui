@@ -189,12 +189,14 @@ git ls-files '*.zig'   # 必须为空
 - **切换**：`scripts/migrate/cutover-m8.sh --apply --skip-gates` 退出 0；脚本自身断言
   `git ls-files '*.zig'` 为空、`build.zig` / `build.zig.zon` / `tools/` / `src/` / `examples/` /
   `scaffold/template/` 不存在、新路径全部就位。`git status` 只有预期的 `R` / `D` / `M`
-  （58 个 renamed、11 个 renamed+modified、388 deleted、70 modified）。之后脚本内
-  `cargo fmt --all` 只收敛被改写行（例如 `mhchem/tests.rs`、`windows.rs` 的长行）。
+  （58 个 renamed、11 个 renamed+modified、388 deleted、69 modified）。改写文本保持 rustfmt
+  干净（长行已按 rustfmt 折行；不跑 `cargo fmt --all`——全新 checkout 里 TSX 示例应用的
+  `src/app_config.rs` 还没由 build.rs 生成，`cargo fmt` 会因缺模块报错；fmt 由验收里的
+  `fmt --all -- --check` 在 `cargo build` 之后兜底）。
 - **真实验收（副本内；`--verify-only` 也会原样重跑这套）**：
   - `cargo build --workspace`：通过（只有既有的 pdf.mm clang 警告与 `app_config.rs` 提示）。
-  - `cargo test --workspace`：**71 个测试套件 / 1057 passed / 0 failed**。与切换前
-    `status.md` 记录的 71 / 1059 相比少 2 条，正是随纯 Zig 模板一起删除的
+  - `cargo test --workspace`：**74 个测试套件 / 1074 passed / 0 failed**。与切换前
+    `status.md` 记录的 74 / 1076 相比少 2 条，正是随纯 Zig 模板一起删除的
     `create_lang_zig_still_copies_the_legacy_template` 和 `project.rs` 的旧语言探测（`Language::Zig`）
     测试；其余（remend 522、mhchem 823 等夹具）全在。
   - `clippy --workspace --all-targets -- -D warnings`：0 告警；`fmt --all -- --check` 干净。
