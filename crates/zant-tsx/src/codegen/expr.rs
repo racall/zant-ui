@@ -79,7 +79,10 @@ pub fn emit(
         }
         ast::ExprData::NonNull(inner) => aggregate::non_null(g, c, inner, expected, child)?,
         ast::ExprData::As(cast) => explicit_cast(g, c, e.loc, cast, child)?,
-        ast::ExprData::Array(items) => aggregate::array(g, c, e.loc, items, expected)?,
+        ast::ExprData::Array(items) => match static_bytes_expected(g, expected) {
+            Some(bytes) => byte_slice(g, c, items, bytes)?,
+            None => aggregate::array(g, c, e.loc, items, expected)?,
+        },
         ast::ExprData::Index(ix) => aggregate::index(g, c, e.loc, ix)?,
         ast::ExprData::Spread(_) => {
             return fail(g, e.loc, "this expression is not supported yet");
@@ -104,6 +107,49 @@ fn number(n: &[u8]) -> Value {
         inference: Inference::Literal,
         ..Value::default()
     }
+}
+
+/// The `Uint8Array` type when `expected` is it (optionally wrapped in `?`).
+fn static_bytes_expected(g: &Generator<'_>, expected: Option<Type>) -> Option<Type> {
+    let ty = expected?;
+    let inner = model::optional_child(g, ty).unwrap_or(ty);
+    model::is_static_bytes(g, inner).then_some(inner)
+}
+
+/// A `Uint8Array` literal: Zig emitted `&[_]u8{ 137, 80, … }`; Rust takes a
+/// promoted slice, `&[137u8, 80u8, …]`, which coerces to `&'static [u8]`
+/// (`const icon: Uint8Array = [137, 80, 78, 71]`). Only integer literals are
+/// const-promotable, so anything else is a diagnostic instead of code that
+/// would not compile.
+fn byte_slice(
+    g: &mut Generator<'_>,
+    c: &mut scope::Context,
+    items: &[Box<ast::Expr>],
+    ty: Type,
+) -> Result<Value> {
+    let mut parts: Vec<String> = Vec::new();
+    for item in items {
+        if !matches!(item.data, ast::ExprData::Number(_)) {
+            return fail(
+                g,
+                item.loc,
+                "a Uint8Array literal contains only integer byte literals; build other bytes at runtime",
+            );
+        }
+        let value = emit(g, c, item, Some(Type::U8), false)?;
+        parts.push(value.code);
+    }
+    let code = if parts.is_empty() {
+        "&[]".to_owned()
+    } else {
+        format!("&[{}]", parts.join(", "))
+    };
+    Ok(Value {
+        ty,
+        code,
+        precedence: Precedence::Unary,
+        ..Value::default()
+    })
 }
 
 /// Check boolean negation or numeric signs without changing the operand type.

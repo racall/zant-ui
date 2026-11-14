@@ -9,12 +9,12 @@
 | 项 | 值 |
 |---|---|
 | 分支 | `feat/rust-port`（全部 WP 直接合入这里，提交带 `WP-x.y:` 前缀） |
-| Rust 测试 | `cargo test --workspace` 全绿（`rust/wp-5.10`）：**71 个测试二进制 / 1059 passed / 0 failed**，含 WP-5.10 新增 6 条（3 × 示例 native `system`、3 条 `zant-tsx-bench`）；工作区全量以 lead 合并后为准 |
-| Zig 测试 | `zig build test` 仍全绿（Zig 版未改行为，只加了 `ZANT_WINDOW_SIZE` 钩子与 `ZANT_STATIC_DATA` 原生补丁） |
+| Rust 测试 | `cargo test --workspace` 全绿（`rust/wp-coverage`）：**74 个测试套件 / 1076 passed / 0 failed**（35 条 doc 示例标注 `ignore`），含 31 个 TSX golden 的批量 `cargo check`、端到端 fixture/模板；WP-COVERAGE 新增 17 条（`Uint8Array`/desktop 9 + store 诊断 1 + string 2 + React 兼容 5），并解除 `desktop` 黄金阻塞（见下方「WP-COVERAGE」） |
+| Zig 测试 | `zig build test` 仍全绿（Zig 版未改行为，只加了 `ZANT_WINDOW_SIZE` 钩子与 `ZANT_STATIC_DATA` 原生补丁）；WP-COVERAGE 未改任何 `.zig`（`git status -- '*.zig'` 为空） |
 | 质量门 | `cargo fmt --all -- --check` 干净；`cargo clippy --workspace --all-targets -- -D warnings` 0 告警 |
-| 已完成 | M0 全部（0.1 macOS/0.2/0.3/0.4/0.5）、M1 全部（1.1a–d/1.2/1.3/1.4/1.5，parity 6/6 0 像素）、M2（2.1–2.11 除 2.11 已并入全绿）、M3（3.1–3.9、3.11，zant-pdf parity 6/6）、M4（4.1–4.4）、M5（5.1–5.8、5.9 黄金/端到端，见下方偏差表）、M6（6.1、6.3、6.4、6.5）、M7（7.3 文档）、**WP-5.10（TSX 示例 + 编译基准，见下方「WP-5.10 完成情况」）** |
-| 进行中 | —（WP-5.10 已完成；待 lead 合并各 worktree 并做全量验收） |
-| 下一步 | lead 合并 → 全量验收（macOS + Windows）→ 补齐 WP-5.9 / WP-5.10 报告的框架 API 与编译器 bug（`ui` 的 markdown/pdf_viewer 导出、跨文件窗口组件、`Uint8Array` 映射、生成代码 lint 兜底）→ TSX 帧对比基准（TSX 生成代码 ≤1.2× 手写 Rust）→ M8 切换（需用户确认） |
+| 已完成 | M0 全部（0.1 macOS/0.2/0.3/0.4/0.5）、M1 全部（1.1a–d/1.2/1.3/1.4/1.5，parity 6/6 0 像素）、M2（2.1–2.11 除 2.11 已并入全绿）、M3（3.1–3.9、3.11，zant-pdf parity 6/6）、M4（4.1–4.4）、M5（5.1–5.8、5.9 黄金/端到端，见下方偏差表）、M6（6.1、6.3、6.4、6.5）、M7（7.3 文档）、WP-5.10（TSX 示例 + 编译基准）、**WP-COVERAGE（desktop 黄金 + 测试覆盖对照，见下方「WP-COVERAGE」）** |
+| 进行中 | —（WP-5.10 / WP-COVERAGE 已完成；待 lead 合并各 worktree 并做全量验收） |
+| 下一步 | lead 合并 → 全量验收（macOS + Windows）→ 补齐 WP-5.9 / WP-5.10 报告的框架 API 与编译器 Bug（`ui` 的 markdown/pdf_viewer 导出、跨文件窗口组件、生成代码 lint 兜底）→ 更新 `docs/tsx.md` 的 `Uint8Array` 说明（`&'static [u8]` vs 运行时 `tsx::Bytes`）→ TSX 帧对比基准（TSX 生成代码 ≤1.2× 手写 Rust）→ M8 切换（需用户确认） |
 | Windows | 测试机 192.168.31.24 全程不可达；所有 Windows 验收待补 |
 
 ## 环境与基线（M0 记录）
@@ -480,7 +480,8 @@ Rust 编译器仍拒绝（见「WP-5.10 提出」4），基准输出 `failed: 2 
   分文件声明/导入；已用 tsx-demo 结构验证（`src/windows.tsx` 声明句柄、`Panel.tsx` 导入并调用
   `panel.show()`，编译通过）。单文件 `compile` 仍在本文件生成包装。
 - **`ui::markdown` / `ui::MarkdownOptions` 已从 `zant::ui` 导出**，`widgets` golden 加入 golden 编译检查
-  （31 个 golden 全部编译通过；`desktop`/`entities` 仍按文档诊断排除）。
+  （当时 30 个 golden（32 个语料 − `desktop`/`entities`）全部编译通过；WP-COVERAGE 后 `desktop` 已加入，
+  **31 个** golden 全部编译通过，仅 `entities` 按设计排除）。
 - 生成的 `src/app_config.rs` 加 `#![allow(dead_code)]`（新项目 `cargo build` 零告警）；模板里的
   占位 `let _ = (…)` 已删除。
 - WP-5.10：TSX 示例三件套（`zant-tsx-counter` / `zant-tsx-demo` / `zant-tsx-bench-app`）编译运行、
@@ -496,6 +497,207 @@ Rust 编译器仍拒绝（见「WP-5.10 提出」4），基准输出 `failed: 2 
 - `zant run`：已修掉原来用 bash 进程替换过滤 macOS 输入法日志的做法（沙箱/受限环境会
   `Operation not permitted`），改为 Rust 侧管道过滤（`is_benign_log` + 后台线程），现在在沙箱里也能
   编译并启动窗口；`ZANT_RAW_LOGS=1` 仍可看原始输出。
+
+## WP-COVERAGE：`desktop` 黄金与测试覆盖对照（2026-11-14）
+
+分支 `rust/wp-coverage`（worktree `.worktrees/wp-coverage`）。两块独立工作：**A. 解除 `desktop` 黄金阻塞**
+（`Uint8Array` → `&'static [u8]`）；**B. M8 §7.1 的测试覆盖对照**（Zig 基线 → Rust 套件，缺口与补齐）。
+
+### A. `Uint8Array` → `&'static [u8]`（desktop 黄金）
+
+- **类型映射**（`crates/zant-tsx/src/codegen/types.rs`）：`Uint8Array` 不再映射为 `tsx::List<u8>`，改为
+  `types::bytes_type` = `rust_imports::bytes` 的 `&'static [u8]`。这与资源导入（`include_bytes!`）、
+  `tsx::platform::asset_image`、`tsx::desktop::TrayOptions::{icon, icon_light}` 是**同一个 interned 类型**，
+  所以「导入的 .png」「字节字面量」「`.rs` 原生模块返回的字节」互相可赋值。
+- **表达式生成**（`crates/zant-tsx/src/codegen/expr.rs`）：期望类型是 `Uint8Array`（含 `Uint8Array | null`、
+  声明/返回/实参、`useTray` 内联值）时，整数字面量数组发成可 const-promote 的切片
+  `&[137u8, 80u8, 78u8, 71u8]`（Zig 参考输出是 `&[_]u8{ 137, 80, 78, 71 }`）；空字面量 → `&[]`。
+  只接受整数字面量（spread / 运行时值给诊断：`&'static` 无法从运行时 `Vec` 得到）；越界字节由
+  `types::check_literal` 报 `integer literal does not fit u8`。
+- **安全性**（`model.rs`）：`model::array` 只复用 `tsx::List<…>` 条目，避免 `u8[]` 与 `tsx::Bytes` /
+  `&'static [u8]` 因 intern 顺序串型（旧实现里的潜在隐患）；未标注类型的字节字面量 → 明确诊断
+  `annotate byte literals with const name: Uint8Array = [..]`。
+- **框架 API 未改**：`tsx::desktop::TrayOptions::icon` 原本就是 `&'static [u8]`；没有新增字节 API。
+  运行时字节（剪贴板图片）仍是 `tsx::Bytes` = `Rc<[u8]>`（`clipboard.image()` 的返回类型）；
+  `setImage` 收 `impl AsRef<[u8]>`，静态切片和 `Bytes` 都能传。`Uint8Array` 注解不能承接
+  `clipboard.image()` 这类 `tsx::Bytes` 值（`&'static` 不能借用 `Rc`）——已在下方待决问题登记文档偏差。
+- **黄金**：新生成并人工审阅 `crates/zant-tsx/testdata/desktop.rs`（与 `tools/tsx/testdata/desktop.zig`
+  逐段对照：`icon` 常量、`useTray` 三个回调、`useHotkey` 字段、`on_app_event`）；`tests/golden.rs` 的
+  `NO_GOLDEN` 只剩 `entities`，31 个黄金一起写入临时 crate 后 `cargo check` 通过（**31/31**，
+  `src/desktop.rs` 参与编译，仅剩生成代码的 clippy 风格 warning）。`entities` 保持排除（UTF-8 不能表示
+  未配对代理项，见待决问题 4）。
+
+**desktop 黄金证据**（`./scripts/cargo.sh test -p zant-tsx --test golden` → 5 passed）：
+
+```text
+temp crate: target/zant-tsx-goldens/src/main.rs  ->  31 个 #[path = "….rs"] 模块（含 desktop.rs）
+$ cargo check   # workspace-external crate，zant = { path = crates/zant }
+warning: src/desktop.rs:13:16: constant `_icon_VALUE` should have an upper case name
+warning: src/desktop.rs:15:35: using `.clone()` on a double reference …
+    Finished `dev` profile …
+```
+
+生成的关键代码（`crates/zant-tsx/testdata/desktop.rs`）：
+
+```rust
+fn icon() -> &'static [u8] {
+    thread_local! {
+        static _icon_VALUE: &'static [u8] = &[137u8, 80u8, 78u8, 71u8];
+    }
+    _icon_VALUE.with(|value| value.clone())
+}
+…
+let shown: bool = tsx::desktop::update(tsx::desktop::TrayOptions { icon: icon(), … });
+```
+
+### B. 测试覆盖对照（M8 §7.1 闸门）
+
+口径：Zig 侧在**冻结的 Zig 树**上实测 `grep -rn 'test "'`（`src/**/*.zig`、`tools/**`、`tests/**`；
+不含 M8 要删除的 legacy `scaffold/template/`）；Rust 侧是 `cargo test --workspace` 的
+`test result` 行汇总；夹具（remend、mhchem）按「一个测试遍历全部案例」计，**不是**每个案例一个测试。
+
+| 项 | 数量 |
+|---|---|
+| Zig `test` 块（`src` 88 + `tests` 151 + `tools/tsx` 113 + `tools/zant` 7） | **359** |
+| M0 记录 Zig 基线（6 个测试二进制：tests 124 / framework 99 / CLI 8 / TSX 149） | 380 |
+| Zig 数据驱动夹具 | remend **522** 条、mhchem **823** 条（各由 1–2 个测试逐条断言） |
+| Rust（本 worktree） | **74 个测试套件 / 1076 passed / 0 failed**（35 条 doc 示例 `ignore`） |
+| **闸门** | **PASS**：1076 ≥ 359（也 ≥ M0 的 380）；522 / 823 条夹具都在测试里逐条断言 |
+
+> M0 的 380 是按测试**二进制**记的，和今天按文件数 `test` 块的分组（tests 124→151、TSX 149→113）口径不同
+> （迁移期间测试在 WP 之间移动/新增）；两种口径 Rust 都远高于基线，闸门不受影响。
+
+#### `src/**` 单元测试（Zig 88 块 → Rust `zant` lib 525 条 + TSX 运行期契约 13 条）
+
+| Zig 区域 | Zig 块 | Rust 对应 | Rust 条数 |
+|---|---|---|---|
+| `src/core/**`（11 个文件） | 11 | `zant` lib `core::*` | 60 |
+| `src/layout/flex.zig` | 5 | `zant` lib `layout`（24 条 `tests/flex_test.rs` 见下表，同一份 Zig 用例） | 5 |
+| `src/markdown/**`（13 个文件） | 31 | `zant` lib `markdown::*` | 45 |
+| `src/math/**` | 5 | `zant` lib `math::*` | 21 |
+| `src/db/**` | 2 | `zant` lib `db::*` | 2 |
+| `src/components/widgets.zig` | 1 | `zant` lib `components::*` | 103 |
+| `src/desktop.zig` | 1 | `zant` lib `desktop::*` | 24 |
+| `src/tsx*.zig`（13 个文件） | 32 | `zant` lib `tsx::*` + `tests/tsx_runtime_test.rs` | 63 + 13 = 76（含运行期契约） |
+| `src/renderer` / `platform` / `ui` / `runtime` / `theme` / `store` / `image` / `str` / `error`（Zig 无单测块） | 0 | `zant` lib 其余模块 | 202 |
+| **合计** | **88** | | **525**（lib）+ `tsx_runtime_test` 13 |
+
+#### `tests/**` 集成测试（Zig 151 块 → Rust `zant` 集成 147 条 + TSX 端到端/运行期覆盖）
+
+| Zig 文件 | Zig 块 | Rust 套件 | Rust 条数 | 备注 |
+|---|---|---|---|---|
+| `tests/flex_test.zig` | 24 | `tests/flex_test.rs` | 24 | 一对一 |
+| `tests/antd_components_test.zig` | 12 | `tests/antd_components_test.rs` | 12 | 一对一 |
+| `tests/markdown_test.zig` | 12 | `tests/markdown_test.rs`（+ `markdown_render_test.rs` 5） | 12 (+5) | 表格/任务列表断言内联，无独立夹具文件 |
+| `tests/motion_test.zig` | 10 | `tests/motion_test.rs` | 13 | 10 条同名移植 + 3 条新场景（WP-2.7） |
+| `tests/view_test.zig` | 7 | `tests/view_test.rs` | 7 | |
+| `tests/selection_test.zig` | 6 | `tests/selection_test.rs` | 6 | |
+| `tests/math_test.zig` | 6 | `tests/math_test.rs` | 6 | |
+| `tests/lifecycle_test.zig` | 6 | `tests/lifecycle_test.rs` | 6 | |
+| `tests/ui_test.zig` | 5 | `tests/ui_test.rs` | 5 | |
+| `tests/component_test.zig` | 5 | `tests/component_test.rs` | 4 | 1 条画廊命令式 App 用 `gallery_smoke.rs` 覆盖（WP-2.10 已登记） |
+| `tests/db_test.zig` | 4 | `tests/db_test.rs` | 6 | |
+| `tests/text_test.zig` | 3 | `tests/text_test.rs` | 3 | |
+| `tests/pointer_test.zig` | 3 | `tests/pointer_test.rs` | 3 | |
+| `tests/pdf_viewer_test.zig` | 3 | `tests/pdf_viewer_test.rs` | 7 | |
+| `tests/list_test.zig` | 3 | `tests/list_test.rs` | 3 | |
+| `tests/local_state_test.zig` | 2 | `tests/local_state_test.rs` | 2 | |
+| `tests/all.zig` | 2 | `tests/all_test.rs` | 2 | |
+| `tests/remend_test.zig` | 2 | `tests/remend_test.rs` | 2 | 其中 1 条遍历 522 条夹具 |
+| `tests/text_align_test.zig` | 1 | `tests/text_align_test.rs` | 1 | |
+| `tests/store_test.zig` | 1 | `tests/store_test.rs` | 1 | |
+| `tests/pdf_test.zig` | 1 | `tests/pdf_test.rs` | 6 | |
+| `tests/mhchem_render_test.zig` | 1 | `tests/mhchem_render_test.rs` | 1 | 遍历 823 条夹具做排版检查 |
+| `tests/tsx_*_test.zig`（28 个文件） | 32 | 见下方缺口 2 | — | 编译/运行期分开覆盖 |
+| **合计** | **151** | | **147 + 编译/运行期覆盖（缺口 2）** | |
+
+#### `tools/**` 与 Zig 没有的 Rust 侧
+
+| Zig 来源 | Zig 块 | Rust 对应 | Rust 条数 |
+|---|---|---|---|
+| `tools/tsx/**`（31 个文件） | 113 | `zant-tsx`：lib 137 + `zant-tsx-tags` 7 + 集成 143（`codegen_app` 29 / `codegen_bytes` 9 / `codegen_components` 8 / `codegen_core` 28 / `codegen_jsx` 39 / `codegen_strings` 2 / `codegen_react_compat` 5 / `generated_tables` 7 / `golden` 5 / `native_specs` 6 / `tsx_end_to_end` 5） | **287** |
+| `tools/zant/**`（7 个文件） | 7 | `zant-cli` 36（29 单元 + 7 集成）；`zant-build` 23（10 单元 + 13 集成，Rust 新增职责） | 36 + 23 |
+| `scaffold/template/src/**`（legacy Zig 模板） | 2 | M8 删除；`scripts/tsx/build-template-check.sh` / `create-smoke.sh`（不在 cargo test） | — |
+| （Zig 无对应）`zant-sys` | 0 | `tests/prebuilt.rs` 11 + `tests/smoke.rs` 2 | 13 |
+| （Zig 无对应）`zant-macros`（`derive(TsxProps)` / `derive(Table)`） | 0 | lib 单元测试 | 8 |
+| （Zig 无对应）`zant-examples` | 0 | bench/demo/tsx-bench bin 11 + 6 个 smoke 集成套件 23 | 34 |
+| （Zig 无对应）3 个 TSX 示例 crate | 0 | 每个 crate 1 条 | 3 |
+| doc 示例 | — | 全部 `ignore`（35 条，不计入 passed） | — |
+
+#### 夹具（数据驱动用例）
+
+| 夹具 | 案例数 | Zig 断言 | Rust 断言 |
+|---|---|---|---|
+| `tests/fixtures/remend_cases.json`（Streamdown remend） | **522** | `tests/remend_test.zig` 1 个测试逐条比较 522 条 | `crates/zant/tests/remend_test.rs::remend_conformance_with_streamdown_test_suite` 逐条比较 522 条（0 失败），另有 1 条数学括号回归；`include_str!` 共用同一 JSON |
+| `src/math/mhchem_cases.json`（KaTeX mhchem.js） | **823** | `src/math/mhchem.zig` 1 个测试逐条比较 TeX；`tests/mhchem_render_test.zig` 再逐条排版 | `crates/zant/src/math/mhchem/tests.rs::mhchem_fixture_generated_by_the_real_mhchem_js` 逐条比较 823 条；`crates/zant/tests/mhchem_render_test.rs` 逐条排版检查；`FIXTURE_JSON` 共用同一 JSON |
+| 表格 / 任务列表 / setext / 引用等 | 无独立 JSON | `tests/markdown_test.zig` 的 12 个块内联 | `crates/zant/tests/markdown_test.rs` 的 12 条内联断言（`markdown_table_and_task_list` 等） |
+
+### 缺口（Zig 块没有逐条 Rust 对应，含原因）
+
+1. **`entities` 黄金**（`tools/tsx/testdata/entities.tsx`）——`&#xD800;` 等未配对代理项；Rust 的 `zant::Str` 是
+   UTF-8，编译器按设计报 `string literal is not valid UTF-8; Rust cannot represent an unpaired surrogate`。
+   `tests/golden.rs::entities_reports_its_documented_limitation` 锁定该诊断；改成 U+FFFD 会改数据，需先改设计文档 §2。
+2. **`tests/tsx_*_test.zig` 32 块（28 个文件）运行期驱动**——这些 Zig 测试在测试里调用 Zig 编译器把 TSX 编成
+   Zig 并跑帧。Rust 侧等价物只能是**编译期**的（黄金 byte-compare + 批量 `cargo check`）或**独立二进制**的运行期：
+   - 编译：31 个黄金（`tests/golden.rs`，desktop 已加入）+ `tests/tsx_end_to_end.rs` 5 条（`tests/tsx/**` 的
+     hooks/crossfile/rust_types/media fixture 移植）；
+   - 运行期契约：`crates/zant/tests/tsx_runtime_test.rs` 13 条（生成代码依赖的运行时 API）；
+   - 运行期整应用：`scripts/tsx/examples-check.sh` 无窗口跑 `zant-tsx-counter` / `zant-tsx-demo` /
+     `zant-tsx-bench-app`，断言 PNG 非空白/尺寸/确定性/`ZANT_LAYOUT_FILE` keyed 控件（**不在 cargo test 内**）。
+   不在 `crates/zant-tsx/tests` 里 1:1 移植的原因：生成的 Rust 只能在测试**外**由 rustc 编译进二进制，
+   而生成应用的 crate（`crates/zant-examples/tsx/**`）属于 WP-5.10，不在本 WP 的写权限内。
+3. **`tests/component_test.zig:34`**「gallery button click, input editing, composition and focus」——
+   驱动 Zig 命令式 `App`（Zig 专用基础设施），已由 `crates/zant-examples/tests/gallery_smoke.rs` 覆盖；
+   WP-2.10 已登记为不移植。
+4. **`src/tsx.zig` 的状态 arena 7 条**（`string state owns its values`、composite / optional / all-null /
+   empty / null-only state）——**已过时**：Rust 生成的状态是组件结构体的普通字段（`Option<T>` / `Vec<T>` /
+   `zant::Str`），没有 arena / retired snapshot / sweep 机制；typed callback 落为
+   `tsx::hooks::tests::typed_callbacks_pass_their_arguments_through`。
+5. **`tools/tsx/codegen/*_test.zig` 的诊断块**：Rust 侧按区域**合并**在 `tests/codegen_core.rs` /
+   `codegen_jsx.rs` / `codegen_app.rs` / `codegen_components.rs`，不是一块对一条（见各文件头注释）。
+   本 WP 补了 `stores_test.zig` → `codegen_components.rs::store_diagnostics`、`strings_test.zig` →
+   `tests/codegen_strings.rs`、`react_compat_test.zig` → `tests/codegen_react_compat.rs`；
+   `emission_test.zig` / `errors_test.zig` / `widgets_test.zig` / `zant_api_test.zig` 的个别断言仍只由合并
+   测试覆盖（功能代码有测试，但不保证每条 Zig 断言都有同名 Rust 测试）。若 lead 要求严格逐块，需要按
+   Zig 用例逐条补，属后续工作。
+6. **`scaffold/template/src/**` 2 条**——legacy Zig 模板，M8 删除。
+7. **文档偏差（不在本 WP 文件范围）**：`docs/tsx.md`「字节」一节仍写 `Uint8Array` 对应 `tsx::Bytes`，
+   注解类型现在是 `&'static [u8]`；同一句「资源导入」写成 `const tray_icon: &[u8]`。
+   建议 lead 改成：`Uint8Array` 注解/字面量/资源导入 = `&'static [u8]`；运行时字节（剪贴板图片）仍是
+   `tsx::Bytes`，两者都满足 `setImage(impl AsRef<[u8]>)`。
+
+### 本 WP 新增 / 移植的测试（file:test name）
+
+- `crates/zant-tsx/testdata/desktop.rs`（新黄金；`tests/golden.rs` 加入 31 个编译集）+
+  `tests/golden.rs::golden_outputs_match_the_compiler` / `generated_goldens_compile_against_the_runtime`
+  覆盖 `desktop`；`tests/golden.rs::entities_reports_its_documented_limitation`（原 desktop+entities 测试改名）。
+- `crates/zant-tsx/tests/codegen_bytes.rs`（9 条，新文件）：
+  `a_uint8array_literal_is_a_promoted_static_slice`、`a_uint8array_literal_is_accepted_inline`、
+  `an_empty_uint8array_literal_is_an_empty_slice`、`an_imported_asset_is_a_uint8array`、
+  `a_rust_module_byte_function_is_a_uint8array`、`an_untyped_byte_literal_points_at_the_annotation`、
+  `an_out_of_range_byte_literal_is_rejected`、`a_uint8array_literal_cannot_hold_other_values`、
+  `a_uint8array_literal_cannot_hold_a_spread`。
+- `crates/zant-tsx/tests/codegen_components.rs::store_diagnostics`（移植 `stores_test.zig`「store diagnostics」）。
+- `crates/zant-tsx/tests/codegen_strings.rs`（新文件，移植 `strings_test.zig` 2 块）：
+  `string_method_diagnostics_stop_unsupported_calls`、
+  `string_helper_temporaries_preserve_source_evaluation_order`。
+- `crates/zant-tsx/tests/codegen_react_compat.rs`（新文件，移植 `react_compat_test.zig` 5 块）：
+  `react_namespaces_lower_like_plain_hooks_and_fragments`、`named_react_imports_share_the_zant_output`、
+  `root_shorthands_and_react_fragments_emit_the_same_native_root`、
+  `children_typed_one_element_or_several_take_one_child_or_many`、`react_import_diagnostics`。
+- `crates/zant-tsx/tests/codegen_app.rs`：`KNOWN_MISSING` 去掉 `desktop`（现在能编译），`platform` 的原因改成
+  stub JSX 的 `padding={{…}}` 对象属性（真实 WP-5.4 生成器下 `platform` 黄金可编译），不再是 bytes 冲突。
+
+### 验证（本 WP 实跑）
+
+| 命令 | 结果 |
+|---|---|
+| `./scripts/cargo.sh test --workspace` | **74 个测试套件 / 1076 passed / 0 failed**（35 ignored 全是 doc 示例） |
+| `./scripts/cargo.sh clippy --workspace --all-targets -- -D warnings` | 0 告警 |
+| `./scripts/cargo.sh fmt --all -- --check` | 干净 |
+| `ZANT_ZIG_BIN=/Users/xiaoyi/dev/XyUI/zig-out-baseline/bin ./scripts/parity/compare.sh zant-demo` | **6/6 PASS**（layout 8 keys ±0.01，0/3 840 000 像素差） |
+| `./scripts/tsx/build-template-check.sh` | `scaffold/template-ts` end-to-end: **OK**（debug build，含无窗口快照） |
+| Zig 改动 | 无：`git status --porcelain -- '*.zig'` 为空（未跑 `zig build test` 也不需要，Zig 树未动） |
 
 ## 待决问题
 
@@ -587,17 +789,18 @@ Rust 编译器仍拒绝（见「WP-5.10 提出」4），基准输出 `failed: 2 
    `zant::components::widgets::{markdown, MarkdownOptions}`），`ui::pdf_viewer` / `ui::PdfViewerOptions`（**框架里根本没有**，
    目前只在 `crates/zant-examples/src/components_app/pdf_viewer.rs`）。黄金 `widgets.rs` 因此不参与 `cargo check`；
    补上导出/组件后把 `tests/golden.rs` 的 `NOT_COMPILED` 去掉。这与 status 里 WP-2.5「组合组件未从 ui::* 导出」是同一件事。
-2. **`Uint8Array` ↔ `&'static [u8]`**：`types.rs` 把 `Uint8Array` 映射为 `tsx::List<u8>`，而运行时托盘图标/资源用
-   `&'static [u8]`（`rust_imports::bytes`）；`testdata/desktop.tsx` 的 `const icon: Uint8Array = [...]` 传给
-   `useTray({ icon })` 报 `cannot convert tsx::List<u8> to &'static [u8]`（因此没有 `desktop.rs` 黄金）。建议二选一：
-   `TrayOptions::icon` 接受 `tsx::Bytes`（运行时加一个入口，编译器把 `Uint8Array` 映射成 `tsx::Bytes`），或让资源常量
-   也走 `tsx::Bytes`。裁定前端黄金保持“预期诊断”测试。
+2. **`Uint8Array` ↔ `&'static [u8]`**：**已解决（WP-COVERAGE）**——裁定采用 `Uint8Array` = `&'static [u8]`
+   （与资源导入 / `TrayOptions::icon` / `assetImage` 同一个 interned 类型），字节字面量生成 const-promote 的 `&[..]`；
+   `desktop` 黄金已生成并进入编译检查。运行时剪贴板字节仍是 `tsx::Bytes`（`Rc<[u8]>`），`Uint8Array` 注解不承接
+   `clipboard.image()` 的返回值（文档偏差登记在 WP-COVERAGE 缺口 7）。
 3. **`zant::theme::Theme` 未 re-export**：编译器暂时生成内部路径 `zant::theme::tokens::Theme`（可编译）。若希望保持
    `zant::theme::Theme` 稳定路径，请在 `crates/zant/src/theme/mod.rs` 加 `pub use tokens::Theme;`，然后
    `codegen/model.rs::theme_type` 可改回。
 4. **`entities.rs` 无法生成**：`tools/tsx/testdata/entities.tsx` 有 `&#xD800;` 等 lone surrogate，Zig 版用 WTF-8 原样
    输出；Rust 的 `zant::Str` 是 UTF-8，编译器按设计报 `string literal is not valid UTF-8; Rust cannot represent an
-   unpaired surrogate`。`tests/golden.rs` 把这条诊断作为预期行为锁定；若决定改成 U+FFFD 替换需先改设计文档 §2。
+   unpaired surrogate`。`tests/golden.rs` 把这条诊断作为预期行为锁定
+   （`entities_reports_its_documented_limitation`；`desktop` 已由 WP-COVERAGE 解除排除，`NO_GOLDEN` 只剩 `entities`）；
+   若决定改成 U+FFFD 替换需先改设计文档 §2。
 5. **非 ui-event callback prop 的 `ActionCx` 形态（需裁定）**：生成 `Rc<dyn Fn(&mut ui::ActionCx<'_>, ..)>` 并在 handler
    里经 `ui::effect` 延迟一帧调用（Zig 的 `tsx.Callback` 是同步的、带 self 指针）。这是 WP-5.5 报告的待决设计缺口；
    本 WP 为了让 `children`/`named_handlers`/`crossfile` 编译并端到端跑通先这样落地，**没有改框架**。若 lead 选择别的
@@ -661,7 +864,9 @@ Diff in …/native/spec.rs:42:
 `native_specs::generate` / `write_spec_module`），或由 `zant-build` 在文件头写 `#[rustfmt::skip]`。
 
 **4. `desktop` / `entities` 仍不能编译（承接 WP-5.9 待决 2/4）**
-编译基准只覆盖 32 个语料里的 30 个：
+**`desktop` 已解决（WP-COVERAGE）**：`Uint8Array` → `&'static [u8]` 后 `desktop.rs` 黄金生成且编译，
+32 个语料里 31 个有黄金、全部 `cargo check` 通过；`entities` 仍按 WP-5.9 待决 4 排除（UTF-8 lone surrogate）。
+以下为当时的记录：
 
 ```
 tools/tsx/testdata/desktop.tsx:13:11: error: cannot convert tsx::List<u8> to &'static [u8]; use an explicit matching type

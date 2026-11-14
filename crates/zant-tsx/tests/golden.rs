@@ -1,4 +1,4 @@
-//! WP-5.9 golden cases: the 30 Rust outputs of `tools/tsx/testdata/*.tsx`, and
+//! WP-5.9 golden cases: the 31 Rust outputs of `tools/tsx/testdata/*.tsx`, and
 //! the first real proof that the generated code compiles against the runtime.
 //!
 //! - [`golden_outputs_match_the_compiler`] regenerates every `.rs` with
@@ -10,14 +10,16 @@
 //!   one temporary, workspace-external crate whose `zant` dependency is this
 //!   repository's `crates/zant`, and runs `cargo check`. All goldens go into a
 //!   single compile (one crate, one `cargo check`), so the test stays fast.
+//!   `desktop` is included: `Uint8Array` is `&'static [u8]` (the tray icon and
+//!   imported assets are static slices), so `TrayOptions::icon` accepts the
+//!   generated literal.
 //!
-//! Three corpus files cannot be goldens yet; the tests document why instead of
-//! silently skipping them:
-//! - `desktop`: the `Uint8Array`↔`&'static [u8]` conflict (`TrayOptions::icon`
-//!   needs a runtime `tsx::Bytes` entry point, `crates/zant` is not ours);
+//! One corpus file cannot be a golden yet; the test documents why instead of
+//! silently skipping it:
 //! - `entities`: `zant::Str` is UTF-8 and cannot hold an unpaired surrogate
 //!   (`tools/tsx/testdata/entities.tsx` has `&#xD800;`; the Zig compiler used
-//!   WTF-8 bytes);
+//!   WTF-8 bytes); replacing it with U+FFFD would change the data, so the
+//!   compiler reports a diagnostic and the golden stays excluded.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -61,9 +63,10 @@ const CORPUS: &[&str] = &[
     "list_scroll",
 ];
 
-/// `tools/tsx/testdata/<name>.tsx` that has no `.rs` golden: they are
-/// rejected by the Rust compiler for the reasons in the module doc.
-const NO_GOLDEN: &[&str] = &["desktop", "entities"];
+/// `tools/tsx/testdata/<name>.tsx` that has no `.rs` golden: it is rejected
+/// by the Rust compiler for the reason in the module doc (`entities`: lone
+/// surrogate in a `zant::Str`).
+const NO_GOLDEN: &[&str] = &["entities"];
 
 /// Goldens excluded from the cargo compile check (framework APIs missing).
 const NOT_COMPILED: &[&str] = &[];
@@ -157,19 +160,9 @@ fn the_compiler_is_deterministic() {
 }
 
 #[test]
-fn desktop_and_entities_report_their_documented_limitations() {
-    // `desktop`: `Uint8Array` is `tsx::List<u8>` while the tray icon is
-    // `&'static [u8]`; the runtime needs a `tsx::Bytes` entry point.
-    let desktop = read_corpus("desktop");
-    let error = compile::compile(&desktop, "desktop.tsx").expect_err("desktop is blocked");
-    assert!(
-        error
-            .msg
-            .contains("cannot convert tsx::List<u8> to &'static [u8]"),
-        "{}",
-        error.msg
-    );
-    // `entities`: no Rust `str` for an unpaired surrogate (`&#xD800;`).
+fn entities_reports_its_documented_limitation() {
+    // `entities`: no Rust `str` for an unpaired surrogate (`&#xD800;`); unlike
+    // the Zig compiler (WTF-8 bytes) the Rust compiler reports a diagnostic.
     let entities = read_corpus("entities");
     let error = compile::compile(&entities, "entities.tsx").expect_err("entities is blocked");
     assert!(error.msg.contains("unpaired surrogate"), "{}", error.msg);
