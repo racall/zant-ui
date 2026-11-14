@@ -27,7 +27,10 @@ fn raster_renderer_draws_and_reads_a_rect() {
     unsafe {
         let renderer = zant_renderer_create_raster(64, 64);
         assert!(!renderer.is_null(), "raster renderer creation failed");
-        assert!(!zant_renderer_is_gpu(renderer), "raster renderer reports a GPU");
+        assert!(
+            !zant_renderer_is_gpu(renderer),
+            "raster renderer reports a GPU"
+        );
 
         let canvas = zant_renderer_begin(renderer, 1.0);
         assert!(!canvas.is_null(), "begin() returned no canvas");
@@ -60,8 +63,7 @@ fn text_layout_measures_width() {
     // SAFETY: the text and style outlive the layout; the layout owns a copy of
     // the UTF-8 text per the header contract.
     unsafe {
-        let layout =
-            zant_text_layout_create(text.as_ptr().cast(), text.len(), &style, 1000.0);
+        let layout = zant_text_layout_create(text.as_ptr().cast(), text.len(), &style, 1000.0);
         assert!(!layout.is_null(), "text layout creation failed");
         let metrics = zant_text_layout_metrics(layout);
         assert!(

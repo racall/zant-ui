@@ -148,7 +148,7 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     pub fn zant_renderer_backend_name(renderer: *mut ZantRenderer)
-        -> *const ::std::os::raw::c_char;
+    -> *const ::std::os::raw::c_char;
 }
 unsafe extern "C" {
     pub fn zant_renderer_write_png(

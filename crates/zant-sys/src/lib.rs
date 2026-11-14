@@ -3,7 +3,12 @@
 //! and `src/platform/pdf.h`; the results are checked in, so users need no
 //! libclang. Everything here is `unsafe` FFI — use the safe wrappers in the
 //! `zant` crate instead.
-#![allow(non_upper_case_globals, non_camel_case_types, non_snake_case, dead_code)]
+#![allow(
+    non_upper_case_globals,
+    non_camel_case_types,
+    non_snake_case,
+    dead_code
+)]
 
 pub mod pdf;
 pub mod platform;

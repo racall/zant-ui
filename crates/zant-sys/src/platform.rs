@@ -235,11 +235,11 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     pub fn zant_app_single_instance(app_id: *const ::std::os::raw::c_char)
-        -> ::std::os::raw::c_int;
+    -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
     pub fn zant_launch_at_login_get(app_id: *const ::std::os::raw::c_char)
-        -> ::std::os::raw::c_int;
+    -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
     pub fn zant_launch_at_login_set(
