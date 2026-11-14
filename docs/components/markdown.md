@@ -1,37 +1,38 @@
 # Markdown 编辑器 / 预览
 
-`zant.markdown` 是 Vercel Streamdown 的原生移植（remend → parse-blocks → 块级缓存 →
-原生渲染），不用 WebView。数学公式由 `zant.math`（KaTeX 排版算法 + STIX Two Math）排版。
+`zant::markdown` 是 Vercel Streamdown 的原生 Rust 移植（remend → parse-blocks → 块级缓存 →
+原生渲染），不用 WebView。数学公式由 `zant::math`（KaTeX 排版算法 + STIX Two Math）排版。
 完整说明见 [Markdown 与数学](../markdown.md)；渲染效果见仓库 README 的 stillmd 截图和
 [`docs/showcase.md`](../showcase.md)。
 
-```zig
-const md = zant.markdown;
-
+```tsx
 // 只读预览（流式/静态）：只重新解析变化的块
-md.streamdown(&state.md_cache, state.text(), .{ .render = .{ .theme = md.theme.light() } })
+<Markdown source={text} streaming={busy} />
 
 // 编辑器：编辑 / 分栏 / 预览、格式工具栏、快捷键（mod+B/I/K/E、mod+Shift+X：macOS ⌘，Windows Ctrl）、列表续写
-md.editor(.{
-    .key = "doc",
-    .value = state.text(),
-    .selection = state.selection,
-    .mode = state.mode,
-    .cache = &state.md_cache,
-    .on_change = ui.textAction(state, State.onChange),
-    .on_selection = ui.rangeAction(state, State.onSelection),
-    .content_max_width = 720,
-})
-
-// 导出 HTML（独立页面，KaTeX 渲染公式）
-const html = try md.html.toHtml(gpa, &doc, .{ .title = "Note" });
+<Markdown
+  key="doc"
+  source={text}
+  mode="split"
+  onModeChange={setMode}
+  contentWidth={720}
+  codeCopy
+  tableCopy
+/>
 ```
 
-`md.editor` 其余选项：`on_mode`（`md.EditorMode` 索引：edit / split / preview）、`on_undo` /
-`on_redo`、`preview`（`md.Props`，含 `render` 主题等）、`placeholder`、`font_size`（16）、
-`line_height`（1.8）、`toolbar`、`toolbar_commands`、`mode_switch`、`shortcuts`、
-`preview_width`、`labels`（`md.EditorLabels`，界面文字与工具栏提示；中文用 `md.EditorLabels.zh`）。
-`md.streamdown` 的 `mode` 为 `.static` / `.streaming`。深色主题用 `md.theme.dark()`。
+预览的常用属性：`source`（或用字符串子节点 `<Markdown>{text}</Markdown>`）、`streaming`、
+`caret`（`"none"` / `"block"` / `"circle"`）、`parseIncomplete`、`singleDollarMath`、`latexDelimiters`、
+`fontSize`、`contentWidth`、`lineNumbers`、`codeMaxHeight`、`codeCopy` / `codeDownload`、
+`tableCopy` / `tableDownload`、`mermaidCopy` / `mermaidDownload`、`onLink`、`baseDir`、`selectable`。
+深色主题自动跟随 `useTheme()`（手写 Rust 用 `markdown::theme::dark()`）。
+
+手写 Rust：`zant::markdown::streamdown(&mut cache, source, props)` 直接渲染，
+或用 `ui::markdown(id, ui::MarkdownOptions { .. })` 让框架按实例持有缓存（TSX 的 `Markdown` 就是它；
+`ui::*` 的 re-export 迁移中，当前在 `zant::components::widgets`）。编辑器的其余 Rust 选项：
+`on_mode`（`markdown::editor::Mode`）、`on_undo` / `on_redo`、`preview`（`markdown::ViewProps`）、
+`placeholder`、`font_size`（16）、`line_height`（1.8）、`toolbar`、`mode_switch`、`shortcuts`、
+`preview_width`、`labels`（`markdown::Labels::zh()`）。`html::to_html` 导出独立 HTML 页面（KaTeX 渲染公式）。
 
 ## 支持
 
@@ -42,5 +43,5 @@ const html = try md.html.toHtml(gpa, &doc, .{ .title = "Note" });
   大型运算符、矩阵 / cases / aligned、`\left…\right`、字体命令、颜色等。
 - 代码块语法高亮（行号、复制、下载），表格复制 Markdown / CSV、下载，Mermaid
   flowchart / sequence / pie（宽图自动缩放到内容列）。
-- 外链安全确认（`md.linkSafetyModal`）、流式光标、未闭合语法修复（remend）。
-- 跳转：`md.headingKey` / `md.blockKeyAtOffset` + `ui.scrollIntoView`（大纲、查找）。
+- 外链安全确认（`markdown::link_safety_modal`）、流式光标、未闭合语法修复（remend）。
+- 跳转：`markdown::heading_key` / `markdown::block_key_at_offset` + `ui::scroll_into_view`（大纲、查找）。

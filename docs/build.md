@@ -425,7 +425,7 @@ Windows 的步骤相同，环境变量换成 `WIN_PFX_BASE64`、`WIN_PFX_PASSWOR
 
 ## 打包脚本
 
-zant 负责读配置、提问、编译、生成并签名 .app / 程序目录，之后的平台步骤由 `tools/zant/package/` 里的
+zant 负责读配置、提问、编译、生成并签名 .app / 程序目录，之后的平台步骤由 `crates/zant-cli/src/distribute.rs` 与 `scripts/` 里的
 脚本完成。要调整打包细节（DMG 外观、安装程序选项等）改这些文件即可，不用重新编译 zant：
 
 | 文件 | 内容 |

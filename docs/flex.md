@@ -4,21 +4,21 @@
 
 | CSS | Zant |
 |---|---|
-| `display:flex` | `ui.column` / `ui.row` |
-| `flex-direction` | `ui.row` / `ui.column`，或 `flex_direction` |
-| `justify-content` | `justify` / `justify_content` |
-| `align-items` | `align_items` |
-| `align-self` | `align_self` |
-| `align-content` | `align_content`（行换行时） |
-| `flex-wrap: wrap` | `wrap = .wrap`（横向） |
+| `display:flex` | `Column` / `Row`（Rust `ui::column` / `ui::row`） |
+| `flex-direction` | `Row` / `Column`，或 `flexDirection` |
+| `justify-content` | `justify` / `justifyContent` |
+| `align-items` | `alignItems` |
+| `align-self` | `alignSelf` |
+| `align-content` | `alignContent`（行换行时） |
+| `flex-wrap: wrap` | `wrap="wrap"`（横向） |
 | `gap` | `gap` |
-| `row-gap` / `column-gap` | `row_gap` / `column_gap` |
+| `row-gap` / `column-gap` | `rowGap` / `columnGap` |
 | `order` | `order` |
 | `flex-grow` | `grow` |
 | `flex-shrink` | `shrink` |
 | `flex-basis` | `basis` |
-| `width: %` | `width_percent` |
-| `height: %` | `height_percent` |
+| `width: %` | `widthPercent`（或 `width="50%"`） |
+| `height: %` | `heightPercent`（或 `height="50%"`） |
 | `min/max-width/height` | 像素值 |
 | `padding/margin` | `padding` / `margin` |
 
@@ -27,19 +27,17 @@
 
 ## 示例
 
-```zig
-ui.row(.{
-    .wrap = .wrap,
-    .column_gap = 12,
-    .row_gap = 8,
-    .align_content = .space_between,
-    .children = &.{
-        ui.styled(ui.card(.{ .children = &.{ ... } }), .{ .width_percent = 33 }),
-        ui.styled(ui.card(.{ .children = &.{ ... } }), .{ .width_percent = 33 }),
-        ui.styled(ui.card(.{ .children = &.{ ... } }), .{ .width_percent = 33 }),
-    },
-})
+```tsx
+<Row wrap="wrap" columnGap={12} rowGap={8} alignContent="space-between">
+  <Card widthPercent={33}>…</Card>
+  <Card widthPercent={33}>…</Card>
+  <Card widthPercent={33}>…</Card>
+</Row>
 ```
+
+手写 Rust 用 `ui::row(ui::BoxOptions { wrap: Some(flex::Wrap::Wrap), column_gap: 12.0,
+row_gap: 8.0, align_content: Some(flex::AlignContent::SpaceBetween), children: nodes![..], .. })`
+（或 `ui::styled` 设置 `width_percent`）。
 
 ## 绝对定位
 
@@ -50,7 +48,7 @@ ui.row(.{
 
 ## 尚未支持
 
-- **纵向 wrap**（`direction = .column` 时的 flex-wrap）
+- **纵向 wrap**（`Column` 方向上的 flex-wrap）
 - `wrap-reverse`
 - `align-content: stretch`
 - `flex` 简写

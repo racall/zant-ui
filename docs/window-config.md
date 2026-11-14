@@ -1,7 +1,7 @@
 # 窗口配置
 
 应用的窗口默认值来自项目根目录的 `app.config.json`。`zant run` / `zant compile` /
-`zant package` / `zant build` / `zant sync` 会读取它，并生成 `src/app_config.zig`（macOS 上还有 `Info.plist`）。
+`zant package` / `zant build` / `zant sync` 会读取它，并生成 `src/app_config.rs`（macOS 上还有 `Info.plist`）。
 通用设置由 `zant create` 写入；平台专属的段（目前只有 `macos`）在该平台首次运行 / 打包时补充。
 
 ## app.config.json
@@ -33,9 +33,9 @@
 | 字段 | 说明 |
 |---|---|
 | `title` | 窗口标题、应用显示名 |
-| `bundle_id` | 应用标识（如 `com.xx.test`）：macOS 的 Bundle ID，Windows 上 `zant.paths.appDataDir` 的目录名；须符合苹果与微软规范（见 `docs/scaffold.md`），否则 `zant` 报错 |
+| `bundle_id` | 应用标识（如 `com.xx.test`）：macOS 的 Bundle ID，Windows 上 `zant::core::paths::app_data_dir` 的目录名；须符合苹果与微软规范（见 `docs/scaffold.md`），否则 `zant` 报错 |
 | `version` | 版本号（macOS 写入 `CFBundleShortVersionString`） |
-| `single_instance` | 只运行一个实例：再次打开时把已运行的应用带到前面并退出（TS 应用自动处理；Zig 应用读 `app_config.single_instance` 调 `zant.desktop.singleInstance`）。默认 false |
+| `single_instance` | 只运行一个实例：再次打开时把已运行的应用带到前面并退出（模板的 `src/main.rs` 把 `app_config.single_instance` 传给 `zant::tsx::app::Config`；手写 Rust 应用可调 `zant::desktop::single_instance`）。默认 false |
 | `macos.sandbox` | 是否写入 App Sandbox entitlement 并用沙盒方式运行（仅 macOS） |
 | `macos.signing_identity` | `zant package` 和沙盒应用 `zant run` 用的 `codesign` 身份；`none` 表示 ad-hoc（仅 macOS）。发布构建的证书在 `build.config.json`，见 [发布构建](build.md) |
 | `macos.entitlements` | 应用需要的其他权限，如 `{"com.apple.security.network.client": true}`；值是 true / false、字符串或字符串列表。签名时（`zant package` / `zant build`）一起写入 |
@@ -55,23 +55,25 @@
 
 ## 代码优先
 
-配置文件只生成默认值。`src/main.zig` 中传给 `zant.launch.run` 的
+配置文件只生成默认值。`src/main.rs` 传给 `zant::tsx::app::run` / `zant::ui::run` 的
 `WindowOptions` 是最终值，因此代码可以覆盖配置：
 
-```zig
-var window = cfg.window;
+```rust
+// src/main.rs（模板生成；按需修改）
+let mut window = app_config::window;
 window.always_on_top = true;      // 代码覆盖 JSON
-window.background = 0xff1f1f1f;   // 深色窗口背景
+window.background = 0x1f1f1f;     // 深色窗口背景
 
-try zant.launch.run(init.gpa, State.init(), State.render, .{
-    .title = cfg.title,
-    .window = window,
-    .theme = zant.tokens.antLight(),
-});
+zant::tsx::app::run::<crate::app::App>(zant::tsx::app::Config {
+    title: app_config::title.to_string(),
+    window,
+    bundle_id: app_config::bundle_id.to_string(),
+    ..Default::default()
+})?;
 ```
 
 修改 `app.config.json` 后直接执行 `zant run`，CLI 会重新生成
-`src/app_config.zig` 并编译。
+`src/app_config.rs` 并编译。
 
 ## 窗口风格
 
@@ -81,15 +83,15 @@ try zant.launch.run(init.gpa, State.init(), State.render, .{
   - macOS：交通灯垂直居中其中，窗口缩放和退出全屏后自动保持；
   - Windows：框架在右上角自动绘制 Windows 11 风格的最小化 / 最大化 / 关闭按钮（高度填满标题栏），
     标题栏空白处可拖动、双击最大化，最大化按钮支持 Windows 11 贴靠布局；保留缩放边框和阴影。
-  - 应用用 `ui.titlebarInsets()` 给系统控件留位置（`left`：macOS 交通灯；`right`：Windows 按钮）。
+  - 应用用 `titlebarInsets()`（手写 Rust `ui::titlebar_insets()`）给系统控件留位置（`left`：macOS 交通灯；`right`：Windows 按钮）。
 - `borderless`：无标题栏和系统按钮；配合 `movable_by_background` 拖拽背景移动，⌘Q / Alt+F4 退出。
 
 ## 文档类应用
 
-- 关窗 / ⌘W / ⌘Q（Windows：关闭按钮 / Ctrl+W / Alt+F4）前确认未保存修改：状态类型声明
-  `pub fn onCloseRequest(self: *State) bool`（返回 false 保持打开）。macOS 应用菜单自动包含
+- 关窗 / ⌘W / ⌘Q（Windows：关闭按钮 / Ctrl+W / Alt+F4）前确认未保存修改：TSX 用
+  `useCloseRequest(() => …)`（返回 false 保持打开），手写 Rust 实现 `App::on_close_request`。macOS 应用菜单自动包含
   “Quit <标题>”和“Close Window ⌘W”。
-- 未保存标记：在 `render` 里调用 `ui.documentEdited(state.dirty)`，macOS 关闭按钮显示圆点，
+- 未保存标记：在 `render` 里调用 `ui::document_edited(dirty)`，macOS 关闭按钮显示圆点，
   Windows 窗口标题（标题栏 / 任务栏）前加 `*`；标题可显示“文件名 — 已编辑”。
 - 窗口底色跟随根节点背景（深色模式下缩放窗口不闪白）；Windows 的系统标题栏也随之切换深 / 浅色。
 

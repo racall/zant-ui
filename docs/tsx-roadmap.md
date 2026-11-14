@@ -1,8 +1,14 @@
 # TS + TSX 应用路线图（目标：ClipHop 能用 TS + TSX 写）
 
-`zant create` 可以选择 Zig 或 TS + TSX。TS + TSX 项目里，**界面和应用逻辑都用 TS 写**（状态、托盘、全局快捷键、
-剪贴板、多窗口、计时器），只有多线程网络这类底层引擎留在项目里的 `.zig` 文件（原生模块，TS 直接导入调用）。
-验收标准：ClipHop 的 TS + TSX 版（cliphop 仓库新分支）功能与 Zig 版一致，截图逐张对比、帧耗时持平。
+> **历史文档**：本路线图写于 Zig 实现时期，记录 TSX 语言与原生模块逐项落地的过程。
+> Rust 迁移后的最终形态是：`zant create` 只生成 TSX + Rust 项目，原生模块改为
+> `native/<名字>.ts` 规范 + `native/<名字>.rs` 实现（编译期由 trait 检查），见
+> [tsx.md](tsx.md) 与 [tsx-native.md](tsx-native.md)；迁移进度见 [rust-port/status.md](rust-port/status.md)。
+> 下表中「Zig」字样保留原样以便对照历史，阅读最终用法时以那两份文档为准。
+
+`zant create` 最终只生成 TS + TSX 项目。TS + TSX 项目里，**界面和应用逻辑都用 TS 写**（状态、托盘、全局快捷键、
+剪贴板、多窗口、计时器），只有多线程网络这类底层引擎留在项目里的原生模块（Rust 实现，TS 直接导入调用）。
+验收标准：ClipHop 的 TS + TSX 版（cliphop 仓库新分支）功能与原版一致，截图逐张对比、帧耗时持平。
 
 每一项都是一个小任务：一份说明、一个分支（Codex 在独立 worktree）、审查后一次提交。状态：⬜ 未开始、🔄 进行中、✅ 完成。
 

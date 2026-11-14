@@ -3,7 +3,7 @@
 ![生成项目](assets/scaffold.png)
 
 脚手架是一个编译后的 `zant` 工具。发布构建（`zant build`）的平台步骤调用 Zant UI 自带的打包脚本
-（`tools/zant/package/`），项目里不需要自己写脚本。
+（`crates/zant-cli/src/distribute.rs` 与 `scripts/`），项目里不需要自己写脚本。
 
 ## 安装
 
@@ -21,12 +21,12 @@ irm https://raw.githubusercontent.com/racall/zant-ui/main/install.ps1 | iex
 编译好的 `zant`、Zant UI 框架（`zant-ui/`，Rust workspace）和预编译依赖（Skia；Windows 还有 PDFium），
 放到 `~/.zant`（Windows `%LOCALAPPDATA%\zant`）并加到 PATH。不需要克隆源码，也不需要编译框架；
 Windows 需要 Visual Studio 2022+ / Build Tools 的 C++ 工作负载（链接 Skia），macOS 需要 Xcode 命令行工具。
-详细说明和环境变量见 README「安装 zant」。
+详细说明和环境变量见 README「安装」。
 
 用源码开发 Zant UI 本身时，在源码目录运行 `scripts/fetch_skia.sh`（Windows
 `scripts/fetch_skia_windows.ps1`，并需要 Visual Studio 的 C++ 工作负载）和
-`cargo build -p zant-cli`，再把 `target/debug/zant` 放到 PATH。Rust 版与 Zig 版并存期间，
-原来的 `zig build` 仍可构建 Zig 版作为行为对照。
+`cargo build -p zant-cli`，再把 `target/debug/zant` 放到 PATH（沙箱里用 `./scripts/cargo.sh`）。
+Rust 版与 Zig 版并存期间，`scaffold/template/`（纯 Zig 模板）还保留作行为对照，M8 删除。
 
 macOS 与 Windows 用法相同。`zant create` 只问两端通用的设置，生成的项目在两端都能直接 `zant run`。平台专属的设置和文件
 由 `zant run` / `build` / `package` 在当前平台按需补充：macOS 上补 `app.config.json` 的
@@ -41,11 +41,13 @@ zant create my-app
 
 会询问（都是两端通用的）：
 
-1. 语言：TypeScript + TSX（Rust 应用，默认）/ Zig（旧模板，只保留到 M8）
-2. 应用标题
-3. 窗口风格：原生标题栏 / 隐藏标题栏 / 无边框
-4. 应用标识（反向域名，如 `com.xx.test`）：macOS 的 Bundle ID，也是 Windows 上
-   `zant.paths.appDataDir` 的数据目录名（`%APPDATA%\<id>`）
+1. 应用标题
+2. 窗口风格：原生标题栏 / 隐藏标题栏 / 无边框
+3. 应用标识（反向域名，如 `com.xx.test`）：macOS 的 Bundle ID，也是 Windows 上
+   `zant::core::paths::app_data_dir` 的数据目录名（`%APPDATA%\<id>`）
+
+> **迁移中**：过渡期 `zant create` 仍接受 `--lang ts|zig`（默认 `ts`）；纯 Zig 模板只保留到 M8，
+> 最终只生成 TSX 项目。
 
 应用标识同时符合苹果与微软的规范，不合规就不能创建项目：
 
@@ -80,14 +82,8 @@ Windows 的命令行窗口（包括代码页 936 的中文系统）中文显示�
 
 `--sandbox`、`--sign` 可选：给出时直接写入 `macos` 段。
 
-语言也可以用 `--lang ts|zig` 指定；`--yes` 不指定时仍生成 TypeScript + TSX 项目：
-
-```bash
-zant create my-ts-app --lang ts --yes
-```
-
-TS 项目是一个 Rust 应用：`Cargo.toml` + `build.rs` + `rust-toolchain.toml`，TSX 在编译期
-（`build.rs` 调用 `zant_build::tsx_app()`）转成 Rust，没有 JS 运行时：
+生成的是 TSX 应用：一个 Rust Cargo package，TSX 在编译期（`build.rs` 调用
+`zant_build::tsx_app()`）转成 Rust，没有 JS 运行时：
 
 ```text
 src/App.tsx                 根组件（默认导出），界面和业务逻辑都用 TSX
@@ -108,6 +104,7 @@ zant.d.ts / tsconfig.json   import … from "zant" 的类型与补全
 所以项目可以放在任意目录。项目和 Zant UI 不在同一个盘时（Windows），`zant create`
 用目录联接 `.zant/zant-ui` 引用 Zant UI，依赖路径变成 `.zant/zant-ui`。
 模板带一个示例原生模块 `native/system`（平台、CPU 核数、Rust 版本）。
+`zant.d.ts` 由框架的标签表生成（`zant-tsx-dts`），`zant create` 复制到项目里。
 
 ## 运行
 
@@ -134,7 +131,12 @@ zant update           # 安装版：更新到最新发布包；源码版：git p
 ```
 
 `zant run` / `zant compile` 默认 Debug 构建（Windows 上是控制台程序）；`--release`、`zant package` 与 `zant build`
-用 release profile（`zant package` / `zant build` 在 Windows 上为 GUI 子系统）。
+用 release profile（`zant package` / `zant build` 在 Windows 上为 GUI 子系统），产物在
+`target/{debug,release}/<应用名>`。
+
+> **迁移中（WP-6.2）**：TSX 应用的编译接口 `zant_build::tsx_app()` 合入前，`zant run` / `zant compile` /
+> `zant package` 会以「接口尚未实现」报错停止；`zant create` / `zant sync` 已可用。
+> 进度与合入顺序见 [`docs/rust-port/status.md`](rust-port/status.md)。
 
 ## 热更新
 
@@ -198,14 +200,19 @@ macOS：生成 `target/<应用标题>.app`：
 | 文件 | 用途与规范 |
 |---|---|
 | `app-macos.png` | macOS 应用图标，1024×1024；苹果图标网格：主体 824×824 居中（四周留 100 px）、连续圆角、底部投影。`zant package` 生成 10 种尺寸的 `AppIcon.icns`；`zant run` 开发运行时显示在程序坞 |
-| `app-windows.png` | Windows 应用图标，256×256（正方形，至少 256）；铺满画布、不加投影、笔画加粗。编译时 `zant_build` 自动生成含 16、20、24、32、40、48、64、256 的 `.ico` 编进 exe（资管器图标、窗口与任务栏图标） |
+| `app-windows.png` | Windows 应用图标，256×256（正方形，至少 256）；铺满画布、不加投影、笔画加粗。编译时 `zant_build` 自动生成含 16、20、24、32、40、48、64、256 的 `.ico` 编进 exe（资源管理器图标、窗口与任务栏图标） |
 | `tray-dark.png` / `tray-light.png` | Windows 通知区域（托盘）图标，64×64，单色（白色给深色任务栏、黑色给浅色任务栏），同 Windows 11 系统托盘图标；按系统小图标尺寸缩放（100% 时 16 px，125–200% 时 20/24/32），任务栏切换深浅色时框架自动换图；实心形状、标志镂空，16 px 下依然清楚 |
 | `statusbar.png` | macOS 菜单栏（状态栏）图标，36×36（18 pt @2x），图形约 15 pt、线宽 1.5 pt（与菜单栏里的 SF Symbols 一致）；模板图：只用黑色 + 透明度，系统按深浅色菜单栏和高亮状态着色 |
 
-Rust 应用直接用 `include_bytes!` 引用：
+应用里引用图标有两条路：Rust（原生模块）用 `include_bytes!`，TSX 用 `import`（编译期嵌入，得到
+`Uint8Array`）：
 
 ```rust
 const TRAY_DARK: &[u8] = include_bytes!("../assets/icons/tray-dark.png");
+```
+
+```tsx
+import trayIcon from "../assets/icons/tray-dark.png";
 ```
 
 路径相对引用它的源文件（图标因此编进可执行文件，不依赖运行时文件）。Windows 的
@@ -215,7 +222,7 @@ PNG 要求 8 位、非隔行扫描（常见导出工具的默认格式）。
 
 ## 组件与状态示例
 
-生成的 TS 项目包含完整的最小示例（Rust + TSX）：
+生成的 TSX 项目包含完整的最小示例（Rust + TSX）：
 
 ```text
 src/App.tsx                  根组件，持有名称与点击次数
@@ -224,6 +231,7 @@ src/components/StatCard.tsx   自定义展示组件（props）
 src/components/CounterCard.tsx 自定义子组件（props + 事件回调）
 native/system.ts             原生模块规范（平台、CPU、Rust 版本）
 native/system.rs             原生模块的 Rust 实现
+native/lib.rs                原生模块清单与注册
 ```
 
 数据流：
@@ -247,7 +255,7 @@ App.tsx 持有 useState 状态
 - `DESIGN.md`：UI/UX 设计指导原则（与框架同一份），**优先级最高**：所有界面与交互的设计、
   实现和评审都必须遵循它，与其他约定冲突时以它为准。
 - `AGENTS.md`：开头声明 DESIGN.md 的最高优先级；之后是项目介绍、目录、命令、状态与组件
-  规范（通用组件用框架 `ui.*`，应用只写业务组件）、原生模块、沙盒/签名规则。
+  规范（通用组件用框架组件，应用只写业务组件）、原生模块、沙盒/签名规则。
 - `CLAUDE.md`：Claude Code 入口，同样先声明 DESIGN.md，再引用 `AGENTS.md`。
 
 这些文件让 Codex / Claude Code 在修改项目前先理解约定，减少误改。
