@@ -8,6 +8,9 @@ description = "Runnable examples for Zant UI (zant-demo, zant-components, zant-g
 
 [dependencies]
 zant.workspace = true
+# `zant-md-stream --sse` parses the same SSE JSON events as the Zig example
+# (`std.json.parseFromSlice`).
+serde_json.workspace = true
 
 [[bin]]
 name = "zant-demo"
@@ -20,3 +23,19 @@ path = "src/bin/zant-components.rs"
 [[bin]]
 name = "zant-gallery"
 path = "src/bin/zant-gallery.rs"
+
+[[bin]]
+name = "zant-markdown"
+path = "src/bin/zant-markdown.rs"
+
+[[bin]]
+name = "zant-math"
+path = "src/bin/zant-math.rs"
+
+[[bin]]
+name = "zant-md-stream"
+path = "src/bin/zant-md-stream.rs"
+
+[[bin]]
+name = "zant-pdf"
+path = "src/bin/zant-pdf.rs"

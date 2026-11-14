@@ -7,14 +7,16 @@ use zant::core::node::NodeData;
 use zant::renderer::renderer::Renderer;
 use zant::runtime::Runtime;
 use zant::theme::tokens;
+use zant::ui::BoxOptions;
+use zant_examples::components_app::pdf_viewer::{PdfViewerOptions, pdf_viewer};
 use zant_examples::components_app::{ComponentsApp, run_options};
 
 const WIDTH: f32 = 1100.0;
 const HEIGHT: f32 = 820.0;
 
 /// The layout keys of every section of `examples/components.zig` (the
-/// `ZANT_LAYOUT_FILE` keys of the Zig run, minus the `pdf-2002*` keys of the
-/// not-yet-ported PDF viewer, see the WP-2.9 report).
+/// `ZANT_LAYOUT_FILE` keys of the Zig run; WP-3.11 adds the real `pdf-2002`
+/// viewer, whose toolbar keys the separate PDF test checks).
 const KEYS: [&str; 46] = [
     "page",
     "last-event",
@@ -70,8 +72,21 @@ fn frame(runtime: &mut Runtime, renderer: &mut Renderer) {
     renderer.end();
 }
 
+/// The repository fixture, resolved independently of the working directory
+/// (the window run from the repository root finds it as a relative path).
+fn fixture_pdf() -> String {
+    let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/widgets.pdf");
+    path.to_str().expect("utf-8 fixture path").to_string()
+}
+
 fn app(dark: bool) -> (Runtime, Renderer) {
-    let mut runtime = Runtime::init(ComponentsApp::new(dark, false, true), run_options());
+    app_with_pdf(dark, "tests/fixtures/widgets.pdf")
+}
+
+fn app_with_pdf(dark: bool, pdf_src: &str) -> (Runtime, Renderer) {
+    let state = ComponentsApp::new(dark, false, true).with_pdf_src(pdf_src);
+    let mut runtime = Runtime::init(state, run_options());
     let mut renderer =
         Renderer::create_raster(WIDTH as u32, HEIGHT as u32).expect("raster renderer");
     frame(&mut runtime, &mut renderer);
@@ -100,7 +115,7 @@ fn components_app_builds_every_section_and_paints() {
             "the components example builds the {key:?} node"
         );
     }
-    // the two lines of the Markdown block and the placeholder of the PDF slot
+    // the two lines of the Markdown block and the PDF viewer slot
     assert!(runtime.find_key("md-2001").is_some());
     // the whole tree painted; 10 000-row virtual list only builds the window
     let text_nodes = runtime
@@ -231,4 +246,81 @@ fn components_autoplay_quiet_runs_without_stderr_events() {
     }
     let state = runtime.app_state_mut::<ComponentsApp>();
     assert!(state.last_event().is_some(), "autoplay changed state");
+}
+
+#[test]
+fn components_pdf_viewer_opens_the_fixture_and_logs_changes() {
+    let (mut runtime, mut renderer) = app_with_pdf(false, &fixture_pdf());
+    // the lazy `open` effect runs after the first build and requests a rebuild
+    frame(&mut runtime, &mut renderer);
+    for key in [
+        "pdf-2002-vp",
+        "pdf-2002-toolbar",
+        "pdf-2002-prev",
+        "pdf-2002-next",
+        "pdf-2002-page",
+        "pdf-2002-zin",
+        "pdf-2002-zout",
+        "pdf-2002-zoom",
+        "pdf-2002-search",
+        "pdf-2002-p0",
+    ] {
+        assert!(
+            runtime.find_key(key).is_some(),
+            "the PDF viewer builds {key:?} (WP-3.9 viewer, real document)"
+        );
+    }
+    // the open document renders its first page layer into the widget
+    assert!(runtime.find_key("pdf-2002-p0").is_some());
+}
+
+/// The viewer widget on its own, small enough that the toolbar is on screen:
+/// the zoom button drives the widget's `on_change` callback
+/// (`scripts/win/components-check.ps1` clicks `pdf-2002-zin` the same way).
+struct PdfHost {
+    src: String,
+    changes: usize,
+}
+
+impl zant::ui::App for PdfHost {
+    fn render(&mut self) -> zant::ui::Node {
+        zant::ui::column(BoxOptions {
+            grow: 1.0,
+            align_items: zant::layout::flex::Align::Stretch,
+            padding: zant::ui::inset(8.0),
+            children: vec![pdf_viewer(
+                0x77,
+                PdfViewerOptions {
+                    src: zant::Str::copy(&self.src),
+                    height: Some(240.0),
+                    on_change: Some(zant::ui::action(|state: &mut PdfHost| {
+                        state.changes += 1;
+                    })),
+                    ..Default::default()
+                },
+            )],
+            ..Default::default()
+        })
+    }
+}
+
+#[test]
+fn pdf_viewer_widget_zooms_and_calls_on_change() {
+    let state = PdfHost {
+        src: fixture_pdf(),
+        changes: 0,
+    };
+    let mut runtime = Runtime::init(state, zant::ui::RunOptions::default());
+    let mut renderer =
+        Renderer::create_raster(WIDTH as u32, HEIGHT as u32).expect("raster renderer");
+    frame(&mut runtime, &mut renderer);
+    frame(&mut runtime, &mut renderer);
+    assert!(runtime.find_key("pdf-77-vp").is_some(), "the open viewer");
+    let before = runtime.app_state_mut::<PdfHost>().changes;
+    click(&mut runtime, &mut renderer, "pdf-77-zin");
+    let after = runtime.app_state_mut::<PdfHost>().changes;
+    assert!(
+        after > before,
+        "zooming reports a change ({before} -> {after})"
+    );
 }
