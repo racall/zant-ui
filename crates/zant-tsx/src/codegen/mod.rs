@@ -55,6 +55,7 @@
 //! | `components.zig` (`callbackType`) | `hooks.callback_type` | `fn(&mut Generator, Loc, &ast::FuncType) -> Result<Type>` |
 //! | `hooks.zig` | `hooks.ref_read` / `ref_write` / `bare_ref` / `hook_statement` / `hook_declaration` / `cleanup_return` | see [`Hooks`] |
 //! | `events.zig` | `hooks.method_param` | `fn(&mut Generator, &Method, usize, &ast::Param) -> Result<Type>` |
+//! | `events.zig` (`scanBody` / `emitSetter` / `forwardArrow` / `parameterType`) | `hooks.scan_body` / `emit_setter` / `forward_arrow` / `parameter_type` | see [`Hooks`] |
 //! | `captures.zig` (`nested`) | `hooks.nested` | `fn(..) -> Result<NestedCall>` |
 //! | `array_methods.zig` | `extensions.array_methods` | `fn(&mut Generator, &mut Context, Loc, &ast::Call, Option<Type>) -> Result<Value>` |
 //! | `components/stores/windows.zig` (`tryCall`) | `extensions.call_before_functions: Vec<TryCall>` | tried in registration order |
@@ -64,15 +65,28 @@
 //! | hook predicates | `extensions.extra_hook` / `is_app_hook` / `is_desktop_hook` / `component_shadow` | `fn(..) -> bool` |
 
 pub mod aggregate;
+pub mod array_methods;
 pub mod builtins;
+pub mod callbacks;
+pub mod captures;
+pub mod components;
 pub mod expr;
+pub mod free_names;
 pub mod functions;
+pub mod generate;
+pub mod globals;
+pub mod hooks;
 pub mod loops;
 pub mod model;
 pub mod narrowing;
+pub mod nesting;
 pub mod rust_text;
 pub mod scope;
+pub mod spread;
+pub mod stateful;
 pub mod stmt;
+pub mod stores;
+pub mod string_methods;
 pub mod types;
 
 use crate::ast;
@@ -160,6 +174,16 @@ pub struct State {
     pub ty: types::Type,
     pub initial: String,
     pub kind: StateKind,
+}
+
+/// A typed binding of the enclosing render, kept while a captured handler
+/// method is emitted (`captures.zig`; Rust replacement for the Zig pointer to
+/// the enclosing `Context`).
+#[derive(Clone, Debug)]
+pub struct ScopeEntry {
+    pub name: String,
+    pub ty: types::Type,
+    pub code: String,
 }
 
 /// An arrow function registered as a method (Zig `events.Method`). WP-5.5
@@ -281,6 +305,23 @@ pub type Nested =
 /// `app_hooks::key_event_type` / `jsx::image_type`.
 pub type TypeHook = fn(&mut Generator<'_>) -> Result<types::Type>;
 
+/// `events::scan_body` (register the handlers of a body before emitting it).
+pub type ScanBody = fn(&mut Generator<'_>, &ast::Body) -> Result<()>;
+
+/// `events::scan_expr` (register the handlers of an expression before it is
+/// emitted).
+pub type ScanExpr = fn(&mut Generator<'_>, &ast::Expr) -> Result<()>;
+
+/// `events::emit_setter` (the adapter method reused by every setter action).
+pub type EmitSetter = fn(&mut Generator<'_>, &Method) -> Result<String>;
+
+/// `events::forward_arrow` (`fn` passed as a handler, wrapped as an arrow).
+pub type ForwardArrow = fn(&mut Generator<'_>, &ast::Expr, usize) -> Result<Box<ast::Expr>>;
+
+/// `events::parameter_type` (an event / callback parameter's type).
+pub type ParameterType =
+    fn(&mut Generator<'_>, &ast::Param, Option<tags_kind::Kind>) -> Result<types::Type>;
+
 /// `components::callback_type` (the default [`model`] implementation returns
 /// `Rc<dyn Fn(..)>`; WP-5.5 maps UI event signatures to `ui::Action`).
 pub type CallbackType = fn(&mut Generator<'_>, ast::Loc, &ast::FuncType) -> Result<types::Type>;
@@ -298,6 +339,19 @@ pub type ArrayMethod = fn(
     Option<types::Type>,
 ) -> Result<types::Value>;
 
+/// `imports::process` (WP-5.6): resolves relative imports and fills
+/// `Generator::header`.
+pub type ProcessImports = fn(&mut Generator<'_>, &ast::Module) -> Result<()>;
+
+/// `windows::collect` (WP-5.6): the `createWindow` declarations of the file.
+pub type CollectWindows = fn(&mut Generator<'_>, &ast::Module) -> Result<String>;
+
+/// `app_hooks::lifecycle` (WP-5.6): the `impl ui::App` lifecycle methods.
+pub type AppLifecycle = fn(&mut Generator<'_>) -> Result<String>;
+
+/// `windows.isCreate` (WP-5.6): a constant built by `createWindow`.
+pub type IsWindowConst = fn(&ast::Expr) -> bool;
+
 /// Hook points owned by later work packages. Everything here has a
 /// default that reports which WP implements it, so WP-5.3's core compiles and
 /// is testable on its own.
@@ -311,6 +365,14 @@ pub struct Extensions {
     pub is_desktop_hook: fn(&str) -> bool,
     /// Whether a child component's prop shadows a global (`components.zig`).
     pub component_shadow: fn(&Generator<'_>, &str) -> bool,
+    /// `imports::process` (WP-5.6).
+    pub process_imports: Option<ProcessImports>,
+    /// `windows::collect` (WP-5.6).
+    pub collect_windows: Option<CollectWindows>,
+    /// `app_hooks::lifecycle` (WP-5.6).
+    pub app_lifecycle: Option<AppLifecycle>,
+    /// `windows.isCreate` (WP-5.6).
+    pub is_window_const: Option<IsWindowConst>,
     pub call_before_functions: Vec<TryCall>,
     pub call_before_builtins: Vec<TryCall>,
     pub array_methods: Option<ArrayMethod>,
@@ -324,6 +386,10 @@ impl Default for Extensions {
             is_app_hook: |_| false,
             is_desktop_hook: |_| false,
             component_shadow: |_, _| false,
+            process_imports: None,
+            collect_windows: None,
+            app_lifecycle: None,
+            is_window_const: None,
             call_before_functions: Vec::new(),
             call_before_builtins: Vec::new(),
             array_methods: None,
@@ -346,6 +412,16 @@ pub struct Hooks {
     pub hook_declaration: Option<HookDeclaration>,
     pub cleanup_return: Option<CleanupReturn>,
     pub method_param: Option<MethodParam>,
+    /// Handler scanning of a render body / event arrow (`events.zig`, WP-5.4).
+    pub scan_body: Option<ScanBody>,
+    /// Handler scanning of a single expression (`events.zig`, WP-5.4).
+    pub scan_expr: Option<ScanExpr>,
+    /// Setter adapter methods (`events.emitSetter`, WP-5.4).
+    pub emit_setter: Option<EmitSetter>,
+    /// `fn` handlers wrapped as arrows (`events.forwardArrow`, WP-5.4).
+    pub forward_arrow: Option<ForwardArrow>,
+    /// An event / callback parameter's type (`events.parameterType`, WP-5.4).
+    pub parameter_type: Option<ParameterType>,
     pub nested: Option<Nested>,
     pub key_event_type: Option<TypeHook>,
     pub image_type: Option<TypeHook>,
@@ -379,6 +455,33 @@ pub struct Generator<'a> {
     pub functions: Vec<functions::Function>,
     /// `const _X = @import("X.zig");` lines of the file header (WP-5.6).
     pub header: String,
+    /// Child components of the module, and the one being generated (WP-5.5
+    /// `components.zig`; `None` while generating the root component).
+    pub components: Vec<components::Component>,
+    pub current_component: Option<usize>,
+    /// Inline arrows passed to a child component's callback props.
+    pub callback_events: Vec<components::CallbackEvent>,
+    /// Key-less stateful child call sites of the current component, numbered
+    /// for their instance ids.
+    pub child_sites: usize,
+    /// `useMemo` caches and `useEffect` dependency lists of the current
+    /// component (fields next to its state), and its effects.
+    pub hook_fields: Vec<hooks::Field>,
+    pub effects: Vec<hooks::Effect>,
+    pub cleanups: Vec<hooks::Cleanup>,
+    /// Stores declared in or imported into this file (`stores.zig`).
+    pub stores: Vec<stores::Store>,
+    /// Hidden `ui::ListState` fields of the component being generated
+    /// (WP-5.4 `list.zig` pushes the field names).
+    pub lists: Vec<String>,
+    /// The enclosing render's typed bindings while a captured method is
+    /// emitted (`captures.zig`).
+    pub capture_scope: Option<Vec<ScopeEntry>>,
+    /// Scrolling containers around the element being emitted (`nesting.zig`).
+    pub scroll_depth: usize,
+    /// Array callbacks / list rows around the element being emitted: a
+    /// stateful component there needs a key.
+    pub loop_depth: usize,
     /// Generating a child component: its state lives outside `self` (WP-5.5).
     pub child_component: bool,
     /// Whether imported type declarations are being resolved (WP-5.6).
@@ -416,6 +519,18 @@ impl<'a> Generator<'a> {
             constants: Vec::new(),
             functions: Vec::new(),
             header: String::new(),
+            components: Vec::new(),
+            current_component: None,
+            callback_events: Vec::new(),
+            child_sites: 0,
+            hook_fields: Vec::new(),
+            effects: Vec::new(),
+            cleanups: Vec::new(),
+            stores: Vec::new(),
+            lists: Vec::new(),
+            capture_scope: None,
+            scroll_depth: 0,
+            loop_depth: 0,
             child_component: false,
             type_scope: false,
             extra_globals: Vec::new(),
