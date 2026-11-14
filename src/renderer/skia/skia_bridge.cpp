@@ -39,6 +39,7 @@
 #include <cstdio>
 #include <limits>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -61,18 +62,27 @@ sk_sp<SkFontMgr> g_font_mgr;
 sk_sp<FontCollection> g_font_collection;
 sk_sp<SkUnicode> g_unicode;
 
+/* Paragraph building goes through this process-wide font collection / Unicode
+   object and Skia's internal caches, which are not safe against concurrent
+   shaping. The UI renders on one thread in an app, so this lock is
+   uncontended there; the cargo test harness runs tests on several threads
+   (Zig's runner is serial), and without it Windows aborts with
+   STATUS_HEAP_CORRUPTION / access violations in the math and ui tests (macOS
+   only survived on allocator luck). */
+std::mutex g_text_mutex;
+
 void ensure_skia() {
-    if (g_font_collection) {
-        return;
-    }
-    g_font_mgr = zant_platform::make_font_mgr();
-    if (!g_font_mgr) {
-        g_font_mgr = SkFontMgr::RefEmpty();
-    }
-    g_font_collection = sk_make_sp<FontCollection>();
-    g_font_collection->setDefaultFontManager(g_font_mgr, zant_platform::default_families());
-    g_font_collection->enableFontFallback();
-    g_unicode = SkUnicodes::ICU::Make();
+    static std::once_flag once;
+    std::call_once(once, [] {
+        g_font_mgr = zant_platform::make_font_mgr();
+        if (!g_font_mgr) {
+            g_font_mgr = SkFontMgr::RefEmpty();
+        }
+        g_font_collection = sk_make_sp<FontCollection>();
+        g_font_collection->setDefaultFontManager(g_font_mgr, zant_platform::default_families());
+        g_font_collection->enableFontFallback();
+        g_unicode = SkUnicodes::ICU::Make();
+    });
 }
 
 /* First installed family for a ZantTextStyle family id (cached). */
@@ -652,6 +662,7 @@ void zant_canvas_draw_image_rect(ZantCanvas *canvas, ZantImage *image, float x, 
 ZantTextLayout *zant_rich_text_layout_create(const ZantRichSpan *spans, size_t count,
                                              float max_width, float line_height) {
     if (!spans || count == 0) return nullptr;
+    const std::lock_guard<std::mutex> text_lock(g_text_mutex);
     std::string joined;
     for (size_t i = 0; i < count; ++i) {
         if (spans[i].placeholder_width > 0.0f) {
@@ -725,7 +736,10 @@ ZantTextLayout *zant_text_layout_create(const char *utf8, size_t length,
     if (!layout) return nullptr;
     layout->text.assign(utf8, length);
     layout->style = *style;
-    layout->paragraph = build_paragraph(layout->text, *style, max_width);
+    {
+        const std::lock_guard<std::mutex> lock(g_text_mutex);
+        layout->paragraph = build_paragraph(layout->text, *style, max_width);
+    }
     if (!layout->paragraph) {
         delete layout;
         return nullptr;
@@ -740,6 +754,7 @@ void zant_text_layout_destroy(ZantTextLayout *layout) {
 
 void zant_text_layout_relayout(ZantTextLayout *layout, float max_width) {
     if (!layout || !layout->paragraph) return;
+    const std::lock_guard<std::mutex> lock(g_text_mutex);
     Paragraph *p = layout->paragraph.get();
     if (layout->rich) {
         p->layout(std::max(max_width, 1.0f));
@@ -843,15 +858,24 @@ sk_sp<SkTypeface> typeface_for(int family, int weight, bool italic) {
     ensure_skia();
     struct Entry { int family; int weight; bool italic; sk_sp<SkTypeface> face; };
     static std::vector<Entry> cache;
-    for (const auto &entry : cache) {
-        if (entry.family == family && entry.weight == weight && entry.italic == italic) return entry.face;
+    static std::mutex cache_mutex;
+    {
+        const std::lock_guard<std::mutex> lock(cache_mutex);
+        for (const auto &entry : cache) {
+            if (entry.family == family && entry.weight == weight && entry.italic == italic) {
+                return entry.face;
+            }
+        }
     }
     const SkFontStyle style(std::max(100, std::min(900, weight)), SkFontStyle::kNormal_Width,
                             italic ? SkFontStyle::kItalic_Slant : SkFontStyle::kUpright_Slant);
     sk_sp<SkTypeface> face = family_typeface((family >= 0 && family <= 4) ? family : 0, style);
     if (!face) face = family_typeface(0, style);
     if (!face) face = g_font_mgr->legacyMakeTypeface(nullptr, style);
-    cache.push_back({family, weight, italic, face});
+    {
+        const std::lock_guard<std::mutex> lock(cache_mutex);
+        cache.push_back({family, weight, italic, face});
+    }
     return face;
 }
 

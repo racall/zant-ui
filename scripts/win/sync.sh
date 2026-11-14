@@ -8,7 +8,10 @@
 #
 # ZANT_WIN_HOST (user@host) and ZANT_WIN_DIR (parent directory on the
 # machine, forward slashes) come from the environment or from an untracked
-# scripts/win/.env file (KEY=value lines).
+# scripts/win/.env file (KEY=value lines). ZANT_WIN_PROJECT (optional)
+# overrides the remote directory name of this checkout: a git worktree is
+# named after the worktree (e.g. wp-win), but the machine keeps the main
+# checkout at a fixed name (e.g. XyUI).
 set -euo pipefail
 # no AppleDouble "._*" files (extended attributes) in the archives
 export COPYFILE_DISABLE=1
@@ -34,10 +37,10 @@ pack() { # <source dir> <archive>
   fi
 }
 
-send() { # <source dir>
+send() { # <source dir> [remote name]
   local src name archive
   src="$(cd "$1" && pwd)"
-  name="$(basename "$src")"
+  name="${2:-$(basename "$src")}"
   archive="$TMP/$name.tar"
   pack "$src" "$archive"
   scp -q ${ZANT_WIN_SSH_OPTS:-} "$archive" "$HOST:$DIR/cache/$name.tar"
@@ -46,5 +49,5 @@ send() { # <source dir>
 }
 
 ssh ${ZANT_WIN_SSH_OPTS:-} "$HOST" "New-Item -ItemType Directory -Force '$DIR/cache' | Out-Null"
-send "$ROOT"
+send "$ROOT" "${ZANT_WIN_PROJECT:-}"
 for extra in "$@"; do send "$extra"; done

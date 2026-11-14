@@ -231,7 +231,12 @@ fn compile_and_run_a_plain_rust_app() {
     let project = write_plain_app(&dir);
     let output = run(zant().current_dir(&project).arg("compile"));
     assert!(output.status.success(), "{}", stderr(&output));
-    assert!(project.join("target/debug/demo-app").is_file());
+    let exe = if cfg!(windows) {
+        "target/debug/demo-app.exe"
+    } else {
+        "target/debug/demo-app"
+    };
+    assert!(project.join(exe).is_file());
     // ZANT_RAW_LOGS=1 skips the macOS log-filter wrapper: its bash process
     // substitution needs /dev/fd, which restricted sandboxes deny.
     let output = run(zant()

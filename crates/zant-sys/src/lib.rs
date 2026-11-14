@@ -27,12 +27,22 @@ pub mod static_data {
 /// Zig calls `zant_skia_init()` from the renderer wrapper
 /// (`src/renderer/renderer.zig`); the Rust safe layer (`zant::renderer`) calls
 /// this instead so the Windows static data is always installed first.
+///
+/// Guarded by a [`Once`]: every text layout / renderer call runs this first,
+/// and the cargo test harness runs tests on many threads. `zant_skia_init()`
+/// is documented as repeatable, but *concurrent* first calls raced on Skia's
+/// global initialisation (`static_data::install()` also writes C++ globals) —
+/// on Windows that surfaced as `STATUS_HEAP_CORRUPTION` in the parallel
+/// math/ui tests, while `--test-threads=1` passed.
 pub fn init() {
-    #[cfg(windows)]
-    static_data::install();
-    // SAFETY: idempotent Skia initialisation; safe to call repeatedly per the
-    // header.
-    unsafe {
-        skia::zant_skia_init();
-    }
+    static INIT: std::sync::Once = std::sync::Once::new();
+    INIT.call_once(|| {
+        #[cfg(windows)]
+        static_data::install();
+        // SAFETY: idempotent Skia initialisation; safe to call repeatedly per the
+        // header.
+        unsafe {
+            skia::zant_skia_init();
+        }
+    });
 }
