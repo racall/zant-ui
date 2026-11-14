@@ -84,7 +84,7 @@
 | 3.6 | math/layout | wp-3-6 | 完成（已并入） | 6 测试（Zig 6）；入口 `layout(&str, Options) -> Drawing`；18 个示例公式排版非空；`math/mod.zig` 的 UI 层（block/render）留给 2.10/3.11 |
 | 3.7 | math/mhchem（823 条夹具，逐字节对齐） | wp-3-7 | 完成（已并入） | 823/823；207 条状态机转移与 Zig 逐条对照；拆成 15 个文件；`to_tex(&str, Machine) -> Result<String, MhchemError>` |
 | 3.8 | pdf/{document,text,renderer,annotations,native}、platform/pdf | wp-3-8 | 完成（已并入） | `Document` Send+Sync（原生层已串行化）；渲染 worker 的 wake 用注入回调（3.9 传 `ui::post_wake`）；缓存返回 `Arc` 快照；Windows PDFium 待验证 |
-| 3.9 | pdf/viewer、ui.pdfPreview | wp-3-9 | 进行中（worktree wp-3.9） | 文档层 + preview builder 已就绪 |
+| 3.9 | pdf/viewer、ui.pdfPreview | wp-3-9 | 完成（分支 rust/wp-3.9，待并入） | 7 测试（Zig viewer 2 + 新增 5，pdf_viewer_test.zig 两条延迟用例已移植）；`Viewer` = `Rc<RefCell<Inner>>` 句柄（回调需 `'static` 闭包）；`ui::post_wake` 直接作 renderer wake，无需运行时改动；`on_change`/`on_annotation` 改为下一次 build 的 effect；`ui::segmented`（WP-2.5 未并入）暂用图标按钮，见报告 |
 | 3.10 | db/sqlite → rusqlite + derive(Table) | wp-3-10 | 完成（已并入） | 生成的 SQL 与 Zig 逐字节一致（含迁移 ALTER）；Zig 建的库 Rust 可读已实测；fallback 表名差异登记见待决问题 |
 | 3.11 | examples/{markdown,math,markdown_stream,pdf} | — | 待领取 | |
 
