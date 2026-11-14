@@ -6,15 +6,15 @@
 //! replace the laid-out paragraph with a narrower one.
 //!
 //! Component measures (`measureWidth` / `measureHeight` of
-//! `src/components/{button,input,toggle,image,select}.zig`) are ported next to
-//! the layout code for the components whose paint modules are not ported yet
-//! (WP-2.1 / WP-2.2 own them); button lives in `components::button`. When a
-//! component module lands it should own its measure and this file should call
-//! it — the arithmetic here is a 1:1 copy of the Zig function either way.
+//! `src/components/{button,input,toggle,image,select}.zig`) live in their
+//! component modules: `components::{button,toggle,image,select}`. Input's
+//! constants are still here until WP-2.1 lands (same shape as the Zig
+//! functions); this file only dispatches to them, exactly like Zig
+//! `core/layout.zig:113-166`.
 #![forbid(unsafe_code)]
 
 use crate::core::layout::Nodes;
-use crate::core::node::{FlexStyle, NodeData, NodeId, NodeKind, ToggleData, ToggleKind};
+use crate::core::node::{FlexStyle, NodeData, NodeId, NodeKind};
 use crate::layout::flex;
 use crate::theme::tokens::Theme;
 
@@ -80,19 +80,10 @@ fn finite(v: f32, fallback: f32) -> f32 {
 
 // ── component measures (see the module docs) ───────────────────────────────
 
-/// `src/components/input.zig`: `default_width` / `default_height`.
+/// `src/components/input.zig`: `default_width` / `default_height` (WP-2.1
+/// moves these next to the input paint module).
 const INPUT_DEFAULT_WIDTH: f32 = 220.0;
 const INPUT_DEFAULT_HEIGHT: f32 = 32.0;
-
-/// `src/components/select.zig`: `field_height`.
-const SELECT_FIELD_HEIGHT: f32 = 32.0;
-
-/// `src/components/toggle.zig`: `checkbox_size`, `switch_width`, `label_gap`,
-/// `control_height`.
-const TOGGLE_CHECKBOX_SIZE: f32 = 16.0;
-const TOGGLE_SWITCH_WIDTH: f32 = 40.0;
-const TOGGLE_LABEL_GAP: f32 = 8.0;
-const TOGGLE_CONTROL_HEIGHT: f32 = 24.0;
 
 /// `input.zig:measureWidth`.
 pub(crate) fn input_measure_width(style: &FlexStyle) -> f32 {
@@ -108,88 +99,6 @@ pub(crate) fn input_measure_height(style: &FlexStyle) -> f32 {
         return height;
     }
     INPUT_DEFAULT_HEIGHT
-}
-
-/// `toggle.zig:labelColor`.
-fn toggle_label_color(enabled: bool, theme: Theme) -> u32 {
-    if enabled {
-        theme.color_text
-    } else {
-        theme.color_text_disabled
-    }
-}
-
-/// `toggle.zig:measureWidth`.
-pub(crate) fn toggle_measure_width(
-    data: &mut ToggleData,
-    style: &FlexStyle,
-    enabled: bool,
-    theme: Theme,
-    max_width: f32,
-) -> f32 {
-    let _ = max_width;
-    if let Some(width) = style.width {
-        return width;
-    }
-    let indicator = match data.kind {
-        ToggleKind::Checkbox | ToggleKind::Radio => TOGGLE_CHECKBOX_SIZE,
-        ToggleKind::SwitchControl => TOGGLE_SWITCH_WIDTH,
-    };
-    // no label: just the control (an empty paragraph's line width is not a
-    // number, which made a bare switch measure 0 wide)
-    if data.label.is_empty() {
-        return indicator;
-    }
-    let layout = match data.ensure_layout(toggle_label_color(enabled, theme)) {
-        Some(layout) => layout,
-        None => return indicator,
-    };
-    let line = layout.metrics().longest_line;
-    indicator + TOGGLE_LABEL_GAP + if line.is_finite() { line } else { 0.0 }
-}
-
-/// `toggle.zig:measureHeight`.
-pub(crate) fn toggle_measure_height(style: &FlexStyle) -> f32 {
-    style.height.unwrap_or(TOGGLE_CONTROL_HEIGHT)
-}
-
-/// `image.zig:measureWidth`.
-pub(crate) fn image_measure_width(style: &FlexStyle, intrinsic_width: i32) -> f32 {
-    if let Some(width) = style.width {
-        return width;
-    }
-    if intrinsic_width > 0 {
-        intrinsic_width as f32
-    } else {
-        160.0
-    }
-}
-
-/// `image.zig:measureHeight`.
-pub(crate) fn image_measure_height(
-    style: &FlexStyle,
-    intrinsic_width: i32,
-    intrinsic_height: i32,
-    width: f32,
-) -> f32 {
-    if let Some(height) = style.height {
-        return height;
-    }
-    if intrinsic_width > 0 && intrinsic_height > 0 {
-        width * intrinsic_height as f32 / intrinsic_width as f32
-    } else {
-        120.0
-    }
-}
-
-/// `select.zig:measureWidth`.
-pub(crate) fn select_measure_width(style: &FlexStyle) -> f32 {
-    style.width.unwrap_or(220.0)
-}
-
-/// `select.zig:measureHeight`.
-pub(crate) fn select_measure_height(style: &FlexStyle) -> f32 {
-    style.height.unwrap_or(SELECT_FIELD_HEIGHT)
 }
 
 // ── intrinsic sizes ────────────────────────────────────────────────────────
@@ -268,15 +177,17 @@ pub(crate) fn intrinsic_width(
         NodeKind::Toggle => {
             let enabled = nodes[id].enabled;
             match &mut nodes[id].data {
-                NodeData::Toggle(data) => toggle_measure_width(data, &style, enabled, theme, avail),
+                NodeData::Toggle(data) => {
+                    crate::components::toggle::measure_width(data, &style, enabled, theme, avail)
+                }
                 _ => 0.0,
             }
         }
         NodeKind::Image => match &nodes[id].data {
-            NodeData::Image(data) => image_measure_width(&style, data.intrinsic_width),
+            NodeData::Image(data) => crate::components::image::measure_width(&style, data),
             _ => 0.0,
         },
-        NodeKind::Select => select_measure_width(&style),
+        NodeKind::Select => crate::components::select::measure_width(&style),
         NodeKind::RichText => match &mut nodes[id].data {
             NodeData::RichText(data) => data.natural_width(),
             _ => 0.0,
@@ -370,14 +281,12 @@ pub(crate) fn intrinsic_height(nodes: &mut Nodes<'_>, id: NodeId, width: f32, th
             }
         }
         NodeKind::Input => input_measure_height(&style),
-        NodeKind::Toggle => toggle_measure_height(&style),
+        NodeKind::Toggle => crate::components::toggle::measure_height(&style),
         NodeKind::Image => match &nodes[id].data {
-            NodeData::Image(data) => {
-                image_measure_height(&style, data.intrinsic_width, data.intrinsic_height, width)
-            }
+            NodeData::Image(data) => crate::components::image::measure_height(&style, data, width),
             _ => 0.0,
         },
-        NodeKind::Select => select_measure_height(&style),
+        NodeKind::Select => crate::components::select::measure_height(&style),
         NodeKind::RichText => {
             let fallback = match &nodes[id].data {
                 NodeData::RichText(data) => data.spans.len() as f32 * 20.0,

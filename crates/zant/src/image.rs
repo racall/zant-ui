@@ -122,6 +122,35 @@ impl Image {
         Image::wrap(handle)
     }
 
+    /// Draws the image into `rect`, clipped to `radius`; `fit` is the
+    /// `ImageFit` discriminant (cover = 0, contain = 1, fill = 2).
+    ///
+    /// Port of `components/image.zig:paint`'s native call
+    /// (`zant_canvas_draw_image_rect`), which WP-2.2 needs from
+    /// `components::image` where `unsafe` is not allowed (plan.md §3 rule 5).
+    pub fn draw_rect(
+        &self,
+        canvas: crate::renderer::canvas::Canvas,
+        rect: crate::core::geometry::Rect,
+        radius: f32,
+        fit: i32,
+    ) {
+        // SAFETY: both handles are live for the current frame; `self` keeps the
+        // image alive for the duration of the call.
+        unsafe {
+            ffi::zant_canvas_draw_image_rect(
+                canvas.handle(),
+                self.handle,
+                rect.x,
+                rect.y,
+                rect.width,
+                rect.height,
+                radius,
+                fit,
+            );
+        }
+    }
+
     /// PNG bytes of the image.
     pub fn encode_png(&self) -> Result<Vec<u8>, ImageError> {
         let mut len: usize = 0;
