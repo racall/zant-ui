@@ -301,12 +301,16 @@ mod tests {
 
     #[test]
     fn layout_stats_count_shaping_when_enabled() {
+        // The counters are process-wide (Zig had module-level vars, the UI is
+        // single-threaded there); other tests lay out text in parallel, so the
+        // count can only be checked to have grown, not to be exact.
+        LAYOUT_STATS.set_enabled(false);
+        let _ = LAYOUT_STATS.take();
         LAYOUT_STATS.set_enabled(true);
         let _ = TextLayout::init("stats", Style::default(), 1000.0).expect("layout");
         LAYOUT_STATS.set_enabled(false);
         let (count, _us) = LAYOUT_STATS.take();
-        assert!(count >= 1);
-        assert_eq!(LAYOUT_STATS.take().0, 0, "take resets the counter");
+        assert!(count >= 1, "shaping must be counted while stats are on");
     }
 }
 
