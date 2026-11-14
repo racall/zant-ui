@@ -4,6 +4,19 @@
 > 分支：并行期间所有 WP 直接提交到 `feat/rust-port`（多人共用同一工作区，无法为每个 WP 开独立分支），
 > 提交信息带 `WP-x.y: ` 前缀，由 lead 审核后提交。
 
+## 当前快照（最近更新）
+
+| 项 | 值 |
+|---|---|
+| 分支 | `feat/rust-port`（全部 WP 直接合入这里，提交带 `WP-x.y:` 前缀） |
+| Rust 测试 | `cargo test --workspace` 全绿：**lib 287 + 集成 56 + zant-tsx 41 = 384**（`cargo test -p zant --lib`） |
+| Zig 测试 | `zig build test` 仍全绿（Zig 版未改行为，只加了 `ZANT_WINDOW_SIZE` 钩子与 `ZANT_STATIC_DATA` 原生补丁） |
+| 质量门 | `cargo fmt --all -- --check` 干净；`cargo clippy --workspace --all-targets -- -D warnings` 0 告警 |
+| 已完成 | M0 全部（0.1 macOS/0.2/0.3/0.4/0.5）、1.1a–d、1.2、1.3、2.2、2.3、2.4、3.1、3.2、3.4、3.5、3.6、3.7、3.8、3.10、4.1、4.2、4.3、5.1 |
+| 进行中 | WP-1.4（runtime，worktree `wp-1.4`，分支 `rust/wp-1.4`） |
+| 下一步（依赖已就绪） | 1.4 完成 → 1.5 `zant-demo` + M1 parity → 2.1（input/IME，需 1.4）→ 2.5/2.6/2.7/2.8/2.9/2.10/2.11 → 3.3（markdown render，需 1.3+2.3 ✓ 可并行）→ 3.9（viewer）→ 3.11 → 4.4 → M5/M6/M7/M8 |
+| Windows | 测试机 192.168.31.24 全程不可达；所有 Windows 验收待补 |
+
 ## 环境与基线（M0 记录）
 
 | 项 | 值 |
