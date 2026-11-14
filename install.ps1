@@ -12,6 +12,12 @@
 # 2. Downloads the release archive into $ZANT_HOME: zant.exe, the Rust
 #    workspace with the native sources, Skia, PDFium and fonts, so nothing is
 #    compiled during installation. Adds $ZANT_HOME\bin to the user PATH.
+#    WP-6.6: the archive also contains a prebuilt native library
+#    (zant-ui\third_party\zant-native-prebuilt\, made by
+#    scripts/release/prebuilt.ps1). Apps built from this install link it
+#    instead of compiling C++/C — Visual Studio Build Tools stay required to
+#    link, and the sources are still shipped so a stale archive falls back to
+#    compiling.
 #
 # Running it again (or `zant update`) updates to the latest release.
 # Settings (environment variables, set before running):

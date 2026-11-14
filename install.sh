@@ -11,6 +11,12 @@
 # 3. Downloads the release archive (zant, the Rust workspace with the native
 #    sources and the prebuilt Skia; nothing is compiled) into $ZANT_HOME and
 #    links `zant` into $ZANT_BIN_DIR, adding that to PATH.
+#    WP-6.6: the archive also contains a prebuilt native library
+#    (zant-ui/third_party/zant-native-prebuilt/, made by
+#    scripts/release/prebuilt.sh). Apps built from this install link it
+#    instead of compiling C++/ObjC — the Xcode command line tools stay
+#    required for linking, and the sources are still shipped so a stale
+#    archive falls back to compiling.
 #
 # Running it again (or `zant update`) updates to the latest release.
 # Settings (environment variables):

@@ -1,0 +1,20 @@
+# Native sources compiled by crates/zant-sys/build.rs on macOS.
+#
+# User-facing description: WP-6.6 in docs/rust-port/plan.md.
+#
+# This file is canonical: build.rs compiles the `.cpp` / `.mm` / `.m` entries in
+# this order, and the prebuilt native library's `source_hash` (metadata.txt) is
+# the SHA-256 over this whole list, headers included, in this order. Adding,
+# removing, reordering or editing any entry invalidates a prebuilt archive, and
+# build.rs falls back to compiling from source (with a warning).
+#
+# Keep the list identical to the sources `build.zig` compiles on macOS.
+src/renderer/skia/skia_bridge.cpp
+src/renderer/skia/skia_bridge.h
+src/renderer/skia/skia_bridge_internal.h
+src/renderer/skia/skia_bridge_mac.mm
+src/platform/macos/window.m
+src/platform/macos/window.h
+src/platform/macos/pdf.mm
+src/platform/platform.h
+src/platform/pdf.h
