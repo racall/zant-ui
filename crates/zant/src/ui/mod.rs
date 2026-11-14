@@ -25,7 +25,11 @@ pub use actions::{
     PointerInfo, PointerPhase, RangeAction, TextAction, action, bool_action, call, call_bool,
     call_index, call_range, call_text, index_action, range_action, text_action,
 };
-pub use builders::{button, column, row, text};
+pub use builders::{
+    alert, avatar, button, card, checkbox, clickable, column, dismiss_layer, divider, heading,
+    icon, icon_button, image, input, link, paragraph, pdf_preview, pointer_area, progress,
+    radio_group, rich_text, row, select, space, r#switch, tabs, tag, text, title, tooltip, vector,
+};
 pub use commands::{
     Command, CommandKind, MAX_COMMANDS, focus, queue_command_for, requeue_command,
     scroll_into_view, scroll_to_end, set_command_owner, take_commands, take_commands_for,

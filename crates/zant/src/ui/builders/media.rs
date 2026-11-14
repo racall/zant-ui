@@ -60,15 +60,11 @@ pub fn image(options: ImageOptions) -> Node {
 // the same order and `icons::Icon::ALL` is documented as that order, so the
 // conversion is an index lookup. WP-2.3 reports the duplication: in the base
 // `core::node::ButtonIcon` should be `pub use icons::Icon`.
-fn traced_icon(icon: crate::core::node::Icon) -> icons::Icon {
-    icons::Icon::ALL[icon as usize]
-}
-
 /// `ui::icon`: a line icon from the Zant icon set.
 pub fn icon(options: IconOptions) -> Node {
     let theme = current_theme();
     let drawing = icons::drawing(
-        traced_icon(options.name),
+        options.name,
         options.size,
         options.color.unwrap_or(theme.color_text),
         options.stroke,
