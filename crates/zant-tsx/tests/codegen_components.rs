@@ -547,3 +547,64 @@ fn interface_and_enum_declarations_are_emitted() {
     assert!(source.contains("pub title: zant::Str,"), "{source}");
     assert!(source.contains("pub done: bool,"), "{source}");
 }
+
+// ── store diagnostics (ported from `tools/tsx/codegen/stores_test.zig`) ──
+
+fn diagnostic(src: &str) -> String {
+    let module = parse_module(src);
+    if generate::generate("src/App.tsx", &module, &generate::Options::default()).is_err() {
+        return generate::last_diag()
+            .map(|diag| diag.msg)
+            .unwrap_or_else(|| "codegen failed without a diagnostic".to_owned());
+    }
+    panic!("expected a diagnostic");
+}
+
+#[test]
+fn store_diagnostics() {
+    let decl = "const settings = createStore<{ n: number }>({ n: 0 });\n";
+    let app = "export default function App() {\n";
+    let cases = [
+        (
+            format!("const s = createStore({{ n: 0 }});\n{app}  return <View/>;\n}}"),
+            "createStore takes the state type and its initial value",
+        ),
+        (
+            format!("{decl}{app}  const v = useStore(42);\n  return <View/>;\n}}"),
+            "useStore needs a store",
+        ),
+        (
+            format!("{decl}{app}  settings.set({{ n: 1 }});\n  return <View/>;\n}}"),
+            "stores change in event handlers and effects",
+        ),
+        (
+            format!("{decl}{app}  return <Button onClick={{() => settings.reset()}}/>;\n}}"),
+            "a store has get(), set(value) and update",
+        ),
+        (
+            format!(
+                "{decl}{app}  return <Button onClick={{() => settings.update({{ m: 1 }})}}/>;\n}}"
+            ),
+            "has no field `m`",
+        ),
+        (
+            format!(
+                "{decl}{app}  return <Button onClick={{() => settings.update({{ ...settings.get() }})}}/>;\n}}"
+            ),
+            "list the fields to change",
+        ),
+        (
+            format!(
+                "{decl}{app}  if (true) {{\n    const v = useStore(settings);\n  }}\n  return <View/>;\n}}"
+            ),
+            "hooks must be called at the top level",
+        ),
+    ];
+    for (source, expected) in cases {
+        let message = diagnostic(&source);
+        assert!(
+            message.contains(expected),
+            "missing `{expected}` in `{message}` for:\n{source}"
+        );
+    }
+}

@@ -996,8 +996,10 @@ const KNOWN_MISSING: &[&str] = &[
     "strings",
     // `setTimeout` / timer codegen (`codegen/timers.zig`) has no owner yet
     "timers",
-    // the `Uint8Array` ↔ bytes typing conflict (see status.md pending questions)
-    "desktop",
+    // `platform.tsx` lowers a JSX `padding={{ left, right }}` object prop in
+    // its render body; that is the real WP-5.4 JSX emitter's job (the golden
+    // `testdata/platform.rs` compiles against `zant`), and this stub path
+    // reports `object literal needs a type annotation`. Not this WP's module.
     "platform",
 ];
 

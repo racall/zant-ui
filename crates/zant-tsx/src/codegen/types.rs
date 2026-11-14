@@ -9,6 +9,7 @@ use crate::ast;
 use crate::react_compat;
 
 use super::model;
+use super::rust_imports;
 use super::rust_text::{self, Format, Precedence};
 use super::scope;
 use super::{Generator, Result, fail};
@@ -267,6 +268,14 @@ fn integer_peer(a: Type, b: Type) -> Type {
     }
 }
 
+/// The type of a TSX `Uint8Array`: the runtime's static byte slice
+/// (`&'static [u8]`). This is the same interned compound that asset imports
+/// (`rust_imports::bytes`) and `TrayOptions::icon` use, so a byte literal and
+/// an imported `.png` are the same value type (`docs/rust-port/status.md`).
+pub fn bytes_type(g: &mut Generator<'_>) -> Result<Type> {
+    rust_imports::bytes(g)
+}
+
 /// A type annotation (Zig `types.typeRef`).
 pub fn type_ref(g: &mut Generator<'_>, reference: &ast::TypeRef, allow_void: bool) -> Result<Type> {
     if let Some(detail) = reference.detail.as_deref() {
@@ -317,9 +326,11 @@ pub fn type_ref(g: &mut Generator<'_>, reference: &ast::TypeRef, allow_void: boo
             None => fail(g, reference.loc, "`Image` needs the JSX hooks (WP-5.4)"),
         };
     }
-    // bytes (clipboard images, file contents): a list of u8
+    // bytes (tray icons, imported assets, file contents): the runtime's
+    // `&'static [u8]` (see `rust_imports::bytes`); a byte *literal* is emitted
+    // as a promoted `&[..]` slice by `expr::byte_slice`
     if reference.name == b"Uint8Array" {
-        return model::array(g, Type::U8);
+        return bytes_type(g);
     }
     if allow_void && reference.name == b"void" {
         return Ok(Type::Void);
@@ -452,6 +463,19 @@ pub fn coerce(g: &mut Generator<'_>, v: Value, t: Type, loc: ast::Loc) -> Result
             loc,
             format!(
                 "cannot convert {} to {}; float-to-integer conversion is not implicit; use an integer value",
+                v.ty.rust(g),
+                t.rust(g)
+            ),
+        );
+    }
+    // `Uint8Array` is a `&'static [u8]`: an unannotated byte literal lowered to
+    // a `tsx::List<u8>` cannot become a static slice after the fact.
+    if model::is_static_bytes(g, t) {
+        return fail(
+            g,
+            loc,
+            format!(
+                "cannot convert {} to {}; annotate byte literals with `const name: Uint8Array = [..]` (or import the bytes)",
                 v.ty.rust(g),
                 t.rust(g)
             ),

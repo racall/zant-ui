@@ -131,7 +131,13 @@ pub fn add(g: &mut Generator<'_>, value: Info) -> Result<Type> {
 
 pub fn array(g: &mut Generator<'_>, child: Type) -> Result<Type> {
     for (index, entry) in g.compounds.iter().enumerate() {
-        if entry.kind == InfoKind::Array && entry.child == child {
+        // `tsx::Bytes` / `&'static [u8]` are interned as byte arrays too
+        // (`rust_imports::bytes`, `zant_api::bytes_owned`); a `u8[]` must not
+        // reuse them, so only `tsx::List` entries intern as general arrays.
+        if entry.kind == InfoKind::Array
+            && entry.child == child
+            && entry.rust.starts_with("tsx::List<")
+        {
             return Ok(Type::Compound(index as u32));
         }
     }
@@ -144,6 +150,15 @@ pub fn array(g: &mut Generator<'_>, child: Type) -> Result<Type> {
             child,
             ..Info::default()
         },
+    )
+}
+
+/// Whether `ty` is the `Uint8Array` type: the runtime's static byte slice
+/// (`&'static [u8]`, see `rust_imports::bytes`), not a `tsx::List<u8>`.
+pub fn is_static_bytes(g: &Generator<'_>, ty: Type) -> bool {
+    matches!(
+        ty,
+        Type::Compound(index) if g.compounds[index as usize].rust == "&'static [u8]"
     )
 }
 
