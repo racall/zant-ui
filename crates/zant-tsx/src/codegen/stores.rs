@@ -12,7 +12,9 @@
 //! (`settings_get` / `settings_read` / `settings_set` / `settings_update`).
 //! Generated code calls the accessors, which keeps a store usable from another
 //! file through its module alias. Rust's `tsx::Store<T>` (WP-5.7) only needs
-//! `new(initial)` and `&self` methods `get` / `read` / `set` / `update(f)` —
+//! `zant::store::Store` (the runtime store) inside a `RefCell`, plus
+//! `get` / `read` / `set` / `update(f)` accessor functions (Zig's
+//! `threadlocal var ... = tsx.Store(T)` with `&self` methods).
 //! reported as the contract for that work package.
 //!
 //! Changing a store rebuilds every window (the `tsx::Store` runtime does it).
@@ -131,11 +133,11 @@ pub fn collect(g: &mut Generator<'_>, constants: &[ast::TopConst]) -> Result<Str
         };
         let rust = ty.rust(g).to_owned();
         code.push_str(&format!(
-            "thread_local! {{\n    static {static_name}: tsx::Store<{rust}> = tsx::Store::new({value});\n}}\n\n\
-             pub fn {name}_get() -> {rust} {{ {static_name}.with(|store| store.get()) }}\n\
-             pub fn {name}_read() -> {rust} {{ {static_name}.with(|store| store.read()) }}\n\
-             pub fn {name}_set(value: {rust}) {{ {static_name}.with(|store| store.set(value)); }}\n\
-             pub fn {name}_update(update: impl FnOnce(&mut {rust})) {{ {static_name}.with(|store| store.update(update)); }}\n\n",
+            "thread_local! {{\n    static {static_name}: std::cell::RefCell<zant::store::Store<{rust}>> = std::cell::RefCell::new(zant::store::Store::new({value}));\n}}\n\n\
+             pub fn {name}_get() -> {rust} {{ {static_name}.with(|store| store.borrow().get().clone()) }}\n\
+             pub fn {name}_read() -> {rust} {{ {static_name}.with(|store| store.borrow().get().clone()) }}\n\
+             pub fn {name}_set(value: {rust}) {{ {static_name}.with(|store| store.borrow_mut().set(value)); }}\n\
+             pub fn {name}_update(update: impl FnOnce(&mut {rust})) {{ {static_name}.with(|store| store.borrow_mut().update(update)); }}\n\n",
             static_name = store.static_name(),
             value = initial.code,
         ));
@@ -241,8 +243,8 @@ pub fn use_store(
             Some(param) => String::from_utf8_lossy(&param.name.name).into_owned(),
             None => "_store".to_owned(),
         };
-        let (closure, ty) =
-            callbacks::closure(g, c, &call.args[1], &[store.ty], &pattern_name, None)?;
+        let pattern = format!("{pattern_name}: {}", store.ty.rust(g));
+        let (closure, ty) = callbacks::closure(g, c, &call.args[1], &[store.ty], &pattern, None)?;
         Value {
             ty,
             code: format!("({closure})({})", store.accessor("read")),
@@ -312,7 +314,7 @@ pub fn try_call(
         let value = expr::emit(g, c, &call.args[0], Some(store.ty), false)?;
         return Ok(Some(Value {
             ty: Type::Void,
-            code: format!("{}({})", store.accessor("set"), value.code),
+            code: format!("{}({})", store.accessor_fn("set"), value.code),
             ..Value::default()
         }));
     }
@@ -379,7 +381,10 @@ mod tests {
         g.resolving = vec![false; module.types.len()];
         let code = collect(&mut g, &module.consts).expect("stores lower");
         assert!(code.contains("thread_local! {"), "{code}");
-        assert!(code.contains("static SETTINGS: tsx::Store<"), "{code}");
+        assert!(
+            code.contains("static SETTINGS: std::cell::RefCell<zant::store::Store<"),
+            "{code}"
+        );
         assert!(code.contains("pub fn settings_get() ->"), "{code}");
         assert!(
             code.contains("pub fn settings_update(update: impl FnOnce(&mut "),

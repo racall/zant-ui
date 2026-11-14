@@ -375,7 +375,7 @@ fn component_impl(
     }
     if hooks.close {
         out.push_str(
-            "\nfn on_close_request(&mut self) -> bool {\nself._s.borrow_mut()._window_on_close()\n}\n",
+            "\nfn on_close_request(&mut self) -> bool {\nself._s.borrow_mut()._window_on_close_request()\n}\n",
         );
     }
     out.push_str("}\n\n");

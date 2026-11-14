@@ -241,6 +241,9 @@ fn enum_type_path(owner: &str, field: &str) -> Option<&'static str> {
 /// `a_field_is_optional_exactly_when_the_design_says_so` keeps it honest for
 /// the tags the golden tests use.
 fn optional_field(owner: &str, prop: &Prop) -> bool {
+    if owner == "List" && prop.field == "item_height" {
+        return true;
+    }
     if owner.starts_with("ui.") {
         return match owner {
             "ui.MenuItem" => matches!(prop.field, "key" | "on_click" | "index_action"),
@@ -281,7 +284,15 @@ fn number_optional(owner: &str, field: &str) -> bool {
         "width" => !matches!(owner, "DropdownMenu" | "PdfPreview" | "Progress"),
         "height" => matches!(
             owner,
-            "Card" | "Clickable" | "Column" | "Image" | "RichText" | "Row" | "Space" | "View"
+            "Card"
+                | "Clickable"
+                | "Column"
+                | "Image"
+                | "RichText"
+                | "Row"
+                | "Space"
+                | "View"
+                | "List"
         ),
         "top" => owner != "Message",
         "font_size" => owner == "Button",
@@ -597,7 +608,19 @@ fn float_literal(n: f32) -> String {
 }
 
 /// Lower container children or joined text according to the tag table content contract.
+///
+/// Child components are dispatched first, exactly like the Zig `jsx.emit`:
+/// container children (`jsx_children`) and rich-text/list item builders call
+/// this function directly instead of the `emit_jsx` extension wrapper, so the
+/// component check must live here too.
 pub fn emit(g: &mut Generator<'_>, c: &mut scope::Context, jsx: &ast::Jsx) -> Result<Value> {
+    let name = String::from_utf8_lossy(&jsx.name);
+    if !name.is_empty()
+        && let Some(component) = super::components::find(g, &name)
+    {
+        let component = component.clone();
+        return super::components::emit_call(g, c, jsx, &component);
+    }
     emit_named(g, c, jsx, &jsx.name)
 }
 

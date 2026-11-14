@@ -9,12 +9,12 @@
 | 项 | 值 |
 |---|---|
 | 分支 | `feat/rust-port`（全部 WP 直接合入这里，提交带 `WP-x.y:` 前缀） |
-| Rust 测试 | `cargo test --workspace` 全绿：**lib 427 + 集成 66 + zant-tsx 53 + 示例 5 ≈ 551** |
+| Rust 测试 | `cargo test --workspace` 全绿：**lib 427 + 集成 66 + zant-tsx 269 + 示例 5 ≈ 767**（zant-tsx 由 WP-5.9 的黄金/端到端用例扩充；工作区全量以 lead 合并后为准） |
 | Zig 测试 | `zig build test` 仍全绿（Zig 版未改行为，只加了 `ZANT_WINDOW_SIZE` 钩子与 `ZANT_STATIC_DATA` 原生补丁） |
 | 质量门 | `cargo fmt --all -- --check` 干净；`cargo clippy --workspace --all-targets -- -D warnings` 0 告警 |
-| 已完成 | M0 全部（0.1 macOS/0.2/0.3/0.4/0.5）、M1 全部（1.1a–d/1.2/1.3/1.4/1.5，parity 6/6 0 像素）、M2（2.1–2.11 除 2.11 已并入全绿）、M3（3.1–3.9、3.11，zant-pdf parity 6/6）、M4（4.1–4.4）、M5（5.1–5.5、5.7、5.8）、M6（6.1、6.3、6.4、6.5）、M7（7.3 文档） |
-| 进行中 | WP-5.6（TSX 应用层/编译器入口）、WP-6.6（CI 预编译原生库） |
-| 下一步 | 5.6 完成 → WP-5.9（黄金用例/端到端）、WP-5.10（TSX 示例 + bench-tsx）、WP-6.2（zant-build）→ M6 端到端（`zant create` → `zant run` → `zant build`）→ M7 下游（受沙箱限制，需在工作区外写权限）→ M8 切换（需用户确认） |
+| 已完成 | M0 全部（0.1 macOS/0.2/0.3/0.4/0.5）、M1 全部（1.1a–d/1.2/1.3/1.4/1.5，parity 6/6 0 像素）、M2（2.1–2.11 除 2.11 已并入全绿）、M3（3.1–3.9、3.11，zant-pdf parity 6/6）、M4（4.1–4.4）、M5（5.1–5.8、5.9 黄金/端到端，见下方偏差表）、M6（6.1、6.3、6.4、6.5）、M7（7.3 文档） |
+| 进行中 | WP-6.2（zant-build）、WP-5.10（TSX 示例 + bench-tsx） |
+| 下一步 | WP-6.2（zant-build）/WP-5.10（TSX 示例 + bench-tsx）→ 补齐 WP-5.9 报告的框架 API（ui 的 markdown/pdf_viewer 等）→ M6 端到端（`zant create` → `zant run` → `zant build`）→ M7 下游（受沙箱限制，需在工作区外写权限）→ M8 切换（需用户确认） |
 | Windows | 测试机 192.168.31.24 全程不可达；所有 Windows 验收待补 |
 
 ## 环境与基线（M0 记录）
@@ -186,7 +186,7 @@ Release、窗口模式（Metal），`ZANT_FRAME_STATS=1 ZANT_STREAM_CHARS=6 ZANT
 | 5.6 | 应用层（imports/rust_imports/windows/desktop_hooks/zant_api/assets/entry/compile/main） | wp-5-6 | 完成（worktree wp-5.6，待并入） | 分支 `rust/wp-5.6`。新增 `codegen/{imports,rust_imports,windows,desktop_hooks,zant_api,app_hooks,app_state}`、`{assets,entry,compile}`、CLI `main.rs`；`projects` 级 API：`compile::{compile,compile_project,compile_project_with,compile_project_root(_with),BuildOutput,ProjectOptions,ConfigSpec}`（给 WP-6.2：`compile_project_root` 读 `<root>/src/**`、`<root>/native/*.ts`、`app.config.json`，返回各模块 + `main.rs` + assets + dep file，`BuildOutput::write` 落盘）。测试：lib 125（+7：assets 3、imports 4、rust_imports 3 等）、`tests/codegen_app.rs` 27（工程导入/跨文件类型、createWindow + window 组件、useTray/useHotkey、app hooks → impl ui::App、zant API 路径、assets、entry、rust 导入、仓库语料、5 个快照）。5.4 未落地：JSX/事件用 test-only 桩（`install_extra`）注入，**合并时不用改测试**；生产 `install()` 里 5.4 的 7 行注释照旧。见「待决问题 WP-5.6」 |
 | 5.7 | src/tsx*.zig → zant/src/tsx/ | — | 待领取 | |
 | 5.8 | native 模块（trait 化） | — | 待领取 | ★★★ |
-| 5.9 | 黄金用例换成 .rs | — | 待领取 | |
+| 5.9 | 黄金用例换成 .rs | wp-5-9 | 完成（worktree wp-5.9，待并入） | 分支 `rust/wp-5.9`。`crates/zant-tsx/testdata/*.rs` 30 个黄金（32 个 Zig 用例里 `desktop`/`entities` 无法生成，见下方「WP-5.9 偏差表」）；`tests/golden.rs`（黄金逐字节比对 + 全部黄金批量写入一个 workspace 外临时 crate，`cargo check` 通过 **29/30**，`widgets` 因框架 API 缺失排除）；`tests/tsx_end_to_end.rs`（`compile_project_root_with` 驱动 `tests/fixtures/{hooks,crossfile,rust_types,media}`，Zig 模块移植为 `.rs` 镜像）；逐服务器审阅 30 个黄金时修掉 30+ 处编译器/联调 bug（见「WP-5.9 提出」）。 |
 | 5.10 | examples/tsx 入口、bench-tsx | — | 待领取 | |
 
 ### M6 CLI / 构建 / 脚手架 / 发布
@@ -330,6 +330,118 @@ Release、窗口模式（Metal），`ZANT_FRAME_STATS=1 ZANT_STREAM_CHARS=6 ZANT
    机器负载高（并行构建）时波动 ±0.05×，正式闸门应在空闲机器上复测（`ZANT_BENCH_REPEAT=8`）。
 
 ## 待决问题
+
+### WP-5.9 提出（2026-11-14）
+
+**黄金用例与编译验证**（分支 `rust/wp-5.9`）：
+
+- `tools/tsx/testdata/*.tsx` 32 个里 **30 个**有 `crates/zant-tsx/testdata/<name>.rs`（由新的 Rust 编译器生成后逐个对照
+  `testdata/<name>.zig` 行为与 `docs/rust-port/tsx-codegen.md` §2/§3/§5/§6 审阅）；`desktop`、`entities` 无法生成 `.rs`
+  （见下），`widgets` 有黄金但由于框架 API 缺失不参与 `cargo check`。
+- 编译检查：30 个黄金中 29 个写进一个临时 crate（`zant = { path = <repo>/crates/zant }`，单个 `[workspace]`，复用
+  `target/zant-tsx-goldens/target` 缓存）后 `cargo check` 通过；首次约 11s，复跑约 0.2s。
+- 这是生成代码第一次真正通过 rustc：期间修复的编译器 bug 记录在下面第 2 条，**其中与 WP-5.4/5.5/5.6 联调相关的
+  接线缺口全部在编译器一侧修好**（未改 `crates/zant`）。
+- 端到端：`tests/tsx/**` 的 `hooks`、`crossfile`、`zig_types`（移植为 `rust_types`）、`media` 复制到
+  `crates/zant-tsx/tests/fixtures/`，Zig 模块换成等价的 `.rs` 镜像（`data.rs`/`thumbs.rs`/`devices.rs`/`jobs.rs`），
+  用 `compile_project_root_with` 编译并断言跨文件组件/类型/store/常量/资源/`useWake` 的输出。
+
+**偏差表（Zig 参考 → Rust 生成，位置 `crates/zant-tsx/testdata/`）**：
+
+| Zig 输出 | Rust 输出 | 原因 |
+|---|---|---|
+| `[]const u8`、`[]const []const u8` | `zant::Str`、`tsx::List<zant::Str>` | plan §4 / codegen §2 类型映射 |
+| `"x"`（comptime 字面量） | `zant::Str::from("x")`（Zig 是裸字面量） | `.into()` 在无期望类型处（`if`/`match` 分支、宏参数）无法推断；`Str::from` 无歧义且仍是 `Static` |
+| 字符串拼接 `a + b` | `zant::Str::copy(&format!(..))` | 同上 |
+| 非 Copy 变量每次读取 | `.clone()`（§3 所有权规则） | 同上 |
+| `ui.action(self, Class.method)` | `ui::action(|s: &mut App| s.method())`；子组件用 `Action::new` + `Weak` upgrade；读写 render 局部变量的 handler 用 `_CaptureN { .. }` + `|s| s.method(s, &_capture)` | Rust 闭包/所有权；设计文档 §5 |
+| `_set_name(self, []const u8)` | `fn _set_name(&mut self, value: &str)`（方法体 `zant::Str::copy(value)`） | `ui::TextAction` 传 `&str` |
+| `switch` | 带标签的 `if/else if` 链 | codegen §7（case 求值顺序） |
+| C 风格 `for` | `loop { update; if !cond { break } body }` | 保证 `continue` 也执行 update |
+| `for (slice) |x|` | `for x in list.as_slice().iter().cloned()` / 迭代器适配器 `.map/.filter_map/.fold` + 显式类型闭包参数 | Rust 无切片循环；`forEach` 等在列表上就地重建 |
+| Zig comptime `const`（`&[_]_`/`comptimePrint`） | `fn name() -> T { thread_local!{static _NAME_VALUE: T = …}; …clone() }`，读取处 `name()` | Rust `const` 不能分配；`Str`/`List` 非 `Sync` 不能用 `static` |
+| 组件文件里 `const Props = XProps` | 模块级 `pub type <Component>Props_ = XProps;`（无属性类型名则 `#[derive(Default)] pub struct <Component>Props_;`） | Rust 无稳定 inherent associated type；模块级 `Props` 会重名 |
+| Zig `?T` / `orelse` | `Option<T>` / `unwrap_or`/`unwrap_or_else`；可选成员 `?.` → `.map(..)`；`!` → `.unwrap()` | codegen §2 |
+| Zig enum（`@tagName`） | `#[derive(..)] pub enum` + `as_str()`；外部 `.rs` 模块的 enum 必须 PascalCase 变体（TSX 字面量同名） | Rust 命名与 `as_str` 约定 |
+| `tsx.Callback(fn (..) void)`（同步回调） | `std::rc::Rc<dyn Fn(&mut ui::ActionCx<'_>, ..)>`；在 handler 里调用会经 `ui::effect` **延后一帧**（与 ui event 形态的 callback prop 同一处理） | 设计缺口：Rust 闭包不能捕获 `&mut App`；WP-5.5 报告已提出，**需 lead 裁定**（见待决问题 5） |
+| `tsx.Store(T)`（`&self` get/read/set/update） | `thread_local! { static X: RefCell<zant::store::Store<T>> }` + `x_get/x_read/x_set/x_update` | 框架只有 `zant::store::Store`（`&mut` 方法），编译器侧用 `RefCell` 适配，未改框架 |
+| `ui.markdown`/`ui.PdfViewer` 等 | `ui::markdown`/`ui::pdf_viewer`（黄金输出一致） | 框架尚未从 `ui` 导出，见待决问题 1（`widgets` 因此不编译） |
+| `tsx.timers.set(ms, ctx, Class.method)` | `tsx::timers::set(ms, ui::action(|s| s._timeoutN(s)))`（capture 以 `_TimeoutCaptureN` 传入） | 运行时 API 已是 `set(ms, Action)`；Zig 的 `timers.zig` 无 Rust 模块归属，暂落在 `events.rs` |
+| `tsx.callback(fn(..), self, Class.method)` | 同上 `Rc<dyn Fn(&mut ActionCx,..)>` + `ui::effect` 排队 | 同上 |
+| `console.log(..)` → `std.debug.print(pattern, .{args})` | `tsx::builtins::log(&[tsx::Any::from(zant::Str::copy(&format!(pattern, args)))])` | 运行时 `log(&[Any])`（自行补换行；生成代码去掉末尾 `\n`） |
+| `Math.max()/min()`（无参） | `tsx::builtins::extrema::<T>(is_min, &[])`（显式类型参数） | 空切片无法推断 `T` |
+| `tsx.concat` / `&.{}` | `nodes![..]`（`Vec<Node>`；`children: ReactNode[]` 的 `tsx::List<Node>` 用 `.as_slice().to_vec()`/`flatten()`） | 运行时 `nodes!` + `IntoNodes` |
+| `ui.withKey` + `tsx.childId(parent, name, key)` | `ui::with_key(..)` + `tsx::child_id(parent, name, (key).as_str())`（字符串 key）/数字 key 直接传（`ChildKey`） | 运行时 `ChildKey` 只实现 `&str`/`String`/数字，非 `Str` |
+| `useTheme()` 字段 `motionDurationMid` | `ui::current_theme()` → `zant::theme::tokens::Theme`，字段 snake_case（`motion_duration_mid`） | 运行时的类型路径与字段拼写；`zant::theme` 未 re-export `Theme`（待决 3） |
+| `PrettyPlease` 格式 | `nodes![…]` 等宏参数由 prettyplease 原样打印 token，可能出现 `crate ::row` 这类空格；语义/可解析性不变 | prettyplease 宏内容不做格式化 |
+
+**WP-5.9 修复的编译器 bug（都补了/更新了测试）**：
+
+1. **WP-5.4↔5.5 接线缺口**（黄金一跑就暴露）：
+   (a) `jsx::emit` 不派发子组件（children/`jsx_children` 直接调 `jsx::emit`，绕过 5.5 的 `emit_jsx` 包装）→ 组件标签全部
+   “unknown tag”；(b) `captures_read` 钩子从未安装、`captures::read` 签名与 `Hooks` 不一致；(c) `events::event`/
+   `event_value` 未调用 `components::forwarded_prop`（`onClick={props.onSave}` 全部失败）；(d) 事件身份按 AST 地址
+   记录，但 `spread`/对象字面量会 clone AST，地址失配 → 改成按源码位置；(e) `reset_component` 不清 `g.events`（跨组件
+   残留）；(f) `generate::action_value` 子组件分支 `(, value)` 多逗号、captures 发现后 receiver 仍无 `cap`；(g)
+   `add_click` 等数组回调的参数顺序/`map` 双参数/`reduce` fold 形态/闭包显式类型。
+2. **类型解析缓存**：`resolved_types` 以 `Box<TypeDetail>` 地址为键，但 `model::named` 解析的是 type decl 的 clone，
+   地址释放后复用 → `arrays.tsx` 的 `Box[]` 解析成 `List<f64>` 等错类型；改为按 `TypeDetail` 结构作键，并把类型声明
+   原地取出解析后放回（同 Zig 的指针稳定语义）。
+3. **Rust 关键字转义**：`box`（以及 `gen`/`abstract`/`do`/`final`/…）没有转义，参数名 `box` 使生成代码不可解析。
+4. **字符串方法**：标签块少 `'`（`label: {..}` → `'{label}: {..}`）、运行时函数名 `to_lower_case`/`to_upper_case`、
+   `slice/substring` 的 `end: Option<f64>`、receiver 多余 `.clone()` 造成的类型歧义、`join` 分隔符 `&str`；
+   `utf16_length`/`text::span`/`text::links`/`list_index`/`titlebarInsets`/`theme` 等运行期签名对齐。
+5. **常量**：Rust `const` 不能分配/`format!`，`Str`/`List` 常量改为 `thread_local!` accessor 函数（见偏差表）；
+   跨文件导入无类型注解的常量按字面量推断类型（`export const rowPrefix = "#"`）。
+6. **子组件形态**：模块级 `pub type Props` 冲突 → 每组件 `<Name>Props_`；builder 的 `_props` 未赋值；props 读取未
+   `.clone()`；省略的可选 props 加 `..Default::default()`；ui-action 回调字段的 `Default` 用了 `Rc` 闭包；裸可选
+   布尔属性生成 `Some(true)`；`List` 的 `item_height/height` 可选字段。
+7. **事件/回调**：非 ui-event 签名的 callback prop 需要运行时上下文 → 生成
+   `Rc<dyn Fn(&mut ui::ActionCx<'_>, …)>`，handler 内调用经 `ui::effect` 排队（`children`/`named_handlers`/`crossfile`
+   因此可编译；**设计偏差，待 lead 确认**）；callback 调用参数在 `'static` 闭包外先求值；嵌套 component function
+   调用补 `self`/`&capture`；text action 参数按 `&str` 生成再 `Str::copy`；零参 handler 的占位参数类型。
+8. **闭包/捕获**：嵌套闭包继承外层可见 locals（`items.map(item => …` 里的 handler 能读到 render 局部变量）；被
+   narrowing 的局部按 `unwrap()` 后的类型捕获；capture 结构体与 `cap.field` 读取对非 Copy 值 clone；timer 回调
+   在 effect 里捕获时用 effect 的 `cap.field` 作为 source。
+9. **子节点**：`nodes![..]` 里 `Option<Node>` 的 guard 要 `Some(node)`；`tsx::List<Node>`/`List<Option<Node>>` →
+   `Vec<Node>`；`components` 的 `children: List<Node>` 包 `tsx::List::from_vec(nodes![..])`；结构化 prop 列表只在有
+   omitted-default 字段时加 `..Default::default()`（`ui::TabItem` 没有 `Default`）。
+10. **其它**：生成文件头补 `use zant::nodes;`；`console.log` 对齐 `log(&[Any])`；`parseInt/parseFloat` 的 `&str` 与
+    radix `f64`；`toFixed` 位数 `f64`；`extrema` 显式类型参数；store 生成器在 `RefCell<zant::store::Store<T>>` 上适配
+    且 `x_set(v)` 少了调用的 `()`；effect 的 cleanup 字段在 `captures::prepare` 前设置（否则 `return () => …` 报“void
+    functions cannot return a value”）；依赖数组单元素生成 `(x,)`；`ref.current++` 对 f64 用 `1.0`；窗口组件
+    `on_close_request` 转发的方法名（`_window_on_close_request`）；`useWake` 的 `on_wake`；`setTimeout`/`clearTimeout`
+    扫描与降级（见偏差表）。
+
+**待决问题 / 缺失框架 API（给 WP-5.10 / lead）**：
+
+1. **`zant::ui` 缺少组合组件导出**：`ui::markdown` / `ui::MarkdownOptions`（实际在
+   `zant::components::widgets::{markdown, MarkdownOptions}`），`ui::pdf_viewer` / `ui::PdfViewerOptions`（**框架里根本没有**，
+   目前只在 `crates/zant-examples/src/components_app/pdf_viewer.rs`）。黄金 `widgets.rs` 因此不参与 `cargo check`；
+   补上导出/组件后把 `tests/golden.rs` 的 `NOT_COMPILED` 去掉。这与 status 里 WP-2.5「组合组件未从 ui::* 导出」是同一件事。
+2. **`Uint8Array` ↔ `&'static [u8]`**：`types.rs` 把 `Uint8Array` 映射为 `tsx::List<u8>`，而运行时托盘图标/资源用
+   `&'static [u8]`（`rust_imports::bytes`）；`testdata/desktop.tsx` 的 `const icon: Uint8Array = [...]` 传给
+   `useTray({ icon })` 报 `cannot convert tsx::List<u8> to &'static [u8]`（因此没有 `desktop.rs` 黄金）。建议二选一：
+   `TrayOptions::icon` 接受 `tsx::Bytes`（运行时加一个入口，编译器把 `Uint8Array` 映射成 `tsx::Bytes`），或让资源常量
+   也走 `tsx::Bytes`。裁定前端黄金保持“预期诊断”测试。
+3. **`zant::theme::Theme` 未 re-export**：编译器暂时生成内部路径 `zant::theme::tokens::Theme`（可编译）。若希望保持
+   `zant::theme::Theme` 稳定路径，请在 `crates/zant/src/theme/mod.rs` 加 `pub use tokens::Theme;`，然后
+   `codegen/model.rs::theme_type` 可改回。
+4. **`entities.rs` 无法生成**：`tools/tsx/testdata/entities.tsx` 有 `&#xD800;` 等 lone surrogate，Zig 版用 WTF-8 原样
+   输出；Rust 的 `zant::Str` 是 UTF-8，编译器按设计报 `string literal is not valid UTF-8; Rust cannot represent an
+   unpaired surrogate`。`tests/golden.rs` 把这条诊断作为预期行为锁定；若决定改成 U+FFFD 替换需先改设计文档 §2。
+5. **非 ui-event callback prop 的 `ActionCx` 形态（需裁定）**：生成 `Rc<dyn Fn(&mut ui::ActionCx<'_>, ..)>` 并在 handler
+   里经 `ui::effect` 延迟一帧调用（Zig 的 `tsx.Callback` 是同步的、带 self 指针）。这是 WP-5.5 报告的待决设计缺口；
+   本 WP 为了让 `children`/`named_handlers`/`crossfile` 编译并端到端跑通先这样落地，**没有改框架**。若 lead 选择别的
+   方案（例如 `ui` 增加“handler 内调用 Action”的 API），需同步改 `components.rs::callback_type`、
+   `generate::callback_value`、`components::try_call` 三处，并重新生成黄金。
+6. **`timers.zig` 无 Rust 模块归属**：本 WP 把 `setTimeout`/`clearTimeout` 的扫描与降级放在
+   `codegen/events.rs`（`scan_timer`/`timer_call`），用运行时已有的 `tsx::timers::{set,clear}`。建议后续 WP 拆到
+   `codegen/timers.rs`（需要 `lib.rs`/`codegen/mod.rs` 加模块声明，属 lead 文件）。
+7. **更新了其它 WP 的测试期望**（编译器输出按上面的设计变化）：`tests/codegen_core.rs`/`codegen_jsx.rs`/
+   `codegen_components.rs`/`codegen_app.rs` 与 `tests/snapshots/*.rs`（`Str::from`、`{Component}Props_`、常量函数、
+   依赖元组、数组闭包类型、span `&str`、`list_index` 不再 `Some`、`extrema::<T>`、store accessor 等）。快照用
+   `ZANT_TSX_WRITE_SNAPSHOTS=1` 重新生成并人工核对。
 
 ### WP-5.6 提出（2026-11-14）
 

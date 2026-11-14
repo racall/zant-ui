@@ -45,7 +45,7 @@ pub fn emit(
         ast::ExprData::Number(n) => number(n),
         ast::ExprData::String(s) => Value {
             ty: Type::String,
-            code: format!("{}.into()", rust_text::quote_at(g, s, e.loc)?),
+            code: format!("zant::Str::from({})", rust_text::quote_at(g, s, e.loc)?),
             text: Some(s.clone()),
             ..Value::default()
         },
@@ -424,7 +424,7 @@ pub fn template(g: &mut Generator<'_>, c: &mut scope::Context, t: &ast::Template
         let text = t.quasis.first().cloned().unwrap_or_default();
         return Ok(Value {
             ty: Type::String,
-            code: format!("{}.into()", rust_text::quote_at(g, &text, 0)?),
+            code: format!("zant::Str::from({})", rust_text::quote_at(g, &text, 0)?),
             text: Some(text),
             ..Value::default()
         });
@@ -559,7 +559,12 @@ pub fn call_value(
     }
     let mut arguments: Vec<String> = Vec::new();
     if method.inline_only {
-        arguments.push(receiver);
+        // `self.method(&_capture, …)`: the receiver is the instance, not the
+        // capture struct (Zig passed the capture struct as the context)
+        arguments.push("self".to_owned());
+        if receiver != "self" {
+            arguments.push(format!("&({receiver})"));
+        }
     }
     for (param_index, param) in function.params.iter().enumerate() {
         let parameter_type = match g.extensions.hooks.method_param {

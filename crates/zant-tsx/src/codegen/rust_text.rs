@@ -105,6 +105,22 @@ pub fn id(name: &[u8]) -> Option<String> {
             | "async"
             | "await"
             | "try"
+            // edition 2024 reserved word
+            | "gen"
+            // Rust 2021 reserved-for-future keywords (a valid TSX name such as
+            // `box` would make the generated item unparsable)
+            | "abstract"
+            | "become"
+            | "box"
+            | "do"
+            | "final"
+            | "macro"
+            | "override"
+            | "priv"
+            | "typeof"
+            | "unsized"
+            | "virtual"
+            | "yield"
     );
     if is_keyword {
         out.push('_');
@@ -328,7 +344,10 @@ impl Format {
     pub fn finish(&self, g: &mut Generator<'_>, log: bool) -> Result<String> {
         let loc = 0;
         if !log && self.args.is_empty() {
-            return Ok(format!("{}.into()", quote_at(g, &self.literal, loc)?));
+            return Ok(format!(
+                "zant::Str::from({})",
+                quote_at(g, &self.literal, loc)?
+            ));
         }
         // a lone string needs no formatting
         if !log && self.only_string && self.args.len() == 1 {
@@ -347,13 +366,17 @@ impl Format {
         let quoted = quote_at(g, pattern.as_bytes(), loc)?;
         let arguments = self.args.join(", ");
         if log {
-            return if arguments.is_empty() {
-                Ok(format!("tsx::builtins::log({quoted})"))
+            // the runtime logs a typed value (`log(&[Any])`) and adds the
+            // newline; the trailing `\n` of the console.log call is dropped
+            // (Zig passed the pattern to `std.debug.print`)
+            let pattern = pattern.strip_suffix('\n').unwrap_or(pattern);
+            let quoted = quote_at(g, pattern.as_bytes(), loc)?;
+            let value = if self.args.is_empty() {
+                format!("zant::Str::from({quoted})")
             } else {
-                Ok(format!(
-                    "tsx::builtins::log(&format!({quoted}, {arguments}))"
-                ))
+                format!("zant::Str::copy(&format!({quoted}, {arguments}))")
             };
+            return Ok(format!("tsx::builtins::log(&[tsx::Any::from({value})])"));
         }
         Ok(format!("zant::Str::copy(&format!({quoted}, {arguments}))"))
     }
@@ -559,7 +582,10 @@ mod tests {
         with_generator(|g| {
             // without substitutions the text stays ordinary (only braces
             // matter for a format! pattern, which is built separately)
-            assert_eq!("\"a{b}\\n\".into()", format.finish(g, false).unwrap());
+            assert_eq!(
+                "zant::Str::from(\"a{b}\\n\")",
+                format.finish(g, false).unwrap()
+            );
         });
         let pattern = String::from_utf8(format.pattern).unwrap();
         assert_eq!("a{{b}}\n", pattern);

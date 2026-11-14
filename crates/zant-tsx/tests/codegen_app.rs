@@ -353,7 +353,7 @@ fn a_window_becomes_a_thread_local_handle_and_a_window_component() {
         "panel_with(|window| window.place(zant::desktop::Place::TrayCorner, 12.0f32))",
     );
     contains(&source, "panel_with(|window| window.activate())");
-    contains(&source, "window.focus(\"count\".into().as_str())");
+    contains(&source, "window.focus(zant::Str::from(\"count\").as_str())");
 }
 
 #[test]
@@ -440,7 +440,7 @@ fn desktop_hooks_lower_to_tsx_desktop() {
     // `useTray` → `tsx::desktop::update(TrayOptions { … })`
     contains(&source, "tsx::desktop::update(tsx::desktop::TrayOptions {");
     contains(&source, "template: true");
-    contains(&source, "tooltip: \"Clips\".into()");
+    contains(&source, "tooltip: zant::Str::from(\"Clips\")");
     contains(&source, "tsx::desktop::TrayItem {");
     contains(&source, "on_select");
     contains(&source, "on_click: Some(ui::action(");

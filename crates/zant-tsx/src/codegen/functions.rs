@@ -381,7 +381,7 @@ function Row(props: number): void {}"#,
         with_generator(|g| {
             assert_eq!("None", missing(g, &params[2], Type::Boolean).unwrap());
             assert_eq!(
-                "\"item\".into()",
+                "zant::Str::from(\"item\")",
                 missing(g, &params[1], Type::String).unwrap()
             );
         });

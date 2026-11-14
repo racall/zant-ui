@@ -40,7 +40,15 @@ pub fn prepare(g: &mut Generator<'_>, c: &scope::Context, index: usize) -> Resul
         return Ok(());
     }
     let previous = g.capture_scope.take();
-    g.capture_scope = Some(snapshot(c));
+    let mut scoped: Vec<ScopeEntry> = Vec::new();
+    // an outer handler's snapshot first (a handler nested in another handler
+    // reads its captures through the enclosing `cap`), then the enclosing
+    // scopes of this render-time closure, then this context's own bindings
+    if let Some(previous) = &previous {
+        scoped.extend(previous.iter().cloned());
+    }
+    scoped.extend(snapshot(c));
+    g.capture_scope = Some(scoped);
     let method = g.methods[index].clone();
     let code = super::generate::method(g, &method, Some(c), Some(index));
     g.capture_scope = previous;
@@ -54,16 +62,25 @@ fn snapshot(c: &scope::Context) -> Vec<ScopeEntry> {
         .iter()
         .map(|index| {
             let binding = &c.bindings[*index];
-            ScopeEntry {
-                name: binding.name.clone(),
-                ty: binding.ty,
-                code: binding.zig.clone(),
+            // capture a narrowed local (`if (peer) … onClick={…}`) with the
+            // proven type and its `unwrap()` accessor
+            match super::narrowing::find(c, binding.name.as_bytes()) {
+                Some(value) => ScopeEntry {
+                    name: binding.name.clone(),
+                    ty: value.ty,
+                    code: value.code,
+                },
+                None => ScopeEntry {
+                    name: binding.name.clone(),
+                    ty: binding.ty,
+                    code: binding.zig.clone(),
+                },
             }
         })
         .collect()
 }
 
-pub fn read(g: &mut Generator<'_>, c: &scope::Context, n: &str) -> Result<Option<Value>> {
+pub fn read(g: &mut Generator<'_>, c: &mut scope::Context, n: &str) -> Result<Option<Value>> {
     if c.capture_method.is_none() {
         return Ok(None);
     }
@@ -79,11 +96,11 @@ pub fn read(g: &mut Generator<'_>, c: &scope::Context, n: &str) -> Result<Option
         .cloned();
     if let Some(capture) = existing {
         let field = rust_text::id_at(g, capture.field.as_bytes(), 0)?;
-        return Ok(Some(Value {
-            ty: capture.ty,
-            code: format!("cap.{field}"),
-            ..Value::default()
-        }));
+        return Ok(Some(super::scope::owned_read(
+            g,
+            capture.ty,
+            format!("cap.{field}"),
+        )));
     }
     let Some(entry) = g
         .capture_scope
@@ -110,11 +127,11 @@ pub fn read(g: &mut Generator<'_>, c: &scope::Context, n: &str) -> Result<Option
         source: entry.code,
     });
     let field = rust_text::id_at(g, field.as_bytes(), 0)?;
-    Ok(Some(Value {
+    Ok(Some(super::scope::owned_read(
+        g,
         ty,
-        code: format!("cap.{field}"),
-        ..Value::default()
-    }))
+        format!("cap.{field}"),
+    )))
 }
 
 /// One capture struct per arrow, shared by all instances (including map rows).
@@ -150,7 +167,14 @@ pub fn value(g: &mut Generator<'_>, m: &Method) -> Result<String> {
     let mut fields = String::new();
     for capture in &m.captures {
         let field = rust_text::id_at(g, capture.field.as_bytes(), 0)?;
-        fields.push_str(&format!("    {field}: {},\n", capture.source));
+        // the render value is moved into the capture struct once: clone a
+        // non-Copy value (the render still reads it afterwards)
+        let source = if capture.ty.copy(g) {
+            capture.source.clone()
+        } else {
+            format!("({}).clone()", capture.source)
+        };
+        fields.push_str(&format!("    {field}: {source},\n"));
     }
     Ok(format!("{name} {{\n{fields}}}"))
 }

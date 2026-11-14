@@ -160,20 +160,18 @@ pub struct TypeAlias {
     pub ty: types::Type,
 }
 
-/// A resolved structured type, keyed by the address of its AST detail
-/// (Zig compares the `*const ast.TypeDetail` pointers).
-#[derive(Clone, Copy, Debug)]
-pub struct ResolvedType {
-    pub detail: usize,
-    pub ty: types::Type,
-}
-
-/// The address of an AST type detail for [`Generator::resolved_types`].
+/// A resolved structured type, keyed by the AST detail of its `TypeRef`.
 ///
-/// `TypeRef::detail` owns its `Box`, so the address is stable for the lifetime
-/// of the parsed module.
-pub fn detail_address(detail: &ast::TypeDetail) -> usize {
-    std::ptr::from_ref(detail) as usize
+/// Zig compares the `*const ast.TypeDetail` pointers. Rust's AST owns its
+/// nodes and the code generator clones functions (`functions::signature`,
+/// `expr::call_value`, `components::collect`), which allocates fresh detail
+/// boxes with the same source location; an address cache then either misses
+/// (duplicate anonymous structs with different `Type`s) or, worse, hits a
+/// recycled address (a wrong type). The detail value itself is the stable key.
+#[derive(Clone, Debug)]
+pub struct ResolvedType {
+    pub detail: ast::TypeDetail,
+    pub ty: types::Type,
 }
 
 /// `useState` or `useRef` (read and written through `.current`).

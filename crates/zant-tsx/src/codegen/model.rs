@@ -38,7 +38,7 @@ pub fn field_rust(g: &Generator<'_>, ty: Type, name: &[u8]) -> Option<String> {
 /// `zant::theme::Theme` as an object type with camelCase fields (`useTheme()`).
 pub fn theme_type(g: &mut Generator<'_>) -> Result<Type> {
     for (index, entry) in g.compounds.iter().enumerate() {
-        if entry.rust == "zant::theme::Theme" {
+        if entry.rust == "zant::theme::tokens::Theme" {
             return Ok(Type::Compound(index as u32));
         }
     }
@@ -59,7 +59,7 @@ pub fn theme_type(g: &mut Generator<'_>) -> Result<Type> {
         g,
         Info {
             kind: InfoKind::Object,
-            rust: "zant::theme::Theme".to_owned(),
+            rust: "zant::theme::tokens::Theme".to_owned(),
             copy: true,
             fields,
             ..Info::default()
@@ -343,14 +343,26 @@ fn object(g: &mut Generator<'_>, fields: &[ast::TypeField], name: Option<&[u8]>)
                     let _ = params;
                     "None".to_owned()
                 }
-                Some(params) => {
-                    let args = params
-                        .iter()
-                        .map(|ty| format!("_: {}", ty.rust(g)))
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    format!("std::rc::Rc::new(|{args}| ())")
-                }
+                Some(params) => match super::components::action_kind(&params) {
+                    // ui-event callbacks are the runtime action types
+                    Some(kind) if !matches!(kind, tags::Kind::ShortcutAction) => {
+                        let action = super::components::action_type(kind);
+                        let extra = match kind {
+                            tags::Kind::BoolAction => ", _: bool",
+                            tags::Kind::TextAction => ", _: &str",
+                            tags::Kind::IndexAction => ", _: usize",
+                            _ => "",
+                        };
+                        format!("{action}::new(|_cx{extra}| ())")
+                    }
+                    _ => {
+                        let args = std::iter::once("_: &mut ui::ActionCx<'_>".to_owned())
+                            .chain(params.iter().map(|ty| format!("_: {}", ty.rust(g))))
+                            .collect::<Vec<_>>()
+                            .join(", ");
+                        format!("std::rc::Rc::new(|{args}| ())")
+                    }
+                },
                 None => "Default::default()".to_owned(),
             };
             defaults.push_str(&format!("            {field_name}: {default},\n"));
@@ -555,13 +567,29 @@ pub fn named(g: &mut Generator<'_>, name: &[u8]) -> Result<Option<Type>> {
         );
     }
     g.resolving[index] = true;
-    let declaration = g.type_decls[index].clone();
+    // Resolve the declaration *in place*: `types::type_ref` caches resolutions
+    // by the address of a type detail, so resolving a clone would record
+    // pointers into a temporary that is freed right after (`testdata/arrays`
+    // hit that as a stale cache entry for `Box[]`).
+    let placeholder = ast::TypeDecl {
+        // keep the name: a reference to the same type while resolving it must
+        // find this declaration and report the recursion, not "unsupported"
+        name: g.type_decls[index].name.clone(),
+        ty: ast::TypeRef {
+            name: Vec::new(),
+            loc: 0,
+            detail: None,
+        },
+        exported: false,
+    };
+    let declaration = std::mem::replace(&mut g.type_decls[index], placeholder);
     let resolved = resolve(g, &declaration.ty, Some(name));
+    g.type_decls[index] = declaration;
     g.resolving[index] = false;
     let ty = resolved?;
-    if let Some(detail) = declaration.ty.detail.as_deref() {
+    if let Some(detail) = g.type_decls[index].ty.detail.as_deref() {
         g.resolved_types.push(super::ResolvedType {
-            detail: super::detail_address(detail),
+            detail: detail.clone(),
             ty,
         });
     }
@@ -697,9 +725,10 @@ pub fn default_callback_type(
             return Ok(Type::Compound(index as u32));
         }
     }
-    let list = params
-        .iter()
-        .map(|ty| ty.rust(g).to_owned())
+    // the runtime context first, like `components::callback_type`: a
+    // non-event callback reaches the root state through it
+    let list = std::iter::once("&mut ui::ActionCx<'_>".to_owned())
+        .chain(params.iter().map(|ty| ty.rust(g).to_owned()))
         .collect::<Vec<_>>()
         .join(", ");
     add(

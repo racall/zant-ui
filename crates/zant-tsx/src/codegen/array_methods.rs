@@ -188,37 +188,40 @@ fn loop_method(
     let index = parameter_name(function, if reduce { 2 } else { 1 });
     let result = parameter_name(function, 0);
     let initial_ty = initial.as_ref().map(|value| value.ty);
+    // The arrow's parameter order: `(item[, index])` or, for `reduce`,
+    // `(accumulator, item[, index])` (Zig's `values` / `reduce_values`).
     let typed = |index: Option<Type>| -> Vec<Type> {
         let mut arguments = Vec::new();
         if reduce {
             arguments.push(initial_ty.expect("reduce initial"));
         }
+        arguments.push(child);
         if let Some(ty) = index {
             arguments.push(ty);
         }
-        arguments.push(child);
         arguments
     };
+    let callback_types = typed(if needs_index { Some(Type::Usize) } else { None });
     // The iterator adapter's tuple order is `(index, item)`, the TSX arrow's is
     // `(item, index)`.
-    let pattern = if needs_index {
-        format!("({index}, {item})")
+    // Closure parameters need explicit types: the call's argument types are
+    // inferred from the wrapper call, not from a closure used immediately.
+    let item_ty = child.rust(g).to_owned();
+    let reduce_initial_ty = initial_ty.map(|ty| ty.rust(g).to_owned());
+    let pattern = if reduce {
+        match &reduce_initial_ty {
+            Some(initial) if needs_index => {
+                format!("{result}: {initial}, ({index}, {item}): (usize, {item_ty})")
+            }
+            Some(initial) => format!("{result}: {initial}, {item}: {item_ty}"),
+            None => format!("{result}, {item}"),
+        }
+    } else if needs_index {
+        format!("({index}, {item}): (usize, {item_ty})")
     } else {
-        item.clone()
-    };
-    let fold_pattern = if needs_index {
-        format!("({result}, ({index}, {item}))")
-    } else {
-        format!("{result}, {item}")
+        format!("{item}: {item_ty}")
     };
     let _ = &pattern;
-    let pattern = if reduce {
-        fold_pattern.clone()
-    } else if needs_index {
-        format!("({index}, {item})")
-    } else {
-        item.clone()
-    };
     let adapted = if needs_index {
         format!("{source}.as_slice().iter().cloned().enumerate()")
     } else {
@@ -227,7 +230,7 @@ fn loop_method(
     Ok(match kind {
         Kind::Map => {
             let (closure, ty) =
-                callbacks::closure(g, c, &call.args[0], &typed(None), &pattern, target)?;
+                callbacks::closure(g, c, &call.args[0], &callback_types, &pattern, target)?;
             (
                 model::array(g, ty)?,
                 format!("tsx::List::from_vec({adapted}.map({closure}).collect::<Vec<_>>())"),
@@ -240,7 +243,7 @@ fn loop_method(
                 g,
                 c,
                 &call.args[0],
-                &typed(if needs_index { Some(Type::Usize) } else { None }),
+                &callback_types,
                 &pattern,
                 Some(Type::Boolean),
             )?;
@@ -295,7 +298,7 @@ fn loop_method(
                 g,
                 c,
                 &call.args[0],
-                &typed(None),
+                &callback_types,
                 &pattern,
                 Some(Type::Boolean),
             )?;
@@ -305,14 +308,8 @@ fn loop_method(
         Kind::Reduce => {
             let initial = initial.expect("reduce initial");
             let ty = initial.ty;
-            let (closure, _) = callbacks::closure(
-                g,
-                c,
-                &call.args[0],
-                &typed(if needs_index { Some(Type::Usize) } else { None }),
-                &pattern,
-                Some(ty),
-            )?;
+            let (closure, _) =
+                callbacks::closure(g, c, &call.args[0], &callback_types, &pattern, Some(ty))?;
             (ty, format!("{adapted}.fold({}, {closure})", initial.code))
         }
         _ => unreachable!("non-loop array method"),
@@ -413,7 +410,7 @@ fn join(
     };
     Ok((
         Type::String,
-        format!("tsx::join({source}.as_slice(), &{separator})"),
+        format!("tsx::join({source}.as_slice(), ({separator}).as_str())"),
     ))
 }
 

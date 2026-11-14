@@ -138,11 +138,14 @@ pub fn callback_type(g: &mut Generator<'_>, loc: ast::Loc, f: &ast::FuncType) ->
     }
     let rust = match action_kind(&params) {
         Some(kind) if !matches!(kind, tags::Kind::ShortcutAction) => action_type(kind).to_owned(),
+        // Not a ui event: the callback runs from a handler with the runtime
+        // context, which is how it reaches the root state (Zig's
+        // `tsx.Callback` carries the `self` pointer; Rust cannot capture
+        // `&mut App`, so it takes the `ActionCx` the handler runs in).
         _ => format!(
             "std::rc::Rc<dyn Fn({})>",
-            params
-                .iter()
-                .map(|ty| ty.rust(g).to_owned())
+            std::iter::once("&mut ui::ActionCx<'_>".to_owned())
+                .chain(params.iter().map(|ty| ty.rust(g).to_owned()))
                 .collect::<Vec<_>>()
                 .join(", ")
         ),
@@ -314,18 +317,14 @@ pub fn read_prop(g: &mut Generator<'_>, n: &str) -> Result<Option<Value>> {
         {
             return Ok(Some(functions::prop(g, d, default, ty, &code)?));
         }
-        return Ok(Some(Value {
-            ty,
-            code,
-            ..Value::default()
-        }));
+        return Ok(Some(super::scope::owned_read(g, ty, code)));
     }
     if component.destructure.is_empty() && component.param == n {
-        return Ok(Some(Value {
-            ty: props,
-            code: "self.props".to_owned(),
-            ..Value::default()
-        }));
+        return Ok(Some(super::scope::owned_read(
+            g,
+            props,
+            "self.props".to_owned(),
+        )));
     }
     Ok(None)
 }
@@ -426,7 +425,24 @@ pub fn try_call(
                 let _ = kind;
                 format!("ui::effect({action})")
             }
-            None => format!("({})({})", callee.code, args.join(", ")),
+            None => {
+                // The callback needs the runtime context: queue it through
+                // `ui::effect`, which runs with one (>= 1 frame later). The
+                // arguments are read now, before the `'static` closure.
+                let mut setup = String::new();
+                let mut joined: Vec<String> = Vec::new();
+                for (index, (value, ty)) in args.iter().zip(&entry.params).enumerate() {
+                    setup.push_str(&format!("    let _arg{index}: {} = {value};\n", ty.rust(g)));
+                    joined.push(format!("_arg{index}"));
+                }
+                let joined = joined.join(", ");
+                format!(
+                    "ui::effect(ui::Action::new({{\n    let callback = {};\n{setup}    move |cx| (callback)(cx{}{})\n}}))",
+                    callee.code,
+                    if joined.is_empty() { "" } else { ", " },
+                    joined
+                )
+            }
         },
         ..Value::default()
     }))
@@ -666,6 +682,7 @@ pub fn emit_call(
     let mut key: Option<String> = None;
     let mut given: Vec<Vec<u8>> = Vec::new();
     let mut raw_key_code: Option<String> = None;
+    let mut raw_key_is_string = false;
     for attr in spread::flatten(g, c, &j.attrs)? {
         if attr.name.name == b"key" {
             let Some(value) = attr.value.as_deref() else {
@@ -685,6 +702,7 @@ pub fn emit_call(
                 return fail(g, value.loc, "key must be a string or a number");
             };
             key = Some(code);
+            raw_key_is_string = emitted.ty == Type::String;
             raw_key_code = Some(concrete.code);
             continue;
         }
@@ -706,9 +724,8 @@ pub fn emit_call(
         };
         let code = match attr.value.as_deref() {
             Some(value) => prop_value(g, c, ty, value)?,
-            None if ty == Type::Boolean || model::optional_child(g, ty) == Some(Type::Boolean) => {
-                "true".to_owned()
-            }
+            None if ty == Type::Boolean => "true".to_owned(),
+            None if model::optional_child(g, ty) == Some(Type::Boolean) => "Some(true)".to_owned(),
             None => {
                 return fail(
                     g,
@@ -758,18 +775,39 @@ pub fn emit_call(
         );
     }
     let id = if component.stateful {
-        Some(instance_id(g, component, raw_key_code.as_deref())?)
+        Some(instance_id(
+            g,
+            component,
+            raw_key_code.as_deref(),
+            raw_key_is_string,
+        )?)
     } else {
         None
     };
     let builder = component.builder.clone();
+    let props_name = match component.props {
+        Some(props) => props.rust(g).to_owned(),
+        None => format!("{}Props_", component.name),
+    };
+    let value = if component.props.is_some() {
+        // omitted props keep their struct defaults (Zig `.{}` defaults)
+        let all_given = fields(g, component)
+            .iter()
+            .all(|field| given.iter().any(|name| name == &field.name));
+        if all_given {
+            format!("{props_name} {{\n{}}}", parts.join(""))
+        } else {
+            format!(
+                "{props_name} {{\n{}    ..Default::default()\n}}",
+                parts.join("")
+            )
+        }
+    } else {
+        props_name
+    };
     let mut node = match id {
-        Some(id) => format!(
-            "{builder}({} {{\n{}}}, {id})",
-            component.name,
-            parts.join("")
-        ),
-        None => format!("{builder}({} {{\n{}}})", component.name, parts.join("")),
+        Some(id) => format!("{builder}({value}, {id})"),
+        None => format!("{builder}({value})"),
     };
     if let Some(key) = key {
         node = format!("ui::with_key({node}, {key})");
@@ -784,13 +822,23 @@ pub fn emit_call(
 /// `, tsx::child_id(parent, "TodoRow", key)`: the parent's instance id (the
 /// root's is 0) mixed with the component name and its key; without a key,
 /// `tsx::site_id(parent, "TodoRow", n)` numbers the call site.
-fn instance_id(g: &mut Generator<'_>, component: &Component, key: Option<&str>) -> Result<String> {
+fn instance_id(
+    g: &mut Generator<'_>,
+    component: &Component,
+    key: Option<&str>,
+    key_is_string: bool,
+) -> Result<String> {
     let parent = if g.current_component.is_some() {
         "self._id"
     } else {
         "0"
     };
     if let Some(key) = key {
+        let key = if key_is_string {
+            format!("({key}).as_str()")
+        } else {
+            key.to_owned()
+        };
         return Ok(format!(
             "tsx::child_id({parent}, \"{}\", {key})",
             component.name
@@ -898,8 +946,21 @@ fn children_value(
             "`children` must be typed ReactNode or ReactNode[]",
         );
     }
-    let codes: Vec<String> = parts.into_iter().map(|part| part.code).collect();
-    Ok(Some(format!("nodes![{}]", codes.join(", "))))
+    let codes: Vec<String> = parts
+        .into_iter()
+        .map(|part| {
+            if part.ty == ty {
+                // a `children: ReactNode[]` value is a `tsx::List<Node>`
+                format!("({}).as_slice().to_vec()", part.code)
+            } else {
+                part.code
+            }
+        })
+        .collect();
+    Ok(Some(format!(
+        "tsx::List::from_vec(nodes![{}])",
+        codes.join(", ")
+    )))
 }
 
 /// `children: string`: `<Badge>new {count}</Badge>` passes its text.
@@ -1056,5 +1117,8 @@ fn callback_value(
             return Ok(v.code);
         }
     }
-    super::generate::action_value(g, c, method_index, action_kind(&entry.params))
+    match action_kind(&entry.params) {
+        Some(kind) => super::generate::action_value(g, c, method_index, Some(kind)),
+        None => super::generate::callback_value(g, c, method_index, &entry.params),
+    }
 }

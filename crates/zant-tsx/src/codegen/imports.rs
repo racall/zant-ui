@@ -235,16 +235,24 @@ fn import_constant(
 ) -> Result<()> {
     let ty = match constant.ty.as_ref() {
         Some(reference) => in_scope(g, scope, |g| types::type_ref(g, reference, false))?,
-        None => {
-            return fail(
-                g,
-                loc,
-                format!("give `{imported}` a type annotation to import it"),
-            );
-        }
+        // an unannotated literal constant (`export const rowPrefix = "#"`)
+        // takes the literal's type, like the Zig compiler's inference
+        None => match &constant.value.data {
+            ast::ExprData::String(_) => Type::String,
+            ast::ExprData::Number(_) => Type::F64,
+            ast::ExprData::Boolean(_) => Type::Boolean,
+            _ => {
+                return fail(
+                    g,
+                    loc,
+                    format!("give `{imported}` a type annotation to import it"),
+                );
+            }
+        },
     };
+    // module constants are functions over a thread_local value (globals.rs)
     let code = format!(
-        "{}::{}",
+        "{}::{}()",
         scope_alias(scope),
         rust_text::id_at(g, imported.as_bytes(), loc)?
     );
