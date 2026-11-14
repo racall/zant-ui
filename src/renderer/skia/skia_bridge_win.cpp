@@ -36,6 +36,29 @@
    data to use instead of looking for icudtl.dat next to the executable. */
 extern "C" void C_SetICU(const void *addr);
 
+#ifdef ZANT_STATIC_DATA
+/* Static-link builds (the Rust port) compile this file into the executable
+   instead of a DLL, so there are no RCDATA resources to read: zant-sys
+   embeds icudtl.dat and STIX Two Math in the binary and hands them over with
+   these two setters before zant_skia_init(). The pointers must stay valid
+   for the life of the process (zant-sys passes `include_bytes!` statics; the
+   ICU block is 16-byte aligned there). The Zig build does not define
+   ZANT_STATIC_DATA, so its DLL path below is unchanged. */
+static const void *g_static_icu = nullptr;
+static const void *g_static_math_font = nullptr;
+static size_t g_static_math_font_size = 0;
+
+extern "C" void zant_set_icu_data(const void *data, size_t size) {
+    (void)size;
+    g_static_icu = data;
+}
+
+extern "C" void zant_set_math_font(const void *data, size_t size) {
+    g_static_math_font = data;
+    g_static_math_font_size = size;
+}
+#endif
+
 namespace {
 
 constexpr int kFrames = 2;
@@ -64,6 +87,13 @@ void load_icu_data() {
     static bool done = false;
     if (done) return;
     done = true;
+#ifdef ZANT_STATIC_DATA
+    /* embedded by zant-sys: already 16-byte aligned, lives for the process */
+    if (g_static_icu) {
+        C_SetICU(g_static_icu);
+        return;
+    }
+#endif
     DWORD size = 0;
     const void *bytes = resource_bytes(ZANT_ICU_DATA, &size);
     if (!bytes || size == 0) {
@@ -193,6 +223,16 @@ sk_sp<SkTypeface> bundled_typeface(int family) {
     static bool loaded = false;
     if (!loaded) {
         loaded = true;
+#ifdef ZANT_STATIC_DATA
+        if (g_static_math_font && g_static_math_font_size) {
+            static sk_sp<SkFontMgr> static_mgr = SkFontMgr_New_DirectWrite();
+            if (static_mgr) {
+                math = static_mgr->makeFromData(
+                        SkData::MakeWithoutCopy(g_static_math_font, g_static_math_font_size));
+            }
+            return math;
+        }
+#endif
         DWORD size = 0;
         const void *bytes = resource_bytes(ZANT_MATH_FONT, &size);
         if (bytes && size) {

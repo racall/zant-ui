@@ -175,6 +175,16 @@ void zant_canvas_stroke_path(ZantCanvas *canvas, const float *xy, int count, uin
 int zant_text_layout_range_rects(ZantTextLayout *layout, size_t start_byte, size_t end_byte,
                                  ZantRect *out_rects, int max_rects);
 
+#ifdef ZANT_STATIC_DATA
+/* Static-link builds (the Rust port): hand the ICU common data and the STIX
+ * Two Math font embedded in the executable to the bridge before
+ * zant_skia_init(). Windows-only implementation (skia_bridge_win.cpp); the
+ * pointers must live for the whole process and the ICU block must be 16-byte
+ * aligned. The Zig build does not define ZANT_STATIC_DATA. */
+void zant_set_icu_data(const void *data, size_t size);
+void zant_set_math_font(const void *data, size_t size);
+#endif
+
 #ifdef __cplusplus
 }
 #endif
