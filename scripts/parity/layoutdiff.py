@@ -15,6 +15,7 @@ import sys
 
 def load(path):
     boxes = {}
+    duplicates = []
     with open(path, encoding="utf-8") as file:
         for number, line in enumerate(file, 1):
             line = line.rstrip("\n")
@@ -25,8 +26,12 @@ def load(path):
                 raise SystemExit(f"{path}:{number}: expected 5 tab-separated fields, got {len(parts)}")
             key = parts[0]
             if key in boxes:
-                raise SystemExit(f"{path}:{number}: duplicate key {key!r}")
+                # The Zig runtime can emit a key twice (e.g. `ui.pdfViewer`'s
+                # outer node); keep the last box, like a later layout pass would.
+                duplicates.append((number, key))
             boxes[key] = tuple(float(value) for value in parts[1:])
+    if duplicates:
+        print(f"note: {path} has {len(duplicates)} duplicate key(s); using the last box")
     return boxes
 
 

@@ -129,8 +129,10 @@ fn components_buttons_log_their_events() {
         Some("click primary")
     );
     click(&mut runtime, &mut renderer, "progress-more");
-    let state = runtime.app_state_mut::<ComponentsApp>();
-    assert_eq!(state.last_event(), Some("progress 60"));
+    assert_eq!(
+        runtime.app_state_mut::<ComponentsApp>().last_event(),
+        Some("progress 60")
+    );
     // the disabled button never runs its callback
     click(&mut runtime, &mut renderer, "btn-disabled");
     assert_eq!(

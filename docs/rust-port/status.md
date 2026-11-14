@@ -66,8 +66,8 @@
 | 2.4 | memo、localState、portals、effects、commands | wp-2-4（local_state 由 lead 提前完成） | 完成（已并入） | `core/local_state.rs`（Store/Slot/child_id，Rc<RefCell<T>> + TypeId panic，child_id 与 Zig 钉死值一致）+ `ui/local_state` 包装；`ui::{memo,portals,commands}` 与运行时钩子（`memo_hash`/`memo_build`/`resolve_memo`、`take_portals`、`take_commands_for`/`requeue_command`/`set_command_owner`、`set_build_states`）完成；本模块新增 22 个测试 |
 | 2.5 | menu、modal、segmented、message、shortcut_list、hotkey_input、view、window_controls | wp-2-5 | 完成（已并入） | 8 个 builder + 选项结构体（含 `TsxProps`）+ 47 个新测试（Zig 0 个 test 块：全部为新增结构 / raster 断言）；`ui::*` 导出待 lead 在 `ui/mod.rs` 加 8 行（见待决问题 4）；`desktop.Shortcut` 子集暂放 `components/hotkey_input.rs`（见待决问题 5） |
 | 2.6 | components/list（虚拟列表）+ ListState | — | 待领取 | |
-| 2.7 | 动效接入：presence、FLIP、layout_transition、runtime tick | — | 待领取 | |
-| 2.8 | desktop、store、多窗口 | wp-2-8 | 完成（已并入） | `desktop/{mod,app,app_event,clipboard,hotkey,tray,window}.rs` + `runtime/window.rs`（共享 `SharedApp`、窗口注册表、`open_window` / 延迟关窗、`invalidateAll`）；`store.rs` 已在基线完成；34 个新测试（lib 346 → 380，全部 headless；真实托盘 / 热键 / 多窗口为手测项）；跨文件小改 3 处：`platform` 安全 app-event 蹦床、`Image::read_rgba`（托盘图标）、`FrameStats::for_window`，见待决问题 4；另 `hotkey_input` 的 `Shortcut` 重复待合并（待决问题 5） |
+| 2.7 | 动效接入：presence、FLIP、layout_transition、runtime tick | wp-2-7 | 完成（worktree wp-2.7，待并入） | `rust/wp-2.7`。核对结论：presence（enter/exit keep-alive、revive、exit 结束由 tick 摘除并 free）、FLIP（`Tree::layout` 的 `flip_prev`/`flip_from`/`flip_delta` + paint 的旧盒绘制）、`next_frame_delay`、`ZANT_NO_MOTION`/`ZANT_SNAPSHOT`/reduce-motion 开关在基线（1.3/1.4/2.1/2.5）已实现且与 Zig 逐段一致，本 WP 未改生产代码；补齐 `tests/motion_test.zig` 后 6 个 runtime 用例（fake clock，同名同断言）+ 3 个本 WP 用例（`next_frame_delay`、modal/message presence、motion 关闭）。`tests/motion_test.zig` 10 个用例全部有了 Rust 对应（原文件 4 + 新增 6） |
+| 2.8 | desktop、store、多窗口 | wp-2-8 | 完成（worktree wp-2.8，待并入） | `desktop/{mod,app,app_event,clipboard,hotkey,tray,window}.rs` + `runtime/window.rs`（共享 `SharedApp`、窗口注册表、`open_window` / 延迟关窗、`invalidateAll`）；`store.rs` 已在基线完成；34 个新测试（lib 346 → 380，全部 headless；真实托盘 / 热键 / 多窗口为手测项）；跨文件小改 3 处：`platform` 安全 app-event 蹦床、`Image::read_rgba`（托盘图标）、`FrameStats::for_window`，见待决问题 4；另 `hotkey_input` 的 `Shortcut` 重复待合并（待决问题 5） |
 | 2.9 | examples/{declarative,components,gallery}、gallery.zig、app.zig | — | 待领取 | |
 | 2.10 | tests/*_test.zig 对应测试移植 | — | 待领取 | |
 | 2.11 | examples/bench.zig → zant-bench；性能闸门 | — | 待领取 | |
@@ -152,7 +152,8 @@
 - `tests/flex_test.zig` 的 24 个用例是 `Tree` / `Node` 级集成测试（`tree.addContainer` / layout / hitTest …），
   依赖 WP-1.3 的保留树，不能放在 1.1a。
 - `tests/motion_test.zig` 后 6 个用例依赖 `ui` / `ui_runtime` / renderer / button / segmented
-  （WP-1.2 / 1.3 / 1.4 / 1.1c），前 4 个纯 motion 用例已随 1.1a 移植。
+  （WP-1.2 / 1.3 / 1.4 / 1.1c），前 4 个纯 motion 用例已随 1.1a 移植；后 6 个已由 WP-2.7 移植到
+  `crates/zant/tests/motion_test.rs`，WP-2.10 不要重复移植。
 
 ## 已并入 feat/rust-port 的内容（按时间）
 
