@@ -67,8 +67,8 @@
 | 2.5 | menu、modal、segmented、message、shortcut_list、hotkey_input、view、window_controls | wp-2-5 | 完成（已并入） | 8 个 builder + 选项结构体（含 `TsxProps`）+ 47 个新测试（Zig 0 个 test 块：全部为新增结构 / raster 断言）；`ui::*` 导出待 lead 在 `ui/mod.rs` 加 8 行（见待决问题 4）；`desktop.Shortcut` 子集暂放 `components/hotkey_input.rs`（见待决问题 5） |
 | 2.6 | components/list（虚拟列表）+ ListState | — | 待领取 | |
 | 2.7 | 动效接入：presence、FLIP、layout_transition、runtime tick | — | 待领取 | |
-| 2.8 | desktop、store、多窗口 | wp-2-8 | 进行中（worktree wp-2.8） | store.rs 已完成；本包做 desktop + 多窗口 |
-| 2.9 | examples/{declarative,components,gallery}、gallery.zig、app.zig | wp-2-9 | 进行中（worktree wp-2.9） | declarative 已作为 zant-demo 完成；本包做 components + gallery |
+| 2.8 | desktop、store、多窗口 | wp-2-8 | 完成（worktree wp-2.8，待并入） | `desktop/{mod,app,app_event,clipboard,hotkey,tray,window}.rs` + `runtime/window.rs`（共享 `SharedApp`、窗口注册表、`open_window` / 延迟关窗、`invalidateAll`）；`store.rs` 已在基线完成；34 个新测试（lib 346 → 380，全部 headless；真实托盘 / 热键 / 多窗口为手测项）；跨文件小改 3 处：`platform` 安全 app-event 蹦床、`Image::read_rgba`（托盘图标）、`FrameStats::for_window`，见待决问题 4；另 `hotkey_input` 的 `Shortcut` 重复待合并（待决问题 5） |
+| 2.9 | examples/{declarative,components,gallery}、gallery.zig、app.zig | — | 待领取 | |
 | 2.10 | tests/*_test.zig 对应测试移植 | — | 待领取 | |
 | 2.11 | examples/bench.zig → zant-bench；性能闸门 | — | 待领取 | |
 
@@ -186,6 +186,23 @@
 3. **clippy `module_inception`**：`platform/mod.rs`、`renderer/mod.rs`、`motion/mod.rs` 的模块名与父模块同名
    （对应 Zig 的 `platform/platform.zig` 等）。裁定：保留同名，加 `#[allow(clippy::module_inception)]`，
    让 `-D warnings` 通过。
+4. **WP-2.8 的 3 处跨文件小改**（计划里没有预置，缺了桌面集成无法实现；均不改变既有行为）：
+   (a) `platform/platform.rs` 新增安全 `AppEventHandler` 蹦床（`install_app_event_handler` /
+   `clear_app_event_handler`），因为 `zant_app_set_handler` 是 `unsafe`，而 `desktop` 不允许 `unsafe`
+   （plan §3 rule 5）；(b) `image.rs` 新增 `Image::read_rgba`（托盘图标要把解码后的像素交给
+   `platform::set_tray`，该 C 函数在 `zant-sys` 里只有 `unsafe` 声明，`desktop` 不能直接调）；
+   (c) `runtime/debug.rs` 新增 `FrameStats::for_window`（第二个窗口的 `ZANT_FRAME_STATS` 标签；
+   `FrameStats` 字段私有）。三处都加了对应测试。
+5. **`Shortcut` 有两份**（WP-2.5 提出，WP-2.8 已实现完整版）：WP-2.8 把 `Shortcut` 放在
+   `crate::desktop`（`label` / `format` / `parse` / `from_key_event` / `eql` / `register_hotkey`，
+   Zig 同名方法齐备）。WP-2.5 在 `components/hotkey_input.rs` 里先移植了 recorder 需要的子集；
+   两者合并后让 `hotkey_input` 改为 `use crate::desktop::Shortcut`（字段与语义一致，desktop 版多
+   `format` / `parse` 与注册函数）。
+6. **多窗口的关闭是延迟的**（WP-2.8 deviation）：Zig `Window.close` 在回调里直接销毁运行时；
+   Rust 版先向原生窗口发关闭请求，`WindowClose` 事件入队，主窗口的 wake 回调里再
+   `process_pending_closes`（避免在窗口自己的事件回调里销毁原生窗口）。`close()` 立即生效的时机
+   是"当前事件回调返回后的下一个事件循环轮次"；`open_window` 在没有 `ui::app::run` 主窗口时返回
+   `PlatformError::UnsupportedPlatform`（Zig 是编译期就必须在 run 之后调用）。
 
 4. **组合组件未从 `ui::*` 导出**（WP-2.5 提出）：8 个组件按计划落在 `crates/zant/src/components/*.rs`，
    `components/mod.rs` 已预先声明模块；但 `crates/zant/src/ui/mod.rs` 属于 WP-1.x 的文件，WP-2.5 不改。

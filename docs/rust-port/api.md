@@ -176,8 +176,40 @@ pub enum NodeData { Root, Container(..), Text(..), Button(..), /* .. */ }
     `Rc`/`String`（回调生命周期即保证），字符串用 `Str::copy`。移植 pdf/markdown/tsx/components 时按此执行。
 11. **`App: std::any::Any`**（WP-1.4 定稿）：`ActionCx::state::<S>()` 需要从 boxed app 里 downcast；
     对 `impl App for X` 的写法没有影响。
-12. **`ui::key_bounds` 的实现**（WP-1.4 定稿）：runtime 每次 layout 后刷新一个
-    `Rc<RefCell<HashMap<String, Rect>>>` 快照并安装为 hook（不是每帧查活树——那会在 build/effects 里
-    重借 `RefCell<Tree>` panic）。语义仍是「上一帧的盒子」。
+12. **`ui::key_bounds` 的实现**（WP-1.4 定稿，WP-2.8 修正）：runtime 在每次 layout 后刷新一个
+    `Rc<RefCell<HashMap<String, Rect>>>` 快照（不是每帧查活树——那会在 build/effects 里
+    重借 `RefCell<Tree>` panic），并在 **build 期间**把「查本窗口快照」的 hook 装上、build 结束清掉
+    （Zig 的 `ui.build_tree` 也只在 build 期间有效；多窗口时 hook 必须跟随正在 build 的窗口）。
+    语义仍是「上一帧的盒子」。
 13. **`mut`/所有权形态**：`Collection` 式容器方法取 `&self` + 内部可变（`Rc<RefCell<..>>`）或 `&mut self`，
     按各 WP 的文件头说明；读路径优先返回 `Arc` 快照（PDF 缓存已如此）。
+
+### 由 WP-2.8 定稿：桌面集成与多窗口（`zant::desktop`）
+
+14. **共享应用状态**：`Runtime.app: SharedApp`（`Rc<RefCell<Box<dyn App>>>` 的 newtype，
+    `crates/zant/src/runtime/window.rs`），所有窗口 clone 同一个 `SharedApp`（Zig 的同一 `userdata`
+    指针）。`Runtime::app_state_mut::<S>()` 现在取 `&self`、返回 `RefMut<'_, S>`（共享状态需要守卫，
+    用后即弃；Zig 返回 `*S`）。`App::render` / `App::on_*` 都由 runtime 借用 `SharedApp` 后调用。
+15. **多窗口**：`Runtime::init_window(app: SharedApp, hooks: WindowHooks, config)` 建额外窗口的
+    runtime；`runtime::window::{register,unregister,invalidate_all,open_count,process_pending_closes}`
+    维护窗口注册表（`thread_local` 弱引用列表，主窗口先注册）并做事件 / wake 的跨窗口失效。
+    `WindowHooks { render: Rc<dyn Fn() -> Node>, on_key, on_focus, on_close_request }` 是该窗口的
+    render + 事件钩子（闭包捕获 `Rc<RefCell<..>>` 当状态，等价 Zig 的 `*State`）。
+16. **`zant::desktop` 公开面**（Zig `src/desktop.zig` 一一对应）：
+    - 窗口：`Window`（`show/hide/activate/is_visible/is_minimized/is_active/place/focus/close/clone`；
+      原生窗口用 `Weak`，窗口操作不借 runtime）、`main_window()`、`open_window(WindowHooks, OpenOptions)`、
+      `invalidate_all()`、`quit()`、`single_instance(app_id)`、`set_main_runtime`（`ui::app::run` 调）；
+    - 事件：`AppEvent { TrayClick, TrayMenu(u32), Hotkey(u32), Reopen, Clipboard }`；`ui::app::run`
+      自动安装 `on_app_event` / `on_exit` 钩子（Zig `setAppEventHandler` / `setExitHandler` 的自动部分）；
+    - 托盘：`TrayItem/TrayOptions/TrayIconOptions`、`set_tray` / `set_tray_icon` / `remove_tray`，
+      `TrayError { Unavailable, InvalidIcon }`；
+    - 热键：`Shortcut { key, modifiers }`（`is_valid` / `from_key_event` / `eql` / `label` / `format` /
+      `parse`）、`register_hotkey(id, Shortcut)` / `unregister_hotkey(id)`；
+    - 剪贴板：`watch_clipboard`、`clipboard_text` / `clipboard_image` / `clipboard_files`、
+      `set_clipboard_text` / `set_clipboard_image` / `set_clipboard_files`、`clipboard_change_count`；
+    - 登录项与系统：`LoginItem { Off, On, NeedsApproval }`、`launch_at_login`、
+      `set_launch_at_login -> Result<(), LaunchAtLoginError>`、`launched_at_login`、`device_name`、
+      `downloads_dir -> Option<String>`、`system_dark_mode`；`IS_MACOS`。
+17. **关窗是延迟的**：`Window::close()` 只发原生关闭请求；`WindowClose` 事件把 runtime 地址入队，
+    `RuntimeHost::wake`（主窗口的下一轮事件循环）里 `process_pending_closes` 再销毁原生窗口并注销
+    （原生窗口不能在它自己的事件回调里被销毁）。`Window` 句柄之后 `is_visible()` 等返回 false。

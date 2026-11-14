@@ -10,6 +10,7 @@
 //! forwards to a `Box<dyn HostHandler>` stored next to the window; see
 //! docs/rust-port/plan.md WP-1.1d.
 
+use std::cell::RefCell;
 use std::ffi::{CStr, CString};
 use std::sync::atomic::{AtomicPtr, Ordering};
 use std::time::Instant;
@@ -677,6 +678,77 @@ pub unsafe fn set_app_handler(
     }
 }
 
+/// Handler of the app-level native events (`ZantAppEvent`: tray click / menu,
+/// hotkey, Dock reopen, clipboard change, exit).
+///
+/// The native side delivers these through a single C callback; this trait is
+/// the safe half (`desktop` installs it from `ui::app::run`) so the high-level
+/// modules do not need `unsafe` (plan.md §3 rule 5).
+pub trait AppEventHandler {
+    fn event(&mut self, event: &AppEvent);
+}
+
+thread_local! {
+    /// The handler installed by [`install_app_event_handler`].
+    static APP_EVENT_HANDLER: RefCell<Option<Box<dyn AppEventHandler>>> =
+        const { RefCell::new(None) };
+}
+
+unsafe extern "C" fn app_event_trampoline(
+    _userdata: *mut std::ffi::c_void,
+    event: *const AppEvent,
+) {
+    if event.is_null() {
+        return;
+    }
+    // SAFETY: the native side owns `event` for the duration of the callback
+    // (platform.h: app-level events are delivered on the UI thread).
+    let event = unsafe { &*event };
+    // A handler that replaces itself from inside the callback keeps the event:
+    // `try_borrow_mut` never panics on the UI thread's re-entrancy.
+    let _ = APP_EVENT_HANDLER.try_with(|slot| {
+        if let Ok(mut slot) = slot.try_borrow_mut()
+            && let Some(handler) = slot.as_mut()
+        {
+            handler.event(event);
+        }
+    });
+}
+
+/// Installs the handler of the app-level native events (Zig
+/// `zant.desktop.setAppEventHandler` / `setExitHandler`); called by
+/// `ui::app::run`.
+pub fn install_app_event_handler(handler: impl AppEventHandler + 'static) {
+    APP_EVENT_HANDLER.with(|slot| *slot.borrow_mut() = Some(Box::new(handler)));
+    // SAFETY: the trampoline reads the thread-local slot; it needs no userdata.
+    unsafe { ffi::zant_app_set_handler(Some(app_event_trampoline), std::ptr::null_mut()) };
+}
+
+/// Stops delivering app-level events (the app is ending).
+pub fn clear_app_event_handler() {
+    APP_EVENT_HANDLER.with(|slot| *slot.borrow_mut() = None);
+    if SUPPORTED {
+        // SAFETY: installs the null handler; the trampoline is not called.
+        unsafe { ffi::zant_app_set_handler(None, std::ptr::null_mut()) };
+    }
+}
+
+/// Serializes the tests that call native services which macOS does not expect
+/// from several threads at once (the pasteboard, the status bar, …). The
+/// framework itself calls them on the UI thread only; the test harness runs
+/// every test on its own thread.
+#[cfg(test)]
+static NATIVE_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// Acquires [`NATIVE_TEST_LOCK`] (a poisoned lock is reused: one failing test
+/// must not break the others).
+#[cfg(test)]
+pub(crate) fn native_test_lock() -> std::sync::MutexGuard<'static, ()> {
+    NATIVE_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
 /// One entry of a tray / status bar menu.
 pub struct TrayItem {
     pub title: Option<CString>,
@@ -1009,7 +1081,45 @@ mod tests {
     }
 
     #[test]
+    fn the_app_event_trampoline_forwards_to_the_installed_handler() {
+        #[derive(Default)]
+        struct Recorder {
+            events: Vec<(i32, i32)>,
+        }
+        impl AppEventHandler for Recorder {
+            fn event(&mut self, event: &AppEvent) {
+                self.events.push((event.type_, event.id));
+            }
+        }
+        struct Shared(std::rc::Rc<std::cell::RefCell<Recorder>>);
+        impl AppEventHandler for Shared {
+            fn event(&mut self, event: &AppEvent) {
+                self.0.borrow_mut().event(event);
+            }
+        }
+        let recorder = std::rc::Rc::new(std::cell::RefCell::new(Recorder::default()));
+        install_app_event_handler(Shared(std::rc::Rc::clone(&recorder)));
+        let event = AppEvent {
+            type_: app_event_type::TRAY_MENU,
+            id: 3,
+        };
+        // SAFETY: the trampoline only reads the event for the call, exactly as
+        // the native side calls it.
+        unsafe { app_event_trampoline(std::ptr::null_mut(), &event) };
+        assert_eq!(
+            recorder.borrow().events,
+            vec![(app_event_type::TRAY_MENU, 3)]
+        );
+        clear_app_event_handler();
+        // after clearing, events are dropped
+        // SAFETY: same as above.
+        unsafe { app_event_trampoline(std::ptr::null_mut(), &event) };
+        assert_eq!(recorder.borrow().events.len(), 1);
+    }
+
+    #[test]
     fn unsupported_platform_helpers_are_quiet() {
+        let _guard = native_test_lock();
         // Every helper must be safe to call before a window exists.
         let _ = reduce_motion();
         let _ = system_dark_mode();

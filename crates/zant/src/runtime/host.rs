@@ -73,5 +73,9 @@ impl HostHandler for RuntimeHost {
         if let Ok(mut runtime) = self.core.try_borrow_mut() {
             runtime.handle_wake();
         }
+        // Deferred closes run on this fresh event-loop turn, after the borrow
+        // of the window that asked for them was released: a native window must
+        // not be destroyed from inside its own event callback.
+        super::window::process_pending_closes();
     }
 }

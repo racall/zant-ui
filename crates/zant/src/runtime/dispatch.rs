@@ -11,7 +11,7 @@ use crate::core::events::Event;
 use crate::core::node::NodeData;
 use crate::ui::actions::PointerPhase;
 
-use super::Runtime;
+use super::{Runtime, window};
 
 impl Runtime {
     /// Zig `dispatch`: handles `event` and returns the native callback's
@@ -23,8 +23,12 @@ impl Runtime {
         self.sample_clock();
         let result = self.dispatch_event(&event);
         self.report_selection();
-        // multi-window: other windows showing the same state rebuild too
-        // (WP-2.8); a single runtime has no other windows
+        // the app's state may have changed: other windows rebuild too (Zig
+        // `dispatch` fan-out; the dispatching window itself is already
+        // borrowed, so `invalidate_all` skips it)
+        if self.needs_build && window::open_count() > 1 {
+            window::invalidate_all();
+        }
         let redraw = match &event {
             Event::PointerMove(_)
             | Event::PointerDown(_)
@@ -79,7 +83,13 @@ impl Runtime {
             }
             Event::KeyDown(key) => {
                 self.tree.keyboard_modality = true;
-                if !self.focused_has_composition() && self.app.on_key(key) {
+                let consumed = !self.focused_has_composition()
+                    && match &self.window_hooks {
+                        // an extra window sees its own keys before the widgets
+                        Some(hooks) => hooks.on_key.as_ref().is_some_and(|hook| hook(key)),
+                        None => self.app.borrow_mut().on_key(key),
+                    };
+                if consumed {
                     self.needs_build = true;
                     return 1;
                 }
@@ -99,6 +109,12 @@ impl Runtime {
                 result
             }
             Event::WindowBlur => {
+                if let Some(hooks) = &self.window_hooks
+                    && let Some(hook) = &hooks.on_focus
+                    && hook(false)
+                {
+                    self.needs_build = true;
+                }
                 self.active = false;
                 self.sel_dragging = false;
                 self.release_pointer_capture(crate::core::events::PointerEvent {
@@ -115,6 +131,12 @@ impl Runtime {
                 0
             }
             Event::WindowFocus => {
+                if let Some(hooks) = &self.window_hooks
+                    && let Some(hook) = &hooks.on_focus
+                    && hook(true)
+                {
+                    self.needs_build = true;
+                }
                 self.active = true;
                 0
             }
@@ -125,19 +147,35 @@ impl Runtime {
                 self.tree.mark_layout_dirty();
                 0
             }
-            Event::WindowClose => 0,
+            Event::WindowClose => {
+                // an extra window was closed by the system (its close button
+                // is not vetoed here): free it on a fresh event-loop turn,
+                // never from inside this callback
+                if self.window_hooks.is_some() {
+                    window::request_close(self.owner_ptr());
+                }
+                0
+            }
             Event::AppearanceChange => {
                 // theme hooks that follow the system re-evaluate
                 self.needs_build = true;
                 1
             }
             Event::WindowCloseRequest => {
-                let allowed = self.app.on_close_request();
+                let allowed = match &self.window_hooks {
+                    Some(hooks) => hooks.on_close_request.as_ref().is_none_or(|hook| hook()),
+                    None => self.app.borrow_mut().on_close_request(),
+                };
                 self.needs_build = true;
                 i32::from(!allowed)
             }
             Event::AppQuitRequest => {
-                let allowed = self.app.on_quit_request();
+                if self.window_hooks.is_some() {
+                    // Zig: only the main window configures `quit_fn`, so a
+                    // panel simply allows the app to quit
+                    return 0;
+                }
+                let allowed = self.app.borrow_mut().on_quit_request();
                 self.needs_build = true;
                 i32::from(!allowed)
             }

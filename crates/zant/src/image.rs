@@ -170,6 +170,25 @@ impl Image {
         Ok(copy)
     }
 
+    /// Straight-alpha RGBA pixels, `width * 4` bytes per row (the tray icon
+    /// path in `desktop` needs the decoded pixels; the native call copies).
+    pub fn read_rgba(&self) -> Option<Vec<u8>> {
+        let size = usize::try_from(self.width)
+            .ok()?
+            .checked_mul(usize::try_from(self.height).ok()?)?
+            .checked_mul(4)?;
+        if size == 0 {
+            return None;
+        }
+        let mut pixels = vec![0u8; size];
+        // SAFETY: `pixels` has room for `size` bytes; the bridge is thread-safe
+        // and returns 0 without writing when the sizes disagree.
+        let read = unsafe {
+            ffi::zant_image_read_rgba(self.handle, pixels.as_mut_ptr().cast(), pixels.len())
+        };
+        (read != 0).then_some(pixels)
+    }
+
     /// Another reference to the same pixels (released with its own drop).
     pub fn retain(&self) -> Image {
         // SAFETY: live image handle; retain returns a new owned handle.
