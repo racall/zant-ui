@@ -473,6 +473,21 @@ Rust 编译器仍拒绝（见「WP-5.10 提出」4），基准输出 `failed: 2 
 | `zant-md-stream` 流式 | 稳态帧 1–3 ms，`text_layouts` 不随内容增长 |
 | `scripts/tsx/build-template-check.sh` / `build-check.sh` | 都通过（含 ZANT_SNAPSHOT 冒烟） |
 
+## 收尾增补（lead）
+
+- **跨文件 `createWindow`**：窗口组件的 `tsx::window::Component` 包装现在由组件**自己的模块**生成
+  （项目级预扫描 `createWindow(<组件>)`，`ProjectData::window_components`），因此窗口句柄可以和组件
+  分文件声明/导入；已用 tsx-demo 结构验证（`src/windows.tsx` 声明句柄、`Panel.tsx` 导入并调用
+  `panel.show()`，编译通过）。单文件 `compile` 仍在本文件生成包装。
+- **`ui::markdown` / `ui::MarkdownOptions` 已从 `zant::ui` 导出**，`widgets` golden 加入 golden 编译检查
+  （31 个 golden 全部编译通过；`desktop`/`entities` 仍按文档诊断排除）。
+- 生成的 `src/app_config.rs` 加 `#![allow(dead_code)]`（新项目 `cargo build` 零告警）；模板里的
+  占位 `let _ = (…)` 已删除。
+- WP-5.10：TSX 示例三件套（`zant-tsx-counter` / `zant-tsx-demo` / `zant-tsx-bench-app`）编译运行、
+  截图与布局 key 断言通过；TSX 编译基准 30 个共同语料平均 **1.08–1.10× Zig（PASS）**。
+- 最终校验：71 个测试套件全绿、clippy 0、fmt 干净、`build-template-check.sh` / `build-check.sh` /
+  `examples-check.sh` 全通过、`zant-demo` parity 6/6、bench 闸门 7/7 PASS（两种模式）。
+
 ## 待决问题
 
 ### WP-5.9 提出（2026-11-14）
