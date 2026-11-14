@@ -104,7 +104,7 @@ impl Document {
                 toolbar: true,
                 annotation_tools: true,
                 on_change: Some(self.props.onChange.clone()),
-                height: 240.0f32,
+                height: Some(240.0f32),
                 ..Default::default()
             },
         );
@@ -146,7 +146,7 @@ impl ui::App for App {
                 format!("{}", tsx::builtins::string(7.0f64)))), source :
                 zant::Str::from("Independent **cache**"), ..Default::default() }),
                 ui::pdf_viewer(tsx::site_id(0, "PdfViewer", 1), ui::PdfViewerOptions {
-                src : zant::Str::from(""), height : 80.0f32, on_change :
+                src : zant::Str::from(""), height : Some(80.0f32), on_change :
                 Some(ui::action(| s : & mut App | s._on_change1())), ..Default::default()
                 }), if self.visible { Some(ui::with_key(Reply::build(_Object0 { source :
                 self.source.clone(), }, tsx::child_id(0, "Reply",

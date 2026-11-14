@@ -18,10 +18,6 @@
 //! - `entities`: `zant::Str` is UTF-8 and cannot hold an unpaired surrogate
 //!   (`tools/tsx/testdata/entities.tsx` has `&#xD800;`; the Zig compiler used
 //!   WTF-8 bytes);
-//! - `widgets`: the golden exists, but `ui::MarkdownOptions` / `ui::markdown`
-//!   are not re-exported from `zant::ui`, and `PdfViewerOptions` /
-//!   `ui::pdf_viewer` are not in the framework yet (they only exist in
-//!   `zant-examples`), so it is excluded from the compile check.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -70,7 +66,7 @@ const CORPUS: &[&str] = &[
 const NO_GOLDEN: &[&str] = &["desktop", "entities"];
 
 /// Goldens excluded from the cargo compile check (framework APIs missing).
-const NOT_COMPILED: &[&str] = &["widgets"];
+const NOT_COMPILED: &[&str] = &[];
 
 fn manifest_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -177,21 +173,6 @@ fn desktop_and_entities_report_their_documented_limitations() {
     let entities = read_corpus("entities");
     let error = compile::compile(&entities, "entities.tsx").expect_err("entities is blocked");
     assert!(error.msg.contains("unpaired surrogate"), "{}", error.msg);
-}
-
-#[test]
-fn widgets_names_the_framework_apis_it_needs() {
-    // the golden exists (the compiler is complete) but the framework does not
-    // re-export the widget builders yet; when it does, remove `widgets` from
-    // NOT_COMPILED and this assertion
-    let source = read_corpus("widgets");
-    let generated = compile::compile(&source, "widgets.tsx").expect("widgets compiles");
-    for needed in ["ui::markdown(", "ui::MarkdownOptions", "ui::pdf_viewer("] {
-        assert!(
-            generated.contains(needed),
-            "widgets.tsx no longer uses `{needed}`; update the blocked list"
-        );
-    }
 }
 
 #[test]

@@ -38,13 +38,7 @@ include!(concat!(env!("OUT_DIR"), "/main.rs"));
 fn main() -> zant::Result<()> {
     // `src/app_config.rs` also carries the values `zant package` / `zant build`
     // read from `app.config.json` (the version, the macOS sandbox flag and the
-    // signing identity). A new app does not use them yet; referencing them here
-    // keeps `cargo build` warning-free.
-    let _ = (
-        app_config::version,
-        app_config::sandbox,
-        app_config::signing_identity,
-    );
+    // signing identity); the generated module allows them to be unused.
     // Native modules register on the UI thread before the first frame.
     native::register();
     zant::tsx::app::run::<crate::app::App>(zant::tsx::app::Config {

@@ -92,7 +92,9 @@ pub use crate::components::window_controls::{
 /// `ui.markdown` / `ui.pdfViewer`). WP-M3 moved the full PDF reader widget
 /// into the framework; its options and slot state are exported alongside the
 /// builder.
-pub use crate::components::widgets::{PdfViewerOptions, PdfViewerState, pdf_viewer};
+pub use crate::components::widgets::{
+    MarkdownOptions, PdfViewerOptions, PdfViewerState, markdown, pdf_viewer,
+};
 
 #[cfg(test)]
 mod contract_tests {

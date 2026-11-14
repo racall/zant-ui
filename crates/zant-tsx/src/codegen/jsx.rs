@@ -285,6 +285,7 @@ fn number_optional(owner: &str, field: &str) -> bool {
         "height" => matches!(
             owner,
             "Card"
+                | "PdfViewer"
                 | "Clickable"
                 | "Column"
                 | "Image"
@@ -297,6 +298,7 @@ fn number_optional(owner: &str, field: &str) -> bool {
         "top" => owner != "Message",
         "font_size" => owner == "Button",
         "column_gap" => owner != "ShortcutList",
+        "grow" => owner == "PdfViewer",
         "basis" | "bottom" | "content_max_width" | "height_percent" | "item_width" | "left"
         | "max_height" | "max_width" | "min_height" | "min_width" | "right" | "row_gap"
         | "stroke" | "width_percent" => true,
