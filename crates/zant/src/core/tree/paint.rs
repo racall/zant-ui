@@ -175,9 +175,9 @@ impl Tree {
             NodeKind::Button => {
                 crate::components::button::paint(&mut self.nodes[index], canvas, theme);
             }
-            // WP-2.1 owns input; until its module lands only the generic
-            // background / border above is drawn.
-            NodeKind::Input => {}
+            NodeKind::Input => {
+                crate::components::input::paint(&mut self.nodes[index], canvas, theme);
+            }
             NodeKind::Toggle => {
                 crate::components::toggle::paint(&mut self.nodes[index], canvas, theme);
             }
