@@ -6,6 +6,12 @@ rust-version.workspace = true
 license.workspace = true
 description = "Runnable examples for Zant UI (zant-demo, zant-components, zant-gallery, ...)"
 
+[build-dependencies]
+# `build.rs` compiles the TSX benchmark pages of `zant-tsx-frame-bench` into
+# `$OUT_DIR` with the same TSX → Rust step a Zant app's build script uses
+# (`zant_build::tsx_app_in`, WP-5.10c).
+zant-build.workspace = true
+
 [dependencies]
 zant.workspace = true
 # `zant-md-stream --sse` parses the same SSE JSON events as the Zig example
@@ -57,3 +63,12 @@ path = "src/bin/zant-bench.rs"
 [[bin]]
 name = "zant-tsx-bench"
 path = "src/bin/zant-tsx-bench.rs"
+
+# TSX frame benchmark (WP-5.10c): the Rust port of the Zig `bench-tsx`
+# (`examples/tsx/bench.zig`). It builds each TSX page's generated app against a
+# hand-written `ui::App` control through the same headless frame loop and gates
+# the TSX/manual ratio at 1.2× (plan.md §5 M5). The TSX → Rust step happens for
+# this whole crate in `build.rs`.
+[[bin]]
+name = "zant-tsx-frame-bench"
+path = "src/bin/zant-tsx-frame-bench.rs"

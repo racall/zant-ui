@@ -9,12 +9,12 @@
 | 项 | 值 |
 |---|---|
 | 分支 | `feat/rust-port`（全部 WP 直接合入这里，提交带 `WP-x.y:` 前缀） |
-| Rust 测试 | `cargo test --workspace` 全绿（`rust/wp-5.10`）：**71 个测试二进制 / 1059 passed / 0 failed**，含 WP-5.10 新增 6 条（3 × 示例 native `system`、3 条 `zant-tsx-bench`）；工作区全量以 lead 合并后为准 |
+| Rust 测试 | `cargo test --workspace` 全绿（`rust/wp-5.10c`）：**72 个测试二进制 / 1066 passed / 0 failed**，含 WP-5.10 的 1059 条 + WP-5.10c 新增 7 条（帧基准统计 / 参数 / 生成树结构对照）；工作区全量以 lead 合并后为准 |
 | Zig 测试 | `zig build test` 仍全绿（Zig 版未改行为，只加了 `ZANT_WINDOW_SIZE` 钩子与 `ZANT_STATIC_DATA` 原生补丁） |
 | 质量门 | `cargo fmt --all -- --check` 干净；`cargo clippy --workspace --all-targets -- -D warnings` 0 告警 |
-| 已完成 | M0 全部（0.1 macOS/0.2/0.3/0.4/0.5）、M1 全部（1.1a–d/1.2/1.3/1.4/1.5，parity 6/6 0 像素）、M2（2.1–2.11 除 2.11 已并入全绿）、M3（3.1–3.9、3.11，zant-pdf parity 6/6）、M4（4.1–4.4）、M5（5.1–5.8、5.9 黄金/端到端，见下方偏差表）、M6（6.1、6.3、6.4、6.5）、M7（7.3 文档）、**WP-5.10（TSX 示例 + 编译基准，见下方「WP-5.10 完成情况」）** |
-| 进行中 | —（WP-5.10 已完成；待 lead 合并各 worktree 并做全量验收） |
-| 下一步 | lead 合并 → 全量验收（macOS + Windows）→ 补齐 WP-5.9 / WP-5.10 报告的框架 API 与编译器 bug（`ui` 的 markdown/pdf_viewer 导出、跨文件窗口组件、`Uint8Array` 映射、生成代码 lint 兜底）→ TSX 帧对比基准（TSX 生成代码 ≤1.2× 手写 Rust）→ M8 切换（需用户确认） |
+| 已完成 | M0 全部（0.1 macOS/0.2/0.3/0.4/0.5）、M1 全部（1.1a–d/1.2/1.3/1.4/1.5，parity 6/6 0 像素）、M2（2.1–2.11 除 2.11 已并入全绿）、M3（3.1–3.9、3.11，zant-pdf parity 6/6）、M4（4.1–4.4）、M5（5.1–5.8、5.9 黄金/端到端、5.10 TSX 示例/编译基准、5.10c 帧对比基准，见下方完成情况）、M6（6.1、6.3、6.4、6.5）、M7（7.3 文档）、**WP-5.10c（TSX 帧基准 ≤1.2× 验收，见下方「WP-5.10c 完成情况」）** |
+| 进行中 | —（WP-5.10 / WP-5.10c 已完成；待 lead 合并各 worktree 并做全量验收） |
+| 下一步 | lead 合并 → 全量验收（macOS + Windows）→ 补齐 WP-5.9 / WP-5.10 / WP-5.10c 报告的框架 API 与编译器 bug（`ui` 的 markdown/pdf_viewer 导出、跨文件窗口组件、`Uint8Array` 映射、非根 `<List>` 生成代码、生成代码 lint 兜底）→ M8 切换（需用户确认） |
 | Windows | 测试机 192.168.31.24 全程不可达；所有 Windows 验收待补 |
 
 ## 环境与基线（M0 记录）
@@ -188,6 +188,7 @@ Release、窗口模式（Metal），`ZANT_FRAME_STATS=1 ZANT_STREAM_CHARS=6 ZANT
 | 5.8 | native 模块（trait 化） | — | 待领取 | ★★★ |
 | 5.9 | 黄金用例换成 .rs | wp-5-9 | 完成（worktree wp-5.9，待并入） | 分支 `rust/wp-5.9`。`crates/zant-tsx/testdata/*.rs` 30 个黄金（32 个 Zig 用例里 `desktop`/`entities` 无法生成，见下方「WP-5.9 偏差表」）；`tests/golden.rs`（黄金逐字节比对 + 全部黄金批量写入一个 workspace 外临时 crate，`cargo check` 通过 **29/30**，`widgets` 因框架 API 缺失排除）；`tests/tsx_end_to_end.rs`（`compile_project_root_with` 驱动 `tests/fixtures/{hooks,crossfile,rust_types,media}`，Zig 模块移植为 `.rs` 镜像）；逐服务器审阅 30 个黄金时修掉 30+ 处编译器/联调 bug（见「WP-5.9 提出」）。 |
 | 5.10 | examples/tsx 入口、bench-tsx | wp-5-10 | 完成（worktree wp-5.10，待并入） | 分支 `rust/wp-5.10`。3 个 TSX 示例应用改成 Cargo workspace 成员（`crates/zant-examples/tsx/{tsx-counter,tsx-demo,tsx-bench}`，template 形态：`build.rs` → `zant_build::try_tsx_app()`）；`scripts/tsx/examples-check.sh` 无窗口跑 3 个应用并断言 PNG 非空白 / 尺寸 / 确定性 / `ZANT_LAYOUT_FILE` keyed 控件；`zant-tsx-bench` 编译基准（32 个语料，Rust 编译 30 个，best-of-3 平均 **1.08×** Zig in-process，闸门 ≤1.25× PASS）。详见下方「WP-5.10 完成情况」与「WP-5.10 提出」。 |
+| 5.10c | `bench-tsx`：TSX 生成代码 vs 手写 Rust 帧对比 | wp-5-10c | 完成（worktree wp-5.10c，待并入） | 分支 `rust/wp-5.10c`。M5 验收「TSX 生成代码不慢于手写 Rust 对照组 1.2 倍」**全部通过**：`zant-tsx-frame-bench`（`crates/zant-examples/src/bin/`，`build.rs` 用 `zant_build::tsx_app_in` 把 `examples/tsx/` 六个基准页编成 Rust）+ `scripts/tsx/bench-tsx.sh`（Release、best-of-3、交替先后、逐 app 及逐场景判 ≤1.2×）。本机 6/6 apps、11/11 scenarios PASS，最高 **1.11×**。详见下方「WP-5.10c 完成情况」与「WP-5.10c 提出」。 |
 
 ### M6 CLI / 构建 / 脚手架 / 发布
 
@@ -364,6 +365,100 @@ Rust 编译器仍拒绝（见「WP-5.10 提出」4），基准输出 `failed: 2 
 **待验证**：Windows（测试机不可达）——3 个示例应用与编译基准未在 Windows 上跑；应用不带平台专属资源，
 `app.config.json` 走通用字段。
 
+### WP-5.10c 完成情况（wp-5-10c，2026-11-14）
+
+分支 `rust/wp-5.10c`。**TSX 帧对比基准**：`zant-tsx-frame-bench` + `scripts/tsx/bench-tsx.sh`；
+plan.md §5 M5 验收「`bench-tsx` 中 TSX 生成代码不慢于手写 Rust 对照组 1.2 倍」全部通过。
+Zig 的 `bench-tsx`（`examples/tsx/bench.zig` + `bench_harness.zig` + 四个场景文件）由这份 Rust 基准取代。
+
+**新增文件**
+
+- `crates/zant-examples/src/bin/zant-tsx-frame-bench.rs` + `src/bin/zant_tsx_frame_bench/`：
+  - `mod.rs`：驱动、`Stats`（avg / p95 / max，p95 用 Zig 的 `len*95/100` 下标）、headless `Harness`
+    （640×900 raster、假时钟、未计时 warm-up、按 key 点击 / 输入）、`ZANT_BENCH_REPEAT` 交替 best-of-N、
+    `ZANT_BENCH_MAX_RATIO` 闸门、`ZANT_FRAME_STATS=1` 相位统计；
+  - `counter` / `todos` / `list` / `local` / `markdown` / `settings`：逐场景；
+  - `controls/`：手写对照（`counter_manual.zig` / `todos_manual.zig` / `list_manual.zig` /
+    `local_manual.zig` / `bench_markdown.zig` 的 `Manual` 逐行移植 + 新增 settings 对照）；
+  - `tsx_views/ListBench.tsx` / `MarkdownView.tsx`：两处语言差异的最小适配（见「偏差」）。
+- `crates/zant-examples/build.rs`：为六个基准页在 `$OUT_DIR` 各造一个临时 app root（`src/App.tsx`
+  就是 `examples/tsx/*.tsx` / `tsx_views/ListBench.tsx`），调 `zant_build::tsx_app_in`（与 Zant 应用
+  build.rs 同一个 TSX → Rust 步骤）；生成的 `main.rs` 由 `mod.rs` `include!` 进六个 case 模块。
+- `scripts/tsx/bench-tsx.sh`：Release 构建（并断言 6 个生成 app 存在）→ 跑 best-of-N → python
+  打印逐 app / 逐场景对照表 + 闸门；`--no-build`、`--help`，环境变量 `ZANT_BENCH_REPEAT` /
+  `ZANT_BENCH_MAX_RATIO` / `ZANT_FRAME_STATS` / `ZANT_RUST_BIN` / `CARGO_TARGET_DIR`。
+- 接线：`crates/zant-examples/Cargo.toml`（`[build-dependencies] zant-build`、`[[bin]]`）、`Cargo.lock`。
+
+**两侧怎么跑（诚实性）**
+
+- **TSX 侧是真实生成代码**，不是 stub：`counter.tsx`、`todos.tsx`、`settings.tsx` 原样编译；生成代码
+  每帧真的走 `ui::node` / action / 状态字段。`list_bench.tsx` / `markdown_bench.tsx` 有两处最小适配，
+  原因都是 Zig 版可以写根状态（`tsx.State`）而 Rust 生成代码的根字段私有：list 的行改由页面自己的
+  `useMemo(() => makeRows(), [])` 建一次（未计时的 warm-up 帧内），`<List>` JSX / keys / styling 逐字
+  相同；markdown 保留 `markdown_bench.tsx` 作根，另由一个接收 `source` prop 的 `MarkdownView` 走同一个
+  `<Markdown>` widget。两处都有文件头注释与下方「偏差」。
+- **手写侧**是 `*_manual.zig` 的逐行 Rust 移植（含 Zig 的 click / typing / add+Enter / toggle / filter /
+  scroll / mount 计数与顺序）；settings 没有 Zig 对照（Zig 只测 TSX 侧），按 `settings.tsx` 的树新写。
+- **同一个 harness**：Runtime + 640×900 raster canvas + 假时钟（每帧 +16 ms）+ motion off + 一个未计时
+  warm-up 帧；每帧 `renderer.begin` → `Runtime::render_frame`（rebuild + layout + paint）→ `renderer.end`
+  计时，与 `zant-bench` 同构；每侧每轮全新 runtime + canvas。
+- **交替 best-of-N**：`ZANT_BENCH_REPEAT`（默认 3）轮，奇数轮 TSX 先跑、偶数轮手写先跑；每侧取平均帧
+  时间最低的一轮比较（与 `scripts/parity/bench.sh` 同一思路，shared-machine 负载不会决定闸门）。
+- **结构对照测试**：`the_generated_tree_has_the_control_keys` 断言 settings / counter / todos / list
+  首帧的 keyed 节点集合与手写对照完全一致（settings 86 个 keyed 节点；list 10 000 行只建一屏，
+  `pick-10000` 不在树上）。
+
+**对照表（Release，best-of-3，macOS 27.2.1 arm64；`scripts/tsx/bench-tsx.sh`）**
+
+| 行 | frames | tsx avg (ms) | manual avg (ms) | ratio | tsx p95 | manual p95 | tsx max | manual max |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| **counter** | 3300 | 0.113 | 0.113 | **1.00×** | 0.194 | 0.196 | 0.453 | 0.343 |
+| counter-clicks | 3000 | 0.105 | 0.105 | 1.00× | 0.121 | 0.121 | 0.453 | 0.339 |
+| counter-typing | 300 | 0.193 | 0.193 | 1.00× | 0.246 | 0.237 | 0.321 | 0.343 |
+| **todos** | 1560 | 1.969 | 1.941 | **1.01×** | 3.061 | 3.179 | 12.546 | 12.523 |
+| todos-add | 1000 | 1.531 | 1.385 | 1.11× | 2.906 | 2.590 | 4.258 | 3.166 |
+| todos-toggle | 500 | 2.490 | 2.640 | 0.94× | 3.177 | 3.439 | 3.766 | 4.007 |
+| todos-filter | 60 | 4.920 | 5.373 | 0.92× | 11.477 | 11.857 | 12.546 | 12.523 |
+| **list** | 400 | 0.457 | 0.448 | **1.02×** | 0.535 | 0.528 | 0.660 | 0.703 |
+| list-scroll | 300 | 0.468 | 0.456 | 1.03× | 0.546 | 0.535 | 0.660 | 0.703 |
+| list-click | 100 | 0.426 | 0.423 | 1.01× | 0.506 | 0.500 | 0.547 | 0.568 |
+| **local** | 600 | 0.661 | 0.629 | **1.05×** | 0.861 | 0.820 | 1.177 | 1.183 |
+| local-mount | 300 | 0.569 | 0.527 | 1.08× | 0.794 | 0.734 | 1.176 | 0.878 |
+| local-click | 300 | 0.754 | 0.730 | 1.03× | 0.883 | 0.875 | 1.177 | 1.183 |
+| **markdown** | 342 | 0.410 | 0.409 | **1.00×** | 0.644 | 0.637 | 0.905 | 0.911 |
+| markdown-stream | 342 | 0.410 | 0.409 | 1.00× | 0.644 | 0.637 | 0.905 | 0.911 |
+| **settings** | 2000 | 0.223 | 0.239 | **0.93×** | 0.268 | 0.281 | 0.451 | 0.975 |
+| settings-click | 2000 | 0.223 | 0.239 | 0.93× | 0.268 | 0.281 | 0.451 | 0.975 |
+
+**结论：6/6 apps、11/11 scenarios 全部 ≤1.2×，最高 1.11×（`todos-add`），其余 ≤1.08×；4 次复跑稳定在
+同一区间**（`counter-clicks` 1.00–1.01×、`todos-add` 1.09–1.11×、`local-mount` 1.08–1.10×、
+`settings` 0.92–0.93×；`local-mount` 的旧表行 1.08×，最近一次 1.10×）。`local-mount` 的 ~1.08×
+来自 TSX 页面的 React 式不可变更新（`setIds([...ids, next])` 每 mount 复制 + `setNext`），手写对照用
+`Vec::push`——这正是 Zig `local_bench` 基准设计的策略差异，不是生成代码的额外开销；`todos-add` 同理
+（TSX 用 `[...todos, todo]`，手写用 `Vec::push`）。
+
+**偏差**
+
+1. `list` / `markdown` 两处数据入口适配（见「两侧怎么跑」）；其余四个页面按原 TSX 输入编译。
+2. `settings` 手写对照是新写的（Zig 只有 TSX 侧）；其余对照逐行移植 Zig `*_manual.zig`。
+3. Rust 的 action 上下文只认根状态：手写 `local` 的行计数器用捕获的 `Rc<RefCell<u32>>`，`list` 的 item
+   用 `Rc<Vec<Row>>`（Zig 用 arena 里的子结构指针）；点击/渲染的树与帧数相同。
+4. `ZANT_BENCH_MESSAGES` / `ZANT_BENCH_LIST` 不适用（输入固定）；`ZANT_BENCH_REPEAT`、
+   `ZANT_BENCH_MAX_RATIO`、`ZANT_FRAME_STATS=1` 支持。
+5. Windows 未验证（测试机不可达）：基准只用可移植的 headless raster / 假时钟 API，但未在 Windows 跑过。
+
+**验收命令（本 worktree 全部通过）**
+
+- `./scripts/cargo.sh test --workspace`：72 个测试二进制 / **1066 passed, 0 failed**（新增 7 条：
+  p95 下标、best-of-N、参数解析、六 app 覆盖、生成树 ↔ 对照 keyed 集合、generated counter 可点击、
+  generated list 10 000 行惰性建树）；
+- `./scripts/cargo.sh clippy --workspace --all-targets -- -D warnings`：0 告警；
+- `./scripts/cargo.sh fmt --all -- --check`：干净；
+- `./scripts/tsx/bench-tsx.sh`：**PASS** 6/6 apps、11/11 scenarios（上表；raw log
+  `target/tsx/bench-tsx/run.log`）；
+- `./scripts/parity/bench.sh`：**PASS 7/7**，默认模式与 `ZANT_BENCH_LIST=1` 都过（最高 typing 1.16×）；
+- `./scripts/tsx/build-template-check.sh`：通过（debug 构建 + `ZANT_SNAPSHOT` 冒烟）。
+
 ## 已并入 feat/rust-port 的内容（按时间）
 
 1. M0.2 骨架 + 模块树桩、M0.3 `zant-sys`、M0.4 对照工具、M0.5 文档。
@@ -472,6 +567,7 @@ Rust 编译器仍拒绝（见「WP-5.10 提出」4），基准输出 `failed: 2 
 | `scripts/parity/bench.sh` | **PASS 7/7**（默认+虚拟列表）：stream 0.89×、typing 1.16×、resize 0.93×、scroll 0.97× |
 | `zant-md-stream` 流式 | 稳态帧 1–3 ms，`text_layouts` 不随内容增长 |
 | `scripts/tsx/build-template-check.sh` / `build-check.sh` | 都通过（含 ZANT_SNAPSHOT 冒烟） |
+| `scripts/tsx/bench-tsx.sh`（WP-5.10c） | **PASS 6/6 apps、11/11 scenarios ≤1.2×**（最高 `todos-add` 1.11×，`local-mount` 1.08×，settings 0.93×） |
 
 ## 收尾增补（lead）
 
@@ -667,6 +763,76 @@ workspace 成员没有 `zant sync` 时，`zant_build::try_tsx_app()` 在打印
 `cargo:warning=zant-build: src/app_config.rs is missing … run zant sync` 之后应用 `build.rs` 才写出该文件，
 `cargo clean` 后第一次构建会看到一次警告，之后正常。要彻底消掉可以让 `try_tsx_app` 的指令打印延后到
 调用方写文件之后（接口变化），或示例 build.rs 先写文件再调用 `zant_build::tsx_app()`。
+
+### WP-5.10c 提出（2026-11-14）
+
+**1. 非根组件渲染 `<List>` 生成代码不编译（`crates/zant-tsx/src/codegen/list.rs`）**
+
+带 props 的组件（非根）里写 `<List renderItem={…}>`，只要 item 闭包引用组件自身的状态/回调
+（例如 `const [picked, setPicked] = useState(0)` 后 `onClick={() => setPicked(row.id)}`），生成的
+Rust 不编译：
+
+```
+error[E0505]: cannot move out of `self` because it is borrowed
+  --> …/ListView.rs:71
+   |                      let _state = self._state.clone();
+   |                                   ------ move occurs due to use in closure
+error: lifetime may not live long enough (coercion requires that `'1` must outlive `'static`)
+```
+
+原因：`list.rs::emit` 生成 `ui::list(&self._listN, ListOptions { item: Rc::new(move |_index| { …
+let _state = self._state.clone(); … }) })`——item 闭包为了拿到组件实例捕获了 `self`（`'static`
+要求），同时 `&self._listN` 还在借 `self`。根组件没有 `_state` 字段，所以 `list_bench.tsx` 原样作根
+可以编译（本 WP 的 list 基准因此用根页面）。
+
+Repro（TSX，`zant-tsx` 直接编译即可；转成 `src/ListView.tsx` 后 `zant_build::tsx_app_in` 报上面的错）：
+
+```tsx
+import { useState, List, View, Row, Text, Button } from "zant";
+import type { u32 } from "zant";
+
+interface RowData { id: u32; title: string; }
+
+export function ListView({ rows }: { rows: RowData[] }) {
+  const [picked, setPicked] = useState<u32>(0);
+  return (
+    <View>
+      <Text>Picked {picked}</Text>
+      <List data={rows} itemHeight={40} keyExtractor={(row) => row.id}
+        renderItem={(row) => (
+          <Row>
+            <Text>{row.title}</Text>
+            <Button onClick={() => setPicked(row.id)}>Pick</Button>
+          </Row>
+        )} />
+    </View>
+  );
+}
+```
+
+建议修法：`list.rs::emit` 在构造 `ListOptions` 前把 `self._listN` / `self._state`（以及闭包需要的
+`self.props` 字段）克隆进局部变量，闭包只捕获这些局部量，`ui::list` 改传 `&_list`：
+
+```rust
+let _list = self._listN.clone();
+let _state = self._state.clone();
+let _data = …;
+ui::list(&_list, ui::ListOptions { item: Rc::new(move |_index| { … _state … }), .. })
+```
+
+**2. 生成代码的 `dead_code`（根组件保留但不驱动时）**
+
+本 WP 的 markdown 页保留 `markdown_bench.tsx` 作根（证明输入可编译），实际驱动的是
+`MarkdownView` 组件，于是 rustc 报 `MarkdownBench is never constructed` 等；bench 在生成模块上用
+`#[allow(clippy::all, dead_code)]` 限定（与 WP-5.10 示例级 `#![allow(clippy::all)]` 同因，等
+`zant-tsx` 生成代码 lint 兜底补齐后可去掉）。
+
+**3. 记录（非 bug）：`useState` 初始化器只接受字面量**
+
+Zig 的 `tsx.State` 可以写根状态，所以 `bench_list` 直接把 10 000 行 set 进去；Rust 侧
+`useState<T[]>([...])` 只接受字面量、`useMemo` 的依赖数组才允许函数调用。list 基准因此用
+`useMemo(() => makeRows(), [])` 在 warm-up 帧建一次行数据（见完成情况「偏差」1）。M8 的 TSX 指南
+可以记一句。
 
 ### WP-5.6 提出（2026-11-14）
 
