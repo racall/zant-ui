@@ -31,6 +31,83 @@
 | Windows 基线 | **待验证**：测试机 `192.168.31.24` 当前不可达（No route to host）。恢复后要补：`zig build test`、`build_bridge.ps1`、rustup / VS Build Tools / 1.94.1 工具链检查 |
 | 沙箱注意 | `cargo` 一律通过 `./scripts/cargo.sh`（CARGO_HOME 指向 `.cargo-home/`）；Zig 命令带 `ZIG_GLOBAL_CACHE_DIR=$PWD/.zig-global-cache` |
 
+## 性能基线（WP-2.11，`zant-bench`）
+
+`scripts/parity/bench.sh [scenario...]`：Rust Release（`target/release/zant-bench`）与 Zig 基线
+（`ZANT_ZIG_BIN=<主 checkout>/zig-out-baseline/bin`）跑同一矩阵（默认 30 条消息；场景
+open / stream / typing / caret / hover / resize / scroll）。默认同时跑两种渲染模式：`default`
+（全量重建）与 `list`（`ZANT_BENCH_LIST=1` 虚拟列表）。每边跑 `ZANT_BENCH_REPEAT`（默认 3，本表用
+8）轮、交替先后，每场景取最好一轮，输出 avg / p95 / max 与 Rust/Zig 比值；闸门按 plan.md §4/§7.3：
+每场景 avg ≤ 1.25× Zig，稳态 avg ≤ 16.7 ms（`open` 是冷启动首帧，Zig 基线自己就 ~120 ms 全量重建
+/ ~21 ms 虚拟列表，因此只判比值）。原始日志在 `target/parity/bench/`。
+
+- 机器：macOS 27.2.1 arm64（Apple Silicon），14 核。测量期间 load average 6–11（多个并行 worktree
+  同时跑 cargo/zig 构建），单轮波动明显，故用 best-of-8；同一脚本可在安静机器上用
+  `ZANT_BENCH_REPEAT=1` 复跑。
+- Zig 基线：`/Users/xiaoyi/dev/XyUI/zig-out-baseline/bin/zant-bench`（Zig 0.17.1 ReleaseFast，WP-0.1）。
+- 命令：`./scripts/parity/bench.sh`（构建 Rust 后跑全部）；`ZANT_BENCH_MODES=default ./scripts/parity/bench.sh --no-build stream` 等。
+
+### default（全量重建，30 条 ~2.4 KB Markdown 消息 + 流式回复）
+
+| 场景 | frames | avg rust | avg zig | ratio | p95 rust | max rust | p95 zig | max zig | 闸门 |
+|---|---|---|---|---|---|---|---|---|---|
+| open | 5 | 122.12 ms | 120.88 ms | 1.01× | 146.17 | 146.17 | 143.71 | 143.71 | PASS*（冷启动，只判比值） |
+| stream | 186 | 2.78 ms | 2.24 ms | **1.24×** | 3.27 | 3.54 | 2.82 | 3.21 | PASS |
+| typing | 200 | 0.98 ms | 0.84 ms | 1.17× | 1.20 | 1.34 | 1.04 | 1.12 | PASS |
+| caret | 100 | 0.65 ms | 0.67 ms | 0.97× | 0.80 | 0.84 | 0.79 | 0.83 | PASS |
+| hover | 300 | 0.35 ms | 0.35 ms | 1.00× | 0.40 | 0.60 | 0.43 | 0.54 | PASS |
+| resize | 120 | 5.05 ms | 4.69 ms | 1.08× | 5.24 | 83.17 | 4.69 | 82.64 | PASS |
+| scroll | 300 | 0.72 ms | 0.75 ms | 0.96× | 0.96 | 1.35 | 1.01 | 1.29 | PASS |
+
+### virtual list（`ZANT_BENCH_LIST=1`）
+
+| 场景 | frames | avg rust | avg zig | ratio | p95 rust | max rust | p95 zig | max zig | 闸门 |
+|---|---|---|---|---|---|---|---|---|---|
+| open | 5 | 21.84 ms | 20.98 ms | 1.04× | 43.19 | 43.19 | 41.48 | 41.48 | PASS*（冷启动，只判比值） |
+| stream | 186 | 0.89 ms | 0.85 ms | 1.05× | 1.16 | 4.55 | 1.09 | 4.50 | PASS |
+| typing | 200 | 0.70 ms | 0.69 ms | 1.01× | 0.92 | 1.26 | 0.90 | 1.06 | PASS |
+| caret | 100 | 0.65 ms | 0.64 ms | 1.02× | 0.75 | 0.96 | 0.77 | 0.88 | PASS |
+| hover | 300 | 0.35 ms | 0.35 ms | 1.00× | 0.43 | 0.57 | 0.39 | 0.55 | PASS |
+| resize | 120 | 0.75 ms | 0.72 ms | 1.04× | 0.93 | 4.18 | 0.93 | 3.98 | PASS |
+| scroll | 300 | 0.63 ms | 0.62 ms | 1.02× | 0.74 | 0.85 | 0.74 | 0.90 | PASS |
+
+**结论：两模式 7/7 场景 ≤1.25× Zig，稳态帧远低于 16.7 ms（全部 <6 ms，60 fps 余量充足）；
+闸门通过，但 `stream`（全量重建）余量很薄（1.24× vs 1.25×），建议合入前应用下面的框架补丁。**
+`resize` 的 max 83 ms 是首帧从 900→700 px 的冷布局（Zig 82.6 ms，非回归）；`open` 是 30 条消息
+的首次整篇解析 / 排版（Zig 同量级）。
+
+#### `stream` 热点（报告给 lead 的框架 patch，未提交）
+
+`ZANT_FRAME_STATS=1` + 分相计时（`core::layout` 4 项拆开）显示 30 条消息时单帧 ≈ rebuild 0.40 ms +
+**layout 1.69 ms** + `refresh_key_bounds` 0.16 ms + paint 0.70 ms；layout 遍历 **10,922** 个节点。
+根因：Rust 版 `core/layout` 在**每个容器**上克隆子节点列表（Zig 直接迭代 `node.children.items`）：
+
+- `crates/zant/src/core/layout/intrinsic.rs::intrinsic_width`（容器分支，~114 行）与
+  `intrinsic_height`（~205 行）各 `let children: Vec<NodeId> = nodes[id].children.clone();`；
+- `crates/zant/src/core/layout/container.rs::layout_container`（~205 行）同样 clone。
+
+把这三处改成 `let child_count = nodes[id].children.len(); for i in 0..child_count { let child = nodes[id].children[i]; ... }`
+（行为不变）后实测：`layout` 1.69 → 1.41 ms，stream 2.78 → 2.71 ms（ratio 1.24 → 1.20；另一次
+patched 全矩阵 stream 1.08×），`cargo test -p zant` 523 lib + 全部集成测试通过。补丁在
+`target/wp-2.11-hotpath-proposal.patch`（框架文件归 lead / 后续 WP，本 WP 未改）。次要：
+`Runtime::refresh_key_bounds` 每次布局重建 `HashMap<String, Rect>`（2,961 个 key、~0.16 ms/帧，
+Zig 直接读活树），可改惰性重建或复用节点已有的 `Str`。
+
+### `zant-md-stream` 流式（plan §7.3）
+
+Release、窗口模式（Metal），`ZANT_FRAME_STATS=1 ZANT_STREAM_CHARS=6 ZANT_STREAM_MS=16 ZANT_STREAM_EXIT=1`，
+内置长回复（1990 bytes / 322 deltas）：
+
+| 历史 | 实现 | 挂载帧 | 挂载 text_layouts | 之后 [slow-frame] | 流式最大帧 | build avg/max |
+|---|---|---|---|---|---|---|
+| 8 | Rust | 32.49 ms (layout 31.84) | 244 | 无 | 1.16 / 1.14 / 2.10 / 2.51 / 3.17 ms | 0.07 / 0.24 ms |
+| 8 | Zig | 36.69 ms (layout 34.95) | 244 | 无 | 3.09 / 2.49 / 5.02 / 2.69 / 2.77 ms | 0.06 / 0.43 ms |
+| 16 | Rust | 31.35 ms (layout 30.92) | 244 | 无 | 1.09 / 1.53 / 3.15 / 2.84 / 2.91 ms | 0.09 / 0.28 ms |
+| 16 | Zig | 28.69 ms (layout 28.21) | 244 | 无 | 1.97 / 2.34 / 2.02 / 1.19 / 1.08 ms | 0.04 / 0.15 ms |
+
+结论：历史 8→16 内容翻倍，`text_layouts` 仍是 244（不随内容增长）；只有挂载首帧超过 8 ms，
+流式期间没有 `[slow-frame]` 且没有增长，满足 plan §7.3；Rust 挂载帧与流式帧都不差于 Zig。
+
 ## 工作包进度
 
 ### M0 基线与地基
@@ -70,7 +147,7 @@
 | 2.8 | desktop、store、多窗口 | wp-2-8 | 完成（worktree wp-2.8，待并入） | `desktop/{mod,app,app_event,clipboard,hotkey,tray,window}.rs` + `runtime/window.rs`（共享 `SharedApp`、窗口注册表、`open_window` / 延迟关窗、`invalidateAll`）；`store.rs` 已在基线完成；34 个新测试（lib 346 → 380，全部 headless；真实托盘 / 热键 / 多窗口为手测项）；跨文件小改 3 处：`platform` 安全 app-event 蹦床、`Image::read_rgba`（托盘图标）、`FrameStats::for_window`，见待决问题 4；另 `hotkey_input` 的 `Shortcut` 重复待合并（待决问题 5） |
 | 2.9 | examples/{declarative,components,gallery}、gallery.zig、app.zig | — | 待领取 | |
 | 2.10 | tests/*_test.zig 对应测试移植 | wp-2-10 | 完成（worktree wp-2.10） | 分支 `rust/wp-2.10`。13 个新文件（`crates/zant/tests/{all,antd_components,component,lifecycle,local_state,mhchem_render,pointer,selection,store,text,text_align,ui,view}_test.rs`），新增 53 个测试；`tests/` 的 Rust 集成测试 72 → 134（含 merge 进来的其他 WP 新用例），全 crate `test -p zant` 595 passed / 0 failed；`clippy -p zant --all-targets -- -D warnings` 通过。Zig 侧非 TSX 测试已全部覆盖：`list_test.zig` 3 条已由 WP-2.6 在 `src/components/list.rs` 内同名移植，`motion_test.zig` 剩余 6 条由 WP-2.7 移植。key-bounds 修复（`cbab28c`）后 `pointer_test.zig` 的 pointer_area 用例已补齐。未移植 1 条：`component_test.zig` 的 gallery 用例（`Zig src/app.zig` 的 gallery 现在是 `zant-examples` 的 `gallery_app`，不是框架 API，不做跨 crate 测试依赖） |
-| 2.11 | examples/bench.zig → zant-bench；性能闸门 | — | 待领取 | |
+| 2.11 | examples/bench.zig → zant-bench；性能闸门 | wp-2-11 | 完成（worktree wp-2.11，待并入） | 分支 `rust/wp-2.11`。`crates/zant-examples/src/bin/zant-bench.rs`（thin entry）+ bin-local `src/bin/zant_bench/bench_app.rs`（1:1 移植：open / stream / typing / caret / hover / resize / scroll、`ZANT_BENCH_MESSAGES`、`ZANT_BENCH_LIST=1`、相同迭代数/预热/输出格式）。偏差：Zig bench 不调用 `Runtime.run`，因此 `ZANT_FRAME_STATS=1` 在 Zig 里对 bench 无效；Rust 版在 `new_runtime` 里接线（打印每秒 `[frames]` 与 `[slow-frame]` 的 rebuild/layout/paint 分相），默认输出与 Zig 逐字符一致。新增 `scripts/parity/bench.sh [scenario...]`：构建 Rust Release、对 Zig 基线（`ZANT_ZIG_BIN`）跑同一矩阵（默认 + 虚拟列表两模式），每边 `ZANT_BENCH_REPEAT` 轮交替取最好一轮，输出 avg/p95/max + Rust/Zig 比值 + 闸门判定（退出码）。本机 best-of-8：默认重建 7/7 PASS（stream 1.24× 最紧）、虚拟列表 7/7 PASS；`zant-md-stream` 历史 8/16 流式：挂载帧 `text_layouts` 都是 244（不随内容增长）、之后无 `[slow-frame]`。详见下方「性能基线」。bin 内 3 个测试；`cargo test -p zant-examples`、`clippy --all-targets -D warnings` 通过 |
 
 ### M3 内容模块
 
