@@ -2,8 +2,10 @@
 //!
 //! Streamdown's processing pipeline with block-level memoisation:
 //!
-//!     source ─(streaming? remend)→ healed ─(parse-blocks)→ block strings
-//!            ─(per block, cached by content)→ parsed documents
+//! ```text
+//! source ─(streaming? remend)→ healed ─(parse-blocks)→ block strings
+//!        ─(per block, cached by content)→ parsed documents
+//! ```
 //!
 //! A block whose text did not change keeps its parsed document (and its
 //! hash, which lets the view skip rebuilding its UI via `ui.memo`). While a
