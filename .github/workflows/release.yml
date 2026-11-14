@@ -1,13 +1,24 @@
 # Release archives for the one-line installers (install.sh / install.ps1).
 #
-# Push a tag like v0.1.0: both platforms are built and a GitHub release is
-# published with zant-macos-arm64.tar.gz, zant-windows-x64.zip, their
-# .sha256, version.txt and the install scripts. Running the workflow by hand
-# (Actions → release → Run workflow) only builds the archives as artifacts.
+# Push a tag like v0.1.0: the prebuilt native library, both platform archives
+# and a GitHub release with zant-macos-arm64.tar.gz, zant-windows-x64.zip,
+# their .sha256, version.txt and the install scripts are built and published.
+# Running the workflow by hand (Actions → release → Run workflow) only builds
+# the archives as artifacts.
 #
 # The Rust port builds the CLI with cargo, so no Zig is downloaded any more:
 # the runners' rustup installs the toolchain pinned in rust-toolchain.toml
 # (channel and components), and the scripts still fetch the pinned Skia first.
+#
+# WP-6.6: the `prebuilt` job compiles the native layer (C++/ObjC/C bridge,
+# platform and PDF code) once per platform and uploads the static archive with
+# its source-hash metadata. The packaging jobs download it, and every app built
+# from the released zant-ui links it instead of compiling C++/ObjC, so users
+# only need Rust + the system linker. Building with ZANT_NATIVE_PREBUILT also
+# makes the packaging build itself skip the native compile. The archive ends up
+# in zant-ui/third_party/zant-native-prebuilt/ (see
+# crates/zant-sys/prebuilt/README.md); zant-sys/build.rs falls back to
+# compiling from source when the metadata does not match the sources.
 name: release
 
 on:
@@ -19,7 +30,51 @@ permissions:
   contents: write
 
 jobs:
+  prebuilt:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            platform: macos
+          - os: windows-2022
+            platform: windows
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Skia (macOS)
+        if: runner.os == 'macOS'
+        run: ./scripts/fetch_skia.sh
+      - name: Skia, PDFium, fonts (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/fetch_skia_windows.ps1
+      - name: Prebuilt native library (macOS)
+        if: runner.os == 'macOS'
+        run: ./scripts/release/prebuilt.sh target/prebuilt/macos
+      - name: Prebuilt native library (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/release/prebuilt.ps1 -Out target/prebuilt/windows
+      # End-to-end check that the archive a user's app will link is usable:
+      # zant-sys's tests build and run against the native layer, so this proves
+      # the objects (and, on Windows, the MSVC .lib) link and work. Without it
+      # a broken archive would only be noticed after the release is out.
+      - name: The prebuilt archive links and runs (zant-sys tests)
+        env:
+          ZANT_NATIVE_PREBUILT: ${{ github.workspace }}/target/prebuilt/${{ matrix.platform }}
+        run: cargo test -p zant-sys
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zant-native-prebuilt-${{ matrix.platform }}
+          path: target/prebuilt/${{ matrix.platform }}
+          if-no-files-found: error
+
   macos:
+    needs: prebuilt
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -28,7 +83,14 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Skia
         run: ./scripts/fetch_skia.sh
+      - name: Prebuilt native library
+        uses: actions/download-artifact@v4
+        with:
+          name: zant-native-prebuilt-macos
+          path: target/prebuilt/macos
       - name: Package
+        env:
+          ZANT_NATIVE_PREBUILT: ${{ github.workspace }}/target/prebuilt/macos
         run: ./scripts/release/package.sh "${{ github.ref_type == 'tag' && github.ref_name || format('dev-{0}', github.sha) }}" dist
       - uses: actions/upload-artifact@v4
         with:
@@ -36,6 +98,7 @@ jobs:
           path: dist/
 
   windows:
+    needs: prebuilt
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
@@ -45,8 +108,15 @@ jobs:
       - name: Skia, PDFium, fonts
         shell: pwsh
         run: ./scripts/fetch_skia_windows.ps1
+      - name: Prebuilt native library
+        uses: actions/download-artifact@v4
+        with:
+          name: zant-native-prebuilt-windows
+          path: target/prebuilt/windows
       - name: Package
         shell: pwsh
+        env:
+          ZANT_NATIVE_PREBUILT: ${{ github.workspace }}\target\prebuilt\windows
         run: ./scripts/release/package.ps1 -Version "${{ github.ref_type == 'tag' && github.ref_name || format('dev-{0}', github.sha) }}" -Out dist
       - uses: actions/upload-artifact@v4
         with:

@@ -1,0 +1,22 @@
+# Native sources compiled by crates/zant-sys/build.rs on Windows.
+#
+# User-facing description: WP-6.6 in docs/rust-port/plan.md.
+#
+# This file is canonical: build.rs compiles the `.cpp` / `.c` entries in this
+# order, and the prebuilt native library's `source_hash` (metadata.txt) is the
+# SHA-256 over this whole list, headers included, in this order. Adding,
+# removing, reordering or editing any entry invalidates a prebuilt archive, and
+# build.rs falls back to compiling from source (with a warning).
+#
+# Keep the list identical to the sources build.rs compiled before WP-6.6
+# (`skia_bridge.cpp`, `skia_bridge_win.cpp`, `pdf_win.cpp`, `window.c`) and to
+# scripts/win/build_bridge.ps1's source list.
+src/renderer/skia/skia_bridge.cpp
+src/renderer/skia/skia_bridge.h
+src/renderer/skia/skia_bridge_internal.h
+src/renderer/skia/skia_bridge_win.cpp
+src/renderer/skia/zant_skia_resources.h
+src/platform/windows/pdf_win.cpp
+src/platform/windows/window.c
+src/platform/platform.h
+src/platform/pdf.h
