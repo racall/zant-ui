@@ -116,7 +116,7 @@
 
 | WP | 内容 | 负责人 | 状态 | 备注 |
 |---|---|---|---|---|
-| 6.1 | tools/zant → zant-cli | — | 待领取 | |
+| 6.1 | tools/zant → zant-cli | wp-6-1 | 完成（worktree wp-6.1，待并入） | 分支 `rust/wp-6.1`。7 个 Zig test 同名移植 + 28 个新增（29 单元 + 6 集成 = 35 全过）；`create`/`sync` 的 stdout/stderr、`app.config.json`、`Info.plist` 与 Zig 版实测逐字节一致；`run --watch` 手工冒烟通过（改 src 后重编译并重启）；`zant build` 走到 `macos.sh developer-id`（DMG 本轮沙箱里 hdiutil 被卡住，见报告）。TSX 编译接口以 `ensure_rust_project` 的明确报错占位，见「M6 接口约定」 |
 | 6.2 | zant-build（tsx_app、图标、manifest、pdfium） | — | 待领取 | |
 | 6.3 | scaffold/template-ts | — | 待领取 | |
 | 6.4 | package 脚本产物路径 | — | 待领取 | |
@@ -174,6 +174,15 @@
 4. ~~**select 弹层 option hover/click 仍 TODO**~~：已修复。pointer move/down 用 `components::select::option_at` 命中，`paint_select_popup` 在 tree paint 之后调用 `paint_popup`。
 5. ~~**rich text 选择高亮未绘制**~~：已修复。`core/tree/paint.rs` 用 `renderer::rich_text::Layout::range_rects` + 运行时 selection color。
 6. ~~**input 编辑助手三处重复**~~：已修复。`core/tree/input_ops.rs` 与 `runtime/ime.rs` 改为调用 / 再导出 `components::input`。
+
+## M6 接口约定（WP-6.1 提出，供 6.2 / 6.3 / 6.5 使用）
+
+1. **TSX 应用编译**（给 6.2）：`zant run/compile/package` 现在只调用 `cargo build`；检测到 TS 项目（`src/App.tsx`）时直接报错，说明期望的接口是应用 `build.rs` 调用
+   `zant_build::tsx_app()`（把 `src/**/*.tsx` 生成到 `OUT_DIR`、`src/main.rs` `include!`）。6.2 落地后请删除 `crates/zant-cli/src/main.rs` 的 `ensure_rust_project` 里该分支。
+2. **模板目录常量**（给 6.3）：`crates/zant-cli/src/scaffold.rs` 的 `TEMPLATE_ZIG` / `TEMPLATE_TS` 是唯一模板路径；6.3 删除纯 Zig 模板后，把 `TEMPLATE_ZIG` 指向新的 Rust 模板（或让 `create` 默认 `ts` 并删掉 Zig 分支），并同步 `create` 的 `.gitignore` 文案与「下一步」提示。
+3. **应用产物名**（给 6.3）：CLI 用 `cargo metadata` 读应用 `Cargo.toml` 的 bin 名，产物 `target/{debug,release}/<bin>`；模板的 `[package] name` 请与期望的二进制名一致。
+4. **安装根目录**（给 6.5）：`find_root` 认定发布包布局是 `<home>/bin/zant` + `<home>/zant-ui/Cargo.toml`（zant-ui 为 Rust workspace）；`zant create` 写入的依赖路径是相对项目目录的 path 依赖。
+5. **打包脚本路径**（给 6.4）：CLI 仍调用 `tools/zant/package/{macos.sh,windows.ps1}` 的既有 action，ZANT_* 变量名不变；输出目录从 `zig-out/` 改为 `target/`（`ZANT_OUT=target/dist`、`ZANT_DIR=target/<标题>`、临时文件 `target/build/`），脚本里若还写死 `zig-out` 需要同步。
 
 ## 待决问题
 

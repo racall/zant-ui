@@ -1,0 +1,28 @@
+{
+  "title": "Clip",
+  "bundle_id": "io.x.clip",
+  "version": "1.2.3",
+  "single_instance": true,
+  "window": {
+    "style": "hidden-titlebar",
+    "width": 680,
+    "height": 700,
+    "min_width": 600,
+    "min_height": 620,
+    "background": "#112233",
+    "resizable": false,
+    "always_on_top": true,
+    "movable_by_background": true,
+    "center": false,
+    "titlebar_height": 40,
+    "hidden_at_login": true
+  },
+  "macos": {
+    "sandbox": true,
+    "signing_identity": "Developer ID Application: Me (ABCDE12345)",
+    "titlebar_height": 52
+  },
+  "windows": {
+    "titlebar_height": 32
+  }
+}
