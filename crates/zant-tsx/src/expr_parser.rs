@@ -11,16 +11,10 @@ use crate::ast::{
 use crate::jsx_parser;
 use crate::lexer::{self, Kind, TemplateEnd};
 use crate::parser::{Parser, bytes_lossy};
+use crate::string_method_names::SUPPORTED;
 use crate::type_parser;
 
 pub type Error = crate::error::ParseError;
-
-/// String methods supported by the TSX subset (Zig `string_method_names.zig`).
-/// Only used by the regex-argument diagnostic; moves to its own module with
-/// WP-4.4 in the Rust port.
-pub const STRING_METHOD_NAMES: &str = "includes, startsWith, endsWith, indexOf, lastIndexOf, trim, trimStart, trimEnd, \
-     toLowerCase, toUpperCase, slice, substring, padStart, padEnd, repeat, replace, replaceAll, split, charAt, at, \
-     charCodeAt, codePointAt";
 
 pub fn parse_expr(p: &mut Parser) -> Result<Box<Expr>, Error> {
     parse_assign(p)
@@ -430,7 +424,7 @@ pub fn parse_args(p: &mut Parser, callee: &Expr) -> Result<Vec<Box<Expr>>, Error
                     return Err(p.fail(
                         p.cur.start,
                         format!(
-                            "unknown string method `{member_name}` for a regex argument; supported (string patterns only): {STRING_METHOD_NAMES}"
+                            "unknown string method `{member_name}` for a regex argument; supported (string patterns only): {SUPPORTED}"
                         ),
                     ));
                 }
