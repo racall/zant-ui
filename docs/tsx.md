@@ -399,8 +399,11 @@ React Native 写法（`backgroundColor`、`paddingHorizontal`、`flex`、`positi
   被导入的组件和类型要 `export`；跨文件共享的嵌套对象类型和联合类型要写成具名的 `interface` / `type`）。参数是一个 props 对象
   （`function TodoRow(props: Props)` 或解构 `function TodoRow({ todo, onToggle }: Props)`），回调属性的类型写成
   函数类型（`onToggle: (id: number) => void`）。子组件可以有自己的状态（见下面「第三阶段」）。
-- **字节**：`Uint8Array` 对应 `tsx::Bytes`（`Rc<[u8]>`；剪贴板图片、文件内容），`.length` 是字节数，
-  `data[i]` 是 `u8`。Rust 原生模块用 `&[u8]` / `Vec<u8>` 收发字节。
+- **字节**：`Uint8Array` 在生成的 Rust 里是 `&'static [u8]`（编译期嵌入的静态字节切片：资源导入、
+  `const icon: Uint8Array = [137, 80, …]` 字面量、tray 图标、Rust 原生模块返回的 `&'static [u8]`）。
+  字节字面量必须是纯整数字面量数组（会 const-promote 成 `&[..]`）；运行时字节（剪贴板图片
+  `clipboard.image()`）是 `tsx::Bytes`（`Rc<[u8]>`），`setImage` 之类接收 `impl AsRef<[u8]>` 的 API
+  两者都能传，但不能把 `tsx::Bytes` 赋给 `Uint8Array` 注解（`&'static` 不能借用 `Rc`）。
 - **数字混用**：TS 里都是 `number`。两个整数类型混用时取能放下双方的那个（`u8` 和 `usize` → `usize`，
   `u16` 和 `i32` → `i32`），放不下（`u64` 和 `i32`）时得到 `number`；整数往更宽的整数赋值会自动转换，往更窄的报错。
 - **展开属性**：`<Button {...look} onClick={save} />`、`<Card {...card} title="新标题" />`，按源码顺序合并，
