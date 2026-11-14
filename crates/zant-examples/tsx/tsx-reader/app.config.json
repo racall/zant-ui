@@ -1,0 +1,18 @@
+{
+  "title": "TSX Reader",
+  "bundle_id": "dev.zant.tsx-reader",
+  "version": "0.1.0",
+  "single_instance": false,
+  "window": {
+    "style": "native",
+    "width": 1120,
+    "height": 760,
+    "min_width": 640,
+    "min_height": 620,
+    "background": "#f5f5f5",
+    "resizable": true,
+    "always_on_top": false,
+    "movable_by_background": false,
+    "center": true
+  }
+}

@@ -14,6 +14,11 @@ members = [
     "crates/zant-examples/tsx/tsx-counter",
     "crates/zant-examples/tsx/tsx-demo",
     "crates/zant-examples/tsx/tsx-bench",
+    # The remaining TSX example apps of the M5 acceptance (WP-5.10b).
+    "crates/zant-examples/tsx/tsx-gallery",
+    "crates/zant-examples/tsx/tsx-todos",
+    "crates/zant-examples/tsx/tsx-reader",
+    "crates/zant-examples/tsx/tsx-notes",
 ]
 
 [workspace.package]

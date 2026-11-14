@@ -15,6 +15,13 @@
 | 已完成 | M0 全部（0.1 macOS/0.2/0.3/0.4/0.5）、M1 全部（1.1a–d/1.2/1.3/1.4/1.5，parity 6/6 0 像素）、M2（2.1–2.11 除 2.11 已并入全绿）、M3（3.1–3.9、3.11，zant-pdf parity 6/6）、M4（4.1–4.4）、M5（5.1–5.8、5.9 黄金/端到端，见下方偏差表）、M6（6.1、6.3、6.4、6.5）、M7（7.3 文档）、WP-5.10（TSX 示例 + 编译基准）、**WP-COVERAGE（desktop 黄金 + 测试覆盖对照，见下方「WP-COVERAGE」）** |
 | 进行中 | —（WP-5.10 / WP-COVERAGE 已完成；待 lead 合并各 worktree 并做全量验收） |
 | 下一步 | lead 合并 → 全量验收（macOS + Windows）→ 补齐 WP-5.9 / WP-5.10 报告的框架 API 与编译器 Bug（`ui` 的 markdown/pdf_viewer 导出、跨文件窗口组件、生成代码 lint 兜底）→ 更新 `docs/tsx.md` 的 `Uint8Array` 说明（`&'static [u8]` vs 运行时 `tsx::Bytes`）→ TSX 帧对比基准（TSX 生成代码 ≤1.2× 手写 Rust）→ M8 切换（需用户确认） |
+
+| Rust 测试 | `cargo test --workspace` 全绿（`rust/wp-5.10b`）：**75 个测试二进制 / 1060 passed / 0 failed**，含 WP-5.10 新增 6 条（3 × 示例 native `system`、3 条 `zant-tsx-bench`）与 WP-5.10b 新增 1 条（notes native `plural`）；工作区全量以 lead 合并后为准 |
+| Zig 测试 | `zig build test` 仍全绿（Zig 版未改行为，只加了 `ZANT_WINDOW_SIZE` 钩子与 `ZANT_STATIC_DATA` 原生补丁） |
+| 质量门 | `cargo fmt --all -- --check` 干净；`cargo clippy --workspace --all-targets -- -D warnings` 0 告警 |
+| 已完成 | M0 全部（0.1 macOS/0.2/0.3/0.4/0.5）、M1 全部（1.1a–d/1.2/1.3/1.4/1.5，parity 6/6 0 像素）、M2（2.1–2.11 除 2.11 已并入全绿）、M3（3.1–3.9、3.11，zant-pdf parity 6/6）、M4（4.1–4.4）、M5（5.1–5.8、5.9 黄金/端到端，见下方偏差表）、M6（6.1、6.3、6.4、6.5）、M7（7.3 文档）、WP-5.10（TSX 示例 + 编译基准）、**WP-5.10b（M5 剩余的 gallery/todos/reader/notes 示例 + Zig 对照 + 真实 GUI 场景，见下方「WP-5.10b 完成情况」）** |
+| 进行中 | —（WP-5.10 / WP-5.10b 已完成；待 lead 合并各 worktree 并做全量验收） |
+| 下一步 | lead 合并 → 全量验收（macOS + Windows）→ 补齐 WP-5.9 / WP-5.10 / WP-5.10b 报告的框架 API 与编译器 bug（`ui` 的 markdown/pdf_viewer 导出、跨文件窗口组件、`Uint8Array` 映射、生成代码 lint 兜底、子组件回调 prop 被 `ui::effect` 吞掉、`Option<Node>` 裸元素、富文本末尾字面量）→ TSX 帧对比基准（TSX 生成代码 ≤1.2× 手写 Rust）→ M8 切换（需用户确认） |
 | Windows | 测试机 192.168.31.24 全程不可达；所有 Windows 验收待补 |
 
 ## 环境与基线（M0 记录）
@@ -187,7 +194,7 @@ Release、窗口模式（Metal），`ZANT_FRAME_STATS=1 ZANT_STREAM_CHARS=6 ZANT
 | 5.7 | src/tsx*.zig → zant/src/tsx/ | — | 待领取 | |
 | 5.8 | native 模块（trait 化） | — | 待领取 | ★★★ |
 | 5.9 | 黄金用例换成 .rs | wp-5-9 | 完成（worktree wp-5.9，待并入） | 分支 `rust/wp-5.9`。`crates/zant-tsx/testdata/*.rs` 30 个黄金（32 个 Zig 用例里 `desktop`/`entities` 无法生成，见下方「WP-5.9 偏差表」）；`tests/golden.rs`（黄金逐字节比对 + 全部黄金批量写入一个 workspace 外临时 crate，`cargo check` 通过 **29/30**，`widgets` 因框架 API 缺失排除）；`tests/tsx_end_to_end.rs`（`compile_project_root_with` 驱动 `tests/fixtures/{hooks,crossfile,rust_types,media}`，Zig 模块移植为 `.rs` 镜像）；逐服务器审阅 30 个黄金时修掉 30+ 处编译器/联调 bug（见「WP-5.9 提出」）。 |
-| 5.10 | examples/tsx 入口、bench-tsx | wp-5-10 | 完成（worktree wp-5.10，待并入） | 分支 `rust/wp-5.10`。3 个 TSX 示例应用改成 Cargo workspace 成员（`crates/zant-examples/tsx/{tsx-counter,tsx-demo,tsx-bench}`，template 形态：`build.rs` → `zant_build::try_tsx_app()`）；`scripts/tsx/examples-check.sh` 无窗口跑 3 个应用并断言 PNG 非空白 / 尺寸 / 确定性 / `ZANT_LAYOUT_FILE` keyed 控件；`zant-tsx-bench` 编译基准（32 个语料，Rust 编译 30 个，best-of-3 平均 **1.08×** Zig in-process，闸门 ≤1.25× PASS）。详见下方「WP-5.10 完成情况」与「WP-5.10 提出」。 |
+| 5.10 | examples/tsx 入口、bench-tsx | wp-5-10 | 完成（worktree wp-5.10，待并入） | 分支 `rust/wp-5.10`。3 个 TSX 示例应用改成 Cargo workspace 成员（`crates/zant-examples/tsx/{tsx-counter,tsx-demo,tsx-bench}`，template 形态：`build.rs` → `zant_build::try_tsx_app()`）；`scripts/tsx/examples-check.sh` 无窗口跑 3 个应用并断言 PNG 非空白 / 尺寸 / 确定性 / `ZANT_LAYOUT_FILE` keyed 控件；`zant-tsx-bench` 编译基准（32 个语料，Rust 编译 30 个，best-of-3 平均 **1.08×** Zig in-process，闸门 ≤1.25× PASS）。详见下方「WP-5.10 完成情况」与「WP-5.10 提出」。**WP-5.10b**（wp-5-10b，分支 `rust/wp-5.10b`）：plan M5 验收剩下的 4 个 TSX 应用（gallery/todos/reader/notes）+ notes 的 `format.zig` → native 模块 + `examples-check.sh` 的 Zig 基线对照 + `tsx-counter.steps` 真实 GUI 场景，详见下方「WP-5.10b 完成情况」/「WP-5.10b 提出」。 |
 
 ### M6 CLI / 构建 / 脚手架 / 发布
 
@@ -363,6 +370,107 @@ Rust 编译器仍拒绝（见「WP-5.10 提出」4），基准输出 `failed: 2 
 
 **待验证**：Windows（测试机不可达）——3 个示例应用与编译基准未在 Windows 上跑；应用不带平台专属资源，
 `app.config.json` 走通用字段。
+
+### WP-5.10b 完成情况（wp-5-10b，2026-11-14）
+
+分支 `rust/wp-5.10b`。**plan M5 验收剩下的 TSX 示例应用 + 真实 GUI 场景**：把
+`examples/tsx/{gallery,todos,reader}.tsx` 与 `examples/tsx/notes/` 的 Rust 入口补成 4 个 Cargo
+workspace 成员（与 WP-5.10 的 3 个同形态），扩展 `scripts/tsx/examples-check.sh`，并用
+`scripts/mac/ui-scenario.swift` + `scripts/mac/tsx-counter.steps` 真实驱动 `zant-tsx-counter`。
+
+**新增文件**
+
+- `crates/zant-examples/tsx/{tsx-gallery,tsx-todos,tsx-reader,tsx-notes}/`（4 个 workspace 成员，
+  `scaffold/template-ts` 形态：`build.rs` → `zant_build::try_tsx_app()`、`src/main.rs` →
+  `zant::tsx::app::run`、`app.config.json`、`assets/icons/`（模板小图标，`tsx_build` 的“没有图标”
+  警告用）、`.gitignore` 忽略 `src/app_config.rs` / `native/spec.rs`）：
+  - `tsx-gallery/`（bin `zant-tsx-gallery`）：`examples/tsx/gallery.tsx` 移植，窗口 960×760；
+  - `tsx-todos/`（bin `zant-tsx-todos`）：`examples/tsx/todos.tsx` 移植，窗口 560×640；
+  - `tsx-reader/`（bin `zant-tsx-reader`）：`examples/tsx/reader.tsx` 移植，窗口 1120×760；
+    PDF 用仓库已有的小夹具 `tests/fixtures/widgets.pdf`（**不复制**，保持 Zig 的路径，从仓库根运行）；
+  - `tsx-notes/`（bin `zant-tsx-notes`）：`examples/tsx/notes/App.tsx` + `NoteCard.tsx` 移植，
+    窗口 520×560，外加 `native/{format.ts,format.rs,lib.rs}`（见下）。
+  TSX 源码逐字复制 Zig 版，只改文件头注释；`tsx-gallery` 的 Modal `footer` 因编译器 bug 改成
+  `footer={open ? (<Row>…) : null}`（「WP-5.10b 提出」2，渲染树与 Zig 版相同）。
+- `tsx-notes/native/format.ts` + `tsx-notes/native/format.rs`：`examples/tsx/notes/format.zig` 的
+  `plural` 移植成 native 模块（`impl FormatSpec for Native`，`native/spec.rs` 的 trait 由
+  `zant_build` 生成；`src/App.tsx` 从 `"./format.zig"` 改为 `"native/format"`）。Zig 版导入一个
+  普通 Zig 模块，Rust 编译器拒绝 Zig 导入（`imports.rs` 的明确报错），native 模块是同一个函数在
+  Rust 应用里的位置；TSX 调用编译成直接 Rust 调用，编译期由 trait 检查签名。附 1 条单测
+  `plural_appends_s_only_for_multiple`。
+- 接线：根 `Cargo.toml` +4 个 members；`crates/zant-examples/tsx/README.md`；`docs/tsx.md`
+  「示例」段；本文件。
+
+**`scripts/tsx/examples-check.sh`**：构建 7 个应用 → 逐个无窗口跑 `ZANT_SNAPSHOT` + `ZANT_LAYOUT_FILE`
+（原有断言：PNG 非空白（有效签名、≥16 种颜色、主色 <99%）、尺寸 = 逻辑尺寸 × 1–4 显示倍率、两次运行 PNG 与 layout
+字节一致、期望 keyed 控件盒非空、标题与 UI 字面量在二进制 rodata）→ 新增 **Zig 基线对照**段：
+`ZANT_ZIG_BIN=<zig-out-baseline/bin>` 时用同一环境跑 Zig 版 4 个应用，断言 `ZANT_LAYOUT_FILE`
+**逐字节相同**、像素差 ≤0.1%（`scripts/parity/imgdiff.py`）。然后仍是编译基准（≤1.25× Zig）。
+
+**截图证据**（浅色；`examples-check.sh` 每次重新生成；`target/wp-5.10b-evidence/` 留档）
+
+| 示例 | 窗口 | 快照 | keyed 控件 | Zig 基线 |
+|---|---|---|---|---|
+| `zant-tsx-gallery` | 960×760 | 1920×1520，21 个 key | page/inputs/name/agree/notify/plan/select/size/display/progress/advance/open/refresh/saved/nesting/rich/save-icon/copy-icon/clickable-card/inner/tabs | layout 相同，21/2 918 400 px（0.0007%，即下方 bug 3 丢的句点） |
+| `zant-tsx-todos` | 560×640 | 1120×1280，6 个 key | new/add/filter/empty/left/clear | layout 相同，0 px |
+| `zant-tsx-reader` | 1120×760 | 2240×1520，7 个 key（另有 PDF/Markdown 动态 key） | append/finish/reply-scroll/reply/path/open/reader | layout 相同，0 px（PDF 夹具真实渲染） |
+| `zant-tsx-notes` | 520×560 | 1040×1120，4 个 key | new/add/search/empty | layout 相同，0 px |
+
+深色（`ZANT_THEME=dark`）同样对照：4 个应用 layout 全等，todos/reader/notes 0 px，gallery 同为 21 px。
+4 个应用两次运行 PNG+layout 字节一致。
+
+**真实 GUI 场景（`scripts/mac/tsx-counter.steps`，macOS 登录会话）**
+
+```bash
+swiftc -O scripts/mac/ui-scenario.swift -o /tmp/ui-scenario
+target/debug/zant-tsx-counter &                     # ZANT_LAYOUT_FILE=/tmp/scenario/layout.txt
+CONTENT_HEIGHT=480 /tmp/ui-scenario zant-tsx-counter /tmp/scenario/layout.txt /tmp/scenario scripts/mac/tsx-counter.steps
+```
+
+结果：`scenario ok`（0 problem；12 个 `shot` 步骤都执行，但 `screencapture` 因权限失败、不计 failure）。本机**无 Screen Recording 权限**，
+`screencapture -l` 输出 `could not create image from window`，所以截图不作为证据；状态变化全部用
+`ZANT_LAYOUT_FILE` 盒 + 外部 `CGWindowList` 窗口框断言（`ui-scenario` 的 `layout` 步骤在
+`scripts/mac/tsx-counter.steps` 的副本里插到每个动作后）：
+
+| 步骤 | 断言（layout 盒，逻辑 px） |
+|---|---|
+| 初始 | title 115×24、count 115、inc 45.8、note 在；窗口框 520×512（内容 520×480 + 标题栏 32） |
+| `hover inc` | 盒不变（hover 只是 paint；步骤成功 = 无 missing key） |
+| `click inc 2` | `count` 115→**114**（文字 `Count: 0 (×2 = 0)` → `Count: 2 (×2 = 4)`） |
+| `click step` | `inc` 45.8→**47.9**，reset/step 右移（按钮文字 `+1`→`+5`） |
+| `click inc 2` | `count` →**129**，**出现 `many` key**（`That is a lot of clicks.`） |
+| `click large` | `title` 115×24→**160×33**，后续控件整体下移 9 px（28 号标题） |
+| `click notify` | **`note` key 消失**（`Notifications are on` 条件块） |
+| `click name` + `type 编译 ✓` | `title` 115→**256**（`Hello, Zant编译 ✓!` 变宽），高 24→39（CJK 回退字体行高）——键盘输入生效 |
+| `key backspace` ×2 | `title` 256→**224**（删掉 `✓` 与空格） |
+| `click reset` | `count` →**115**（回到初始），`many` 消失 |
+| `resize 420 420` | 盒布局不变（counter 左对齐，无 grow）；窗口框 520×512→**420×452**（内容 420×420 + 标题栏 32）→ resize 生效 |
+| `key tab` | 盒不变（焦点环只是 paint） |
+
+另外对 `zant-tsx-notes` / `zant-tsx-gallery` 做了同样的真实点击（证据在 `target/wp-5.10b-evidence/`）：
+notes 输入 + Add 后出现 `summary`（**native `plural` 在运行期被调用**）与 `open-1/title-1/pin-1/delete-1`，
+点 `open-1` 出现 `detail-1`；gallery 点 `open` 出现 `dialog/dialog-card/cancel/ok`，点 `ok`/`cancel` 关闭
+（Modal footer workaround 可用）。notes 的 `pin-1`/`delete-1` 不生效——子组件回调 prop 的编译器 bug，
+见「WP-5.10b 提出」1（Zig 基线同步骤能删除）。
+
+**验收命令**（全部通过，见分支报告；Windows 测试机不可达，未验证）
+
+- `./scripts/cargo.sh test --workspace`、`clippy --workspace --all-targets -- -D warnings`、
+  `fmt --all -- --check`；
+- `./scripts/tsx/build-template-check.sh`；
+- `./scripts/tsx/examples-check.sh`（7 个应用 + Zig 4 应用对照 + 编译基准 1.09× PASS）；
+- `ZANT_ZIG_BIN=<main checkout>/zig-out-baseline/bin ./scripts/parity/compare.sh zant-demo`（6/6，0 px）。
+
+**偏差 / 剩余**
+
+1. `format.zig` 按本 WP 要求改成 native 模块（Zig 版是 `./format.zig` 普通模块导入）；TSX 的调用
+   点因此从 `"./format.zig"` 变成 `"native/format"`，其余逐字相同。
+2. gallery 的 Modal `footer` 用三元包了一层（编译器 bug 2 的 workaround），渲染树与 Zig 版相同。
+3. 本 WP 新报的编译器 bug（见下）使 notes 的 pin/delete 在 Rust 里不生效；初始快照与 Zig 逐字节
+   layout/0 px 一致，交互行为待 `zant-tsx` 修复后复验。
+4. 截图证据仍是应用 `ZANT_SNAPSHOT`（渲染 PNG），不是系统截图；`ui-scenario` 的 `shot` 步骤因权限
+   失败但不影响步骤断言（本机实测）。
+5. TSX **帧**对比基准（TSX 生成代码 vs 手写 Rust ≤1.2×，plan M5）仍未移植（承 WP-5.10 偏差 6）。
 
 ## 已并入 feat/rust-port 的内容（按时间）
 
@@ -881,6 +989,56 @@ workspace 成员没有 `zant sync` 时，`zant_build::try_tsx_app()` 在打印
 `cargo:warning=zant-build: src/app_config.rs is missing … run zant sync` 之后应用 `build.rs` 才写出该文件，
 `cargo clean` 后第一次构建会看到一次警告，之后正常。要彻底消掉可以让 `try_tsx_app` 的指令打印延后到
 调用方写文件之后（接口变化），或示例 build.rs 先写文件再调用 `zant_build::tsx_app()`。
+
+### WP-5.10b 提出（2026-11-14）
+
+**1. 子组件的回调 prop 在事件里被 `ui::effect` 吞掉（`crates/zant-tsx/src/codegen/components.rs` + `crates/zant/src/ui/context.rs`）**
+codegen 把子组件里的 `onX(arg)` 生成成 `ui::effect(ui::Action::new(move |cx| (callback)(cx, arg)))`
+（`components.rs:426`、`:440`，注释假设“>= 1 frame later”运行）。但 `ui::effect` 只是把 action
+push 进当前 `BuildCx.effects`，而下一帧 `Runtime::rebuild()` 先 `build_tree()` → `ui::begin_frame()`
+（`crates/zant/src/ui/context.rs:198-205`，**`build.effects.clear()`**）再 `run_effects()`：
+事件处理里排队的 effect 在运行前就被清掉，回调永远不执行。Zig 版 codegen 是直接调用
+（`tools/tsx/codegen/components.zig:tryCall`：`{callee}.func({callee}.ctx, …)` / `.call(.{ … })`）。
+
+Repro（Rust vs Zig 基线同一步骤）：
+
+```
+# 终端里先起应用：ZANT_LAYOUT_FILE=/tmp/layout.txt target/debug/zant-tsx-notes
+# 步骤文件：click new → type Milk → click add → click delete-1 → (等 0.5s)
+# Zig 基线：zig-out-baseline/bin/zant-tsx-notes 同样步骤
+Rust： 01-after-delete.layout 仍有 summary + open-1/title-1/pin-1/delete-1（笔记没删）
+Zig ： 01-after-delete.layout 回到 empty 状态（笔记删除成功）
+```
+`examples/tsx/notes` 的 `NoteCard` 的 `onPin`/`onDelete` 都中招；`open`（本地状态）正常。
+建议修法：子组件的事件方法生成成 `fn _on_click3(&mut self, cx: &mut ui::ActionCx<'_>)`，直接
+`(self.props.onDelete)(cx, arg)`（事件 action 本来就有 cx）；或 `begin_frame` 不丢事件期入队的
+effect（先 drain 再清）；直接调用更贴近 Zig。
+
+**2. `Option<Node>` 属性收到裸元素时生成 `Node` 而不是 `Some(..)`（`crates/zant-tsx/src/codegen/jsx_values.rs:322-324`）**
+`node()` 先 `if value.ty == Type::Node { return Ok(value.code); }`，然后才走 `optional` 的
+`types::coerce(.., OptionalNode)`（会生成 `Some(..)`），所以 `<Modal footer={<Row>…</Row>}>` 报：
+
+```
+error[E0308]: mismatched types
+  --> $OUT_DIR/App.rs:257: expected `Option<Node>`, found `Node`
+```
+
+Repro：`examples/tsx/gallery.tsx` 的 Modal `footer={<Row …>…</Row>}`（`tools/tsx/testdata/components.tsx`
+只有 `footer={enabled ? … : null}` / `footer={null}`，语料没覆盖裸元素）。Workaround：示例改成
+`footer={open ? (<Row>…) : null}`。修法：`optional && value.ty == Type::Node` 时也走
+`coerce(.., OptionalNode)`。
+
+**3. 富文本里紧跟表达式子节点的字面量文本被丢掉**
+`examples/tsx/gallery.tsx` 的 `<Text key="rich">…<Link>link</Link>{docs > 0 && ` (opened …)`}.</Text>`
+生成的 `spans` 里最后一个 span 是条件表达式，**末尾的 `.` 没有生成**（`crates/zant-tsx/src/codegen/rich_text.rs`
+的 JSX 文本子节点处理）。Rust/Zig gallery 快照恰好差 21 个像素（逻辑坐标约 (448–450, 532–534)，
+0.0007%，仍在 0.1% 闸门内）：Zig 显示 `inline link.`，Rust 显示 `inline link`。修好后 gallery 与 Zig
+应为 0 px。
+
+**4. `screencapture -l` 本机不可用（非仓库 bug，记录环境）**
+`ui-scenario` 的 `shot` 全部输出 `could not create image from window`（终端无 Screen Recording
+权限），所以本 WP 用 `ZANT_LAYOUT_FILE` + `CGWindowList` 窗口框做交互断言；`scenario` 的 click/hover/
+type/key/resize 步骤本身全部成功（`scenario ok`）。
 
 ### WP-5.6 提出（2026-11-14）
 

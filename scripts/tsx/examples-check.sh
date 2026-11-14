@@ -1,6 +1,6 @@
 #!/bin/sh
 # End-to-end check of the TSX example apps and the TSX compile benchmark
-# (WP-5.10).
+# (WP-5.10; the remaining M5 acceptance apps in WP-5.10b).
 #
 #   scripts/tsx/examples-check.sh
 #
@@ -26,6 +26,16 @@
 #      binary (`app_config::title` and the TSX string literals are `&str`
 #      rodata). That is the text half of the screenshot assertion; the layout
 #      dump cannot see text either.
+#
+# The apps are the M5 acceptance set: counter, demo and the benchmark workload
+# (WP-5.10) plus gallery, todos, reader and notes (WP-5.10b, the Zig
+# `examples/tsx/{gallery,todos,reader,notes}` apps). When `ZANT_ZIG_BIN` names a
+# `zig-out-baseline/bin` directory (the variable and layout
+# `scripts/parity/compare.sh` uses), the same four apps are also checked
+# against their Zig baseline binaries: identical `ZANT_LAYOUT_FILE` dumps and
+# ≤ 0.1 % differing pixels (`scripts/parity/imgdiff.py`), the M5 acceptance
+# "zant-tsx-* 与 Zig 版对照一致". The section is skipped without the variable
+# (the Zig tree is frozen and not built here).
 #
 # Then it runs the compile benchmark. `crates/zant-examples`' `zant-tsx-bench`
 # compiles every `tools/tsx/testdata/*.tsx` through `zant_tsx::compile` in
@@ -65,7 +75,8 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 cd "$repo"
 echo "== building the TSX example apps (workspace members)"
-CARGO_HOME="$cargo_home" "$cargo" build -p zant-tsx-counter -p zant-tsx-demo -p zant-tsx-bench-app
+CARGO_HOME="$cargo_home" "$cargo" build -p zant-tsx-counter -p zant-tsx-demo -p zant-tsx-bench-app \
+    -p zant-tsx-gallery -p zant-tsx-todos -p zant-tsx-reader -p zant-tsx-notes
 bin_dir="$target_dir/debug"
 
 # PNG checks (2., 3.) of one snapshot. `scripts/parity/imgdiff.py` is the
@@ -193,6 +204,46 @@ run_app demo zant-tsx-demo "TSX App" "Hello from TSX" 480 360 \
     label-Apples label-Pears minus-Apples plus-Apples total toggle-panel copy note
 run_app bench zant-tsx-bench-app "TSX Bench" "Settings" 640 900 \
     changes row-0 sw-0 row-39 sw-39
+run_app gallery zant-tsx-gallery "TSX Gallery" "TSX component gallery" 960 760 \
+    page inputs name agree notify plan select size display progress advance open \
+    refresh saved nesting rich save-icon copy-icon clickable-card inner tabs
+run_app todos zant-tsx-todos "TSX Todos" "Nothing to do yet." 560 640 \
+    new add filter empty left clear
+# The reader opens the repo's small PDF fixture (`tests/fixtures/widgets.pdf`,
+# the path the Zig example uses), so the script runs from the repo root.
+run_app reader zant-tsx-reader "TSX Reader" "Document reader" 1120 760 \
+    append finish reply-scroll reply path open reader
+run_app notes zant-tsx-notes "TSX Notes" "No notes yet." 520 560 \
+    new add search empty
+
+# 7. parity with the Zig baseline binaries (`ZANT_ZIG_BIN`), when available.
+if [ -n "${ZANT_ZIG_BIN:-}" ] && [ -x "$ZANT_ZIG_BIN/zant-tsx-gallery" ]; then
+    echo "== Zig-baseline parity of the TSX example apps"
+    for app in gallery todos reader notes; do
+        shot="$work/zig-$app.png"
+        layout="$work/zig-$app.layout"
+        log="$work/zig-$app.log"
+        if ! ZANT_THEME=light ZANT_NO_MOTION=1 ZANT_SNAPSHOT="$shot" \
+            ZANT_SNAPSHOT_EXIT=1 ZANT_LAYOUT_FILE="$layout" \
+            timeout 120 "$ZANT_ZIG_BIN/zant-tsx-$app" >"$log" 2>&1; then
+            echo "the Zig baseline zant-tsx-$app did not run to a snapshot" >&2
+            tail -20 "$log" >&2 || true
+            exit 1
+        fi
+        if ! cmp -s "$work/$app-1.layout" "$layout"; then
+            echo "$app: the layout dump differs from the Zig baseline" >&2
+            diff -u "$layout" "$work/$app-1.layout" >&2 || true
+            exit 1
+        fi
+        if ! "$python" "$repo/scripts/parity/imgdiff.py" "$work/$app-1.png" "$shot" >"$work/zig-$app.diff" 2>&1; then
+            cat "$work/zig-$app.diff" >&2
+            exit 1
+        fi
+        echo "   $app: layout identical to Zig, $(tail -1 "$work/zig-$app.diff")"
+    done
+else
+    echo "   note: ZANT_ZIG_BIN is not set (or has no Zig TSX baseline); skipping the Zig parity comparison" >&2
+fi
 
 echo
 echo "== TSX compile benchmark: zant-tsx-bench against the Zig baseline"

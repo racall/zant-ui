@@ -1,0 +1,18 @@
+{
+  "title": "TSX Notes",
+  "bundle_id": "dev.zant.tsx-notes",
+  "version": "0.1.0",
+  "single_instance": false,
+  "window": {
+    "style": "native",
+    "width": 520,
+    "height": 560,
+    "min_width": 420,
+    "min_height": 420,
+    "background": "#f5f5f5",
+    "resizable": true,
+    "always_on_top": false,
+    "movable_by_background": false,
+    "center": true
+  }
+}
