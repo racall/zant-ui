@@ -909,9 +909,7 @@ function g(a: number, b?: string) {}"#,
     fn parser_accepts_the_repository_tsx_corpus() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let mut paths: Vec<std::path::PathBuf> = Vec::new();
-        let testdata = root.join("tools/tsx/testdata");
-        // The Zig sources (and their fixtures) are deleted at M8; the test is
-        // a no-op once they are gone.
+        let testdata = root.join("crates/zant-tsx/testdata/tsx");
         if !testdata.is_dir() {
             return;
         }
@@ -922,7 +920,7 @@ function g(a: number, b?: string) {}"#,
             }
         }
         assert_eq!(32, paths.len());
-        let examples = root.join("examples/tsx");
+        let examples = root.join("crates/zant-examples/tsx/corpus");
         if examples.is_dir() {
             collect_tsx(&examples, &mut paths);
             assert!(paths.len() > 32);

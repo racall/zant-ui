@@ -369,7 +369,7 @@ fn dmg_background(c: &mut Ctx, mac: &mut Macos) -> std::io::Result<String> {
     }
     let path = if value == "default" {
         crate::zant_root()
-            .join("tools/zant/package/dmg-background.png")
+            .join("scripts/package/dmg-background.png")
             .to_string_lossy()
             .into_owned()
     } else {

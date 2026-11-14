@@ -44,7 +44,7 @@ use zant::ui::{
 const PLANS: [&str; 3] = ["Starter", "Pro", "Enterprise"];
 const THEMES: [&str; 3] = ["Light", "System", "Dark"];
 /// Zig `ImageOptions.src` of the demo's image.
-const IMAGE_SRC: &str = "examples/assets/zant.png";
+const IMAGE_SRC: &str = "crates/zant-examples/assets/zant.png";
 /// Zig `State.name_buf` length.
 const NAME_CAPACITY: usize = 96;
 
@@ -520,15 +520,13 @@ mod tests {
         renderer.end();
     }
 
-    /// `State::init` normally decodes `examples/assets/zant.png` relative to
+    /// `State::init` normally decodes `crates/zant-examples/assets/zant.png`
+    /// relative to
     /// the working directory (the repository root when the demo runs). Unit
     /// tests run from the crate directory, so they decode the same file from
     /// the manifest path explicitly.
     fn demo_state() -> State {
-        let path = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../examples/assets/zant.png"
-        );
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/assets/zant.png");
         let image = std::fs::read(path)
             .ok()
             .and_then(|bytes| Image::from_encoded(&bytes))

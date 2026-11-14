@@ -23,9 +23,6 @@ macOS 用 **PDFKit**，Windows 用 **PDFium**（`pdfium.dll`）；界面是原�
 多个实例的内部 key 自动用 id 隔离，`key` 只设置最外层节点。不接受子节点。
 需要程序控制 Viewer（如跳页、保存批注）时改由应用持有 `zant::pdf::Viewer` 并调用 `pdf::view`。
 
-> **迁移中**：框架侧的 `ui::pdf_viewer` / TSX 标签生成（待决问题见 `docs/rust-port/status.md`）；
-> 当前在 `crates/zant-examples/src/components_app/pdf_viewer.rs` 内实现同名组件，示例已用它通过 parity。
-
 ## 选项（`pdf::ViewOptions`）
 
 | 选项 | 说明 |
@@ -87,7 +84,7 @@ viewer.save_annotated("out.pdf")?;                  // 写入标准 PDF 批注�
 
 ## 实现
 
-- 原生桥（`src/platform/pdf.h`，M8 起移入 `crates/zant-sys/native/`）：文档句柄、页面尺寸、分块渲染到内存像素、
+- 原生桥（`crates/zant-sys/native/platform/pdf.h`）：文档句柄、页面尺寸、分块渲染到内存像素、
   字形几何、链接、目录、带批注导出。所有调用线程安全。
 - 渲染：后台线程按“每页一张低清底图 + 当前缩放下可见区域的清晰分块（1024 设备像素）”渲染，
   内存缓存 384 MB（LRU）；缩放过程中先显示最近的已渲染图，清晰块完成后替换。

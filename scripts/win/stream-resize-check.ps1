@@ -13,7 +13,7 @@ param(
     [int]$History = 30
 )
 if (!$WorkDir) { $WorkDir = (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) }
-if (!$Exe) { $Exe = (Join-Path $WorkDir "zig-out\bin\zant-md-stream.exe") }
+if (!$Exe) { $Exe = (Join-Path $WorkDir "target\debug\zant-md-stream.exe") }
 if (!$Out) { $Out = (Join-Path $env:TEMP "zant-checks\stream-resize") }
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "ui-auto.ps1")

@@ -54,7 +54,8 @@ for reasons on the Zig side plus one unported widget:
   `ZANT_DARK` / `ZANT_THEME` are ignored by both, exactly like Zig.
 
 Both scripts take the Zig baseline directory from `ZANT_ZIG_BIN` (default
-`<repo>/zig-out-baseline/bin`).
+`<repo>/zig-out-baseline/bin`, a migration-era artifact; the Zig toolchain was
+removed at M8, see `docs/rust-port/m8-cutover.md`).
 
 ## Deviations from the Zig sources
 

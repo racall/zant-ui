@@ -1005,7 +1005,7 @@ const KNOWN_MISSING: &[&str] = &[
 
 #[test]
 fn the_repository_corpus_compiles_without_the_missing_modules() {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tools/tsx/testdata");
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("testdata/tsx");
     let mut failures: Vec<String> = Vec::new();
     let mut compiled = 0usize;
     let mut skipped = 0usize;

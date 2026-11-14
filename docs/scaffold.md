@@ -26,7 +26,6 @@ Windows 需要 Visual Studio 2022+ / Build Tools 的 C++ 工作负载（链接 S
 用源码开发 Zant UI 本身时，在源码目录运行 `scripts/fetch_skia.sh`（Windows
 `scripts/fetch_skia_windows.ps1`，并需要 Visual Studio 的 C++ 工作负载）和
 `cargo build -p zant-cli`，再把 `target/debug/zant` 放到 PATH（沙箱里用 `./scripts/cargo.sh`）。
-Rust 版与 Zig 版并存期间，`scaffold/template/`（纯 Zig 模板）还保留作行为对照，M8 删除。
 
 macOS 与 Windows 用法相同。`zant create` 只问两端通用的设置，生成的项目在两端都能直接 `zant run`。平台专属的设置和文件
 由 `zant run` / `build` / `package` 在当前平台按需补充：macOS 上补 `app.config.json` 的
@@ -45,9 +44,6 @@ zant create my-app
 2. 窗口风格：原生标题栏 / 隐藏标题栏 / 无边框
 3. 应用标识（反向域名，如 `com.xx.test`）：macOS 的 Bundle ID，也是 Windows 上
    `zant::core::paths::app_data_dir` 的数据目录名（`%APPDATA%\<id>`）
-
-> **迁移中**：过渡期 `zant create` 仍接受 `--lang ts|zig`（默认 `ts`）；纯 Zig 模板只保留到 M8，
-> 最终只生成 TSX 项目。
 
 应用标识同时符合苹果与微软的规范，不合规就不能创建项目：
 
@@ -134,10 +130,6 @@ zant update           # 安装版：更新到最新发布包；源码版：git p
 `zant run` / `zant compile` 默认 Debug 构建（Windows 上是控制台程序）；`--release`、`zant package` 与 `zant build`
 用 release profile（`zant package` / `zant build` 在 Windows 上为 GUI 子系统），产物在
 `target/{debug,release}/<应用名>`。
-
-> **迁移中（WP-6.2）**：TSX 应用的编译接口 `zant_build::tsx_app()` 合入前，`zant run` / `zant compile` /
-> `zant package` 会以「接口尚未实现」报错停止；`zant create` / `zant sync` 已可用。
-> 进度与合入顺序见 [`docs/rust-port/status.md`](rust-port/status.md)。
 
 ## 热更新
 

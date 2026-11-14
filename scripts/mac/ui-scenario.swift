@@ -3,7 +3,7 @@
 // (the macOS counterpart of scripts/win/ui-auto.ps1; docs/development.md).
 //
 //   swiftc -O scripts/mac/ui-scenario.swift -o /tmp/ui-scenario
-//   ZANT_LAYOUT_FILE=/tmp/layout.txt ./zig-out/bin/zant-tsx-counter &
+//   ZANT_LAYOUT_FILE=/tmp/layout.txt ./target/debug/zant-tsx-counter &
 //   CONTENT_HEIGHT=480 /tmp/ui-scenario zant-tsx-counter /tmp/layout.txt /tmp/shots steps.txt
 //
 // Needs Accessibility (events, resize) and Screen Recording (screenshots)

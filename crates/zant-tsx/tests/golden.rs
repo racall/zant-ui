@@ -1,4 +1,4 @@
-//! WP-5.9 golden cases: the 31 Rust outputs of `tools/tsx/testdata/*.tsx`, and
+//! WP-5.9 golden cases: the 31 Rust outputs of the TSX corpus, and
 //! the first real proof that the generated code compiles against the runtime.
 //!
 //! - [`golden_outputs_match_the_compiler`] regenerates every `.rs` with
@@ -17,7 +17,8 @@
 //! One corpus file cannot be a golden yet; the test documents why instead of
 //! silently skipping it:
 //! - `entities`: `zant::Str` is UTF-8 and cannot hold an unpaired surrogate
-//!   (`tools/tsx/testdata/entities.tsx` has `&#xD800;`; the Zig compiler used
+//!   (`crates/zant-tsx/testdata/tsx/entities.tsx` has `&#xD800;`; the Zig
+//!   compiler used
 //!   WTF-8 bytes); replacing it with U+FFFD would change the data, so the
 //!   compiler reports a diagnostic and the golden stays excluded.
 
@@ -26,8 +27,8 @@ use std::process::Command;
 
 use zant_tsx::compile;
 
-/// The 32 `tools/tsx/testdata/*.tsx` names in the Zig golden order
-/// (`tools/tsx/golden_test.zig`); the generated ones are below.
+/// The 32 corpus names in the old Zig golden order; the generated ones are
+/// below. The corpus moved from `tools/tsx/testdata/` at M8.
 const CORPUS: &[&str] = &[
     "counter",
     "layout",
@@ -63,9 +64,8 @@ const CORPUS: &[&str] = &[
     "list_scroll",
 ];
 
-/// `tools/tsx/testdata/<name>.tsx` that has no `.rs` golden: it is rejected
-/// by the Rust compiler for the reason in the module doc (`entities`: lone
-/// surrogate in a `zant::Str`).
+/// Corpus files that have no `.rs` golden: rejected by the Rust compiler for
+/// the reason in the module doc (`entities`: lone surrogate in a `zant::Str`).
 const NO_GOLDEN: &[&str] = &["entities"];
 
 /// Goldens excluded from the cargo compile check (framework APIs missing).
@@ -76,7 +76,7 @@ fn manifest_dir() -> PathBuf {
 }
 
 fn corpus_dir() -> PathBuf {
-    manifest_dir().join("../../tools/tsx/testdata")
+    manifest_dir().join("testdata/tsx")
 }
 
 fn testdata_dir() -> PathBuf {

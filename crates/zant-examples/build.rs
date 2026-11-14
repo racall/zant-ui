@@ -65,12 +65,12 @@ struct Case {
 const CASES: &[Case] = &[
     Case {
         name: "counter",
-        input: "examples/tsx/counter.tsx",
+        input: "crates/zant-examples/tsx/corpus/counter.tsx",
         views: &[],
     },
     Case {
         name: "todos",
-        input: "examples/tsx/todos.tsx",
+        input: "crates/zant-examples/tsx/corpus/todos.tsx",
         views: &[],
     },
     Case {
@@ -85,17 +85,17 @@ const CASES: &[Case] = &[
     },
     Case {
         name: "local",
-        input: "examples/tsx/local_bench.tsx",
+        input: "crates/zant-examples/tsx/corpus/local_bench.tsx",
         views: &[],
     },
     Case {
         name: "markdown",
-        input: "examples/tsx/markdown_bench.tsx",
+        input: "crates/zant-examples/tsx/corpus/markdown_bench.tsx",
         views: &["MarkdownView.tsx"],
     },
     Case {
         name: "settings",
-        input: "examples/tsx/settings.tsx",
+        input: "crates/zant-examples/tsx/corpus/settings.tsx",
         views: &[],
     },
 ];

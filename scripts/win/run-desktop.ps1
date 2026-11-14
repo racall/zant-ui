@@ -3,7 +3,7 @@
 # visible window, no real display scale, unreliable GPU present), so this goes
 # through a one-shot scheduled task (/IT) instead.
 #
-#   powershell -File scripts/win/run-desktop.ps1 -Exe zig-out\bin\zant-demo.exe
+#   powershell -File scripts/win/run-desktop.ps1 -Exe target\debug\zant-demo.exe
 #   ... -Env "ZANT_SNAPSHOT=$env:TEMP\a.png;ZANT_SNAPSHOT_EXIT=1" -Wait 15
 #
 # -Wait N waits up to N seconds for the program to exit and prints its log.

@@ -13,8 +13,9 @@
 #
 #   ZANT_ZIG_BIN=/path/to/zig-out-baseline/bin crates/zant-examples/parity/components_parity.sh
 #
-# Zig baseline binaries default to <repo>/zig-out-baseline/bin; Rust binaries
-# to <repo>/target/release (same as scripts/parity/capture.sh).
+# Zig baseline binaries default to <repo>/zig-out-baseline/bin (a migration-era
+# artifact; the Zig tree was removed at M8, docs/rust-port/m8-cutover.md); Rust
+# binaries to <repo>/target/release (same as scripts/parity/capture.sh).
 set -euo pipefail
 root="$(cd "$(dirname "$0")/../../.." && pwd)"
 out="${ZANT_PARITY_OUT:-$root/target/parity/zant-components-filtered}"

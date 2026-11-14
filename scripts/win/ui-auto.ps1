@@ -4,7 +4,7 @@
 # coordinates; stderr is captured so `[event] ...` lines can be checked.
 #
 #   . $PSScriptRoot\ui-auto.ps1
-#   $app = Start-ZantApp "<repo>\zig-out\bin\zant-components.exe" -Out $out
+#   $app = Start-ZantApp "<repo>\target\debug\zant-components.exe" -Out $out
 #   Click-Key $app "btn-primary"
 #   Assert-Event $app "click primary" "primary button"
 #   Stop-ZantApp $app

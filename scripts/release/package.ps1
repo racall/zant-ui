@@ -14,7 +14,7 @@
 #   zant-ui/                             the committed Rust workspace (git archive):
 #                                        Cargo.toml, Cargo.lock, rust-toolchain.toml,
 #                                        crates/ and the native sources it compiles
-#                                        (src/renderer/skia, src/platform)
+#                                        (crates/zant-sys/native/skia, platform)
 #   zant-ui/third_party/                 Skia libraries, headers, PDFium and fonts
 #   zant-ui/third_party/zant-native-prebuilt/
 #                                        zant_native.lib + metadata.txt (WP-6.6):
@@ -23,8 +23,8 @@
 #                                        compiling if it is stale
 #   zant-ui/.zant-version
 #
-# The Skia bridge is linked into the app statically in the Rust port, so there
-# is no zant_skia.dll / zant-skia-prebuilt/ in the archive (Zig: both existed).
+# The Skia bridge is linked into the app statically, so there is no
+# zant_skia.dll or zant-skia-prebuilt/ in the archive.
 param(
     [Parameter(Mandatory = $true)][string]$Version,
     [string]$Out = 'dist',

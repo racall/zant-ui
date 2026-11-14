@@ -19,10 +19,6 @@ my-app/
 
 `zant create` 生成的项目自带一个示例模块 `native/system`（平台、CPU 核数、Rust 版本）。
 
-> **迁移中（WP-5.8）**：从 `.ts` 规范生成 Rust 类型与 trait 的代码生成还在合入；模板里的
-> `native/system.rs` 已经按最终形态写成 `impl`（生成物就位前先用手写类型），生成的静态调用路径
-> 不需要运行时注册表。进度见 [`docs/rust-port/status.md`](rust-port/status.md)。
-
 ## 规范：`native/<名字>.ts`
 
 ```ts

@@ -1,13 +1,12 @@
-//! The TSX compile benchmark (WP-5.10): compile every `tools/tsx/testdata/*.tsx`
-//! through the in-process compiler, `warmup + iterations` times each, and report
-//! the same statistics line as the Zig frame benchmark
-//! (`examples/tsx/bench_harness.zig`).
+//! The TSX compile benchmark (WP-5.10): compile every corpus `.tsx`
+//! (`crates/zant-tsx/testdata/tsx/`) through the in-process compiler,
+//! `warmup + iterations` times each, and report the same statistics line as the
+//! old Zig frame benchmark.
 //!
-//! The shipped Zig binary (`zig build bench-tsx` → `zant-tsx-bench`) measures
-//! *frames* (clicks, typing, …), not compile time, so the Zig side of this
-//! comparison is `tools/tsx/compile_bench.zig` (the same `tools/tsx/compile.zig`
-//! the Zig compiler uses, in process). `scripts/tsx/examples-check.sh` builds
-//! both, runs both on the same corpus and gates the ratio at 1.25×.
+//! During the migration the comparison baseline was the Zig compiler in process
+//! (`tools/tsx/compile_bench.zig`, gate ≤1.25×); the Zig toolchain and sources
+//! were removed at M8, so `scripts/tsx/examples-check.sh` now runs the Rust side
+//! alone and checks the corpus count.
 //!
 //!   cargo run --release -p zant-examples --bin zant-tsx-bench
 //!   ./target/release/zant-tsx-bench <corpus dir> [warmup] [iterations]
@@ -25,7 +24,7 @@ use std::time::Instant;
 /// workspace's `Cargo.toml` (`crates/zant-examples/../..`), overridable with
 /// the first positional argument.
 fn default_corpus() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tools/tsx/testdata")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../zant-tsx/testdata/tsx")
 }
 
 /// Per-file compile samples in milliseconds; the report line of
@@ -172,7 +171,7 @@ mod tests {
         let files = corpus_files(&default_corpus());
         assert!(
             files.len() >= 32,
-            "expected the 32 tools/tsx/testdata files, found {}",
+            "expected the 32 crates/zant-tsx/testdata/tsx files, found {}",
             files.len()
         );
         let names: Vec<String> = files

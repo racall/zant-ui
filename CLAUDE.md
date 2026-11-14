@@ -37,7 +37,6 @@
   算法参照 EmbedPDF），单页预览 `PdfPreview`；macOS PDFKit，Windows PDFium。
 - TSX：`crates/zant-tsx/`（TSX → Rust，编译期完成，无 JS 运行时），规范与进度见 `docs/tsx.md`；
   应用 `build.rs` 调 `zant_build::tsx_app()`，生成到 `OUT_DIR/app.rs` 由 `src/main.rs` `include!`。
-  示例与编译器应用层（WP-5.6 / 5.8–5.10、WP-6.2）在**迁移中**，以 `docs/rust-port/status.md` 为准。
 - TS 应用的 Rust 代码放 `native/`（`<名字>.ts` 规范 + `.rs` 实现，编译期由 trait 检查），见 `docs/tsx-native.md`。
 - 原始指针输入：`PointerArea`（拖动捕获、多击、滚轮、按键）；尺寸变化 `onResize`；
   内存图片 `zant::image::Image` + `<Image image>`；后台线程唤醒 UI `ui::post_wake()`。
@@ -45,7 +44,7 @@
   （KaTeX 算法，mhchem 为 KaTeX contrib/mhchem 的逐字节对齐移植）。详见 `docs/markdown.md`；
   示例 `zant-markdown` / `zant-math` / `zant-md-stream`（流式帧率基准，可读真实 SSE）。
 - 性能基准：`zant-bench`（打开长对话、流式、打字、光标、悬停、缩放、滚动；`ZANT_BENCH_LIST=1`
-  用虚拟列表；**迁移中**：WP-2.11）。优化前先建基线（Release），两边平台对比。
+  用虚拟列表；`scripts/parity/bench.sh` 对照记录基线）。优化前先建基线（Release），两边平台对比。
 - 桌面集成：`zant::desktop`（`docs/desktop.md`）：多窗口 / `.panel` 快捷面板、托盘与状态栏、全局快捷键、
   剪贴板监听与图片、单实例、深色模式；TSX hooks `useTray` / `useHotkey` / `useClipboardChange` /
   `useReopen` / `useWake` / `useAppExit` / `createWindow`。

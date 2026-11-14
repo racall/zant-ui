@@ -1,9 +1,9 @@
 # Prebuilt native library (WP-6.6)
 
 `crates/zant-sys/build.rs` normally compiles Zant UI's native layer — the Skia
-bridge (`src/renderer/skia/*.cpp`, `skia_bridge_mac.mm` / `skia_bridge_win.cpp`),
-the AppKit / Win32 window backend and the PDF backend — on every clean app
-build. That is the slow part of a first build (tens of seconds to a few
+bridge (`crates/zant-sys/native/skia/*.cpp`, `skia_bridge_mac.mm` /
+`skia_bridge_win.cpp`), the AppKit / Win32 window backend and the PDF backend —
+on every clean app build. That is the slow part of a first build (tens of seconds to a few
 minutes), and on Windows it needs Visual Studio's C++ tools.
 
 WP-6.6 removes that cost from installed apps: the release workflow builds the
@@ -12,10 +12,10 @@ it inside `zant-ui/third_party/zant-native-prebuilt/`. When `build.rs` finds
 that archive it links it instead of compiling; Skia itself was already
 prebuilt, so nothing gets compiled in C++ at all.
 
-The design mirrors the Zig `third_party/zant-skia-prebuilt` +
-`hasPrebuiltBridge()` mechanism (`build.zig`), with one difference the Rust
-port needs: the archive only contains the objects build.rs would compile, so
-the build must prove it matches the tree — not just check that a file exists.
+The design follows the old Zig `third_party/zant-skia-prebuilt` /
+`hasPrebuiltBridge()` mechanism, with one difference: the archive only
+contains the objects build.rs would compile, so the build must prove it
+matches the tree — not just check that a file exists.
 
 ## Contents
 
@@ -99,7 +99,7 @@ back to compiling and that the cold path still works.
   `third_party/zant-native-prebuilt/`; `third_party/` itself is gitignored.
 - C++ ABI: the archive is linked into the same executable as the Rust code, so
   on Windows it must be built with MSVC's STL and `/MD` like the Skia archives
-  it links against (`build_bridge.ps1` uses the same flags).
-- macOS: the manifest/flags match `build.zig`'s native compile; the archive is
-  built with the same source list, so a prebuilt and a from-source build are
-  the same program.
+  it links against (the flags live in `crates/zant-sys/build.rs`).
+- macOS: the flags match `crates/zant-sys/build.rs`'s native compile; the
+  archive is built with the same source list, so a prebuilt and a
+  from-source build are the same program.

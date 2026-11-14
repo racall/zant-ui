@@ -2,7 +2,7 @@
 //! build. zant reads the build settings (build.config.json by default, see
 //! docs/build.md), asks in a terminal for what is missing (and offers to save
 //! the answers), compiles, builds and signs the app, then hands the platform
-//! steps to the scripts in `tools/zant/package/` (macos.sh: DMG, notarization,
+//! steps to the scripts in `scripts/package/` (macos.sh: DMG, notarization,
 //! App Store; windows.ps1: signing, installer, MSIX, Microsoft Store) through
 //! ZANT_* environment variables.
 //!
@@ -622,7 +622,7 @@ fn script_path() -> String {
         "macos.sh"
     };
     crate::zant_root()
-        .join("tools/zant/package")
+        .join("scripts/package")
         .join(name)
         .to_string_lossy()
         .into_owned()

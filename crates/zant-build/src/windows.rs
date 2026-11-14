@@ -47,7 +47,8 @@ fn write_resources(app_root: &Path, out_dir: &Path) -> Result<Option<(PathBuf, P
     }
     // The manifest: per-monitor DPI v2, UTF-8 code page, Common Controls v6.
     // Copied next to the .rc so `rc.exe` finds it in the include directory.
-    let manifest = crate::zant_ui_root().join("src/platform/windows/zant.manifest");
+    let manifest =
+        crate::zant_ui_root().join("crates/zant-sys/native/platform/windows/zant.manifest");
     match std::fs::read(&manifest) {
         Ok(data) => {
             crate::write_file(&out_dir.join("zant.manifest"), &data)?;

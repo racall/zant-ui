@@ -6,9 +6,8 @@
 # Running the workflow by hand (Actions → release → Run workflow) only builds
 # the archives as artifacts.
 #
-# The Rust port builds the CLI with cargo, so no Zig is downloaded any more:
-# the runners' rustup installs the toolchain pinned in rust-toolchain.toml
-# (channel and components), and the scripts still fetch the pinned Skia first.
+# The runners' rustup installs the toolchain pinned in rust-toolchain.toml
+# (channel and components), and the scripts fetch the pinned Skia first.
 #
 # WP-6.6: the `prebuilt` job compiles the native layer (C++/ObjC/C bridge,
 # platform and PDF code) once per platform and uploads the static archive with

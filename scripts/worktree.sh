@@ -5,8 +5,8 @@
 #   scripts/worktree.sh new wp-3.1   # .worktrees/wp-3.1 on branch rust/wp-3.1
 #   scripts/worktree.sh rm  wp-3.1   # drop the worktree (branch stays)
 #
-# The worktree gets symlinks to the shared cargo / zig caches and third_party
-# so builds do not re-download or re-extract anything.
+# The worktree gets symlinks to the shared cargo cache and third_party so
+# builds do not re-download or re-extract anything.
 set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cmd="${1:?usage: worktree.sh new|rm <name>}"
@@ -16,7 +16,6 @@ case "$cmd" in
   new)
     git -C "$root" worktree add -q -b "rust/$name" "$wt" feat/rust-port
     ln -sfn "$root/.cargo-home" "$wt/.cargo-home"
-    ln -sfn "$root/.zig-global-cache" "$wt/.zig-global-cache"
     ln -sfn "$root/third_party" "$wt/third_party"
     echo "$wt"
     ;;

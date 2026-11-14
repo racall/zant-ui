@@ -3,7 +3,7 @@
 # caption buttons (maximize / restore), close confirmation. Screenshots and
 # a result log go to %TEMP%\zant-checks\smoke. Must run in the logged-in session:
 #   powershell -File scripts/win/run-desktop.ps1 -Exe powershell.exe `
-#     -Arguments "-NoProfile -ExecutionPolicy Bypass -File <repo>\scripts\win\smoke-stillmd.ps1 -App <stillmd>\zig-out\bin\app.exe" -Wait 120
+#     -Arguments "-NoProfile -ExecutionPolicy Bypass -File <repo>\scripts\win\smoke-stillmd.ps1 -App <stillmd>\target\debug\app.exe" -Wait 120
 param([Parameter(Mandatory = $true)][string]$App)
 $ErrorActionPreference = "Stop"
 # a failed check must not stop the remaining ones

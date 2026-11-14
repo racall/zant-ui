@@ -9,8 +9,8 @@
 #
 #   ZANT_ZIG_BIN=/path/to/zig-out-baseline/bin crates/zant-examples/parity/gallery_image_parity.sh
 #
-# Zig baseline binaries default to <repo>/zig-out-baseline/bin; Rust binaries
-# to <repo>/target/release.
+# Zig baseline binaries default to <repo>/zig-out-baseline/bin (a migration-era
+# artifact; the Zig tree was removed at M8); Rust binaries to <repo>/target/release.
 set -euo pipefail
 root="$(cd "$(dirname "$0")/../../.." && pwd)"
 zig_bin_dir="${ZANT_ZIG_BIN:-$root/zig-out-baseline/bin}"
@@ -25,7 +25,7 @@ timeout_s="${ZANT_CAPTURE_TIMEOUT:-90}"
 for bin in "$zig" "$rust"; do
     if [ ! -x "$bin" ]; then
         echo "gallery_image_parity.sh: missing binary: $bin" >&2
-        echo "  zig:  zig build -Doptimize=ReleaseFast --prefix zig-out-baseline" >&2
+        echo "  zig:  point ZANT_ZIG_BIN at a saved zig-out-baseline (migration-era artifact)" >&2
         echo "  rust: cargo build --release -p zant-examples --bin zant-gallery" >&2
         exit 2
     fi

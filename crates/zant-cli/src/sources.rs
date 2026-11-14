@@ -6,15 +6,15 @@
 use std::hash::{Hash, Hasher};
 use std::path::Path;
 
-/// Config files that affect the app build (Zig: app.config.json, build.zig,
-/// build.zig.zon).
+/// Config files that affect the app build (`app.config.json`, `build.rs`,
+/// `Cargo.toml`).
 pub const WATCH_FILES: [&str; 3] = ["app.config.json", "build.rs", "Cargo.toml"];
 
 /// Directories hashed recursively.
 pub const WATCH_DIRS: [&str; 2] = ["src", "native"];
 
-/// Source files under the watched directories (Zig: .zig / .tsx / .ts).
-pub const SOURCE_EXTENSIONS: [&str; 4] = ["rs", "tsx", "ts", "zig"];
+/// Source files under the watched directories (`.rs` / `.tsx` / `.ts`).
+pub const SOURCE_EXTENSIONS: [&str; 3] = ["rs", "tsx", "ts"];
 
 fn hash_file_stamp(hasher: &mut impl Hasher, path: &Path) {
     let Ok(metadata) = std::fs::metadata(path) else {

@@ -3,9 +3,18 @@
 # the Zig baseline, and prints the per-scenario frame-time comparison with the
 # release gate of docs/rust-port/plan.md §4 / §7.3:
 #
-#   * every scenario's average frame time must stay within 1.25x of Zig;
+#   * every scenario's average frame time must stay within 1.25x of the
+#     baseline;
 #   * steady-state frames must stay far below 16.7 ms (60 fps with margin;
 #     the `open` scenario is a cold first frame and only gets the ratio gate).
+#
+# The baseline is the Zig port while a `zig-out-baseline/bin/zant-bench`
+# exists (or `ZANT_ZIG_BIN` points at one). The Zig tree and toolchain were
+# removed at M8, so without a baseline the Rust side runs alone and every
+# scenario is compared with the Zig numbers recorded in
+# docs/rust-port/status.md (RECORDED_* below; the tables are labelled
+# "recorded"). `ZANT_BENCH_BASELINE=recorded` forces that mode even when a
+# baseline binary is present.
 #
 #   scripts/parity/bench.sh [scenario...]
 #
@@ -112,20 +121,50 @@ if [ "$build_rust" = 1 ]; then
     "$root/scripts/cargo.sh" build --release -p zant-examples --bin zant-bench
 fi
 
-missing=0
-if [ ! -x "$zig_bin/zant-bench" ]; then
-    echo "bench.sh: missing Zig baseline: ${zig_bin:-<not found>}/zant-bench" >&2
-    echo "  build it in the main Zig checkout: zig build -Doptimize=ReleaseFast --prefix zig-out-baseline" >&2
-    echo "  or point ZANT_ZIG_BIN at a directory that contains it (e.g. /path/to/XyUI/zig-out-baseline/bin)" >&2
-    missing=1
-fi
 if [ ! -x "$rust_bin/zant-bench" ]; then
     echo "bench.sh: missing Rust binary: $rust_bin/zant-bench" >&2
     echo "  build it: cargo build --release -p zant-examples --bin zant-bench" >&2
-    missing=1
-fi
-if [ "$missing" = 1 ]; then
     exit 2
+fi
+
+# ---- the Zig baseline, or the numbers recorded before M8 -------------------
+# One row per scenario: name, frames, avg, p95, max (ms), copied from
+# docs/rust-port/status.md 性能基线（WP-2.11）(the last Zig measurements
+# before the Zig tree was deleted at M8).
+recorded_default() {
+    cat <<'ROWS'
+open       5 120.88 143.71 143.71
+stream   186   2.24   2.82   3.21
+typing   200   0.84   1.04   1.12
+caret    100   0.67   0.79   0.83
+hover    300   0.35   0.43   0.54
+resize   120   4.69   4.69  82.64
+scroll   300   0.75   1.01   1.29
+ROWS
+}
+recorded_list() {
+    cat <<'ROWS'
+open       5  20.98  41.48  41.48
+stream   186   0.85   1.09   4.50
+typing   200   0.69   0.90   1.06
+caret    100   0.64   0.77   0.88
+hover    300   0.35   0.39   0.55
+resize   120   0.72   0.93   3.98
+scroll   300   0.62   0.74   0.90
+ROWS
+}
+
+recorded=0
+if [ "${ZANT_BENCH_BASELINE:-}" = recorded ] ||
+    [ ! -x "${zig_bin:-/nonexistent}/zant-bench" ]; then
+    recorded=1
+    if [ "${ZANT_BENCH_BASELINE:-}" = recorded ]; then
+        echo "bench.sh: ZANT_BENCH_BASELINE=recorded: comparing with the numbers recorded in docs/rust-port/status.md" >&2
+    else
+        echo "bench.sh: no Zig baseline at ${zig_bin:-<not found>} (the Zig tree was removed at M8);" >&2
+        echo "          the Rust side runs alone and is compared with the Zig numbers recorded in" >&2
+        echo "          docs/rust-port/status.md (set ZANT_ZIG_BIN=<dir> for a direct comparison)" >&2
+    fi
 fi
 
 # ---- run both implementations for each mode --------------------------------
@@ -153,14 +192,28 @@ for mode in "${modes[@]}"; do
     # goes first so shared-machine load (other worktrees building) hits both
     # sides evenly; the comparison below keeps the best round per scenario.
     # bash 3.2 (macOS): an empty array under `set -u` needs the +"${a[@]}" form.
+    if [ "$recorded" = 1 ]; then
+        # The comparison parses zig-<mode>-<round>.log for rounds 1..N; the
+        # recorded baseline is one round of rows and missing rounds are skipped.
+        if [ "$mode" = default ]; then recorded_rows=recorded_default; else recorded_rows=recorded_list; fi
+        rm -f "$outdir"/zig-"$mode"-*.log
+        {
+            "$recorded_rows" | while read -r name frames avg p95 max; do
+                printf '%s frames=%4d avg=%7.2f ms p95=%7.2f ms max=%7.2f ms\n' \
+                    "$name" "$frames" "$avg" "$p95" "$max"
+            done
+        } >"$outdir/zig-$mode-1.log"
+    fi
     round=1
     while [ "$round" -le "$rounds" ]; do
         zig_log="$outdir/zig-$mode-$round.log"
         rust_log="$outdir/rust-$mode-$round.log"
         if [ $((round % 2)) -eq 1 ]; then
-            env "${env_line[@]+"${env_line[@]}"}" "${env_args[@]+"${env_args[@]}"}" \
-                "$zig_bin/zant-bench" "${scenarios[@]+"${scenarios[@]}"}" \
-                >/dev/null 2>"$zig_log" || true
+            if [ "$recorded" = 0 ]; then
+                env "${env_line[@]+"${env_line[@]}"}" "${env_args[@]+"${env_args[@]}"}" \
+                    "$zig_bin/zant-bench" "${scenarios[@]+"${scenarios[@]}"}" \
+                    >/dev/null 2>"$zig_log" || true
+            fi
             env "${env_line[@]+"${env_line[@]}"}" "${env_args[@]+"${env_args[@]}"}" \
                 "$rust_bin/zant-bench" "${scenarios[@]+"${scenarios[@]}"}" \
                 >/dev/null 2>"$rust_log" || true
@@ -168,14 +221,16 @@ for mode in "${modes[@]}"; do
             env "${env_line[@]+"${env_line[@]}"}" "${env_args[@]+"${env_args[@]}"}" \
                 "$rust_bin/zant-bench" "${scenarios[@]+"${scenarios[@]}"}" \
                 >/dev/null 2>"$rust_log" || true
-            env "${env_line[@]+"${env_line[@]}"}" "${env_args[@]+"${env_args[@]}"}" \
-                "$zig_bin/zant-bench" "${scenarios[@]+"${scenarios[@]}"}" \
-                >/dev/null 2>"$zig_log" || true
+            if [ "$recorded" = 0 ]; then
+                env "${env_line[@]+"${env_line[@]}"}" "${env_args[@]+"${env_args[@]}"}" \
+                    "$zig_bin/zant-bench" "${scenarios[@]+"${scenarios[@]}"}" \
+                    >/dev/null 2>"$zig_log" || true
+            fi
         fi
         round=$((round + 1))
     done
 
-    if ! "$python" - "$outdir" "$mode" "$rounds" "${scenarios[@]+"${scenarios[@]}"}" <<'PY'
+    if ! ZANT_BENCH_RECORDED="$recorded" "$python" - "$outdir" "$mode" "$rounds" "${scenarios[@]+"${scenarios[@]}"}" <<'PY'
 import os
 import re
 import sys
@@ -234,8 +289,11 @@ max_ratio = float(os.environ.get("ZANT_BENCH_MAX_RATIO", "1.25"))
 max_ms = float(os.environ.get("ZANT_BENCH_MAX_MS", "16.7"))
 
 label = "default (full rebuild)" if mode == "default" else "virtual list (ZANT_BENCH_LIST=1)"
+baseline = "recorded Zig baseline (docs/rust-port/status.md)"
+if os.environ.get("ZANT_BENCH_RECORDED") == "0":
+    baseline = "live Zig baseline"
 print()
-print(f"== zant-bench: {label}; best of {rounds} round(s) per side ==")
+print(f"== zant-bench: {label}; best of {rounds} round(s) per side; baseline: {baseline} ==")
 print(
     f"{'scenario':<9} {'frames':>6}  {'avg rust':>9} {'avg zig':>8} {'ratio':>6}"
     f"  {'p95 rust':>8} {'max rust':>8} {'p95 zig':>8} {'max zig':>8}  verdict"

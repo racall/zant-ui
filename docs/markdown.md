@@ -85,10 +85,6 @@ ui::markdown(ui::child_id(parent_id, "reply"), zant::components::widgets::Markdo
 卸载自动释放缓存。多个实例使用不同 id，内部节点 key 自动隔离；外观尺寸可用 `ui::styled` 覆盖。
 TSX 对应 `<Markdown source={reply} streaming={busy} />` 或 `<Markdown>{reply}</Markdown>`。
 
-> **迁移中**：`ui::markdown` 的 `ui::*` re-export 与 TSX 标签生成预计随组件收尾合入；
-> 当前实现位于 `crates/zant/src/components/widgets.rs`（`zant::components::widgets::markdown`），
-> 已由 `zant-markdown` / `zant-components` 示例验证。
-
 ## 渲染选项（Streamdown props）
 
 - `theme`：`markdown::theme::light()` / `.dark()`，代码配色为 github-light / github-dark。

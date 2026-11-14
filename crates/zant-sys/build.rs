@@ -1,9 +1,8 @@
 //! Compiles the native Skia / platform / PDF sources and links Skia.
 //!
-//! This mirrors the native parts of the Zig `build.zig` (macOS branch,
-//! `build.zig:12-53`) and `scripts/win/build_bridge.ps1` (Windows branch).
-//! The native sources stay in place (`src/renderer/skia/`,
-//! `src/platform/`) during the port; M8 moves them under this crate.
+//! The native sources live under this crate (`native/skia/`,
+//! `native/platform/`); during the port they mirrored the native parts of the
+//! old Zig `build.zig` and `scripts/win/build_bridge.ps1`.
 //!
 //! macOS  : C++ `skia_bridge.cpp`, ObjC++ `skia_bridge_mac.mm` + `pdf.mm`,
 //!          ObjC `window.m`; static Skia archives in
@@ -13,7 +12,7 @@
 //!          `third_party/skia-win/skia-binaries/`; system DLL import libs.
 //!          The DLL build (`zant_skia.dll`) is gone: the native code is linked
 //!          into the executable, with ICU data and STIX Two Math embedded by
-//!          `include_bytes!` (ZANT_STATIC_DATA, see skia_bridge_win.cpp).
+//!          `include_bytes!` (see skia_bridge_win.cpp).
 //!
 //! WP-6.6 (plan.md §5): release archives ship this compile's result as
 //! `third_party/zant-native-prebuilt/libzant_native.a` (macOS) or
@@ -217,11 +216,13 @@ fn write_prebuilt(root: &Path, target_os: &str, out_dir: &Path, objects: &[PathB
 // Compile path
 // ---------------------------------------------------------------------------
 
-/// Include paths shared by both platforms (the Zig build passes the repo root
-/// so native sources can include "src/platform/platform.h" style paths).
+/// Include paths shared by both platforms: the native sources include
+/// "platform/platform.h" / "skia/skia_bridge.h" style paths from
+/// `crates/zant-sys/native/`, and Skia's headers come from
+/// `third_party/skia-headers`.
 fn add_includes(build: &mut cc::Build, root: &Path) {
     build
-        .include(root)
+        .include(root.join("crates/zant-sys/native"))
         .include(root.join("third_party/skia-headers"))
         .include(root.join("third_party/skia-headers/include/private"))
         .include(root.join("third_party/skia-headers/src"));
@@ -273,7 +274,7 @@ fn compile_macos(root: &Path, sources: &[String]) -> Vec<PathBuf> {
         .flag("-std=c++20")
         .flag("-fobjc-arc")
         // skia_bridge_mac.mm is compiled without exceptions like the portable
-        // part; pdf.mm keeps the compiler default (matches build.zig).
+        // part; pdf.mm keeps the compiler default.
         .flag("-Wno-deprecated-declarations");
     add_includes(&mut objcpp, root);
     for file in sources_with(sources, root, &[".mm"]) {
@@ -301,8 +302,8 @@ fn compile_windows(root: &Path, sources: &[String]) -> Vec<PathBuf> {
     let mut objects = Vec::new();
 
     // C++: portable bridge + Direct3D 12 backend + PDFium backend. Flags are
-    // the ones scripts/win/build_bridge.ps1 passes to cl.exe, plus
-    // ZANT_STATIC_DATA (no DLL resources: data is embedded in the exe).
+    // the ones the old Windows `build_bridge.ps1` passed to cl.exe (that DLL
+    // build was removed at M8); no DLL resources: data is embedded in the exe.
     let mut cpp = cc::Build::new();
     cpp.std("c++20")
         .flag("/O2")
@@ -324,8 +325,7 @@ fn compile_windows(root: &Path, sources: &[String]) -> Vec<PathBuf> {
         .define("_HAS_EXCEPTIONS", "0")
         .define("WIN32_LEAN_AND_MEAN", None)
         .define("NOMINMAX", None)
-        .define("_CRT_SECURE_NO_WARNINGS", None)
-        .define("ZANT_STATIC_DATA", None);
+        .define("_CRT_SECURE_NO_WARNINGS", None);
     add_includes(&mut cpp, root);
     for file in sources_with(sources, root, &[".cpp"]) {
         cpp.file(file);
@@ -364,7 +364,7 @@ fn link_native_dependencies(root: &Path, target_os: &str) {
 fn link_macos(root: &Path) {
     println!("cargo:rerun-if-env-changed=MACOSX_DEPLOYMENT_TARGET");
 
-    // Static Skia (same archives and order as build.zig).
+    // Static Skia (same archives and order as the old Zig build).
     let skia = root.join("third_party/skia/skia-binaries");
     assert!(
         skia.join("libskia.a").is_file(),
@@ -407,7 +407,7 @@ fn link_macos(root: &Path) {
 }
 
 fn link_windows(root: &Path) {
-    // Static Skia for MSVC (same archives as build_bridge.ps1).
+    // Static Skia for MSVC (same archives the old DLL build used).
     let skia = root.join("third_party/skia-win/skia-binaries");
     assert!(
         skia.join("skia.lib").is_file(),

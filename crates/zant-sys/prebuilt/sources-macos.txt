@@ -7,14 +7,12 @@
 # the SHA-256 over this whole list, headers included, in this order. Adding,
 # removing, reordering or editing any entry invalidates a prebuilt archive, and
 # build.rs falls back to compiling from source (with a warning).
-#
-# Keep the list identical to the sources `build.zig` compiles on macOS.
-src/renderer/skia/skia_bridge.cpp
-src/renderer/skia/skia_bridge.h
-src/renderer/skia/skia_bridge_internal.h
-src/renderer/skia/skia_bridge_mac.mm
-src/platform/macos/window.m
-src/platform/macos/window.h
-src/platform/macos/pdf.mm
-src/platform/platform.h
-src/platform/pdf.h
+crates/zant-sys/native/skia/skia_bridge.cpp
+crates/zant-sys/native/skia/skia_bridge.h
+crates/zant-sys/native/skia/skia_bridge_internal.h
+crates/zant-sys/native/skia/skia_bridge_mac.mm
+crates/zant-sys/native/platform/macos/window.m
+crates/zant-sys/native/platform/macos/window.h
+crates/zant-sys/native/platform/macos/pdf.mm
+crates/zant-sys/native/platform/platform.h
+crates/zant-sys/native/platform/pdf.h

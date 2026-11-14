@@ -38,15 +38,13 @@
 # (the Zig tree is frozen and not built here).
 #
 # Then it runs the compile benchmark. `crates/zant-examples`' `zant-tsx-bench`
-# compiles every `tools/tsx/testdata/*.tsx` through `zant_tsx::compile` in
-# process (10 warm-up + 100 iterations each), and this script compares it with
-# the Zig baseline `tools/tsx/compile_bench.zig` (the same corpus through
-# `tools/tsx/compile.zig` in process) and gates the average compile time at
-# ≤ 1.25× Zig (best of `ZANT_BENCH_ROUNDS`, default 3, alternating rounds, so
-# other load on the machine does not decide the gate). The shipped Zig frame
-# benchmark binary
-# (`zig-out-baseline/bin/zant-tsx-bench`) measures frames, not compile time, so
-# it is not the baseline here (see docs/rust-port/status.md WP-5.10).
+# compiles every `crates/zant-tsx/testdata/tsx/*.tsx` through `zant_tsx::compile`
+# in process (10 warm-up + 100 iterations each). While the Zig tree existed
+# this compared against the Zig compiler in process
+# (`tools/tsx/compile_bench.zig`, gate ≤ 1.25×, see docs/rust-port/status.md
+# WP-5.10). The Zig toolchain and sources were removed at M8, so the script
+# now runs the Rust benchmark alone and checks that every corpus file compiled
+# (the recorded pre-M8 ratio was 1.08-1.10×).
 #
 # `ZANT_CARGO`, `ZANT_ZIG`, `ZANT_PYTHON` and `CARGO_TARGET_DIR` override the
 # tools / build directory. Never opens a visible window; needs no network.
@@ -58,7 +56,7 @@ cargo_home="$repo/.cargo-home"
 zig=${ZANT_ZIG:-zig}
 python=${ZANT_PYTHON:-python3}
 target_dir=${CARGO_TARGET_DIR:-"$repo/target"}
-corpus="$repo/tools/tsx/testdata"
+corpus="$repo/crates/zant-tsx/testdata/tsx"
 # The measured corpus, warm-up rounds and iterations of the compile benchmark;
 # the Zig harness takes the same arguments.
 warmup=10
@@ -246,7 +244,7 @@ else
 fi
 
 echo
-echo "== TSX compile benchmark: zant-tsx-bench against the Zig baseline"
+echo "== TSX compile benchmark: zant-tsx-bench"
 CARGO_HOME="$cargo_home" "$cargo" build --release -p zant-examples --bin zant-tsx-bench
 rust_bench="$target_dir/release/zant-tsx-bench"
 mkdir -p "$work/bench"
@@ -254,7 +252,7 @@ zig_available=1
 if ! command -v "$zig" >/dev/null 2>&1; then
     zig_available=0
 fi
-if [ "$zig_available" -eq 1 ]; then
+if [ "$zig_available" -eq 1 ] && [ -f "$repo/tools/tsx/compile_bench.zig" ]; then
     if ! ZIG_GLOBAL_CACHE_DIR="$repo/.zig-global-cache" "$zig" build-exe \
         -OReleaseFast -lc --name tsx-compile-bench-zig \
         --cache-dir "$work/bench/zig-cache" \
@@ -341,7 +339,24 @@ print(f"   gate: Rust <= {gate}x Zig -> {'PASS' if ratio <= gate else 'FAIL'}")
 sys.exit(0 if ratio <= gate else 1)
 PY
 else
-    echo "   note: \`$zig\` not found; skipping the Zig compile-time comparison" >&2
+    echo "   Zig toolchain/sources are gone (M8): Rust-only compile benchmark" >&2
+    round=1
+    while [ "$round" -le "$rounds" ]; do
+        if ! "$rust_bench" "$corpus" "$warmup" "$iterations" \
+            >"$work/bench/rust-$round.log" 2>&1; then
+            echo "zant-tsx-bench failed in round $round:" >&2
+            tail -30 "$work/bench/rust-$round.log" >&2 || true
+            exit 1
+        fi
+        round=$((round + 1))
+    done
+    compiled=$(grep -c 'frames=' "$work/bench/rust-1.log" || true)
+    if [ "$compiled" -lt 30 ]; then
+        echo "zant-tsx-bench compiled only $compiled of the 32 corpus files:" >&2
+        tail -30 "$work/bench/rust-1.log" >&2 || true
+        exit 1
+    fi
+    echo "   Rust-only: $compiled corpus files compiled (recorded pre-M8 ratio 1.08-1.10x Zig)"
 fi
 
 echo

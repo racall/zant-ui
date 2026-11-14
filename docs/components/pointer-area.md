@@ -2,7 +2,7 @@
 
 自定义交互（画布、分隔条、拖动手柄、文档阅读器）用到的底层能力。PDF 阅读器就建立在它们之上。
 这些是**手写 Rust**（或框架内部）的接口；`onPointer` 的回调类型不在 TSX 标签表里，
-TSX 应用暂时用 `onResize` / 内置组件组合实现（迁移中，见 `docs/rust-port/status.md`）。
+TSX 应用用 `onResize` / 内置组件组合实现。
 
 ## `ui::pointer_area`
 

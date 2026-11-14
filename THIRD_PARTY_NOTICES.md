@@ -18,8 +18,9 @@ and other contributors. Licensed under the MIT License.
 
 ## mhchem
 
-`crates/zant/src/math/mhchem.rs` is a Rust port of the mhchem extension for KaTeX
-(`katex/contrib/mhchem/mhchem.js`), and `src/math/mhchem_cases.json` was
+`crates/zant/src/math/mhchem/mod.rs` is a Rust port of the mhchem extension for
+KaTeX (`katex/contrib/mhchem/mhchem.js`), and
+`crates/zant/src/math/mhchem_cases.json` was
 generated with it. mhchem: Copyright (c) 2011-2015 The MathJax Consortium,
 Copyright (c) 2015-2018 Martin Hensel; licensed under the Apache License,
 Version 2.0. KaTeX's adaptation of it is released under the MIT License.

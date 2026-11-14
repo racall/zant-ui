@@ -24,7 +24,7 @@
 - 平台：macOS、Windows 10/11 x64 均已完成（见下文「跨平台规范」）
 
 这个仓库既包含框架，也包含生成项目的模板、TSX 编译器和 CLI。这里只写**最终状态**；
-迁移进度、未合入的 WP 与「迁移中」的接口见 [docs/rust-port/status.md](docs/rust-port/status.md)。
+Zig → Rust 迁移的历史记录与验证数字见 [docs/rust-port/status.md](docs/rust-port/status.md)。
 
 ## 常用命令
 
@@ -62,10 +62,6 @@ zant build                    # 发布：签名、DMG / 公证 / App Store，或
 zant update                   # 安装版：更新到最新发布包；源码版：git pull + 依赖 + 重新编译 CLI
 ```
 
-> 迁移中：`zant run/compile/package` 对 TSX 应用的编译接口
-> `zant_build::tsx_app()`（WP-6.2）与 TSX 应用层（WP-5.6 / 5.8–5.10）尚未合入时，
-> 命令会报「接口尚未实现」；以 `docs/rust-port/status.md` 为准，不要沿用旧文档的 Zig 构建命令。
-
 ## 目录结构
 
 ```text
@@ -93,7 +89,6 @@ crates/
   zant-cli/             zant 命令：create / run / compile / package / build / sync / update
   zant-examples/        示例：demo、gallery、components、markdown、md-stream、math、pdf
 scaffold/template-ts/   生成项目的模板（Cargo.toml + build.rs + src/App.tsx + native/）
-scaffold/template/      旧纯 Zig 模板（只保留到 M8）
 scripts/                Skia 依赖、cargo 包装、parity 对照、发布打包、Windows 测试机脚本
 docs/                   中文文档和截图；Rust 迁移在 docs/rust-port/
 third_party/            Skia 预编译依赖（不提交到 Git）
@@ -315,7 +310,8 @@ ui::styled(node, ui::Style {
   16.7 ms；Windows 上用 `scripts/win/resize-check.ps1` 测拖动缩放帧率（应跟满刷新率）。
 - 每帧路径里不要写 stderr（Windows 上每行约 10 ms）。
 - 测试：`cargo test --workspace` 全绿（macOS 与 Windows 都要过）；新增行为应补测试。
-  测试数量不得少于迁移前的 Zig 基线（remend 522 条夹具、mhchem 823 条夹具包含在内）。
+  测试数量不得少于迁移完成时的数量（含 remend 522 条、mhchem 823 条夹具；见
+  `docs/rust-port/status.md` 最终验证矩阵）。
 - 文字排版缓存：`TextData` / `RichTextData` 保留当前与上一个宽度的排版，测量自然宽度走独立缓存
   （`measure_width` / `natural_width`）；不要在测量路径里调 `ensure_layout` 换宽度，否则每帧会重排所有文字。
 - 无确定高度的 column 不计算子节点的 flex 基准高度（不会用到），避免整棵子树按估计宽度多排一遍。
@@ -324,11 +320,11 @@ ui::styled(node, ui::Style {
 - 宽度变化时文字复用已整形的排版只重新断行（`zant_text_layout_relayout`）；新增排版缓存逻辑要保证
   与新建排版结果一致（`crates/zant/tests/text_test.rs` 有对照测试）。
 - 长列表 / 聊天用 `List`（`docs/components/list.md`），不要把成百上千条放进普通滚动容器。
-- **性能闸门**：迁移/优化必须与 Zig 基线对照，全部示例（`zant-demo`、`zant-gallery`、
-  `zant-components`、`zant-markdown`、`zant-math`、`zant-pdf`）先跑
-  `ZANT_ZIG_BIN=… scripts/parity/compare.sh <名字>`（layout 差 ≤ 0.01、像素差 ≤ 0.1%）；
-  帧基准 `zant-bench` 各场景（open / stream / typing / caret / hover / resize / scroll，
-  另跑 `ZANT_BENCH_LIST=1`）不超过 Zig 基线 **1.25 倍**；`zant-md-stream` 流式帧率达标。
+- **性能闸门**：`scripts/parity/bench.sh` 跑 `zant-bench` 各场景（open / stream / typing /
+  caret / hover / resize / scroll，另跑 `ZANT_BENCH_LIST=1`），每个场景不超过记录基线
+  **1.25 倍**（基线数字记录在 `docs/rust-port/status.md`，脚本内置；旧的
+  `zig-out-baseline` 目录还在时脚本直接用它对照）；`zant-md-stream` 流式帧率达标。
+  布局 / 像素对照（`scripts/parity/compare.sh`）是迁移期工具，需要旧的 Zig 基线产物。
   没有可测量收益、或过不了闸门的改动不要合入。
 
 ## 代码质量
@@ -342,15 +338,14 @@ ui::styled(node, ui::Style {
   `zant/src/image.rs`、`zant/src/pdf/native.rs`；其余模块由 crate 根的
   `#![forbid(unsafe_code)]` / `#![deny(unsafe_code)]` 兜底。
 - Skia 通过 `fetch_skia.sh` / `fetch_skia_windows.ps1` 固定版本；原生代码统一由
-  `crates/zant-sys/build.rs` 编译、链接（旧脚本 `scripts/win/build_bridge.ps1` / `gen_def.sh`
-  对应已删除的 `zant_skia.dll`，只保留到 M8）。
+  `crates/zant-sys/build.rs` 编译、链接（源文件在 `crates/zant-sys/native/`）。
 - 变更 C/ObjC++ ABI 时同步更新 `.h`、`zant-sys` 里 bindgen 生成的绑定（`scripts/gen_bindings.sh`）、
   两个平台的实现和文档。
 
 ## 跨平台规范
 
-- 平台差异只放在 `crates/zant/src/platform/` 与原生源码（`src/renderer/skia/`、`src/platform/`，
-  M8 起移入 `crates/zant-sys/native/`；`skia_bridge_{mac.mm,win.cpp}`）；组件和应用代码不写
+- 平台差异只放在 `crates/zant/src/platform/` 与原生源码（`crates/zant-sys/native/skia/`、
+  `crates/zant-sys/native/platform/`；`skia_bridge_{mac.mm,win.cpp}`）；组件和应用代码不写
   `cfg(windows)` 分支，需要时用框架 API：
   - 快捷键：`key.modifiers.primary()`（⌘ / Ctrl）、`keys::label("mod+shift+s")`
     生成按键文字（⇧⌘S / Ctrl+Shift+S），平台习惯不同用 `keys::pick(mac, win)`；
@@ -365,8 +360,7 @@ ui::styled(node, ui::Style {
   应用的 `build.rs` 调 `zant_build::tsx_app()` 嵌入 manifest、把 `pdfium.dll` 拷到 exe 旁。
 - 测试机：主机与目录写在不提交的 `scripts/win/.env`（`ZANT_WIN_HOST` / `ZANT_WIN_DIR`）；
   `scripts/win/sync.sh [../app]` 同步，`scripts/win/remote.sh <dir> '<cmd>'`
-  远程执行，`scripts/win/run-desktop.ps1` 在可见桌面运行（SSH 会话看不到窗口）；
-  `remote.sh` / `run-desktop.ps1` 里的工具链与产物路径还在从 Zig 迁移到 Cargo（「迁移中」）。
+  远程执行，`scripts/win/run-desktop.ps1` 在可见桌面运行（SSH 会话看不到窗口）。
   桌面自动化测试见 `docs/development.md`「Windows 测试机」（`components-check.ps1` 点击全部组件、
   `smoke-stillmd.ps1`、`docs-check.ps1`、`pdf-check.ps1`、`resize-check.ps1`、
   `stream-resize-check.ps1` 流式输出中移动 / 缩放窗口），按 key 定位靠
@@ -383,5 +377,3 @@ ui::styled(node, ui::Style {
 - Select/Tabs 为基础实现。
 - 真实 macOS 拼音输入法未自动化端到端验证（Windows 微软拼音已由冒烟测试覆盖）。
 - 无障碍 API 未暴露。
-- TSX 编译器与应用层（`zant-tsx` CLI、`zant_build::tsx_app()`、native 模块 trait 生成、
-  TSX 示例与黄金用例）仍在迁移中，见 `docs/rust-port/status.md`。

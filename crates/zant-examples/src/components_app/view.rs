@@ -368,7 +368,7 @@ pub(crate) fn render(app: &mut ComponentsApp) -> ui::Node {
                 vec![
                     ui::image(ImageOptions {
                         key: Some("image".into()),
-                        src: "examples/assets/zant.png".into(),
+                        src: "crates/zant-examples/assets/zant.png".into(),
                         width: Some(120.0),
                         height: Some(68.0),
                         tooltip: Some("图片提示".into()),

@@ -66,7 +66,7 @@ Windows 上写 stderr 很贵（每行约 10 ms），不要在每帧都会执行�
 
 - 沙箱里：`./scripts/cargo.sh test --workspace`。
 - 只跑某个 crate：`./scripts/cargo.sh test -p zant markdown`、`./scripts/cargo.sh test -p zant-tsx`。
-- 迁移期间同时用 **parity 对照**验证 Rust 版与 Zig 基线行为一致：
+- 布局 / 像素对照（迁移期的工具，需要旧的 Zig 基线产物）：
   `ZANT_ZIG_BIN=/path/to/zig-out-baseline/bin scripts/parity/compare.sh zant-demo`
   （layout 每个 key 差值 ≤ 0.01；像素通道差 > 2 的像素占比 ≤ 0.1%）。
 - 时间相关测试注入假时钟（`runtime.clock = fake_clock`），不要 sleep。
@@ -78,9 +78,9 @@ Windows 上写 stderr 很贵（每行约 10 ms），不要在每帧都会执行�
 `hover`（指针扫过长列表）、`resize`（窗口宽度变化）、`scroll`（滚轮）。`ZANT_BENCH_LIST=1` 用虚拟列表，
 `ZANT_BENCH_MESSAGES` 改对话长度。结果确定、可复现，适合改动前后、两个平台对比。
 
-> **迁移中（WP-2.11）**：`zant-bench` 的 Rust 版尚未合入。闸门要求（见 AGENTS.md「性能规则」）：
-> 各场景不超过 Zig 基线 **1.25 倍**；在合入前用 Zig 版 `zig-out-baseline/bin/zant-bench` 与
-> `zant-md-stream` 的帧统计做参照。
+> 闸门要求见 AGENTS.md「性能规则」：各场景不超过记录基线 **1.25 倍**
+> （`scripts/parity/bench.sh` 内置 `docs/rust-port/status.md` 记录的 Zig 基线数字；
+> 有旧的 `zig-out-baseline` 时直接用它对照）。
 
 ## 流式 Markdown 基准
 
@@ -141,9 +141,6 @@ export ZANT_WIN_SSH_OPTS="-o StrictHostKeyChecking=accept-new -o UserKnownHostsF
 删掉的文件（例如 M6 删掉的 `scaffold/template-ts/build.zig`）会留在远端，让测试看到幽灵文件。
 远端源码与仓库不一致时重建：保留 `third_party/`、`target/`、`.zig-cache` 等目录，其余从空目录
 重新同步一次。
-
-> `scripts/win/remote.sh` / `run-desktop.ps1` 里的工具链（`ZANT_WIN_ZIG`）与产物路径（`zig-out\`）
-> 还在从 Zig 迁移到 Cargo（**迁移中**），在 Windows 脚本更新前按脚本当前写法传参。
 > Zig 基线在 `zig build -Doptimize=ReleaseFast` 之后位于 `zig-out\bin\`（含 `zant_skia.dll`、
 > `pdfium.dll`，要一起用）；Rust 产物是 `target\{debug,release}\`。
 
@@ -190,10 +187,6 @@ cargo build -p zant-cli
 产物在 `target/{debug,release}/<应用名>`。框架更新后执行 `zant update` 重编译全局 CLI。
 详见 [脚手架](scaffold.md)。
 
-> **迁移中**：`zant run/compile/package` 对 TSX 应用的编译接口（WP-6.2）与 TSX 应用层
-> （WP-5.6 / 5.8–5.10）尚未合入，当前只对已有 `Cargo.toml` 的 Rust 应用生效；
-> 进度见 [`docs/rust-port/status.md`](rust-port/status.md)。
-
 ## 发布
 
 开发者用一行命令安装（`install.sh` / `install.ps1`，见 README「安装」），装的是 GitHub Release 上的发布包：
@@ -224,11 +217,11 @@ cargo build -p zant-cli
 - `crates/zant/src/markdown/`、`crates/zant/src/math/`：Markdown（Streamdown 移植）与 LaTeX 公式。
 - `crates/zant/src/components/`：antd 风格组件（菜单、Segmented、Modal、Message …）。
 - `crates/zant/src/renderer/`：Skia 桥（可移植核心 + mac / win 平台文件）。
-- `crates/zant/src/platform/`：平台 ABI 的 Rust 包装；原生实现仍在 `src/platform/`（M8 移入 `zant-sys`）。
+- `crates/zant/src/platform/`：平台 ABI 的 Rust 包装；原生实现在 `crates/zant-sys/native/platform/`。
 - `crates/zant-tsx/`：TSX 编译器（lexer / parser / hooks / codegen / tags / d.ts）。
 - `crates/zant-cli/`：`zant` 命令；`crates/zant-build/`：应用 `build.rs` 辅助。
 - `crates/zant/src/tsx/`：TSX 生成代码的运行时（hooks、字符串、内置、定时器、窗口）。
 - `crates/zant/src/core/keys.rs`、`crates/zant/src/core/paths.rs`：平台快捷键与应用数据目录。
 - `crates/zant/src/db/`：SQLite 封装（rusqlite；`#[derive(Table)]` 对象集合）。
 - `scripts/win/`：Windows 测试机同步、远程执行与桌面冒烟测试。
-- `scripts/parity/`：Rust 与 Zig 基线的布局 / 像素对照。
+- `scripts/parity/`：布局 / 像素 / 帧基准对照（Zig 基线数字记录在 `docs/rust-port/status.md`）。

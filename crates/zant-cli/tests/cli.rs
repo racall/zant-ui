@@ -180,28 +180,6 @@ fn create_then_sync_writes_the_ts_template_and_generated_config() {
     assert_eq!(before, after);
 }
 
-#[test]
-fn create_lang_zig_still_copies_the_legacy_template() {
-    // Kept selectable until M8 deletes `scaffold/template/`; the CLI cannot
-    // build it any more (`cargo build` needs Cargo.toml), so only the file
-    // layout is checked here.
-    let dir = temp_dir("create-zig");
-    let output = run(zant()
-        .current_dir(&dir)
-        .args(["create", "demo-zig", "--yes", "--lang", "zig"]));
-    assert!(output.status.success(), "{}", stderr(&output));
-    let project = dir.join("demo-zig");
-    for file in [
-        "build.zig",
-        "build.zig.zon",
-        "src/main.zig",
-        "src/app_config.rs",
-    ] {
-        assert!(project.join(file).is_file(), "{file} missing");
-    }
-    assert!(!project.join("src/App.tsx").exists());
-}
-
 /// A minimal plain-Rust application project: cargo build / run must work now
 /// (only the TSX pipeline waits for `zant_build::tsx_app()`).
 fn write_plain_app(dir: &Path) -> PathBuf {

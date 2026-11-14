@@ -1,10 +1,8 @@
-# Rust port CI: formatting, clippy, tests and the Zig parity build.
+# Rust CI: formatting, clippy and the test suite on both platforms.
 #
-# Mirrors plan.md §3 rule 7 on both platforms:
 #   cargo fmt --all -- --check
 #   cargo clippy --workspace --all-targets -- -D warnings
-#   cargo test -p <crate> / cargo test --workspace
-#   zig build test          (the Zig version stays buildable during the port)
+#   cargo test --workspace
 name: rust
 
 on:
@@ -14,7 +12,6 @@ on:
   workflow_dispatch:
 
 env:
-  ZIG_VERSION: 0.17.1
   CARGO_TERM_COLOR: always
 
 jobs:
@@ -35,11 +32,6 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: ./scripts/fetch_skia_windows.ps1
-
-      - name: Zig
-        uses: mlugg/setup-zig@v2
-        with:
-          version: ${{ env.ZIG_VERSION }}
 
       - name: Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -78,7 +70,3 @@ jobs:
           cargo run -p zant-tsx --bin zant-tsx-tags -- --check crates/zant-tsx/src/ui_tags.rs
           cargo run -p zant-tsx --bin zant-tsx-dts -- --check crates/zant-tsx/zant.d.ts
           git diff --exit-code -- crates/zant-tsx/src/ui_tags.rs crates/zant-tsx/zant.d.ts
-
-      # The Zig framework must keep building: it is the behavior reference.
-      - name: zig build test
-        run: zig build test

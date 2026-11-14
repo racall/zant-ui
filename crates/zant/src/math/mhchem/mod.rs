@@ -93,7 +93,7 @@ pub fn to_tex(input: &str, machine: Machine) -> Result<String, MhchemError> {
 
 /// The fixture (input, machine, expected TeX) for integration tests that lay
 /// every case out.
-pub const FIXTURE_JSON: &str = include_str!("../../../../../src/math/mhchem_cases.json");
+pub const FIXTURE_JSON: &str = include_str!("../mhchem_cases.json");
 
 // ---------------------------------------------------------------------------
 // mhchemParser.go

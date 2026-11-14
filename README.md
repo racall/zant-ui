@@ -92,11 +92,6 @@ my-app/
   DESIGN.md AGENTS.md CLAUDE.md   给 AI 编程助手的设计与开发规范
 ```
 
-> **迁移中（WP-6.2）**：`zant build/run/compile/package` 调用的编译接口
-> `zant_build::tsx_app()` 与 `zant-tsx` 的完整应用层（WP-5.6 / 5.8–5.10）还在合入。
-> 本 worktree 里 `zant create`、`zant sync` 可用；TSX 应用的编译与运行以
-> [`docs/rust-port/status.md`](docs/rust-port/status.md) 的进度为准，暂时不要按旧文档的 Zig 构建命令编译。
-
 ### 2. 运行与热更新
 
 ```bash
@@ -197,7 +192,7 @@ zant build --yes      # CI：不提问，密钥从环境变量读取
 | 指针区域（拖动捕获、多击、滚轮）、内存图片、后台线程唤醒 UI | ✅ |
 | 虚拟列表（只构建可见条目，聊天贴底跟随，参照 GPUI）、容器悬停样式、对话框焦点范围 | ✅ |
 | 桌面集成（`zant::desktop`）：多窗口与快捷面板、托盘 / 菜单栏、全局快捷键、剪贴板监听（文字 / 图片 / 文件）、开机启动、单实例 | ✅ |
-| TSX 编译器（`.tsx` → Rust，编译期完成，无 JS 运行时）与 Rust 脚手架 `zant` | ✅（应用层接口迁移中） |
+| TSX 编译器（`.tsx` → Rust，编译期完成，无 JS 运行时）与 Rust 脚手架 `zant` | ✅ |
 | 发布构建 `zant build`：Developer ID 签名 + 公证 + DMG / Mac App Store；Windows 签名安装包 / MSIX | ✅ |
 | 平台快捷键（`zant::core::keys`：⌘ / Ctrl 与按键文字）、应用数据目录（`zant::core::paths`） | ✅ |
 
@@ -324,8 +319,8 @@ let drawing = zant::math::layout::layout(
 );
 ```
 
-公式块的 UI 包装（`math::block`）随 WP-3.11 的偏差登记在 `docs/rust-port/status.md`，
-当前由 `zant-math` 示例内部实现，属于**迁移中**。
+公式块的 UI 包装（`math::block`）当前由 `zant-math` 示例内部实现（偏差记录见
+`docs/rust-port/status.md`）。
 
 预览默认可拖选复制；渲染选项的 `block_renderers` 按围栏语言渲染自定义块，`image_loader` 加载远程图片，
 `ParseOptions.latex_delimiters` 支持模型常用的 `\( \)` / `\[ \]`；公式支持 `\ce{…}` / `\pu{…}`。
@@ -417,13 +412,12 @@ ln -sfn "$PWD/target/debug/zant" ~/.local/bin/zant     # macOS
 zant update               # 源码版：拉取新代码（工作区干净时）、检查依赖并重新编译 CLI
 ```
 
-迁移状态（哪些 WP 已并入、哪些是「迁移中」）见 [`docs/rust-port/status.md`](docs/rust-port/status.md)；
-Zig 版在 M8 之前保留作行为对照，迁移完成后删除。
+Zig → Rust 迁移的历史记录与验证数字见 [`docs/rust-port/status.md`](docs/rust-port/status.md)。
 
 ## 架构
 
 - 工作区是 Cargo workspace：`zant-sys`（原生 FFI / Skia 桥）、`zant`（框架）、`zant-macros`（`derive(TsxProps)` / `derive(Table)`）、`zant-tsx`（TSX → Rust 编译器）、`zant-build`（应用 `build.rs` 辅助）、`zant-cli`（`zant` 命令）、`zant-examples`（示例程序）。
-- 平台层是一套 C ABI（`src/platform/platform.h`，M8 起移入 `crates/zant-sys/native/`）：macOS 用 `NSWindow` / `NSView`，Windows 用 Win32；Skia 桥接层是可移植 C++（`src/renderer/skia/`），平台部分（CoreText + Metal、DirectWrite + Direct3D 12）分文件实现。
+- 平台层是一套 C ABI（`crates/zant-sys/native/platform/platform.h`）：macOS 用 `NSWindow` / `NSView`，Windows 用 Win32；Skia 桥接层是可移植 C++（`crates/zant-sys/native/skia/`），平台部分（CoreText + Metal、DirectWrite + Direct3D 12）分文件实现。
 - `ui.*` 每帧构造轻量节点，Runtime 按 key 协调到保留树；`ui::memo` 跳过未变子树。
 - 节点被移除后释放并复用槽位；运行时对已释放节点的引用会被清理。
 - 只在状态变化时重绘；动画由“正在动画的节点列表”驱动，按屏幕刷新出帧（macOS CADisplayLink，Windows 交换链 / DwmFlush 垂直同步）。
@@ -461,7 +455,6 @@ crates/zant-build/          应用 build.rs 的辅助（TSX 编译、图标、Wi
 crates/zant-cli/            `zant` 命令：create / run / compile / package / build / sync / update
 crates/zant-examples/       示例：demo、gallery、components、markdown、stream、math、pdf
 scaffold/template-ts/       生成项目的模板（Cargo.toml + build.rs + src/App.tsx + native/）
-scaffold/template/          旧纯 Zig 模板（只保留到 M8）
 scripts/                    Skia 依赖、cargo 包装、parity 对照、发布打包、Windows 测试机脚本
 docs/                       中文文档、截图与 showcase.md；Rust 迁移在 rust-port/
 third_party/                Skia 预编译依赖（不提交到 Git）

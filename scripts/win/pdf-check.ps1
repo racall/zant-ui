@@ -12,7 +12,7 @@ param(
     [string]$Out = ""
 )
 # defaults here: $PSScriptRoot is empty inside param() on Windows PowerShell 5.1
-if (!$App) { $App = (Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) "zig-out\bin\zant-pdf.exe") }
+if (!$App) { $App = (Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) "target\debug\zant-pdf.exe") }
 if (!$Out) { $Out = (Join-Path $env:TEMP "zant-checks\pdf") }
 $ErrorActionPreference = "Stop"
 Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $Out

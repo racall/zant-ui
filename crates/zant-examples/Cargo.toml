@@ -17,8 +17,8 @@ zant.workspace = true
 # `zant-md-stream --sse` parses the same SSE JSON events as the Zig example
 # (`std.json.parseFromSlice`).
 serde_json.workspace = true
-# `zant-tsx-bench` (WP-5.10) drives the TSX compiler in process; the Zig frame
-# benchmark's compile-side baseline is `tools/tsx/compile_bench.zig`.
+# `zant-tsx-bench` (WP-5.10) drives the TSX compiler in process; the Zig
+# compiler baseline was removed at M8 (see docs/rust-port/status.md).
 zant-tsx.workspace = true
 
 [[bin]]
@@ -55,11 +55,12 @@ path = "src/bin/zant-pdf.rs"
 name = "zant-bench"
 path = "src/bin/zant-bench.rs"
 
-# TSX compile benchmark (port of the compile-time half of `examples/tsx/
-# bench.zig`, WP-5.10): every `tools/tsx/testdata/*.tsx` through
-# `zant_tsx::compile`, warm-up + iterations, in the Zig frame benchmark's
-# statistics format. `scripts/tsx/examples-check.sh` runs it against the Zig
-# baseline (`tools/tsx/compile_bench.zig`) and gates the ratio.
+# TSX compile benchmark (port of the compile-time half of the old Zig
+# `examples/tsx/bench.zig`, WP-5.10): every `crates/zant-tsx/testdata/tsx/*.tsx`
+# through `zant_tsx::compile`, warm-up + iterations, in the old Zig frame
+# benchmark's statistics format. `scripts/tsx/examples-check.sh` runs it
+# Rust-only since the Zig compiler was removed at M8 (recorded pre-M8 ratio
+# 1.08-1.10x, docs/rust-port/status.md WP-5.10).
 [[bin]]
 name = "zant-tsx-bench"
 path = "src/bin/zant-tsx-bench.rs"

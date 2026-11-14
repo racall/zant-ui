@@ -1,7 +1,6 @@
 # Builds the prebuilt native library that released apps link instead of
-# compiling C++/C (WP-6.6, docs/rust-port/plan.md §5). Same idea as the Zig
-# build's third_party/zant-skia-prebuilt: the release workflow compiles the
-# native layer once per platform and ships the archive inside
+# compiling C++/C (WP-6.6, docs/rust-port/plan.md §5). The release workflow
+# compiles the native layer once per platform and ships the archive inside
 # zant-ui\third_party\zant-native-prebuilt\.
 #
 #   powershell -File scripts/release/prebuilt.ps1 [-Out target\prebuilt\windows]

@@ -8,7 +8,7 @@ param(
     [string]$Out = ""
 )
 # defaults here: $PSScriptRoot is empty inside param() on Windows PowerShell 5.1
-if (!$Exe) { $Exe = (Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) "zig-out\bin\zant-components.exe") }
+if (!$Exe) { $Exe = (Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) "target\debug\zant-components.exe") }
 if (!$Out) { $Out = (Join-Path $env:TEMP "zant-checks\components") }
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "ui-auto.ps1")

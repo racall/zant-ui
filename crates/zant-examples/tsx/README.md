@@ -7,9 +7,9 @@ workspace member** with the same layout as a `zant create` project
 `cargo test --workspace` build and check them:
 
 ```
-tsx-counter/   bin zant-tsx-counter     examples/tsx/counter.tsx (1:1 port)
-tsx-demo/      bin zant-tsx-demo        examples/tsx/app/App.tsx (showcase app)
-tsx-bench/     bin zant-tsx-bench-app   examples/tsx/settings.tsx (frame-benchmark workload)
+tsx-counter/   bin zant-tsx-counter     corpus/counter.tsx (1:1 port)
+tsx-demo/      bin zant-tsx-demo        corpus/app/App.tsx (showcase app)
+tsx-bench/     bin zant-tsx-bench-app   corpus/settings.tsx (frame-benchmark workload)
 tsx-gallery/   bin zant-tsx-gallery     examples/tsx/gallery.tsx (component gallery)
 tsx-todos/     bin zant-tsx-todos       examples/tsx/todos.tsx (todo app)
 tsx-reader/    bin zant-tsx-reader      examples/tsx/reader.tsx (Markdown + PDF reader)

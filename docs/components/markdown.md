@@ -29,7 +29,7 @@
 
 手写 Rust：`zant::markdown::streamdown(&mut cache, source, props)` 直接渲染，
 或用 `ui::markdown(id, ui::MarkdownOptions { .. })` 让框架按实例持有缓存（TSX 的 `Markdown` 就是它；
-`ui::*` 的 re-export 迁移中，当前在 `zant::components::widgets`）。编辑器的其余 Rust 选项：
+实现位于 `zant::components::widgets`）。编辑器的其余 Rust 选项：
 `on_mode`（`markdown::editor::Mode`）、`on_undo` / `on_redo`、`preview`（`markdown::ViewProps`）、
 `placeholder`、`font_size`（16）、`line_height`（1.8）、`toolbar`、`mode_switch`、`shortcuts`、
 `preview_width`、`labels`（`markdown::Labels::zh()`）。`html::to_html` 导出独立 HTML 页面（KaTeX 渲染公式）。

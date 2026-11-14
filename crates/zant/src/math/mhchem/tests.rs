@@ -16,7 +16,7 @@ struct Case {
 
 #[test]
 fn mhchem_fixture_generated_by_the_real_mhchem_js() {
-    let cases: Vec<Case> = serde_json::from_str(FIXTURE_JSON).expect("src/math/mhchem_cases.json");
+    let cases: Vec<Case> = serde_json::from_str(FIXTURE_JSON).expect("mhchem_cases.json");
     assert!(cases.len() >= 300);
 
     let mut failures: usize = 0;

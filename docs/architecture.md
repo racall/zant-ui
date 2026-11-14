@@ -18,7 +18,7 @@ crates/zant-examples/src/bin/*.rs / crates/zant/src/ 框架
         │       └── renderer/          Skia C ABI（可移植核心；Metal / Direct3D 12 / 光栅）
         ├── markdown/, math/    Markdown 与公式（基于 ui::* 与矢量绘制；mhchem 化学式）
         ├── pdf/                PDF 阅读器（原生文档句柄 + 后台分块渲染 + 文字几何 + 批注）
-        └── src/platform/platform.h  平台 C ABI（M8 起移入 zant-sys/native），两份实现：
+        └── crates/zant-sys/native/platform/platform.h  平台 C ABI，两份实现：
                 ├── macos/window.m     AppKit 窗口、事件、输入法、显示链接
                 └── windows/window.c   Win32 窗口、事件、IMM32、自绘标题栏、对话框
 ```
@@ -101,6 +101,6 @@ Tab 焦点在最上层 `focus_scope` 内循环。按 key 查找节点（`ui::key
 
 ## 平台范围
 
-macOS 13+（Apple Silicon，预编译 Skia 为 arm64）与 Windows 10/11 x64。平台差异只在 `src/platform/` 与 Skia 桥接的平台文件中；
+macOS 13+（Apple Silicon，预编译 Skia 为 arm64）与 Windows 10/11 x64。平台差异只在 `crates/zant-sys/native/platform/` 与 Skia 桥接的平台文件中；
 组件和应用通过 `zant::core::keys`（⌘ / Ctrl、按键文字；TSX `keyLabel`）、`ui::titlebar_insets()`、
 `zant::core::paths`、`zant::platform::dialog` 获得平台习惯，不写 `cfg(windows)` 分支。

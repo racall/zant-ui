@@ -14,7 +14,8 @@
 #   bin/zant                  the CLI (finds zant-ui/ next to bin/)
 #   zant-ui/                  the committed Rust workspace (git archive): Cargo.toml,
 #                             Cargo.lock, rust-toolchain.toml, crates/ and the native
-#                             sources it compiles (src/renderer/skia, src/platform)
+#                             sources it compiles (crates/zant-sys/native/skia and
+#                             crates/zant-sys/native/platform)
 #   zant-ui/third_party/      the pinned Skia libraries and headers
 #   zant-ui/third_party/zant-native-prebuilt/
 #                             libzant_native.a + metadata.txt (WP-6.6): app builds
@@ -90,8 +91,9 @@ if [ "${ZANT_DRY_RUN:-0}" = 1 ]; then
   # silently missing from `git archive`, so fail instead.
   for want in Cargo.toml Cargo.lock rust-toolchain.toml \
     crates/zant/Cargo.toml crates/zant-sys/Cargo.toml crates/zant-cli/Cargo.toml \
-    src/platform/platform.h src/renderer/skia/skia_bridge.h \
-    src/renderer/skia/skia_bridge.cpp scripts/fetch_skia.sh \
+    crates/zant-sys/native/platform/platform.h \
+    crates/zant-sys/native/skia/skia_bridge.h \
+    crates/zant-sys/native/skia/skia_bridge.cpp scripts/fetch_skia.sh \
     crates/zant-sys/prebuilt/sources-macos.txt crates/zant-sys/prebuilt.rs; do
     printf '%s\n' "$tracked" | grep -Fqx "$want" ||
       die "the archive would miss $want (is it committed?)"

@@ -30,7 +30,7 @@ fn has_error(commands: &[Command], error_color: u32) -> bool {
 #[test]
 fn mhchem_all_fixture_cases_lay_out_cleanly_via_ce_and_pu() {
     let cases: Vec<Case> =
-        serde_json::from_str(mhchem::FIXTURE_JSON).expect("src/math/mhchem_cases.json");
+        serde_json::from_str(mhchem::FIXTURE_JSON).expect("crates/zant/src/math/mhchem_cases.json");
     let error_color: u32 = 0xffff00ff;
     let mut failures: usize = 0;
     for case in &cases {

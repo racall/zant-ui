@@ -3,7 +3,6 @@
 //! initial `app.config.json`.
 
 use crate::app_config::bundle_error;
-use crate::project::Language;
 use crate::scaffold;
 use crate::{
     COLOR_RED, COLOR_RESET, escape_json, fail, ok, path_exists, prompt, read_line, sep, step,
@@ -16,7 +15,6 @@ pub struct CreateOptions {
     pub name: String,
     pub yes: bool,
     pub force: bool,
-    pub lang: Option<String>,
     pub title: Option<String>,
     pub style: Option<String>,
     pub bundle_id: Option<String>,
@@ -25,10 +23,6 @@ pub struct CreateOptions {
 }
 
 pub fn cmd_create(options: CreateOptions) -> std::io::Result<()> {
-    let language_arg = options
-        .lang
-        .as_deref()
-        .map(|value| Language::parse(value).unwrap_or_else(|| fail("语言必须是 zig 或 ts")));
     let name = options.name.as_str();
     if !valid_name(name) {
         fail("项目名只能以字母开头，并包含字母、数字、-、_");
@@ -48,7 +42,6 @@ pub fn cmd_create(options: CreateOptions) -> std::io::Result<()> {
     let zig_name = zig_name_from_name(name);
     let default_bundle = format!("dev.zant.{slug}");
 
-    let mut language = language_arg.unwrap_or(Language::Ts);
     let mut title = options.title.clone().unwrap_or(default_title);
     let mut style = options
         .style
@@ -61,24 +54,6 @@ pub fn cmd_create(options: CreateOptions) -> std::io::Result<()> {
 
     if !options.yes {
         eprintln!("\nZant UI 项目生成器\n");
-        if language_arg.is_none() {
-            eprintln!(
-                "语言：\n  1) TypeScript + TSX（Rust 应用，默认）\n  2) Zig（旧模板，仅保留到 M8）"
-            );
-            loop {
-                let value = prompt("选择", "1");
-                let choice = match value.as_str() {
-                    "1" => "ts",
-                    "2" => "zig",
-                    other => other,
-                };
-                if let Some(chosen) = Language::parse(choice) {
-                    language = chosen;
-                    break;
-                }
-                eprintln!("请输入 1（TypeScript + TSX）或 2（Zig）");
-            }
-        }
         if options.title.is_none() {
             title = prompt("应用标题", &title);
         }
@@ -141,7 +116,6 @@ pub fn cmd_create(options: CreateOptions) -> std::io::Result<()> {
     scaffold::write(&scaffold::Options {
         framework: zroot.to_string_lossy().into_owned(),
         target: target.to_string_lossy().into_owned(),
-        language,
         title: title.clone(),
         bundle: bundle.clone(),
         zig_name,

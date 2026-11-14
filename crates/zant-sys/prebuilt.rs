@@ -1,7 +1,7 @@
 //! Shared logic for the prebuilt native library (WP-6.6, plan.md §5).
 //!
 //! `build.rs` normally compiles the native C / C++ / Objective-C layer
-//! (`src/renderer/skia/*.cpp`, `src/platform/*`, `skia_bridge_mac.mm`, …) on
+//! (`crates/zant-sys/native/skia/*.cpp`, `native/platform/*`, …) on
 //! every clean build. The release archives ship the result of that compile as
 //! `third_party/zant-native-prebuilt/`, so an installed app only has to *link*
 //! it. Both sides of that contract live here so they cannot drift:

@@ -33,7 +33,7 @@ pack() { # <source dir> <archive>
       while IFS= read -r -d '' f; do [ -e "$f" ] && printf '%s\0' "$f"; done |
       xargs -0 tar --no-xattrs -cf "$out")
   else
-    tar --no-xattrs -cf "$out" -C "$src" --exclude .zig-cache --exclude zig-out --exclude .git --exclude '._*' .
+    tar --no-xattrs -cf "$out" -C "$src" --exclude target --exclude .git --exclude '._*' .
   fi
 }
 

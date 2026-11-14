@@ -38,7 +38,8 @@
 //!
 //! On Windows (host) it additionally replaces Zig's `configureApp`: the `.ico`
 //! built from `assets/icons/app-windows.png`, the per-monitor-DPI /
-//! Common-Controls manifest (`src/platform/windows/zant.manifest`) and the GUI
+//! Common-Controls manifest (`crates/zant-sys/native/platform/windows/zant.manifest`)
+//! and the GUI
 //! subsystem for release builds are embedded with `embed-resource`, and
 //! `pdfium.dll` is copied next to the executable. macOS is a no-op: `zant
 //! package` turns `assets/icons/app-macos.png` into `AppIcon.icns`.
