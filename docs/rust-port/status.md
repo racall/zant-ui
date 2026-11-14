@@ -37,7 +37,7 @@
 | 1.1a | geometry、theme、motion、layout/flex + 测试 | wp-1-1a | 完成（已并入） | 17 个测试全过；flex/motion 的 bit-exact 对照 658 行；`tests/flex_test.zig` 24 个 Tree 级用例归 WP-2.10 |
 | 1.1b | core/{unicode,paths,hash} | wp-1-1b | 完成（已并入） | 9 个测试；hash 是 Zig Wyhash 4.2 的逐行移植并钉死 20 个 Zig 实测值；keys/text_select 改派 lead |
 | 1.1c | renderer/{canvas,text,rich_text,renderer}、image | lead | 完成 | 依赖 0.3；14 个测试（renderer raster/像素、TextLayout 度量/换行/relayout/caret、rich text、image PNG/缩略图/data URI）；`Image` 是唯一 `unsafe impl Send + Sync` 的句柄 |
-| 1.1d | platform/{platform,dialog}、core/events、core/keys | lead | 进行中 | 依赖 0.3；keys 从 1.1b 改派过来（依赖 events） |
+| 1.1d | platform/{platform,dialog}、core/events、core/keys | lead | 完成 | `Host` 回调表 → `Box<dyn HostHandler>` 蹦床；`ZANT_WINDOW_SIZE` 已照搬；`monotonic_us` 用 `Instant`（deviation）；事件 text 用 owned `String`；14 个测试 |
 | 1.2 | actions、ui Element / 选项 / 构建上下文 | lead | 待领取 | ★★★ |
 | 1.3 | node、tree、layout、vector、components/button | lead | 待领取 | ★★★ |
 | 1.4 | ui_runtime 构建/协调/patch/事件/帧循环、launch、App trait | lead | 待领取 | ★★★ |
