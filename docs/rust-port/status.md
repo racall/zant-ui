@@ -81,7 +81,7 @@
 |---|---|---|---|---|
 | 4.1 | lexer、ast、jsx_text、jsx_entities | wp-4-1 | 完成 | `rust/wp-4.1`；10/10 Rust 测试（Zig 可移植 10 个）；AST 字符串用 `Vec<u8>`（见待决问题）；`jsx_entities_test.zig` 另 2 个依赖 parser/compile 的测试待 4.2/4.3 补 |
 | 4.2 | parser、expr_parser、jsx_parser、type_parser、loop_parser、import_parser、react_compat | wp-4-2 | 完成（已并入） | 33 测试；`dump_program`（确定性 AST dump，格式见报告）；仓库 32 个 testdata + examples/tsx 全部可解析 |
-| 4.3 | hooks/{expand,rewrite,resolve,leftover} | — | 待领取 | 依赖 4.2 |
+| 4.3 | hooks/{expand,rewrite,resolve,leftover} | wp-4-3 | 完成（已并入） | 41 个 zant-tsx 测试；5/5 Zig hooks 测试同名移植；真实 tests/tsx/hooks 项目与 Zig 编译器输出逐名对照 |
 | 4.4 | tags、tag_aliases、string_method_names、诊断 | — | 待领取 | |
 
 ### M5 TSX 后端与运行时
