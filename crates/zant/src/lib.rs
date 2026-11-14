@@ -34,6 +34,8 @@ pub mod store;
 pub mod str;
 
 pub use error::{Error, Result};
+// Zig `root.zig` re-exports the window configuration types at the crate root.
+pub use platform::platform::{WindowOptions, WindowStyle};
 pub use str::Str;
 pub mod theme;
 pub mod tsx;
