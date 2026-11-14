@@ -67,6 +67,10 @@ pub struct ProjectData {
     pub root: String,
     /// The parsed `app.config.json`, if the caller supplied one.
     pub config: Option<crate::compile::ConfigSpec>,
+    /// Components named by a `createWindow(<Component>, …)` somewhere in the
+    /// project: their own module emits the `Window` wrapper (the window handle
+    /// may live in another file, so this cannot be decided per module).
+    pub window_components: Vec<String>,
 }
 
 impl ProjectData {

@@ -627,6 +627,7 @@ mod tests {
             assets: std::cell::RefCell::new(Vec::new()),
             root: String::new(),
             config: None,
+            window_components: Vec::new(),
         })
     }
 

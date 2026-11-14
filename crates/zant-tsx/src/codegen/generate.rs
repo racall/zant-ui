@@ -540,6 +540,24 @@ fn emit_component(
             out.push_str(&method);
         }
         out.push_str("}\n");
+        // a component named by `createWindow(..)` anywhere in the project
+        // renders another window: its own module emits the `Window` wrapper
+        // (a window handle in another file refers to `crate::<module>::XWindow`)
+        let named_by_window = super::app_state::project().is_some_and(|project| {
+            project
+                .window_components
+                .iter()
+                .any(|window| *window == String::from_utf8_lossy(&f.name))
+        });
+        if named_by_window {
+            out.push('\n');
+            out.push_str(&super::windows::component_impl(
+                g,
+                &name,
+                &format!("{name}Window"),
+                f,
+            )?);
+        }
     } else {
         // no `derive(Default)`: the hand-written impl below carries the
         // `useState` initial values

@@ -8,27 +8,6 @@ use zant::nodes;
 use zant::tsx;
 #[allow(unused_imports)]
 use zant::ui;
-pub struct PanelWindow {
-    _s: std::rc::Rc<std::cell::RefCell<Panel>>,
-}
-impl tsx::window::Component for PanelWindow {
-    type Local = Panel;
-    fn with_local(local: std::rc::Rc<std::cell::RefCell<Panel>>) -> PanelWindow {
-        PanelWindow { _s: local }
-    }
-    fn render(&mut self) -> ui::Node {
-        self._s.borrow_mut().render()
-    }
-    fn on_key(&mut self, event: &tsx::KeyEvent) -> bool {
-        self._s.borrow_mut()._window_on_key(event.clone())
-    }
-    fn on_focus(&mut self, focused: bool) {
-        self._s.borrow_mut()._window_on_focus(focused);
-    }
-    fn on_close_request(&mut self) -> bool {
-        self._s.borrow_mut()._window_on_close_request()
-    }
-}
 thread_local! {
     static PANEL : std::cell::RefCell < Option < tsx::window::Window < PanelWindow >>> =
     const { std::cell::RefCell::new(None) };
@@ -113,6 +92,27 @@ impl Panel {
     fn _on_click2(&mut self) {
         let shown: f64 = self.shown;
         self.shown = shown + 1.0f64;
+    }
+}
+pub struct PanelWindow {
+    _s: std::rc::Rc<std::cell::RefCell<Panel>>,
+}
+impl tsx::window::Component for PanelWindow {
+    type Local = Panel;
+    fn with_local(local: std::rc::Rc<std::cell::RefCell<Panel>>) -> PanelWindow {
+        PanelWindow { _s: local }
+    }
+    fn render(&mut self) -> ui::Node {
+        self._s.borrow_mut().render()
+    }
+    fn on_key(&mut self, event: &tsx::KeyEvent) -> bool {
+        self._s.borrow_mut()._window_on_key(event.clone())
+    }
+    fn on_focus(&mut self, focused: bool) {
+        self._s.borrow_mut()._window_on_focus(focused);
+    }
+    fn on_close_request(&mut self) -> bool {
+        self._s.borrow_mut()._window_on_close_request()
     }
 }
 pub struct App {}

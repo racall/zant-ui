@@ -277,12 +277,14 @@ pub fn compile_project_with(
     for (unit_index, unit) in units.into_iter().enumerate() {
         modules[unit_files[unit_index]].module = unit.module;
     }
+    let window_components = window_components(&modules);
     let project = Rc::new(ProjectData {
         modules,
         rust: rust_sources,
         assets: RefCell::new(Vec::new()),
         root: String::new(),
         config: None,
+        window_components,
     });
     let _guard = app_state::set_project(Some(Rc::clone(&project)));
     let module_sources = project.module_sources();
@@ -699,4 +701,31 @@ pub enum BuildError {
     Compile(ProjectError),
     #[error("{0}")]
     Entry(entry::Error),
+}
+
+/// The component names of every `createWindow(<Component>, …)` of the project
+/// (the defining module emits the window wrapper, wherever the const lives).
+fn window_components(modules: &[app_state::ModuleFile]) -> Vec<String> {
+    let mut names: Vec<String> = Vec::new();
+    for module in modules {
+        for constant in &module.module.consts {
+            if !crate::codegen::windows::is_create(&constant.value) {
+                continue;
+            }
+            let ast::ExprData::Call(call) = &constant.value.data else {
+                continue;
+            };
+            if call.args.is_empty() {
+                continue;
+            }
+            let ast::ExprData::Ident(name) = &call.args[0].data else {
+                continue;
+            };
+            let name = String::from_utf8_lossy(name).into_owned();
+            if !names.contains(&name) {
+                names.push(name);
+            }
+        }
+    }
+    names
 }

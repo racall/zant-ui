@@ -203,11 +203,23 @@ pub fn collect(g: &mut Generator<'_>, module: &ast::Module) -> Result<String> {
         let rust_name = rust_text::id_at(g, &constant.name.name, constant.name.loc)?;
         let accessor = format!("{rust_name}_with");
         let slot = rust_name.to_ascii_uppercase();
-        // a component of this file renders through a wrapper that holds the
-        // window's `Rc<RefCell<Panel>>` (see `component_impl`)
-        let window_type = if component.external {
-            struct_name.clone()
-        } else {
+        // every window component renders through a sibling wrapper that holds
+        // the window's `Rc<RefCell<Panel>>` (see `component_impl`). In a
+        // project the wrapper lives in the component's own module (it may be
+        // imported here), so `generate` emits it from the project-wide
+        // `window_components` list; a single-file `compile` has no project and
+        // emits it here.
+        let project_lists = app_state::project().is_some_and(|project| {
+            project
+                .window_components
+                .iter()
+                .any(|window| *window == String::from_utf8_lossy(&component.name.as_bytes()))
+                || project
+                    .window_components
+                    .iter()
+                    .any(|window| struct_name.ends_with(&format!("::{window}")))
+        });
+        if !component.external && !project_lists {
             let wrapper = format!("{struct_name}Window");
             code.push_str(&component_impl(
                 g,
@@ -215,8 +227,8 @@ pub fn collect(g: &mut Generator<'_>, module: &ast::Module) -> Result<String> {
                 &wrapper,
                 component.func.as_ref(),
             )?);
-            wrapper
-        };
+        }
+        let window_type = format!("{struct_name}Window");
         code.push_str(&format!(
             "thread_local! {{\n    static {slot}: std::cell::RefCell<Option<tsx::window::Window<{window_type}>>> = const {{ std::cell::RefCell::new(None) }};\n}}\n\n\
              pub fn {accessor}<R>(apply: impl FnOnce(&mut tsx::window::Window<{window_type}>) -> R) -> R {{\n\
@@ -345,7 +357,7 @@ fn place_literal(g: &mut Generator<'_>, e: &ast::Expr) -> Result<String> {
 /// for windows), so the window renders through a small wrapper holding the
 /// `Rc<RefCell<Panel>>` the window keeps alive (`tsx::window::Component::Local
 /// = Panel`).
-fn component_impl(
+pub(crate) fn component_impl(
     g: &mut Generator<'_>,
     struct_name: &str,
     wrapper: &str,
