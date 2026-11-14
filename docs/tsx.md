@@ -486,14 +486,21 @@ React Native 写法（`backgroundColor`、`paddingHorizontal`、`flex`、`positi
 ### 性能
 
 生成的代码与手写 Rust 一样：没有虚拟 DOM、没有运行时解释，状态是 struct 字段，事件是 action / 闭包。
-`bench-tsx`（Zig 版既有基准；Rust 版属于 **WP-5.10 迁移中**）用同样的输入对比 TSX 生成代码与手写 Rust
+`bench-tsx`（Zig 版既有基准；Rust 侧仍是既有 Zig 入口）用同样的输入对比 TSX 生成代码与手写 Rust
 的帧耗时；每次改代码生成都要复测，差距超过 5% 视为回归。回归门槛：TSX 生成代码不慢于手写 Rust
 对照组 **1.2 倍**。
 
-> **迁移中**：仓库内的 TSX 示例（`examples/tsx/`）目前仍是 Zig 入口（`counter.tsx`、`todos.tsx`、
-> `gallery.tsx`、`notes/`、`reader.tsx`、`bench*.tsx` 等）。它们的 Rust 入口与 `bench-tsx` 属于
-> WP-5.10；在合入前参考模板 `scaffold/template-ts/` 与编译器测试
-> （`crates/zant-tsx/tests/codegen_*.rs`）。
+Rust 侧的编译基准已经落地（WP-5.10）：`zant-tsx-bench`（`crates/zant-examples/src/bin/`）把
+`tools/tsx/testdata/*.tsx` 逐个在进程内编译（预热 + 迭代），对照 Zig 编译器进程内基线
+（`tools/tsx/compile_bench.zig`），由 `scripts/tsx/examples-check.sh` 跑并判 ≤1.25×；本机平均
+**1.08×**。编译耗时不是帧耗时——帧对比基准（TSX 生成代码 vs 手写 Rust）仍未移植。
+
+> **示例**：仓库内的 TSX 示例现在有 Rust 入口（WP-5.10）：`crates/zant-examples/tsx/` 下
+> `tsx-counter`（`examples/tsx/counter.tsx`）、`tsx-demo`（`examples/tsx/app/App.tsx`）、
+> `tsx-bench`（`examples/tsx/settings.tsx`，帧基准的重负载页）三个 Cargo workspace 成员，形态与
+> `scaffold/template-ts/` 相同（`build.rs` → `zant_build::tsx_app()`）；`scripts/tsx/examples-check.sh`
+> 构建、无窗口截图（`ZANT_SNAPSHOT` + `ZANT_LAYOUT_FILE`）并断言。`todos.tsx`、`gallery.tsx`、
+> `notes/`、`reader.tsx` 与帧基准的场景文件仍是 Zig 入口。
 
 ## 第三阶段（进行中）：组件状态与 hooks
 
@@ -851,7 +858,9 @@ const visible = notes.filter((note) => note.title.toLowerCase().includes(needle)
 ## 后续阶段
 
 - 已完成：`zant create` 的 TS 模板、TSX 编译器前端（lexer / parser / hooks）与 codegen 核心、
-  `#[derive(TsxProps)]` 标签表、`zant.d.ts` 生成、框架的 TSX 运行时（`zant::tsx`）。
-- 迁移中：`zant_build::tsx_app()`（WP-6.2）、`zant-tsx` CLI 与应用层（WP-5.6）、native 模块 trait 生成
-  （WP-5.8）、黄金用例与示例 / `bench-tsx`（WP-5.9 / 5.10）。逐项进度见
+  `#[derive(TsxProps)]` 标签表、`zant.d.ts` 生成、框架的 TSX 运行时（`zant::tsx`）、`zant_build::tsx_app()`
+  （WP-6.2）、`zant-tsx` CLI 与应用层（WP-5.6）、native 模块 trait 生成（WP-5.8）、黄金用例（WP-5.9）、
+  TSX 示例与编译基准（WP-5.10）。
+- 迁移中：帧对比基准 `bench-tsx`（TSX 生成代码 vs 手写 Rust 的 clicks/typing/todos/list/markdown/local
+  场景，需要把 `examples/tsx/*_manual.zig` 对照组与 `bench_harness` 移植到 Rust）。逐项进度见
   [`docs/rust-port/status.md`](rust-port/status.md)。

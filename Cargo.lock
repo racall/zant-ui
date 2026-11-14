@@ -787,6 +787,7 @@ version = "0.1.0"
 dependencies = [
  "serde_json",
  "zant",
+ "zant-tsx",
 ]
 
 [[package]]
@@ -818,6 +819,30 @@ dependencies = [
  "syn",
  "thiserror",
  "zant",
+]
+
+[[package]]
+name = "zant-tsx-bench-app"
+version = "0.1.0"
+dependencies = [
+ "zant",
+ "zant-build",
+]
+
+[[package]]
+name = "zant-tsx-counter"
+version = "0.1.0"
+dependencies = [
+ "zant",
+ "zant-build",
+]
+
+[[package]]
+name = "zant-tsx-demo"
+version = "0.1.0"
+dependencies = [
+ "zant",
+ "zant-build",
 ]
 
 [[package]]

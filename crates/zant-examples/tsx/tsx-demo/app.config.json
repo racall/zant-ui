@@ -1,0 +1,18 @@
+{
+  "title": "TSX App",
+  "bundle_id": "dev.zant.tsx-app",
+  "version": "0.1.0",
+  "single_instance": false,
+  "window": {
+    "style": "native",
+    "width": 480,
+    "height": 360,
+    "min_width": 360,
+    "min_height": 280,
+    "background": "#f5f5f5",
+    "resizable": true,
+    "always_on_top": false,
+    "movable_by_background": false,
+    "center": true
+  }
+}

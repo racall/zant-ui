@@ -8,6 +8,12 @@ members = [
     "crates/zant-build",
     "crates/zant-cli",
     "crates/zant-examples",
+    # TSX example apps (WP-5.10): TSX → Rust in their own `build.rs`
+    # (`zant_build::try_tsx_app()`, the `scaffold/template-ts` shape), built
+    # and checked by the plain workspace commands.
+    "crates/zant-examples/tsx/tsx-counter",
+    "crates/zant-examples/tsx/tsx-demo",
+    "crates/zant-examples/tsx/tsx-bench",
 ]
 
 [workspace.package]
