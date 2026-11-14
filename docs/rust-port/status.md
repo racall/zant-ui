@@ -334,6 +334,30 @@ Release、窗口模式（Metal），`ZANT_FRAME_STATS=1 ZANT_STREAM_CHARS=6 ZANT
    所有稳态帧 0.6–4.3 ms（远低于 16.7 ms），峰值内存比 Zig 低 2%；
    同时 `zant-demo`/`zant-components`/`zant-markdown` parity 仍 6/6、0 像素。
 
+## 端到端里程碑（WP-E2E，已并入）
+
+`scripts/tsx/build-template-check.sh`：`zant create` 生成的 TSX 应用 / `scaffold/template-ts` 现在能
+`cargo build` 出可执行文件并渲染真实窗口（截图 sha256 `88c5019e…`：Title、输入框、父组件计数、
+`Dashboard` 的两个 `StatCard`（macOS / 14 核 / Rust 1.94.1，来自 `native/system` 规范+实现）、
+`CounterCard` +1/Reset）。真实鼠标点击验证：点击 +1 五次后条件文本宽度 45→49、Reset 后回到 45，
+无 panic（`ui::action` 现在看到 `Shell<App>` 的内层根组件，修复了点击即 panic 的问题）。
+`zant create` → `cargo build` 也验证通过（新项目直接可编译）。
+
+## 最终验证矩阵（2026-11-14）
+
+| 项目 | 结果 |
+|---|---|
+| `cargo test --workspace` | 67 个测试套件全绿（含 TSX 31 个 golden 编译检查、端到端 fixture/模板） |
+| `clippy --workspace --all-targets -- -D warnings` | 0 |
+| `fmt --all` | 干净 |
+| `zig build test` | 绿色（Zig 基线未动） |
+| parity `zant-demo`/`components`/`markdown`/`md-stream` | 6/6 layout+像素 |
+| parity `zant-gallery`/`zant-math`（Zig 无 key，图像对照） | 6/6 0 像素 |
+| parity `zant-pdf`（fixture PDF，手动对照） | 6/6 layout+像素 |
+| `scripts/parity/bench.sh` | **PASS 7/7**（默认+虚拟列表）：stream 0.89×、typing 1.16×、resize 0.93×、scroll 0.97× |
+| `zant-md-stream` 流式 | 稳态帧 1–3 ms，`text_layouts` 不随内容增长 |
+| `scripts/tsx/build-template-check.sh` / `build-check.sh` | 都通过（含 ZANT_SNAPSHOT 冒烟） |
+
 ## 待决问题
 
 ### WP-5.9 提出（2026-11-14）
