@@ -213,7 +213,7 @@ pub fn collect(g: &mut Generator<'_>, module: &ast::Module) -> Result<String> {
             project
                 .window_components
                 .iter()
-                .any(|window| *window == String::from_utf8_lossy(&component.name.as_bytes()))
+                .any(|window| *window == String::from_utf8_lossy(component.name.as_bytes()))
                 || project
                     .window_components
                     .iter()
