@@ -6,9 +6,7 @@
 
 use crate::IS_WINDOWS;
 use crate::generate::{self, Need};
-use crate::{
-    app_argv, app_exe_path, build_args, build_once, fail, load_config, ok, run_inherit, step,
-};
+use crate::{app_exe_path, build_args, build_once, fail, load_config, ok, run_inherit, step};
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 
 fn root() -> std::io::Result<String> {
@@ -55,11 +53,7 @@ pub fn cmd_run(release: bool) -> std::io::Result<()> {
         }
         run_inherit(&build_args(release), &root);
         let exe = app_exe_path(&root, release);
-        if crate::raw_logs() || IS_WINDOWS {
-            run_inherit(&[exe.to_string_lossy().into_owned()], &root);
-        } else {
-            run_inherit(&app_argv(&exe), &root);
-        }
+        crate::run_app(&exe, &root);
     }
     Ok(())
 }

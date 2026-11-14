@@ -481,9 +481,11 @@ pub fn prompt_yes_no(label: &str, default: bool) -> bool {
 /// Manager) that unbundled apps launched from a terminal print when an input
 /// method attaches. They do not affect input; `zant run` hides them unless
 /// ZANT_RAW_LOGS=1.
-const BENIGN_LOG_FILTER: &str = "exec \"$0\" \"$@\" 2> >(grep --line-buffered -v \
--e 'IMKCFRunLoopWakeUpReliable' -e 'IMKClient Stall detected' \
--e 'TSM AdjustCapsLockLEDForKeyTransitionHandling' >&2)";
+const BENIGN_LOG_LINES: &[&str] = &[
+    "IMKCFRunLoopWakeUpReliable",
+    "IMKClient Stall detected",
+    "TSM AdjustCapsLockLEDForKeyTransitionHandling",
+];
 
 pub fn raw_logs() -> bool {
     match std::env::var("ZANT_RAW_LOGS") {
@@ -492,29 +494,48 @@ pub fn raw_logs() -> bool {
     }
 }
 
-/// argv that runs `exe` with benign system log lines filtered from stderr.
-/// `exec` keeps the app's pid, so waiting / killing the child still works.
-pub(crate) fn app_argv(exe: &Path) -> Vec<String> {
-    vec![
-        "/bin/bash".to_string(),
-        "-c".to_string(),
-        BENIGN_LOG_FILTER.to_string(),
-        exe.to_string_lossy().into_owned(),
-    ]
+/// Whether a stderr line is one of the harmless macOS framework messages.
+fn is_benign_log(line: &str) -> bool {
+    BENIGN_LOG_LINES.iter().any(|benign| line.contains(benign))
+}
+
+/// Forwards the app's stderr, dropping the benign framework lines.
+fn filter_stderr(stderr: std::process::ChildStderr) {
+    use std::io::BufRead as _;
+    let lines = std::io::BufReader::new(stderr).lines();
+    for line in lines.map_while(Result::ok) {
+        if !is_benign_log(&line) {
+            eprintln!("{line}");
+        }
+    }
 }
 
 /// Spawns the app the same way `zant run` does (`spawnApp`).
 pub fn spawn_app(exe: &Path, root: &str) -> std::io::Result<std::process::Child> {
-    let plain = vec![exe.to_string_lossy().into_owned()];
-    let argv = if raw_logs() || IS_WINDOWS {
-        plain
-    } else {
-        app_argv(exe)
-    };
-    base_command(&argv[0])
-        .args(&argv[1..])
+    let mut command = base_command(&exe.to_string_lossy());
+    command
         .current_dir(root)
-        .spawn()
+        .stdout(std::process::Stdio::inherit());
+    if raw_logs() || IS_WINDOWS {
+        return command.spawn();
+    }
+    command.stderr(std::process::Stdio::piped());
+    let mut child = command.spawn()?;
+    if let Some(stderr) = child.stderr.take() {
+        std::thread::spawn(move || filter_stderr(stderr));
+    }
+    Ok(child)
+}
+
+/// Runs the app to completion (interactive `zant run`).
+pub fn run_app(exe: &Path, root: &str) {
+    let mut child = spawn_app(exe, root)
+        .unwrap_or_else(|err| fail(format!("无法启动 {}: {err}", exe.display())));
+    match child.wait() {
+        Ok(status) if status.success() => {}
+        Ok(_) => fail(format!("{} 执行失败", exe.display())),
+        Err(err) => fail(format!("等待 {} 失败: {err}", exe.display())),
+    }
 }
 
 // ---- Zant UI's own folder ----
@@ -720,6 +741,26 @@ fn main() {
     if let Err(err) = result {
         eprintln!("zant: {err}");
         std::process::exit(1);
+    }
+}
+
+#[cfg(test)]
+mod log_filter_tests {
+    use super::is_benign_log;
+
+    #[test]
+    fn benign_macos_framework_lines_are_dropped() {
+        assert!(is_benign_log(
+            "IMKCFRunLoopWakeUpReliable: calling into InputMethodKit"
+        ));
+        assert!(is_benign_log(
+            "TSM AdjustCapsLockLEDForKeyTransitionHandling"
+        ));
+        assert!(is_benign_log("IMKClient Stall detected, please report"));
+        assert!(!is_benign_log(
+            "Zant UI app — renderer: Metal (Skia Ganesh)"
+        ));
+        assert!(!is_benign_log("error: failed to open the file"));
     }
 }
 
