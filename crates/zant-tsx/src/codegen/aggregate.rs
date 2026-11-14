@@ -1,0 +1,446 @@
+//! Immutable array/object values, spreads, indexing, and optional member
+//! access. Translation of `tools/tsx/codegen/aggregate.zig`.
+//!
+//! Zig's frame-arena arrays/spreads become `tsx::List::from_vec(..)` plus a
+//! `Vec` block for spreads; `orelse` / `if (x) |v|` become
+//! `unwrap_or_else` / `.map(..)`.
+
+use crate::ast;
+
+use super::builtins;
+use super::expr;
+use super::model;
+use super::rust_text::{self, Precedence};
+use super::scope;
+use super::types::{self, Type, Value};
+use super::{Generator, Result, fail};
+
+/// General arrays become `tsx::List` values (Zig `aggregate.array`).
+pub fn array(
+    g: &mut Generator<'_>,
+    c: &mut scope::Context,
+    loc: ast::Loc,
+    items: &[Box<ast::Expr>],
+    expected: Option<Type>,
+) -> Result<Value> {
+    let mut child: Option<Type> = match expected {
+        Some(ty) => model::element(g, unwrap(g, ty)),
+        None => None,
+    };
+    let mut values: Vec<Value> = Vec::new();
+    for item in items {
+        let spread = matches!(item.data, ast::ExprData::Spread(_));
+        let context = if expected.is_some() {
+            child
+        } else {
+            child.filter(|ty| {
+                !(ty.numeric() || *ty == Type::Null || matches!(item.data, ast::ExprData::NullLit))
+            })
+        };
+        let target: &ast::Expr = match &item.data {
+            ast::ExprData::Spread(inner) => inner,
+            _ => item,
+        };
+        let value = expr::emit(g, c, target, if spread { None } else { context }, false)?;
+        if spread && model::optional_child(g, value.ty).is_some() {
+            return fail(g, item.loc, "optional array needs ?? or ! before spread");
+        }
+        let element = if spread {
+            match model::element(g, value.ty) {
+                Some(element) => element,
+                None => return fail(g, item.loc, "spread needs an array"),
+            }
+        } else {
+            value.ty
+        };
+        child = match child {
+            Some(ty) => Some(types::unify(g, ty, element, item.loc)?),
+            None => Some(element.concrete()),
+        };
+        values.push(value);
+    }
+    let Some(element) = child else {
+        return fail(g, loc, "empty array needs a type annotation");
+    };
+    let element = element.concrete();
+    let ty = model::array(g, element)?;
+    let element_rust = element.rust(g).to_owned();
+    let mut parts: Vec<String> = Vec::new();
+    let mut spread_parts: Vec<Value> = Vec::new();
+    let mut has_spread = false;
+    for (item, raw) in items.iter().zip(values) {
+        if matches!(item.data, ast::ExprData::Spread(_)) {
+            if model::element(g, raw.ty) != Some(element) {
+                return fail(g, item.loc, "spread array element type does not match");
+            }
+            has_spread = true;
+            spread_parts.push(raw);
+        } else {
+            let value = types::coerce(g, raw, element, item.loc)?;
+            parts.push(value.code);
+        }
+    }
+    if !has_spread {
+        let code = if parts.is_empty() {
+            // an empty `vec![]` would need the type from context; name it
+            format!("tsx::List::from_vec(Vec::<{element_rust}>::new())")
+        } else {
+            format!("tsx::List::from_vec(vec![{}])", parts.join(", "))
+        };
+        return Ok(Value {
+            ty,
+            code,
+            ..Value::default()
+        });
+    }
+    let temp = temporary(g, c, b"_items")?;
+    let mut block = format!(
+        "{{\n    let mut {temp}: Vec<{element_rust}> = vec![{}];\n",
+        parts.join(", ")
+    );
+    for part in spread_parts {
+        block.push_str(&format!(
+            "    {temp}.extend({}.iter().cloned());\n",
+            rust_text::operand(&part, Precedence::Suffix, false)
+        ));
+    }
+    block.push_str(&format!("    tsx::List::from_vec({temp})\n}}"));
+    Ok(Value {
+        ty,
+        code: block,
+        precedence: Precedence::Conditional,
+        ..Value::default()
+    })
+}
+
+/// Copy a spread exactly once, then apply fields in source order (last write
+/// wins).
+pub fn object(
+    g: &mut Generator<'_>,
+    c: &mut scope::Context,
+    loc: ast::Loc,
+    properties: &[ast::Property],
+    expected: Option<Type>,
+) -> Result<Value> {
+    let Some(expected) = expected else {
+        return fail(g, loc, "object literal needs a type annotation");
+    };
+    let ty = unwrap(g, expected);
+    let Some(entry) = model::info(g, ty) else {
+        return fail(g, loc, "object literal needs a struct type");
+    };
+    if entry.kind != model::InfoKind::Object {
+        return fail(g, loc, "object literal needs a struct type");
+    }
+    let fields = entry.fields;
+    let temp = temporary(g, c, b"_object")?;
+    let mut values: Vec<Value> = Vec::new();
+    let mut writes: Vec<String> = Vec::new();
+    let mut spread = false;
+    for property in properties {
+        let field_ty = if property.spread {
+            ty
+        } else {
+            model::field_type(g, ty, &property.key.name, property.key.loc)?
+        };
+        let value = expr::emit(g, c, &property.value, Some(field_ty), false)?;
+        let value_code = value.code.clone();
+        if property.spread {
+            spread = true;
+            writes.push(format!("{temp} = {value_code};"));
+        } else {
+            writes.push(format!(
+                "{temp}.{} = {value_code};",
+                rust_text::id_at(g, &property.key.name, property.key.loc)?
+            ));
+        }
+        values.push(value);
+    }
+    if spread {
+        let ty_rust = ty.rust(g).to_owned();
+        let mut block = format!("{{\n    let mut {temp}: {ty_rust} = {ty_rust}::default();\n");
+        for write in &writes {
+            block.push_str(&format!("    {write}\n"));
+        }
+        block.push_str(&format!("    {temp}\n}}"));
+        return Ok(Value {
+            ty,
+            code: block,
+            precedence: Precedence::Conditional,
+            ..Value::default()
+        });
+    }
+    for field in &fields {
+        let present = properties
+            .iter()
+            .any(|property| property.key.name == field.name);
+        if !present && !field.optional {
+            return fail(
+                g,
+                loc,
+                format!(
+                    "{} is missing field `{}`",
+                    ty.rust(g),
+                    String::from_utf8_lossy(&field.name)
+                ),
+            );
+        }
+    }
+    // Source order matters when field values call component functions.
+    let mut initial: Vec<String> = Vec::new();
+    for (index, property) in properties.iter().enumerate() {
+        let replaced = properties[index + 1..]
+            .iter()
+            .any(|later| later.key.name == property.key.name);
+        if replaced {
+            continue;
+        }
+        initial.push(format!(
+            "    {}: {},",
+            rust_text::id_at(g, &property.key.name, property.key.loc)?,
+            values[index].code
+        ));
+    }
+    let all_present = fields.iter().all(|field| {
+        properties
+            .iter()
+            .any(|property| property.key.name == field.name)
+    });
+    if !all_present {
+        initial.push("    ..Default::default()".to_owned());
+    }
+    Ok(Value {
+        ty,
+        code: format!("{} {{\n{}\n}}", ty.rust(g), initial.join("\n")),
+        ..Value::default()
+    })
+}
+
+pub fn unwrap(g: &Generator<'_>, ty: Type) -> Type {
+    model::optional_child(g, ty).unwrap_or(ty)
+}
+
+/// Compiler temporaries are ordinary bindings, so they cannot shadow source
+/// locals.
+pub fn temporary(g: &mut Generator<'_>, c: &mut scope::Context, base: &[u8]) -> Result<String> {
+    let binding = scope::bind(g, c, base, Type::Void, false)?;
+    c.bindings[binding].name.clear();
+    Ok(c.bindings[binding].zig.clone())
+}
+
+pub fn non_null(
+    g: &mut Generator<'_>,
+    c: &mut scope::Context,
+    inner: &ast::Expr,
+    expected: Option<Type>,
+    child: bool,
+) -> Result<Value> {
+    if types::numeric_literals(inner) {
+        return expr::emit(g, c, inner, expected, child);
+    }
+    let value = expr::emit(g, c, inner, None, child)?;
+    if let Some(ty) = model::optional_child(g, value.ty) {
+        return Ok(Value {
+            ty,
+            code: format!(
+                "{}.unwrap()",
+                rust_text::operand(&value, Precedence::Suffix, false)
+            ),
+            precedence: Precedence::Suffix,
+            ..Value::default()
+        });
+    }
+    match expected {
+        Some(target) => types::coerce(g, value, target, inner.loc),
+        None => Ok(value),
+    }
+}
+
+pub fn coalesce(
+    g: &mut Generator<'_>,
+    c: &mut scope::Context,
+    loc: ast::Loc,
+    binary: &ast::Binary,
+    expected: Option<Type>,
+) -> Result<Value> {
+    let value = expr::emit(g, c, &binary.lhs, None, false)?;
+    if value.ty == Type::Null {
+        let mut fallback = expr::emit(g, c, &binary.rhs, expected, false)?;
+        if value.code == "None" {
+            return Ok(fallback);
+        }
+        let target = expected.unwrap_or_else(|| fallback.ty.concrete());
+        fallback = types::coerce(g, fallback, target, binary.rhs.loc)?;
+        return Ok(Value {
+            ty: fallback.ty,
+            code: fallback.code,
+            precedence: Precedence::LogicalOr,
+            ..Value::default()
+        });
+    }
+    let Some(child) = model::optional_child(g, value.ty) else {
+        return fail(g, loc, "?? needs an optional value");
+    };
+    let fallback = expr::emit(g, c, &binary.rhs, Some(child), false)?;
+    Ok(Value {
+        ty: child,
+        code: format!(
+            "{}.unwrap_or_else(|| {})",
+            rust_text::operand(&value, Precedence::Suffix, false),
+            fallback.code
+        ),
+        precedence: Precedence::Suffix,
+        ..Value::default()
+    })
+}
+
+/// Optional access evaluates its receiver once and preserves null through the
+/// member.
+pub fn member(g: &mut Generator<'_>, c: &mut scope::Context, m: &ast::Member) -> Result<Value> {
+    if !c.narrowed.is_empty() && !m.optional {
+        // `s.prompt` narrowed by `s.prompt !== null && …`
+        let expression = ast::Expr {
+            loc: m.name.loc,
+            data: ast::ExprData::Member(m.clone()),
+        };
+        if let Some(path) = super::narrowing::path(&expression)
+            && let Some(value) =
+                super::narrowing::find_path(c, &path, &super::narrowing::base(&expression))
+        {
+            return Ok(value);
+        }
+    }
+    if let Some(value) = builtins::member(g, c, m)? {
+        return Ok(value);
+    }
+    if let Some(hook) = g.extensions.hooks.ref_read
+        && let Some(value) = hook(g, c, m)?
+    {
+        return Ok(value);
+    }
+    let value = expr::emit(g, c, &m.object, None, false)?;
+    if m.optional
+        && let Some(child) = model::optional_child(g, value.ty)
+    {
+        let name = temporary(g, c, b"_value")?;
+        let result = member_read(g, child, &name, &m.name)?;
+        let ty = model::optional(g, result.ty)?;
+        return Ok(Value {
+            ty,
+            code: format!(
+                "{}.map(|{name}| {})",
+                rust_text::operand(&value, Precedence::Suffix, false),
+                result.code
+            ),
+            precedence: Precedence::Suffix,
+            ..Value::default()
+        });
+    }
+    if model::optional_child(g, value.ty).is_some() {
+        return fail(
+            g,
+            m.name.loc,
+            "optional value needs ?? or ! before member access",
+        );
+    }
+    let operand = rust_text::operand(&value, Precedence::Suffix, false);
+    member_read(g, value.ty, &operand, &m.name)
+}
+
+/// A member read of a value whose expression is already parenthesized to
+/// suffix precedence (`operand`; Zig `memberValue`).
+fn member_read(
+    g: &mut Generator<'_>,
+    object_ty: Type,
+    operand: &str,
+    name: &ast::Name,
+) -> Result<Value> {
+    let length = name.name == b"length"
+        && (object_ty == Type::String || model::element(g, object_ty).is_some());
+    if length && object_ty == Type::String {
+        // strings count UTF-16 code units, as in TypeScript
+        return Ok(Value {
+            ty: Type::Usize,
+            code: format!("tsx::utf16_length({operand})"),
+            precedence: Precedence::Suffix,
+            ..Value::default()
+        });
+    }
+    if length {
+        return Ok(Value {
+            ty: Type::Usize,
+            code: format!("{operand}.len()"),
+            precedence: Precedence::Suffix,
+            ..Value::default()
+        });
+    }
+    let ty = model::field_type(g, object_ty, &name.name, name.loc)?;
+    let field = match model::field_rust(g, object_ty, &name.name) {
+        Some(field) => field,
+        None => rust_text::id_at(g, &name.name, name.loc)?,
+    };
+    let raw = format!("{operand}.{field}");
+    if ty.copy(g) {
+        Ok(Value::new(ty, raw))
+    } else {
+        Ok(Value {
+            ty,
+            code: format!("{raw}.clone()"),
+            precedence: Precedence::Suffix,
+            ..Value::default()
+        })
+    }
+}
+
+/// Numeric indexes are checked by `tsx::index` before Rust's own slice bounds
+/// check (Zig `aggregate.index`).
+pub fn index(
+    g: &mut Generator<'_>,
+    c: &mut scope::Context,
+    loc: ast::Loc,
+    ix: &ast::Index,
+) -> Result<Value> {
+    let value = expr::emit(g, c, &ix.object, None, false)?;
+    let ty = unwrap(g, value.ty);
+    if !ix.optional && ty != value.ty {
+        return fail(g, loc, "optional array needs ?? or !");
+    }
+    let Some(child) = model::element(g, ty) else {
+        return fail(g, loc, "indexing needs an array");
+    };
+    let position = expr::emit(g, c, &ix.index, None, false)?;
+    if model::optional_child(g, position.ty).is_some() {
+        return fail(g, ix.index.loc, "optional array index needs ?? or !");
+    }
+    if !position.ty.numeric() {
+        return fail(g, ix.index.loc, "array index must be numeric");
+    }
+    let at = format!("tsx::index({})", types::concrete(g, position)?.code);
+    let child_copy = child.copy(g);
+    let access = |code: &str| {
+        if child_copy {
+            format!("{code}[{at}]")
+        } else {
+            format!("{code}[{at}].clone()")
+        }
+    };
+    if ty != value.ty {
+        let name = temporary(g, c, b"_array")?;
+        let body = access(&name);
+        return Ok(Value {
+            ty: model::optional(g, child)?,
+            code: format!(
+                "{}.map(|{name}| {body})",
+                rust_text::operand(&value, Precedence::Suffix, false)
+            ),
+            precedence: Precedence::Suffix,
+            ..Value::default()
+        });
+    }
+    Ok(Value {
+        ty: child,
+        code: access(&rust_text::operand(&value, Precedence::Suffix, false)),
+        precedence: Precedence::Suffix,
+        ..Value::default()
+    })
+}

@@ -5,6 +5,7 @@
 #![forbid(unsafe_code)]
 
 pub mod ast;
+pub mod codegen;
 pub mod dump;
 pub mod error;
 pub mod expr_parser;
