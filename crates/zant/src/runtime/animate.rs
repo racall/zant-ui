@@ -19,6 +19,12 @@ use crate::motion::motion::{self, Fx, Transition};
 use super::Runtime;
 
 impl Runtime {
+    /// Whether `id` is in the animation queue (tests).
+    #[cfg(test)]
+    pub(crate) fn animating_contains(&self, id: NodeId) -> bool {
+        self.tree.animating.contains(&id)
+    }
+
     /// Advances one node's transitions; true while it keeps animating.
     fn animate_node(&mut self, id: NodeId) -> bool {
         let now = self.now_ms;
@@ -189,5 +195,157 @@ impl Runtime {
             self.tree.mark_paint_dirty();
         }
         self.any_animation = !self.tree.animating.is_empty() || tooltip_moving;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::events::{Event, Modifiers, PointerButton, PointerEvent};
+    use crate::core::node::FlexStyle;
+    use crate::motion::motion::Presence;
+    use crate::renderer::renderer::Renderer;
+    use crate::ui::app::App;
+    use crate::ui::builders::column;
+    use crate::ui::options::BoxOptions;
+    use crate::ui::{Node, RunOptions, Style, styled, with_key};
+    use std::sync::atomic::{AtomicI64, Ordering};
+
+    fn pointer(x: f32, y: f32) -> PointerEvent {
+        PointerEvent {
+            x,
+            y,
+            button: PointerButton::Left,
+            modifiers: Modifiers::default(),
+        }
+    }
+
+    fn frame(runtime: &mut Runtime, renderer: &mut Renderer) {
+        let canvas = renderer.begin(1.0).expect("canvas");
+        runtime.render_frame(canvas, 300.0, 200.0, 1.0);
+        renderer.end();
+    }
+
+    #[test]
+    fn container_hover_transition_only_repaints() {
+        motion::set_enabled(true);
+        static NOW: AtomicI64 = AtomicI64::new(1_000);
+        fn clock() -> i64 {
+            NOW.load(Ordering::Relaxed)
+        }
+        struct Hover;
+        impl App for Hover {
+            fn render(&mut self) -> Node {
+                column(BoxOptions {
+                    children: crate::nodes![column(BoxOptions {
+                        width: Some(100.0),
+                        height: Some(50.0),
+                        hover_background: Some(0xffcc_cccc),
+                        ..Default::default()
+                    })],
+                    ..Default::default()
+                })
+            }
+        }
+        NOW.store(1_000, Ordering::Relaxed);
+        let mut runtime = Runtime::init(Hover, RunOptions::default());
+        runtime.clock = clock;
+        let mut renderer = Renderer::create_raster(300, 200).expect("renderer");
+        frame(&mut runtime, &mut renderer);
+        let inner = runtime
+            .tree
+            .nodes
+            .iter()
+            .find(|node| {
+                node.alive
+                    && matches!(&node.data, NodeData::Container(data) if data.hover_visual.is_some())
+            })
+            .map(|node| node.id)
+            .expect("the hover container");
+        runtime.dispatch(Event::PointerMove(pointer(20.0, 20.0)));
+        assert_eq!(runtime.hover_box, Some(inner));
+        assert!(!runtime.needs_build, "the hover look is paint-only");
+        // the first animated frame starts the 200 ms transition
+        frame(&mut runtime, &mut renderer);
+        assert!(runtime.animating_contains(inner));
+        assert!(runtime.any_animation);
+        assert_eq!(runtime.next_delay_ms, 16);
+        NOW.store(1_400, Ordering::Relaxed);
+        frame(&mut runtime, &mut renderer);
+        let hover_t = match &runtime.tree.get(inner).data {
+            NodeData::Container(data) => data.hover_t,
+            _ => panic!("expected the hover container"),
+        };
+        assert!((hover_t - 1.0).abs() < 0.01, "hover_t settled at {hover_t}");
+        assert!(!runtime.any_animation);
+        assert_eq!(runtime.next_delay_ms, -1);
+        assert!(!runtime.needs_build, "animations never rebuild");
+    }
+
+    #[test]
+    fn exit_transition_keeps_the_node_until_it_ends_then_frees_it() {
+        motion::set_enabled(true);
+        static NOW: AtomicI64 = AtomicI64::new(1_000);
+        fn clock() -> i64 {
+            NOW.load(Ordering::Relaxed)
+        }
+        struct Panel {
+            show: bool,
+        }
+        impl App for Panel {
+            fn render(&mut self) -> Node {
+                let panel = if self.show {
+                    Some(with_key(
+                        styled(
+                            column(BoxOptions {
+                                width: Some(50.0),
+                                height: Some(20.0),
+                                ..Default::default()
+                            }),
+                            Style {
+                                motion: Some(Presence::Fade),
+                                ..Default::default()
+                            },
+                        ),
+                        "panel",
+                    ))
+                } else {
+                    None
+                };
+                column(BoxOptions {
+                    children: crate::nodes![panel],
+                    ..Default::default()
+                })
+            }
+        }
+        NOW.store(1_000, Ordering::Relaxed);
+        let mut runtime = Runtime::init(Panel { show: true }, RunOptions::default());
+        runtime.clock = clock;
+        let mut renderer = Renderer::create_raster(300, 200).expect("renderer");
+        frame(&mut runtime, &mut renderer);
+        let id = runtime.find_key("panel").expect("panel");
+        // hide it: the exit transition starts and the node stays, out of flow
+        runtime.app_state_mut::<Panel>().show = false;
+        runtime.needs_build = true;
+        frame(&mut runtime, &mut renderer);
+        let exiting = runtime.tree.get(id).exiting;
+        assert!(exiting, "the node is playing its exit transition");
+        assert!(!runtime.tree.get(id).in_flow());
+        assert!(runtime.animating_contains(id));
+        assert_eq!(runtime.next_delay_ms, 16);
+        NOW.store(1_400, Ordering::Relaxed);
+        frame(&mut runtime, &mut renderer);
+        assert!(!runtime.tree.get(id).alive, "the exit transition freed it");
+        assert!(runtime.find_key("panel").is_none());
+        assert!(!runtime.any_animation);
+    }
+
+    #[test]
+    fn flippy_helper_animation_values_are_exposed_for_tests() {
+        // `Animated::at` (motion primitive) is what a settled transition is.
+        let settled = crate::motion::motion::Animated::at(1.0);
+        assert!(settled.done(0));
+        assert_eq!(settled.value(0), 1.0);
+        let _ = FlexStyle::default();
     }
 }

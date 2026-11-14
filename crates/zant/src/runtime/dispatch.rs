@@ -15,8 +15,9 @@ use super::Runtime;
 
 impl Runtime {
     /// Zig `dispatch`: handles `event` and returns the native callback's
-    /// "redraw needed" flag.
-    pub(crate) fn dispatch(&mut self, event: Event) -> i32 {
+    /// "redraw needed" flag. The native host calls it from
+    /// `HostHandler::event`; tests inject events directly.
+    pub fn dispatch(&mut self, event: Event) -> i32 {
         self.dispatch_depth += 1;
         let prev_owner = crate::ui::set_command_owner(Some(self.owner_ptr()));
         self.sample_clock();

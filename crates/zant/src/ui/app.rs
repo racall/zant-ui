@@ -156,10 +156,15 @@ pub fn run(app: impl App, options: RunOptions) -> Result<(), Error> {
         core.borrow_mut().enable_frame_stats();
     }
     core.borrow_mut().app.on_start();
+    // Zig `ZANT_SNAPSHOT`: the native side takes the screenshot after a few
+    // frames and `ZANT_SNAPSHOT_EXIT` (handled by the platform layer, not by
+    // the runtime) makes it quit afterwards.
     if let Some(path) = snapshot {
         window.schedule_snapshot(&path, 600);
     }
     window.run();
+    // The event loop ended: background work must no longer wake the window.
+    crate::platform::platform::set_post_wake_window(std::ptr::null_mut());
     // Break the Rc cycle Runtime -> Window -> Host -> Rc<RefCell<Runtime>> so
     // both are freed when this function returns.
     core.borrow_mut().detach_window();
@@ -238,6 +243,17 @@ mod tests {
         assert_eq!(options.theme, Theme::default());
         let named = RunOptions::new("Demo");
         assert_eq!(named.title, "Demo");
+    }
+
+    #[test]
+    fn run_matches_the_frozen_api_contract() {
+        // `pub fn run(app: impl App, opts: RunOptions) -> Result<(), Error>`
+        fn check<F>(_: F)
+        where
+            F: FnOnce(Smoke, RunOptions) -> crate::Result<()>,
+        {
+        }
+        check(run);
     }
 
     #[test]

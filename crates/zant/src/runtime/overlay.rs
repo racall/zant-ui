@@ -64,6 +64,12 @@ impl Runtime {
         let _ = (open, open_t);
     }
 
+    /// The tooltip state for tests: `(visible, rect)`.
+    #[cfg(test)]
+    pub(crate) fn tooltip_state(&self) -> (bool, Rect) {
+        (self.tooltip_visible, self.tooltip_rect)
+    }
+
     /// Zig `clearTooltip`: hides the tooltip; a visible one zooms out (its text
     /// layout lives until the transition ends), a pending one is cancelled.
     pub(crate) fn clear_tooltip(&mut self) {
@@ -186,5 +192,115 @@ impl Runtime {
             canvas.restore();
         }
         canvas.restore();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::events::{Event, Modifiers, PointerButton, PointerEvent};
+    use crate::core::node::{FlexStyle, NodeKind};
+    use crate::renderer::renderer::Renderer;
+    use crate::ui::RunOptions;
+    use crate::ui::app::App;
+    use crate::ui::builders::column;
+    use crate::ui::element::{Element, Node};
+    use crate::ui::options::BoxOptions;
+    use std::sync::atomic::{AtomicI64, Ordering};
+
+    fn frame(runtime: &mut Runtime, renderer: &mut Renderer) {
+        let canvas = renderer.begin(1.0).expect("canvas");
+        runtime.render_frame(canvas, 300.0, 200.0, 1.0);
+        renderer.end();
+    }
+
+    fn pointer(x: f32, y: f32) -> PointerEvent {
+        PointerEvent {
+            x,
+            y,
+            button: PointerButton::Left,
+            modifiers: Modifiers::default(),
+        }
+    }
+
+    struct Tip;
+
+    impl App for Tip {
+        fn render(&mut self) -> Node {
+            column(BoxOptions {
+                children: crate::nodes![Node::new(Element {
+                    kind: NodeKind::Button,
+                    content: "Save".into(),
+                    tooltip: Some("Save changes".into()),
+                    focusable: true,
+                    layout: FlexStyle {
+                        width: Some(100.0),
+                        height: Some(32.0),
+                        shrink: 0.0,
+                        ..Default::default()
+                    },
+                    ..Element::default()
+                })],
+                ..Default::default()
+            })
+        }
+    }
+
+    #[test]
+    fn hover_tooltip_appears_after_the_delay_and_zooms_out_on_leave() {
+        static NOW: AtomicI64 = AtomicI64::new(1_000);
+        fn clock() -> i64 {
+            NOW.load(Ordering::Relaxed)
+        }
+        NOW.store(1_000, Ordering::Relaxed);
+        let mut runtime = Runtime::init(Tip, RunOptions::default());
+        runtime.clock = clock;
+        let mut renderer = Renderer::create_raster(300, 200).expect("renderer");
+        frame(&mut runtime, &mut renderer);
+        let button = runtime
+            .tree
+            .nodes
+            .iter()
+            .find(|node| node.alive && node.kind() == NodeKind::Button)
+            .map(|node| node.id)
+            .expect("button");
+        let bounds = runtime.tree.get(button).bounds;
+        let center = pointer(
+            bounds.x + bounds.width * 0.5,
+            bounds.y + bounds.height * 0.5,
+        );
+        runtime.dispatch(Event::PointerMove(center));
+        assert_eq!(runtime.tooltip_target, Some(button));
+        assert_eq!(runtime.tooltip_show_at, 1_450, "450 ms hover delay");
+        // the frame after the hover animates the button hover look
+        frame(&mut runtime, &mut renderer);
+        assert!(!runtime.tooltip_state().0);
+        assert_eq!(runtime.next_delay_ms, 16, "the button hover transition");
+        // once the hover transition settled, the tooltip wake-up is scheduled
+        NOW.store(1_210, Ordering::Relaxed);
+        frame(&mut runtime, &mut renderer);
+        assert_eq!(runtime.next_delay_ms, 240);
+        assert!(!runtime.tooltip_state().0);
+        // once the delay passed the tooltip appears above the target
+        NOW.store(2_000, Ordering::Relaxed);
+        frame(&mut runtime, &mut renderer);
+        let (visible, rect) = runtime.tooltip_state();
+        assert!(visible, "the tooltip is shown");
+        assert!(rect.width >= 16.0 && rect.height >= 8.0);
+        assert!(rect.x >= 8.0 && rect.bottom() <= 200.0 - 8.0);
+        assert_eq!(runtime.next_delay_ms, 16, "the enter transition runs");
+        NOW.store(2_200, Ordering::Relaxed);
+        frame(&mut runtime, &mut renderer);
+        assert_eq!(runtime.next_delay_ms, -1, "the tooltip settled");
+        // leaving starts the zoom-out; the layout is dropped when it ends
+        runtime.dispatch(Event::PointerLeave(center));
+        assert!(!runtime.tooltip_state().0);
+        assert!(runtime.tooltip_hiding);
+        frame(&mut runtime, &mut renderer);
+        NOW.store(2_400, Ordering::Relaxed);
+        frame(&mut runtime, &mut renderer);
+        assert!(!runtime.tooltip_hiding);
+        assert!(runtime.tooltip_layout.is_none());
+        assert_eq!(runtime.next_delay_ms, -1);
     }
 }

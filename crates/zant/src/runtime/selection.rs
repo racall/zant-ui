@@ -275,3 +275,152 @@ impl Runtime {
         platform::set_clipboard(&value)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::events::{Event, Key, KeyEvent, Modifiers, PointerButton, PointerEvent};
+    use crate::renderer::renderer::Renderer;
+    use crate::ui::app::App;
+    use crate::ui::builders::{column, text};
+    use crate::ui::options::{BoxOptions, TextOptions};
+    use crate::ui::{Node, RunOptions};
+
+    struct Doc;
+
+    impl App for Doc {
+        fn render(&mut self) -> Node {
+            column(BoxOptions {
+                // `ui.paragraph` (WP-2.3) is not needed: plain text nodes join
+                // into a multi-node selection.
+                selectable: true,
+                width: Some(400.0),
+                height: Some(300.0),
+                children: crate::nodes![
+                    text(
+                        "Hello world",
+                        TextOptions {
+                            wrap: false,
+                            ..Default::default()
+                        }
+                    ),
+                    text(
+                        "Second line",
+                        TextOptions {
+                            wrap: false,
+                            ..Default::default()
+                        }
+                    ),
+                ],
+                ..Default::default()
+            })
+        }
+    }
+
+    fn frame(runtime: &mut Runtime, renderer: &mut Renderer) {
+        let canvas = renderer.begin(1.0).expect("canvas");
+        runtime.render_frame(canvas, 400.0, 300.0, 1.0);
+        renderer.end();
+    }
+
+    fn pointer(x: f32, y: f32) -> PointerEvent {
+        PointerEvent {
+            x,
+            y,
+            button: PointerButton::Left,
+            modifiers: Modifiers::default(),
+        }
+    }
+
+    fn text_bounds(
+        runtime: &Runtime,
+    ) -> (crate::core::geometry::Rect, crate::core::geometry::Rect) {
+        let mut bounds = runtime
+            .tree
+            .nodes
+            .iter()
+            .filter(|node| node.alive && matches!(node.data, NodeData::Text(_)))
+            .map(|node| node.bounds);
+        (
+            bounds.next().expect("first"),
+            bounds.next().expect("second"),
+        )
+    }
+
+    #[test]
+    fn dragging_across_text_nodes_selects_and_copies_them() {
+        let mut runtime = Runtime::init(Doc, RunOptions::default());
+        let mut renderer = Renderer::create_raster(400, 300).expect("renderer");
+        frame(&mut runtime, &mut renderer);
+        let (first, second) = text_bounds(&runtime);
+        let start = pointer(first.x + 1.0, first.y + first.height * 0.5);
+        let end = pointer(
+            second.x + second.width - 1.0,
+            second.y + second.height * 0.5,
+        );
+        runtime.dispatch(Event::PointerDown(start));
+        assert!(runtime.sel_dragging, "the press starts a selection");
+        runtime.dispatch(Event::PointerMove(end));
+        runtime.dispatch(Event::PointerUp(end));
+        assert!(!runtime.sel_dragging);
+        let selected = runtime.selected_text();
+        assert!(selected.contains("Hello world"), "selected: {selected:?}");
+        assert!(selected.contains("Second line"), "selected: {selected:?}");
+        assert!(selected.contains('\n'), "stacked nodes join with a newline");
+        // the marks are set on the text nodes so paint highlights them
+        let marked: Vec<[u32; 2]> = runtime
+            .tree
+            .nodes
+            .iter()
+            .filter(|node| node.alive)
+            .filter_map(|node| node.text_sel)
+            .collect();
+        assert_eq!(marked.len(), 2);
+    }
+
+    #[test]
+    fn a_plain_click_selects_nothing() {
+        let mut runtime = Runtime::init(Doc, RunOptions::default());
+        let mut renderer = Renderer::create_raster(400, 300).expect("renderer");
+        frame(&mut runtime, &mut renderer);
+        let (first, _) = text_bounds(&runtime);
+        let point = pointer(first.x + 20.0, first.y + first.height * 0.5);
+        runtime.dispatch(Event::PointerDown(point));
+        runtime.dispatch(Event::PointerUp(point));
+        assert!(runtime.selected_text().is_empty());
+        assert!(runtime.sel_root.is_none());
+    }
+
+    #[test]
+    fn select_all_and_escape_clear_the_selection() {
+        let mut runtime = Runtime::init(Doc, RunOptions::default());
+        let mut renderer = Renderer::create_raster(400, 300).expect("renderer");
+        frame(&mut runtime, &mut renderer);
+        // a selection must exist first: cmd/ctrl+A only applies to selectable
+        // content when a selection root is set (a click in the text sets it)
+        let (first, _) = text_bounds(&runtime);
+        let point = pointer(first.x + 5.0, first.y + first.height * 0.5);
+        runtime.dispatch(Event::PointerDown(point));
+        runtime.dispatch(Event::PointerUp(point));
+        runtime.select_all_text(runtime.tree.root);
+        let all = runtime.selected_text();
+        assert!(all.contains("Hello world") && all.contains("Second line"));
+        assert_eq!(
+            runtime.dispatch(Event::KeyDown(KeyEvent {
+                key: Key::Escape,
+                modifiers: Modifiers::default(),
+                repeat: false,
+            })),
+            1
+        );
+        assert!(runtime.selected_text().is_empty());
+        assert!(runtime.sel_anchor.is_none());
+        assert!(
+            runtime
+                .tree
+                .nodes
+                .iter()
+                .all(|node| node.text_sel.is_none() || !node.alive)
+        );
+    }
+}

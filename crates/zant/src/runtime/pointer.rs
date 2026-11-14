@@ -654,3 +654,166 @@ impl Runtime {
         false
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::events::{Event, Modifiers, PointerEvent};
+    use crate::core::node::{FlexStyle, PointerArea};
+    use crate::renderer::renderer::Renderer;
+    use crate::ui::RunOptions;
+    use crate::ui::actions::{KeyAction, PointerAction, PointerPhase};
+    use crate::ui::app::App;
+    use crate::ui::builders::column;
+    use crate::ui::element::{Element, Node};
+    use crate::ui::options::BoxOptions;
+
+    fn frame(runtime: &mut Runtime, renderer: &mut Renderer) {
+        let canvas = renderer.begin(1.0).expect("canvas");
+        runtime.render_frame(canvas, 400.0, 300.0, 1.0);
+        renderer.end();
+    }
+
+    fn pointer(x: f32, y: f32) -> PointerEvent {
+        PointerEvent {
+            x,
+            y,
+            button: crate::core::events::PointerButton::Left,
+            modifiers: Modifiers::default(),
+        }
+    }
+
+    #[derive(Default)]
+    struct Log {
+        phases: Vec<PointerPhase>,
+        infos: Vec<PointerInfo>,
+        keys: u32,
+    }
+
+    impl Log {
+        fn on_pointer(&mut self, info: PointerInfo) -> bool {
+            self.phases.push(info.phase);
+            self.infos.push(info);
+            info.phase != PointerPhase::Hover
+        }
+    }
+
+    impl App for Log {
+        fn render(&mut self) -> Node {
+            let area = PointerArea {
+                action: PointerAction::new(|cx, info| cx.state::<Log>().on_pointer(info)),
+                capture_scroll: true,
+                clicks: true,
+            };
+            let key_action = KeyAction::new(|cx, key| {
+                cx.state::<Log>().keys += 1;
+                let _ = key;
+                true
+            });
+            let target = Node::new(Element {
+                kind: NodeKind::Container,
+                layout: FlexStyle {
+                    width: Some(200.0),
+                    height: Some(100.0),
+                    ..Default::default()
+                },
+                pointer: Some(area),
+                key_action: Some(key_action),
+                cursor: Some(Cursor::Crosshair),
+                focusable: true,
+                ..Element::default()
+            });
+            column(BoxOptions {
+                children: crate::nodes![target],
+                ..Default::default()
+            })
+        }
+    }
+
+    #[test]
+    fn pointer_area_gets_local_coordinates_capture_and_wheel() {
+        let mut runtime = Runtime::init(Log::default(), RunOptions::default());
+        let mut renderer = Renderer::create_raster(400, 300).expect("renderer");
+        frame(&mut runtime, &mut renderer);
+        assert_eq!(runtime.dispatch(Event::PointerMove(pointer(30.0, 40.0))), 1);
+        assert_eq!(runtime.dispatch(Event::PointerDown(pointer(30.0, 40.0))), 1);
+        assert_eq!(
+            runtime.dispatch(Event::PointerMove(pointer(390.0, 290.0))),
+            1
+        );
+        assert_eq!(runtime.dispatch(Event::PointerUp(pointer(390.0, 290.0))), 1);
+        assert_eq!(
+            runtime.dispatch(Event::Scroll(crate::core::events::Scroll {
+                x: 40.0,
+                y: 40.0,
+                dx: 0.0,
+                dy: -12.0,
+                modifiers: Modifiers::default(),
+            })),
+            1
+        );
+        let log = runtime.app_state_mut::<Log>();
+        assert_eq!(
+            log.phases,
+            [
+                PointerPhase::Hover,
+                PointerPhase::Down,
+                PointerPhase::Drag,
+                PointerPhase::Up,
+                PointerPhase::Scroll
+            ]
+        );
+        let down = log.infos[1];
+        assert_eq!((down.x, down.y), (30.0, 40.0), "local to the area");
+        assert_eq!((down.window_x, down.window_y), (30.0, 40.0));
+        assert_eq!(down.click_count, 1);
+        let drag = log.infos[2];
+        assert_eq!(
+            (drag.x, drag.y),
+            (390.0, 290.0),
+            "captured outside the area"
+        );
+        let scroll = log.infos[4];
+        assert_eq!((scroll.dx, scroll.dy), (0.0, -12.0));
+        // leaving the area sends `leave`
+        runtime.dispatch(Event::PointerMove(pointer(390.0, 290.0)));
+        runtime.dispatch(Event::PointerMove(pointer(390.0, 290.0)));
+        let log = runtime.app_state_mut::<Log>();
+        assert_eq!(log.phases.last(), Some(&PointerPhase::Leave));
+    }
+
+    #[test]
+    fn double_clicks_are_counted_in_the_pointer_info() {
+        let mut runtime = Runtime::init(Log::default(), RunOptions::default());
+        let mut renderer = Renderer::create_raster(400, 300).expect("renderer");
+        frame(&mut runtime, &mut renderer);
+        for _ in 0..2 {
+            runtime.dispatch(Event::PointerDown(pointer(50.0, 50.0)));
+            runtime.dispatch(Event::PointerUp(pointer(50.0, 50.0)));
+        }
+        let log = runtime.app_state_mut::<Log>();
+        let downs: Vec<u8> = log
+            .infos
+            .iter()
+            .filter(|info| info.phase == PointerPhase::Down)
+            .map(|info| info.click_count)
+            .collect();
+        assert_eq!(downs, [1, 2], "the second press is a double click");
+    }
+
+    #[test]
+    fn focused_pointer_area_sees_keys() {
+        let mut runtime = Runtime::init(Log::default(), RunOptions::default());
+        let mut renderer = Renderer::create_raster(400, 300).expect("renderer");
+        frame(&mut runtime, &mut renderer);
+        runtime.dispatch(Event::PointerDown(pointer(10.0, 10.0)));
+        runtime.dispatch(Event::PointerUp(pointer(10.0, 10.0)));
+        assert!(runtime.tree.focused.is_some(), "a click focuses the area");
+        runtime.dispatch(Event::KeyDown(crate::core::events::KeyEvent {
+            key: crate::core::events::Key::Character('x'),
+            modifiers: Modifiers::default(),
+            repeat: false,
+        }));
+        assert_eq!(runtime.app_state_mut::<Log>().keys, 1);
+    }
+}

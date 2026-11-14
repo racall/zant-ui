@@ -33,8 +33,10 @@ impl Runtime {
         }
     }
 
-    /// Draws one frame into `canvas` (`Runtime.renderFrame`).
-    pub(crate) fn render_frame(&mut self, canvas: Canvas, width: f32, height: f32, dpr: f32) {
+    /// Draws one frame into `canvas` (`Runtime.renderFrame`). The native host
+    /// calls it from `HostHandler::draw`; headless tests call it with a raster
+    /// canvas and a fake [`Runtime::clock`].
+    pub fn render_frame(&mut self, canvas: Canvas, width: f32, height: f32, dpr: f32) {
         crate::ui::set_display_scale(dpr);
         let stats_start = self.stats_clock();
         self.sample_clock();

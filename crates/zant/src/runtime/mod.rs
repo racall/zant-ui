@@ -289,10 +289,6 @@ impl Runtime {
             .expect("Zant UI: runtime app state has another type")
     }
 
-    /// The runtime keeps its rebuild loop in a per-window thread; nothing to do
-    /// for headless single-window use.
-    pub fn run(&mut self) {}
-
     /// Window-drag hit test for app-drawn title bars: interactive widgets stay
     /// clickable, the rest of the bar moves the window. The maximize-button
     /// special case (`ui.caption_maximize_key`) lands with WP-2.5.
