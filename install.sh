@@ -3,13 +3,14 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/racall/zant-ui/main/install.sh | bash
 #
-# 1. Zig: uses `zig` from PATH when it is the version Zant UI needs,
-#    otherwise downloads the official build into $ZANT_HOME/zig.
+# 1. Rust: installs rustup into ~/.cargo when it is missing and makes sure the
+#    Rust toolchain Zant UI pins (zant-ui/rust-toolchain.toml) is installed.
+#    No Zig download any more; `cargo` builds the apps.
 # 2. Checks the Mac (Apple silicon, macOS 13+, Xcode command line tools,
 #    which apps need to link against the macOS SDK).
-# 3. Downloads the release archive (zant, Zant UI and the prebuilt Skia;
-#    nothing is compiled) into $ZANT_HOME and links `zant` into
-#    $ZANT_BIN_DIR, adding that to PATH.
+# 3. Downloads the release archive (zant, the Rust workspace with the native
+#    sources and the prebuilt Skia; nothing is compiled) into $ZANT_HOME and
+#    links `zant` into $ZANT_BIN_DIR, adding that to PATH.
 #
 # Running it again (or `zant update`) updates to the latest release.
 # Settings (environment variables):
@@ -21,9 +22,16 @@
 #   ZANT_NO_MODIFY_PATH=1  do not touch shell startup files
 set -euo pipefail
 
-ZIG_VERSION="0.17.1"
-ZIG_URL="https://ziglang.org/download/${ZIG_VERSION}/zig-aarch64-macos-${ZIG_VERSION}.tar.xz"
-ZIG_SHA256="75f1bc7a1e9852f17ec9a0c1895f767c4ec56d46bc8a834920eece1d0359dd8d"
+# rustup-init for Apple silicon; the .sha256 next to it is published by
+# static.rust-lang.org. The version of rustup itself is not pinned (Rust's
+# download server has no per-version paths); the *toolchain* below is.
+RUSTUP_TARGET="aarch64-apple-darwin"
+RUSTUP_URL="https://static.rust-lang.org/rustup/dist/${RUSTUP_TARGET}/rustup-init"
+# fallback when zant-ui/rust-toolchain.toml cannot be read yet
+FALLBACK_TOOLCHAIN="stable"
+# the components rust-toolchain.toml asks for (rustup does not install them
+# with --profile minimal)
+TOOLCHAIN_COMPONENTS="rustfmt clippy"
 
 ZANT_HOME="${ZANT_HOME:-$HOME/.zant}"
 ZANT_BIN_DIR="${ZANT_BIN_DIR:-$HOME/.local/bin}"
@@ -46,21 +54,7 @@ trap 'rm -rf "$tmp"' EXIT
 
 printf '\n\033[36m安装 zant\033[0m（%s）\n' "$ZANT_HOME"
 
-# ---- 1. Zig
-ZIG=""
-if command -v zig >/dev/null 2>&1 && [ "$(zig version 2>/dev/null)" = "$ZIG_VERSION" ]; then
-  ZIG="$(command -v zig)"
-  ok "Zig ${ZIG_VERSION}：${ZIG}"
-elif [ -x "$ZANT_HOME/zig/$ZIG_VERSION/zig" ]; then
-  ZIG="$ZANT_HOME/zig/$ZIG_VERSION/zig"
-  ok "Zig ${ZIG_VERSION}：${ZIG}"
-elif command -v zig >/dev/null 2>&1; then
-  step "已安装的 Zig 是 $(zig version 2>/dev/null || echo 未知版本)，Zant UI 需要 ${ZIG_VERSION}：另外下载一份给 zant 用（不影响已有的）"
-else
-  step "没有找到 Zig：下载官方的 Zig ${ZIG_VERSION}"
-fi
-
-# ---- 2. the Mac
+# ---- 1. the Mac
 [ "$(uname -s)" = "Darwin" ] || die "install.sh 用于 macOS；Windows 用 install.ps1（见 Zant UI 的 README「安装」）"
 [ "$(uname -m)" = "arm64" ] || die "Zant UI 在 macOS 上需要 Apple 芯片（预编译的 Skia 只有 arm64 版本）"
 major="$(sw_vers -productVersion | cut -d. -f1)"
@@ -70,16 +64,35 @@ if ! xcode-select -p >/dev/null 2>&1; then
   die "需要 Xcode 命令行工具（编译应用要用 macOS SDK）：已打开安装窗口，装好后重新运行这条命令"
 fi
 
-if [ -z "$ZIG" ]; then
-  curl -fL --retry 3 --connect-timeout 20 --progress-bar "$ZIG_URL" -o "$tmp/zig.tar.xz" || die "下载 Zig 失败：$ZIG_URL"
-  actual="$(shasum -a 256 "$tmp/zig.tar.xz" | awk '{print $1}')"
-  [ "$actual" = "$ZIG_SHA256" ] || die "Zig 下载的文件校验不对（$actual），请重试"
-  tar -xJf "$tmp/zig.tar.xz" -C "$tmp"
-  mkdir -p "$ZANT_HOME/zig"
-  rm -rf "$ZANT_HOME/zig/$ZIG_VERSION"
-  mv "$tmp/zig-aarch64-macos-${ZIG_VERSION}" "$ZANT_HOME/zig/$ZIG_VERSION"
-  ZIG="$ZANT_HOME/zig/$ZIG_VERSION/zig"
-  ok "Zig ${ZIG_VERSION}：${ZIG}"
+# ---- 2. Rust: rustup (installed here when missing) + the pinned toolchain
+# `zant update` can run this script from a shell where ~/.cargo/bin is not on
+# PATH yet, so look there too.
+if [ -x "$HOME/.cargo/bin/rustup" ]; then
+  PATH="$HOME/.cargo/bin:$PATH"
+fi
+if command -v rustup >/dev/null 2>&1; then
+  ok "rustup：$(command -v rustup)"
+else
+  step "没有找到 rustup：下载 Rust 安装器（rustup-init）"
+  curl -fL --retry 3 --connect-timeout 20 --progress-bar "$RUSTUP_URL" -o "$tmp/rustup-init" ||
+    die "下载 Rust 安装器失败：$RUSTUP_URL"
+  expected="$(curl -fsSL --retry 3 --connect-timeout 20 --max-time 60 "$RUSTUP_URL.sha256" | awk '{print $1}')" ||
+    die "下载 Rust 安装器的校验值失败"
+  actual="$(shasum -a 256 "$tmp/rustup-init" | awk '{print $1}')"
+  [ "$actual" = "$expected" ] || die "Rust 安装器校验不对（$actual），请重试"
+  chmod +x "$tmp/rustup-init"
+  # -y: no questions (this script itself is piped from curl); --default-toolchain
+  # none: the pinned channel is installed below, once the release is unpacked.
+  rustup_args=(-y --profile minimal --default-toolchain none)
+  if [ "${ZANT_NO_MODIFY_PATH:-0}" = 1 ]; then
+    rustup_args+=(--no-modify-path)
+  fi
+  "$tmp/rustup-init" "${rustup_args[@]}" ||
+    die "安装 rustup 失败（见上面的错误）"
+  PATH="$HOME/.cargo/bin:$PATH"
+  command -v rustup >/dev/null 2>&1 ||
+    die "安装后仍找不到 rustup：重新打开终端后再运行这条命令"
+  ok "rustup：$(command -v rustup)"
 fi
 
 # ---- 3. zant and Zant UI
@@ -87,6 +100,7 @@ latest="$(curl -fsSL --retry 3 --connect-timeout 20 --max-time 60 "$DOWNLOAD/ver
   die "无法获取版本信息：$DOWNLOAD/version.txt"
 [ -n "$latest" ] || die "无法获取版本信息：$DOWNLOAD/version.txt"
 installed="$(cat "$ZANT_HOME/zant-ui/.zant-version" 2>/dev/null | tr -d '[:space:]' || true)"
+new_ui=""
 if [ "$installed" = "$latest" ] && [ -x "$ZANT_HOME/bin/zant" ] && [ "${ZANT_FORCE:-0}" != 1 ]; then
   ok "zant ${latest} 已经是最新"
 else
@@ -97,29 +111,54 @@ else
   [ "$actual" = "$expected" ] || die "下载的文件校验不对，请重试"
   mkdir -p "$tmp/new"
   tar -xzf "$tmp/$ARCHIVE" -C "$tmp/new"
-  [ -x "$tmp/new/bin/zant" ] && [ -f "$tmp/new/zant-ui/build.zig.zon" ] || die "发布包内容不完整"
+  new_ui="$tmp/new/zant-ui"
+  [ -x "$tmp/new/bin/zant" ] && [ -f "$new_ui/Cargo.toml" ] || die "发布包内容不完整"
+fi
 
-  # swap in the new version (projects refer to $ZANT_HOME/zant-ui, so the path stays)
+# ---- 4. the Rust toolchain Zant UI pins (zant-ui/rust-toolchain.toml)
+pin_dir="${new_ui:-$ZANT_HOME/zant-ui}"
+channel=""
+if [ -f "$pin_dir/rust-toolchain.toml" ]; then
+  channel="$(sed -n 's/^[[:space:]]*channel[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "$pin_dir/rust-toolchain.toml" | head -1)"
+fi
+channel="${channel:-$FALLBACK_TOOLCHAIN}"
+component_args=()
+for component in $TOOLCHAIN_COMPONENTS; do
+  component_args+=(--component "$component")
+done
+step "确保 Rust 工具链 ${channel}（编译应用用；第一次要下载几百 MB）"
+rustup toolchain install "$channel" --profile minimal "${component_args[@]}" ||
+  die "安装 Rust 工具链失败：rustup toolchain install ${channel}"
+ok "Rust 工具链：$channel"
+# a fresh rustup has no default toolchain: apps run cargo outside zant-ui too
+if ! rustup toolchain list 2>/dev/null | grep -q '(default)'; then
+  rustup default "$channel" >/dev/null 2>&1 || true
+fi
+# run it outside the caller's directory: a rust-toolchain.toml there would
+# make the rustup shim pick (and try to install) that project's toolchain
+cargo_version="$(cd "$tmp" && cargo --version 2>/dev/null || true)"
+[ -n "$cargo_version" ] ||
+  die "找不到 cargo：确认 $HOME/.cargo/bin 在 PATH 上（重新打开终端后再试）"
+ok "$cargo_version"
+
+# swap in the new version (projects refer to $ZANT_HOME/zant-ui, so the path stays)
+if [ -n "$new_ui" ]; then
   mkdir -p "$ZANT_HOME/bin"
   rm -rf "$ZANT_HOME/zant-ui.old"
   [ -d "$ZANT_HOME/zant-ui" ] && mv "$ZANT_HOME/zant-ui" "$ZANT_HOME/zant-ui.old"
-  mv "$tmp/new/zant-ui" "$ZANT_HOME/zant-ui"
+  mv "$new_ui" "$ZANT_HOME/zant-ui"
   mv -f "$tmp/new/bin/zant" "$ZANT_HOME/bin/zant"
   rm -rf "$ZANT_HOME/zant-ui.old"
   ok "zant ${latest}：$ZANT_HOME"
 fi
 
-# ---- 4. PATH
+# ---- 5. PATH
 mkdir -p "$ZANT_BIN_DIR"
 link="$ZANT_BIN_DIR/zant"
 if [ -e "$link" ] && [ ! -L "$link" ]; then
   die "$link 已存在且不是链接：移走后再运行"
 fi
 ln -sfn "$ZANT_HOME/bin/zant" "$link"
-# Zig on PATH too when there is none (for `zig build test` in projects)
-if ! command -v zig >/dev/null 2>&1; then
-  ln -sfn "$ZIG" "$ZANT_BIN_DIR/zig"
-fi
 case ":$PATH:" in
 *":$ZANT_BIN_DIR:"*) ;;
 *)
@@ -128,6 +167,7 @@ case ":$PATH:" in
   line="export PATH=\"$ZANT_BIN_DIR:\$PATH\""
   if [ "${ZANT_NO_MODIFY_PATH:-0}" = 1 ]; then
     step "请把 $ZANT_BIN_DIR 加到 PATH：$line"
+    step "Rust 也需要 PATH：export PATH=\"\$HOME/.cargo/bin:\$PATH\""
   elif ! grep -qsF "$line" "$rc"; then
     printf '\n# zant (Zant UI)\n%s\n' "$line" >>"$rc"
     ok "已把 $ZANT_BIN_DIR 加到 PATH（$rc），新开的终端里生效"

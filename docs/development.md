@@ -152,17 +152,20 @@ Release 用 GUI 子系统、把 `zant_skia.dll` / `pdfium.dll` 装到 exe 旁；
 
 开发者用一行命令安装（`install.sh` / `install.ps1`，见 README「安装 zant」），装的是 GitHub Release 上的发布包：
 
-1. 改 `build.zig.zon` 的 `version`（以及需要的话 `minimum_zig_version`，同时更新两个安装脚本和
-   `.github/workflows/release.yml` 里固定的 Zig 版本与校验值），提交到 main；
+1. 改根 `Cargo.toml` 的 `[workspace.package].version`（以及需要的话 `rust-version`；工具链由
+   `rust-toolchain.toml` 固定，安装脚本装发布包里这个文件写的 channel，CI 用同一 channel，不用再改版本号），
+   提交到 main；
 2. 打标签并推送：`git tag v0.2.0 && git push origin v0.2.0`；
-3. GitHub Actions（`.github/workflows/release.yml`）在 macOS 和 Windows 上下载 Skia 等依赖、
-   编译 zant（ReleaseSafe），用 `scripts/release/package.sh` / `package.ps1` 打包，Windows 还用 MSVC
-   编译 `zant_skia.dll` 放进 `third_party/zant-skia-prebuilt/`（带 VC 运行库）；最后发布 Release，附件为
+3. GitHub Actions（`.github/workflows/release.yml`）在 macOS 和 Windows 上下载 Skia 等依赖，用 rustup
+   安装 `rust-toolchain.toml` 固定的工具链、`cargo build --release --locked` 编译 zant，用
+   `scripts/release/package.sh` / `package.ps1` 打包（发布包 = `bin/zant` + `zant-ui/`，含 Rust workspace、
+   原生源码和预编译的 Skia 库与头文件；不再有 Zig 和 `zant_skia.dll`）；最后发布 Release，附件为
    `zant-macos-arm64.tar.gz`、`zant-windows-x64.zip`、各自的 `.sha256`、`version.txt` 和两个安装脚本。
 
 手动运行这个工作流（Actions → release → Run workflow）只构建发布包作为 artifact，不发布。
 
-本地试打包：`./scripts/release/package.sh v0.0.0-test /tmp/rel`，再用
+本地自检与试打包：`ZANT_DRY_RUN=1 ./scripts/release/package.sh dev dist` 只检查输入并列出会打进包里的
+文件（不编译、不写文件，可离线）；`./scripts/release/package.sh v0.0.0-test /tmp/rel` 真正打包，再用
 `ZANT_HOME=/tmp/zh ZANT_DOWNLOAD=file:///tmp/rel bash install.sh` 安装测试（需要先把 `version.txt` 和
 `install.sh` 放进那个目录）。
 

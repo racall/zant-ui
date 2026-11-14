@@ -1,5 +1,7 @@
 ﻿# Windows release steps run by `zant build` after it has compiled the app
-# into zig-out/<title>/ (the exe, zant_skia.dll, pdfium.dll, MSVC runtime).
+# into target/<title>/ (the exe built from target/release/<name>, pdfium.dll
+# and the MSVC runtime). Rust links the Skia bridge statically, so there is no
+# zant_skia.dll any more (Zig: zig-out/<title>/ with zant_skia.dll).
 # zant asks for and resolves the settings (build.config.json, environment
 # variables) and passes them as ZANT_* environment variables; passwords never
 # appear on a command line or in the log.
@@ -205,7 +207,9 @@ switch ($Action) {
         New-Item -ItemType Directory -Force -Path $env:ZANT_OUT | Out-Null
         if (Signing) {
             Step '签名程序文件'
-            $own = @("$env:ZANT_TITLE.exe", 'zant_skia.dll', 'pdfium.dll') | ForEach-Object { Join-Path $env:ZANT_DIR $_ } | Where-Object { Test-Path $_ }
+            # pdfium.dll is still loaded at run time; the Skia bridge is
+            # linked into the exe, so zant_skia.dll is gone.
+            $own = @("$env:ZANT_TITLE.exe", 'pdfium.dll') | ForEach-Object { Join-Path $env:ZANT_DIR $_ } | Where-Object { Test-Path $_ }
             Sign-Files $own
             Ok '程序文件已签名'
         }
