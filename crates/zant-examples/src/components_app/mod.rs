@@ -13,18 +13,15 @@
 //!
 //! Deviations from the Zig source (see the WP-2.9 report):
 //!
-//! * `ui.pdfViewer` is not ported yet: `src/components/widgets.zig`'s PDF half
-//!   belongs to WP-3.9 (`pdf/viewer.zig`; the Rust `pdf/viewer` modules are
-//!   still stubs on this branch). The documents section keeps the slot
-//!   (key / size / border) as a placeholder and the `on_change` callback that
-//!   would log "pdf changed" is omitted until the widget lands.
+//! * `ui.pdfViewer` now comes from the framework
+//!   (`zant::ui::pdf_viewer`, moved into `components/widgets.rs` by WP-M3);
+//!   the documents section shows the real reader and logs "pdf changed".
 //! * Zig stores the last event in a fixed 96-byte buffer with `bufPrint`, so a
 //!   longer message is dropped entirely; the port keeps that rule (no log, the
 //!   displayed text keeps its previous value).
 //! * `ui.textFmt` has no Rust counterpart: call sites format with `format!`.
 #![forbid(unsafe_code)]
 
-pub mod pdf_viewer;
 mod view;
 
 use std::cell::RefCell;

@@ -2,19 +2,17 @@
 //!
 //! The math gallery: a title line and 18 display formulas laid out with the
 //! KaTeX engine (`math::layout::layout`) and drawn as retained vectors, in a
-//! vertically scrolling column. `math/mod.zig`'s `block` wrapper target
-//! (WP-3.6 left the UI wrapper to this WP) is [`math_block`] here: it is
-//! `zant.math.block` line for line (`display = true`, 1em vertical margin
-//! split in half, centred full-width row).
+//! vertically scrolling column. The display wrapper is the framework's
+//! [`zant::math::block`] (the `math/mod.zig: block` UI layer, moved in by
+//! WP-M3): `display = true`, 1em vertical margin split in half, centred
+//! full-width row.
 #![forbid(unsafe_code)]
 
-use std::rc::Rc;
-
-use zant::core::geometry::Edges;
 use zant::layout::flex;
-use zant::math::layout::{self, Options as LayoutOptions};
+use zant::math::block;
+use zant::math::layout::Options as LayoutOptions;
 use zant::platform::platform::WindowOptions;
-use zant::ui::{self, BoxOptions, RunOptions, TextOptions, VectorOptions};
+use zant::ui::{self, BoxOptions, RunOptions, TextOptions};
 
 /// `examples/math.zig: formulas` verbatim (18 formulas, including `\ce` /
 /// `\pu`, arrays, xarrows and `\colorbox`).
@@ -39,30 +37,6 @@ pub const FORMULAS: [&str; 18] = [
     "\\ce{SO4^2- + Ba^2+ -> BaSO4 v} \\quad \\ce{[Cu(NH3)4]^2+} \\quad \\ce{CuSO4*5H2O} \\quad \\ce{^{227}_{90}Th} \\quad \\ce{Fe^{III}} \\quad \\pu{123 kJ mol-1} \\quad \\pu{1.2e3 kg m/s^2}",
 ];
 
-/// Zig `math/mod.zig: block`: a centred display formula (KaTeX
-/// `.katex-display`: 1em vertical margin).
-pub fn math_block(source: &str, options: LayoutOptions) -> ui::Node {
-    let options = LayoutOptions {
-        display: true,
-        ..options
-    };
-    let drawing = layout::layout(source, options);
-    ui::row(BoxOptions {
-        width_percent: Some(100.0),
-        justify: flex::Justify::Center,
-        margin: Edges {
-            top: 0.5 * options.size,
-            bottom: 0.5 * options.size,
-            ..Edges::default()
-        },
-        children: vec![ui::vector(VectorOptions {
-            drawing: Rc::new(drawing),
-            ..VectorOptions::default()
-        })],
-        ..BoxOptions::default()
-    })
-}
-
 /// Zig `State` (`{ dummy: u8 = 0 }`).
 pub struct MathApp;
 
@@ -79,7 +53,7 @@ impl MathApp {
             },
         ));
         for formula in FORMULAS {
-            rows.push(math_block(
+            rows.push(block(
                 formula,
                 LayoutOptions {
                     size: 17.0,

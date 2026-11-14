@@ -15,13 +15,12 @@ use zant::renderer::text::Weight;
 use zant::ui::{
     self, AlertOptions, AlertType, AvatarOptions, BoxOptions, ButtonOptions, CardOptions,
     IconButtonOptions, IconOptions, ImageOptions, InputOptions, LinkOptions, ListOptions, MenuItem,
-    MenuOptions, MessageKind, MessageOptions, ModalOptions, PointerAreaOptions, ProgressOptions,
-    RadioGroupOptions, RadioOption, SegmentedOption, SegmentedOptions, SelectOptions,
-    ShortcutListOptions, Style, TabItem, TabsOptions, TagOptions, TextOptions, ToggleOptions,
-    TooltipOptions,
+    MenuOptions, MessageKind, MessageOptions, ModalOptions, PdfViewerOptions, PointerAreaOptions,
+    ProgressOptions, RadioGroupOptions, RadioOption, SegmentedOption, SegmentedOptions,
+    SelectOptions, ShortcutListOptions, Style, TabItem, TabsOptions, TagOptions, TextOptions,
+    ToggleOptions, TooltipOptions, pdf_viewer,
 };
 
-use super::pdf_viewer::{PdfViewerOptions, pdf_viewer};
 use super::{ComponentsApp, DISPLAY_ICONS, shortcut_groups};
 
 /// `ui.card` section with a title (Zig `section`).
@@ -580,10 +579,8 @@ pub(crate) fn render(app: &mut ComponentsApp) -> ui::Node {
                     ..Default::default()
                 },
             ),
-            // Zig `ui.pdfViewer(0x2002, ...)`: the framework widget is not in
-            // `zant::components::widgets` on this base (WP-3.3 left the PDF
-            // half to WP-3.9, which ported the viewer only), so the example
-            // crate carries the same wrapper in `pdf_viewer.rs` (WP-3.11).
+            // Zig `ui.pdfViewer(0x2002, ...)`: the framework widget
+            // (`crate::components::widgets`, exported as `ui::pdf_viewer`).
             pdf_viewer(
                 0x2002,
                 PdfViewerOptions {

@@ -88,6 +88,12 @@ pub use crate::components::window_controls::{
     CAPTION_MAXIMIZE_KEY, WindowControlsOptions, window_controls,
 };
 
+/// Document widgets with runtime-owned per-instance state (Zig
+/// `ui.markdown` / `ui.pdfViewer`). WP-M3 moved the full PDF reader widget
+/// into the framework; its options and slot state are exported alongside the
+/// builder.
+pub use crate::components::widgets::{PdfViewerOptions, PdfViewerState, pdf_viewer};
+
 #[cfg(test)]
 mod contract_tests {
     //! The call shapes frozen by docs/rust-port/api.md §4, as the TSX codegen

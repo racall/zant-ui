@@ -3,10 +3,11 @@
 //! formula becomes a non-empty retained vector drawing.
 
 use zant::core::node::{NodeData, NodeKind};
+use zant::math::block;
 use zant::math::layout::{self, Options as LayoutOptions};
 use zant::renderer::renderer::Renderer;
 use zant::runtime::Runtime;
-use zant_examples::math_app::{FORMULAS, MathApp, math_block, run_options};
+use zant_examples::math_app::{FORMULAS, MathApp, run_options};
 
 const WIDTH: f32 = 980.0;
 const HEIGHT: f32 = 1100.0;
@@ -91,7 +92,7 @@ fn math_gallery_builds_and_paints_one_vector_per_formula() {
 
 #[test]
 fn math_block_is_the_centred_display_wrapper() {
-    let node = math_block(
+    let node = block(
         "x = 1",
         LayoutOptions {
             size: 17.0,
