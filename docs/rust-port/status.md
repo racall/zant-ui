@@ -67,9 +67,9 @@
 | 3.2 | markdown/parser + blocks/cache/html/safety/highlight | wp-3-2 | 进行中（worktree wp-3.2） | remend 已并入；core/hash 已并入 |
 | 3.3 | markdown/render、editor/edit、widgets 的 markdown 部分 | — | 待领取 | |
 | 3.4 | markdown/mermaid | — | 待领取 | 依赖 1.3 |
-| 3.5 | math/{parser,symbols,fonts} | wp-3-5 | phase 1 完成（symbols+fonts，11 测试）；phase 2（parser）等 mhchem | |
+| 3.5 | math/{parser,symbols,fonts} | wp-3-5 | phase 1 完成（symbols+fonts，11 测试）；phase 2（parser）已通知继续 | mhchem API：`to_tex(&str, Machine) -> Result<String, MhchemError>` |
 | 3.6 | math/layout | — | 待领取 | 依赖 1.3 |
-| 3.7 | math/mhchem（823 条夹具，逐字节对齐） | wp-3-7 | 进行中（worktree wp-3.7） | |
+| 3.7 | math/mhchem（823 条夹具，逐字节对齐） | wp-3-7 | 完成（已并入） | 823/823；207 条状态机转移与 Zig 逐条对照；拆成 15 个文件；`to_tex(&str, Machine) -> Result<String, MhchemError>` |
 | 3.8 | pdf/{document,text,renderer,annotations,native}、platform/pdf | wp-3-8 | 进行中（worktree wp-3.8） | 依赖 1.1（已并入） |
 | 3.9 | pdf/viewer、ui.pdfPreview | — | 待领取 | |
 | 3.10 | db/sqlite → rusqlite + derive(Table) | wp-3-10 | 完成（已并入） | 生成的 SQL 与 Zig 逐字节一致（含迁移 ALTER）；Zig 建的库 Rust 可读已实测；fallback 表名差异登记见待决问题 |
