@@ -6,8 +6,8 @@ TS 项目（`src/App.tsx`）。
 
 > **迁移中（WP-5.6 / 5.8–5.10、WP-6.2）**：编译器的词法 / 语法 / hooks / codegen 已落在
 > `crates/zant-tsx/`，但应用层（imports、native trait、入口、CLI）、`zant_build::tsx_app()`
-> 与仓库内的 TSX 示例（`examples/tsx/` 目前仍是 Zig 入口）还没全部合入。本文件写最终用法；
-> 未合入处以 [`docs/rust-port/status.md`](rust-port/status.md) 为准。
+> 与仓库内的 TSX 示例（Rust 入口见下方「示例」，帧基准场景文件仍是 Zig 入口）还没全部合入。
+> 本文件写最终用法；未合入处以 [`docs/rust-port/status.md`](rust-port/status.md) 为准。
 
 ```tsx
 import { useState, View, Row, Text, Button } from "zant";
@@ -495,12 +495,16 @@ Rust 侧的编译基准已经落地（WP-5.10）：`zant-tsx-bench`（`crates/za
 （`tools/tsx/compile_bench.zig`），由 `scripts/tsx/examples-check.sh` 跑并判 ≤1.25×；本机平均
 **1.08×**。编译耗时不是帧耗时——帧对比基准（TSX 生成代码 vs 手写 Rust）仍未移植。
 
-> **示例**：仓库内的 TSX 示例现在有 Rust 入口（WP-5.10）：`crates/zant-examples/tsx/` 下
-> `tsx-counter`（`examples/tsx/counter.tsx`）、`tsx-demo`（`examples/tsx/app/App.tsx`）、
-> `tsx-bench`（`examples/tsx/settings.tsx`，帧基准的重负载页）三个 Cargo workspace 成员，形态与
-> `scaffold/template-ts/` 相同（`build.rs` → `zant_build::tsx_app()`）；`scripts/tsx/examples-check.sh`
-> 构建、无窗口截图（`ZANT_SNAPSHOT` + `ZANT_LAYOUT_FILE`）并断言。`todos.tsx`、`gallery.tsx`、
-> `notes/`、`reader.tsx` 与帧基准的场景文件仍是 Zig 入口。
+> **示例**：仓库内的 TSX 示例现在有 Rust 入口（WP-5.10 / WP-5.10b）：`crates/zant-examples/tsx/`
+> 下 `tsx-counter`（`examples/tsx/counter.tsx`）、`tsx-demo`（`examples/tsx/app/App.tsx`）、
+> `tsx-bench`（`examples/tsx/settings.tsx`，帧基准的重负载页）、`tsx-gallery`（`gallery.tsx`）、
+> `tsx-todos`（`todos.tsx`）、`tsx-reader`（`reader.tsx`）、`tsx-notes`（`notes/`，含 native 模块
+> `native/format.ts|rs`）七个 Cargo workspace 成员，形态与 `scaffold/template-ts/` 相同（`build.rs` →
+> `zant_build::tsx_app()`）；`scripts/tsx/examples-check.sh` 构建、无窗口截图（`ZANT_SNAPSHOT` +
+> `ZANT_LAYOUT_FILE`）并断言，设 `ZANT_ZIG_BIN=<zig-out-baseline/bin>` 时再与 Zig 版 4 个应用逐字节
+> layout / ≤0.1% 像素对照。`scripts/mac/tsx-counter.steps` 驱动 `zant-tsx-counter` 的真实 GUI 场景也
+> 已通过（见 `docs/rust-port/status.md` WP-5.10b）。帧基准的场景文件（`bench_*.zig`、`*_manual.zig`、
+> `list/markdown/local_bench.tsx` 的 Zig harness）仍是 Zig 入口。
 
 ## 第三阶段（进行中）：组件状态与 hooks
 

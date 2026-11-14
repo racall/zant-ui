@@ -846,6 +846,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "zant-tsx-gallery"
+version = "0.1.0"
+dependencies = [
+ "zant",
+ "zant-build",
+]
+
+[[package]]
+name = "zant-tsx-notes"
+version = "0.1.0"
+dependencies = [
+ "zant",
+ "zant-build",
+]
+
+[[package]]
+name = "zant-tsx-reader"
+version = "0.1.0"
+dependencies = [
+ "zant",
+ "zant-build",
+]
+
+[[package]]
+name = "zant-tsx-todos"
+version = "0.1.0"
+dependencies = [
+ "zant",
+ "zant-build",
+]
+
+[[package]]
 name = "zlib-rs"
 version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
