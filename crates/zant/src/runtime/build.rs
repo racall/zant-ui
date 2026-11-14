@@ -80,6 +80,11 @@ impl Runtime {
         if !portals.is_empty() && root.element().kind == NodeKind::Container {
             root = crate::ui::append_children(root, &portals);
         }
+        if let Some(text) = &self.hot_notice
+            && root.element().kind == NodeKind::Container
+        {
+            root = crate::ui::append_children(root, &[hot_notice(text)]);
+        }
         // App-drawn Windows caption buttons: a
         // hidden-titlebar window on Windows gets the minimize / maximize /
         // close buttons in the top-right corner of its own title bar.
@@ -202,6 +207,46 @@ impl Runtime {
         self.tree.mark_layout_dirty();
         self.tree.mark_paint_dirty();
     }
+}
+
+/// The hot-reload message panel: the build error of the version that could
+/// not be loaded, over the bottom of the still-running UI.
+fn hot_notice(text: &str) -> crate::ui::Node {
+    use crate::ui::{BoxOptions, Style, TextOptions};
+    let body = crate::ui::text(
+        crate::Str::copy(text),
+        TextOptions {
+            size: 12.0,
+            color: Some(0xffff_ffff),
+            wrap: true,
+            line_height: 1.5,
+            family: crate::renderer::text::Family::Mono,
+            ..Default::default()
+        },
+    );
+    crate::ui::styled(
+        crate::ui::column(BoxOptions {
+            key: Some(crate::Str::Static("zant-hot-notice")),
+            children: vec![body],
+            ..Default::default()
+        }),
+        Style {
+            absolute: Some(true),
+            left: Some(12.0),
+            right: Some(12.0),
+            bottom: Some(12.0),
+            max_height: Some(320.0),
+            padding: Some(crate::core::geometry::Edges::all(12.0)),
+            background: Some(0xf2a8_071a),
+            radius: Some(8.0),
+            clip: Some(true),
+            block_pointer: Some(true),
+            shadow_color: Some(0x4000_0000),
+            shadow_blur: Some(16.0),
+            shadow_offset_y: Some(4.0),
+            ..Default::default()
+        },
+    )
 }
 
 #[cfg(test)]

@@ -20,6 +20,8 @@ pub mod core;
 pub mod db;
 pub mod desktop;
 pub mod error;
+#[allow(unsafe_code)]
+pub mod hot;
 pub mod launch;
 pub mod layout;
 pub mod markdown;

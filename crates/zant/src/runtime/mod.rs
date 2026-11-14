@@ -89,6 +89,9 @@ pub struct Runtime {
     /// `ui::local_state` slots of this window's components.
     pub local_states: Rc<RefCell<Store>>,
     pub needs_build: bool,
+    /// Hot reload: a message shown over the UI (a build error of the next
+    /// version); `None` hides it.
+    pub hot_notice: Option<String>,
     /// Greater than 0 while an event is being dispatched. Callbacks can run a
     /// native modal loop (file dialogs, confirm alerts) that paints the window
     /// meanwhile; such nested frames must not rebuild the tree or finish exit
@@ -197,6 +200,7 @@ impl Runtime {
             tree,
             local_states: Rc::new(RefCell::new(Store::new())),
             needs_build: true,
+            hot_notice: None,
             dispatch_depth: 0,
             layout_file: None,
             frame_stats: None,

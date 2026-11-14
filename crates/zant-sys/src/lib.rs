@@ -11,6 +11,7 @@
     dead_code
 )]
 
+pub mod hot;
 pub mod pdf;
 pub mod platform;
 pub mod skia;

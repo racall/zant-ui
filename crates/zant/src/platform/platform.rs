@@ -382,6 +382,11 @@ fn size_override() -> Option<(f32, f32)> {
     parse_window_size(&getenv("ZANT_WINDOW_SIZE")?)
 }
 
+/// The C window options of `options` (with the `ZANT_WINDOW_SIZE` override).
+pub fn native_window_options(options: WindowOptions) -> ffi::ZantWindowOptions {
+    to_native_options(options)
+}
+
 fn to_native_options(options: WindowOptions) -> ffi::ZantWindowOptions {
     let size = size_override();
     ffi::ZantWindowOptions {
@@ -407,6 +412,9 @@ pub struct Window {
     /// Keeps the boxed handler (and therefore the `ZantHost.userdata` pointer)
     /// alive for as long as the native window; read by the C trampolines.
     _host: Option<Box<HostBox>>,
+    /// False for a window another owner created ([`Window::adopt`]): dropping
+    /// this handle leaves the native window open.
+    owned: bool,
 }
 
 impl Window {
@@ -456,7 +464,35 @@ impl Window {
         Ok(Window {
             handle,
             _host: Some(host),
+            owned: true,
         })
+    }
+
+    /// Wraps a native window that already exists (hot reload: the host process
+    /// owns it) and returns the callback table its events must be forwarded
+    /// to. Dropping the handle keeps the native window open.
+    pub fn adopt(
+        handle: *mut ffi::ZantWindow,
+        handler: Box<dyn HostHandler>,
+    ) -> (Window, ffi::ZantHost) {
+        let mut host = Box::new(HostBox { handler });
+        let host_ptr = (&mut *host as *mut HostBox).cast::<std::ffi::c_void>();
+        let table = ffi::ZantHost {
+            userdata: host_ptr,
+            draw: Some(trampoline_draw),
+            event: Some(trampoline_event),
+            ime_rect: Some(trampoline_ime_rect),
+            next_frame_delay: Some(trampoline_next_frame_delay),
+            titlebar_hit: Some(trampoline_titlebar_hit),
+            wake: Some(trampoline_wake),
+        };
+        set_post_wake_window(handle);
+        let window = Window {
+            handle,
+            _host: Some(host),
+            owned: false,
+        };
+        (window, table)
     }
 
     /// The raw pointer, for the few call sites that pass it back (runtime,
@@ -578,7 +614,7 @@ impl Window {
 
 impl Drop for Window {
     fn drop(&mut self) {
-        if !self.handle.is_null() {
+        if !self.handle.is_null() && self.owned {
             // SAFETY: we own the window; it is destroyed before the host box
             // (the native window must not call back after this).
             unsafe { ffi::zant_window_destroy(self.handle) };

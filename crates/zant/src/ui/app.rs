@@ -125,6 +125,17 @@ pub trait App: std::any::Any {
     /// The app is about to end (quit, main window closed): stop background
     /// work and save; the process exits right after it returns.
     fn on_exit(&mut self) {}
+
+    /// Hot reload: a snapshot of the app state, taken before the UI code is
+    /// replaced (`zant run`). `None` when the app keeps no restorable state.
+    fn hot_save(&self) -> Option<String> {
+        None
+    }
+
+    /// Hot reload: restores what [`App::hot_save`] of the previous version
+    /// produced. Unknown or mistyped parts are ignored, so a changed state
+    /// shape resets only what changed.
+    fn hot_load(&mut self, _state: &str) {}
 }
 
 /// Runs the app: creates the window, dispatches events, rebuilds and paints
@@ -156,8 +167,23 @@ pub fn run(app: impl App, options: RunOptions) -> Result<(), Error> {
         Ok(window) => Rc::new(window),
         Err(_) => return Err(Error::Message(String::from("window creation failed"))),
     };
-    core.borrow_mut().attach_window(Rc::clone(&window));
     eprintln!("Zant UI app — renderer: {}", window.renderer_name());
+    start(&core, &window);
+    // `ZANT_SNAPSHOT`: the native side takes the screenshot after a few
+    // frames and `ZANT_SNAPSHOT_EXIT` (handled by the platform layer, not by
+    // the runtime) makes it quit afterwards.
+    if let Some(path) = snapshot {
+        window.schedule_snapshot(&path, 600);
+    }
+    window.run();
+    stop(&core);
+    Ok(())
+}
+
+/// Wires a runtime to its window and starts the app: debug switches, the
+/// desktop registries and `on_start`.
+pub(crate) fn start(core: &Rc<RefCell<crate::runtime::Runtime>>, window: &Rc<Window>) {
+    core.borrow_mut().attach_window(Rc::clone(window));
     if let Some(path) = crate::platform::platform::getenv("ZANT_LAYOUT_FILE") {
         core.borrow_mut().layout_file = Some(path);
     }
@@ -167,22 +193,18 @@ pub fn run(app: impl App, options: RunOptions) -> Result<(), Error> {
     // The main window for `zant::desktop` (`main_window` / `open_window`),
     // the window registry (invalidate-all) and the app hooks (app events /
     // exit) are installed before the event loop starts.
-    desktop::set_main_runtime(Some(Rc::clone(&core)));
-    runtime_window::register(&core);
+    desktop::set_main_runtime(Some(Rc::clone(core)));
+    runtime_window::register(core);
     desktop::install_app_hooks(core.borrow().shared_app());
     // the hook runs without the runtime borrowed: it may call desktop APIs
     // (`openWindow`, `setTray`, …)
     let app = core.borrow().shared_app();
     app.borrow_mut().on_start();
-    // `ZANT_SNAPSHOT`: the native side takes the screenshot after a few
-    // frames and `ZANT_SNAPSHOT_EXIT` (handled by the platform layer, not by
-    // the runtime) makes it quit afterwards.
-    if let Some(path) = snapshot {
-        window.schedule_snapshot(&path, 600);
-    }
-    window.run();
-    // The event loop ended: background work must no longer wake a window and
-    // the native side keeps no app-event handler.
+}
+
+/// Undoes [`start`]: background work must no longer wake a window and the
+/// native side keeps no app-event handler.
+pub(crate) fn stop(core: &Rc<RefCell<crate::runtime::Runtime>>) {
     desktop::set_main_runtime(None);
     desktop::clear_app_hooks();
     runtime_window::clear();
@@ -190,7 +212,6 @@ pub fn run(app: impl App, options: RunOptions) -> Result<(), Error> {
     // Break the Rc cycle Runtime -> Window -> Host -> Rc<RefCell<Runtime>> so
     // both are freed when this function returns.
     core.borrow_mut().detach_window();
-    Ok(())
 }
 
 /// `ZANT_*` switch: on when the variable is non-empty and starts with `1`.

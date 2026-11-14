@@ -33,6 +33,10 @@ use std::env;
 use std::path::{Path, PathBuf};
 
 mod prebuilt;
+mod shared;
+
+/// Off for the shared-library build, which links the objects itself.
+static LINK_STATIC: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
 
 /// Prefix of the build-script warnings that report the prebuilt decision.
 /// `scripts/release/prebuilt-check.sh` matches on them.
@@ -82,6 +86,8 @@ fn main() {
     println!("cargo:rerun-if-changed=src/pdf.rs");
     println!("cargo:rerun-if-env-changed={}", prebuilt::ENV_PREBUILT);
     println!("cargo:rerun-if-env-changed={}", prebuilt::ENV_OUT);
+    println!("cargo:rerun-if-env-changed={}", shared::ENV_SHARED);
+    println!("cargo:rerun-if-changed=shared.rs");
 
     match target_os.as_str() {
         "macos" | "windows" => {}
@@ -106,6 +112,19 @@ fn main() {
     // way: the prebuilt archive is only the C++/C objects.
     if target_os == "windows" {
         write_static_data(&root);
+    }
+
+    // ZANT_NATIVE_SHARED=<dir>: one shared library instead of static linking
+    // (hot reload: the host and the replaceable UI library share it).
+    if let Some(dir) = shared::requested() {
+        LINK_STATIC.store(false, std::sync::atomic::Ordering::Relaxed);
+        let objects = match target_os.as_str() {
+            "macos" => compile_macos(&root, &sources),
+            "windows" => compile_windows(&root, &sources),
+            other => unreachable!("checked above: {other}"),
+        };
+        shared::link(&root, &target_os, &dir, &objects);
+        return;
     }
 
     // ZANT_NATIVE_PREBUILT_OUT=<dir>: build normally *and* package the result.
@@ -241,6 +260,10 @@ fn build_archive(build: &cc::Build, name: &str) -> Vec<PathBuf> {
     let objects = build
         .try_compile_intermediates()
         .unwrap_or_else(|error| panic!("zant-sys: compiling {name} failed: {error}"));
+    // the shared-library build links the objects itself
+    if !LINK_STATIC.load(std::sync::atomic::Ordering::Relaxed) {
+        return objects;
+    }
     let archive = build.create_archive(name, &objects);
     cc::emit_link_directives(build, &archive);
     objects
@@ -367,39 +390,69 @@ fn link_macos(root: &Path) {
         skia.display()
     );
     println!("cargo:rustc-link-search=native={}", skia.display());
-    for lib in [
-        "skparagraph",
-        "skshaper",
-        "skunicode_icu",
-        "skunicode_core",
-        "skia",
-    ] {
+    for lib in MACOS_SKIA_LIBS {
         println!("cargo:rustc-link-lib=static={lib}");
     }
     println!("cargo:rerun-if-changed={}", skia.display());
 
-    for framework in [
-        "AppKit",
-        "Metal",
-        "MetalKit",
-        "QuartzCore",
-        "CoreText",
-        "CoreFoundation",
-        "CoreGraphics",
-        "IOKit",
-        "Security",
-        "CoreVideo",
-        "UniformTypeIdentifiers",
-        "PDFKit",
-        "Carbon",
-        "ServiceManagement",
-    ] {
+    for framework in MACOS_FRAMEWORKS {
         println!("cargo:rustc-link-lib=framework={framework}");
     }
     // zlib + the C++ runtime (no system sqlite3: rusqlite bundles its own).
     println!("cargo:rustc-link-lib=z");
     println!("cargo:rustc-link-lib=c++");
 }
+
+/// Skia archives, in link order.
+const MACOS_SKIA_LIBS: [&str; 5] = [
+    "skparagraph",
+    "skshaper",
+    "skunicode_icu",
+    "skunicode_core",
+    "skia",
+];
+const WINDOWS_SKIA_LIBS: [&str; 5] = MACOS_SKIA_LIBS;
+
+/// Frameworks the macOS native layer uses.
+const MACOS_FRAMEWORKS: [&str; 14] = [
+    "AppKit",
+    "Metal",
+    "MetalKit",
+    "QuartzCore",
+    "CoreText",
+    "CoreFoundation",
+    "CoreGraphics",
+    "IOKit",
+    "Security",
+    "CoreVideo",
+    "UniformTypeIdentifiers",
+    "PDFKit",
+    "Carbon",
+    "ServiceManagement",
+];
+
+/// System libraries the Windows native layer uses.
+const WINDOWS_SYSTEM_LIBS: &[&str] = &[
+    "d3d12",
+    "dxgi",
+    "d3dcompiler",
+    "dwrite",
+    "opengl32",
+    "usp10",
+    "fontsub",
+    "ole32",
+    "oleaut32",
+    "user32",
+    "gdi32",
+    "imm32",
+    "dwmapi",
+    "shell32",
+    "comctl32",
+    "uuid",
+    "kernel32",
+    "advapi32",
+    "windowscodecs",
+];
 
 fn link_windows(root: &Path) {
     // Static Skia archives for MSVC.
@@ -410,38 +463,12 @@ fn link_windows(root: &Path) {
         skia.display()
     );
     println!("cargo:rustc-link-search=native={}", skia.display());
-    for lib in [
-        "skparagraph",
-        "skshaper",
-        "skunicode_icu",
-        "skunicode_core",
-        "skia",
-    ] {
+    for lib in WINDOWS_SKIA_LIBS {
         println!("cargo:rustc-link-lib=static={lib}");
     }
     println!("cargo:rerun-if-changed={}", skia.display());
 
-    for lib in [
-        "d3d12",
-        "dxgi",
-        "d3dcompiler",
-        "dwrite",
-        "opengl32",
-        "usp10",
-        "fontsub",
-        "ole32",
-        "oleaut32",
-        "user32",
-        "gdi32",
-        "imm32",
-        "dwmapi",
-        "shell32",
-        "comctl32",
-        "uuid",
-        "kernel32",
-        "advapi32",
-        "windowscodecs",
-    ] {
+    for lib in WINDOWS_SYSTEM_LIBS {
         println!("cargo:rustc-link-lib=dylib={lib}");
     }
 }

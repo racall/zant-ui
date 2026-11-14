@@ -256,6 +256,14 @@ impl<A: crate::ui::App> crate::ui::App for Shell<A> {
     fn on_exit(&mut self) {
         self.root.on_exit();
     }
+
+    fn hot_save(&self) -> Option<String> {
+        self.root.hot_save()
+    }
+
+    fn hot_load(&mut self, state: &str) {
+        self.root.hot_load(state);
+    }
 }
 
 /// The app configuration of a generated TSX entry (generated from
@@ -290,6 +298,15 @@ pub fn run<A: crate::ui::App + Default>(config: Config) -> crate::Result<()> {
     if config.single_instance && !desktop::single_instance(&config.bundle_id) {
         return Ok(());
     }
+    let (shell, options) = prepare::<A>(config);
+    let result = ui::run(shell, options);
+    timers::set_running(false);
+    result
+}
+
+/// The app shell and the window options of `config`: what [`run`] starts, and
+/// what a hot-reload library hands to [`crate::hot_entry!`].
+pub fn prepare<A: crate::ui::App + Default>(config: Config) -> (Shell<A>, ui::RunOptions) {
     crate::tsx::platform::set_app_id(&config.bundle_id);
     let forced = forced_theme();
     set_forced_theme(forced);
@@ -302,9 +319,7 @@ pub fn run<A: crate::ui::App + Default>(config: Config) -> crate::Result<()> {
     let shell = Shell::new(A::default())
         .with_forced(forced)
         .with_clipboard_watch(config.watch_clipboard);
-    let result = ui::run(shell, options);
-    timers::set_running(false);
-    result
+    (shell, options)
 }
 
 #[cfg(test)]
