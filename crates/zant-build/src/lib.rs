@@ -176,6 +176,11 @@ pub struct BuildReport {
     pub config: Option<AppConfig>,
     /// `$OUT_DIR/app.d` (Makefile-style dep file: sources and assets).
     pub dep_file: PathBuf,
+    /// `<app_root>/native/spec.rs`: the generated module tree of the
+    /// `native/*.ts` specs (WP-5.8), written into the app so
+    /// `native/lib.rs` can declare `pub mod spec;`. `None` when the app has
+    /// no native specs.
+    pub spec_module: Option<PathBuf>,
 }
 
 /// Compile the app at `app_root` into `out_dir` — the testable core of
@@ -251,6 +256,7 @@ pub fn tsx_app_in(app_root: &Path, out_dir: &Path) -> Result<BuildReport, Error>
 
     std::fs::create_dir_all(out_dir)?;
     let outputs = write_modules(&files, &generated, out_dir)?;
+    let spec_module = write_spec_module(app_root, &generated)?;
     let assets = write_assets(app_root, &generated, out_dir)?;
     let dep_file = write_dep_file(&files, &generated, out_dir)?;
 
@@ -266,7 +272,28 @@ pub fn tsx_app_in(app_root: &Path, out_dir: &Path) -> Result<BuildReport, Error>
         config_path: config_path.is_file().then_some(config_path),
         config,
         dep_file,
+        spec_module,
     })
+}
+
+/// Writes the project's `native/spec.rs` into the app (WP-5.8): one `pub mod`
+/// per `native/*.ts` spec, which `native/lib.rs` declares as `pub mod spec;`.
+///
+/// The generated modules call `crate::native::spec::<name>::…` and
+/// `<crate::native::<name>::Native as …Spec>`; the file is generated, so the
+/// template `.gitignore`s it. The write is skipped when the content is
+/// unchanged so `cargo:rerun-if-changed` on the `native/` directory (which
+/// contains it) does not rebuild the app in a loop.
+fn write_spec_module(
+    app_root: &Path,
+    generated: &GeneratedProject,
+) -> Result<Option<PathBuf>, Error> {
+    let Some(source) = &generated.spec_root else {
+        return Ok(None);
+    };
+    let path = app_root.join("native/spec.rs");
+    write_if_changed(&path, source.as_bytes())?;
+    Ok(Some(path))
 }
 
 /// Writes the generated modules and the declaration file `main.rs`, returning
@@ -280,6 +307,11 @@ fn write_modules(
     for (index, file) in files.iter().enumerate() {
         if file.is_rust() {
             // The app crate owns its hand-written modules (`mod format;`).
+            continue;
+        }
+        if file.native {
+            // `native/*.ts` specs become the combined `native/spec.rs`
+            // (`write_spec_module`), not one generated file each.
             continue;
         }
         let name = file.output_name();
@@ -465,6 +497,12 @@ pub fn cargo_directives(report: &BuildReport, app_root: &Path) -> Vec<String> {
     if let Some(config) = &report.config_path {
         out.push(format!("cargo:rerun-if-changed={}", config.display()));
     }
+    // The generated `native/spec.rs` is an output, but it lives in the
+    // watched `native/` directory: name it so deleting it reruns the script
+    // (which rewrites it) instead of failing on `pub mod spec;`.
+    if let Some(spec) = &report.spec_module {
+        out.push(format!("cargo:rerun-if-changed={}", spec.display()));
+    }
     let mut seen = std::collections::HashSet::new();
     for path in report
         .sources
@@ -522,6 +560,16 @@ fn write_file(path: &Path, data: &[u8]) -> Result<(), Error> {
         path: path.to_path_buf(),
         message: error.to_string(),
     })
+}
+
+/// [`write_file`] only when the content changes: the generated file lives in
+/// the app's watched `native/` directory, so rewriting identical bytes would
+/// touch its mtime and rebuild the app again.
+fn write_if_changed(path: &Path, data: &[u8]) -> Result<(), Error> {
+    if std::fs::read(path).is_ok_and(|existing| existing == data) {
+        return Ok(());
+    }
+    write_file(path, data)
 }
 
 fn path_string(path: &Path) -> String {

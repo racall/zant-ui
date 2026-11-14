@@ -12,7 +12,9 @@
 //!
 //! Native modules are Rust: `native/<name>.ts` is the spec (the single source
 //! of truth), `native/<name>.rs` the implementation, `native/lib.rs` the list
-//! and registration.
+//! and registration. `build.rs` also writes the generated `native/spec.rs`
+//! (the specs' Rust types and traits, gitignored) that `native/lib.rs` declares
+//! as `pub mod spec;`.
 
 // Lints the generated component tree needs (it is included into this crate);
 // `zant-build` writes plain items without `#![…]` inner attributes so that
@@ -34,6 +36,15 @@ mod native;
 include!(concat!(env!("OUT_DIR"), "/main.rs"));
 
 fn main() -> zant::Result<()> {
+    // `src/app_config.rs` also carries the values `zant package` / `zant build`
+    // read from `app.config.json` (the version, the macOS sandbox flag and the
+    // signing identity). A new app does not use them yet; referencing them here
+    // keeps `cargo build` warning-free.
+    let _ = (
+        app_config::version,
+        app_config::sandbox,
+        app_config::signing_identity,
+    );
     // Native modules register on the UI thread before the first frame.
     native::register();
     zant::tsx::app::run::<crate::app::App>(zant::tsx::app::Config {

@@ -364,7 +364,8 @@ pub fn generate(
         };
         methods.push((function.rust.clone(), params.join(", "), ret));
     }
-    let mut body = indent(&model::declarations(&g));
+    let declarations = model::declarations(&g);
+    let mut body = indent(&declarations);
     if !body.is_empty() && !body.ends_with("\n\n") {
         body.push('\n');
     }
@@ -415,7 +416,19 @@ pub fn generate(
         "/// The spec `native/{name}.ts`: {description}.\n#[allow(dead_code)]\npub mod {} {{\n",
         module_ident(name)
     );
-    if body.contains("tsx::") {
+    // `tsx::` appears in the generated *code* (list types: `tsx::List<T>`),
+    // not in the doc comments, so look at the declarations and signatures
+    // instead of the assembled body (the trait's doc mentions
+    // `zant::tsx::native::register_named`).
+    let uses_tsx = declarations.contains("tsx::")
+        || resolved
+            .iter()
+            .flatten()
+            .any(|ty| ty.rust(&g).contains("tsx::"))
+        || methods
+            .iter()
+            .any(|(_, params, ret)| params.contains("tsx::") || ret.contains("tsx::"));
+    if uses_tsx {
         out.push_str("    use zant::tsx;\n\n");
     }
     while body.ends_with("\n\n") {

@@ -47,8 +47,12 @@ use super::{Diag, Generator, Result, fail, parse_and_format};
 
 /// The fixed file header (`docs/rust-port/tsx-codegen.md` §1) plus the module
 /// imports every generated file uses.
-pub const HEADER_ALLOWS: &str =
-    "#![allow(clippy::redundant_clone)]\n#![allow(clippy::too_many_arguments)]\n";
+///
+/// `non_snake_case` is inherent to the generated code: TSX props keep their
+/// camelCase names (`onIncrement`) and the handler methods derive from them.
+pub const HEADER_ALLOWS: &str = "#![allow(clippy::redundant_clone)]\n\
+     #![allow(clippy::too_many_arguments)]\n\
+     #![allow(non_snake_case)]\n";
 pub const PREAMBLE: &str = "#[allow(unused_imports)]\nuse zant::nodes;\n#[allow(unused_imports)]\nuse zant::tsx;\n#[allow(unused_imports)]\nuse zant::ui;\n\n";
 
 /// The input of one module compilation.
@@ -1023,11 +1027,16 @@ pub fn action_value(
         format!(", {arguments}")
     };
     if root {
-        // root handlers take the runtime state: `ui::action(|s: &mut App| …)`
+        // root handlers take the runtime state: `ui::action(|s: &mut App| …)`.
+        // The block is only needed to hold the capture statements; a bare
+        // closure avoids `unused_braces` in the generated app.
         let builder = components::action_builder(kind);
-        return Ok(format!(
-            "{builder}({{\n{prefix}move |s: &mut {root_name}{closure_params}| {root_name}::{name}(s{arguments})\n}})"
-        ));
+        let closure =
+            format!("move |s: &mut {root_name}{closure_params}| {root_name}::{name}(s{arguments})");
+        if prefix.is_empty() {
+            return Ok(format!("{builder}({closure})"));
+        }
+        return Ok(format!("{builder}({{\n{prefix}{closure}\n}})"));
     }
     Ok(format!(
         "{constructor}::new({{\n{prefix}let _state = self._state.clone();\n\
