@@ -253,12 +253,25 @@ extern fn zant_clipboard_set_image_png(png: [*]const u8, len: usize) c_int;
 extern fn zant_clipboard_free(bytes: ?*anyopaque) void;
 extern fn zant_clipboard_get_text(out: ?[*]u8, capacity: usize) usize;
 
+/// `ZANT_WINDOW_SIZE=WxH` (automation): forces the logical window size, so
+/// `scripts/parity/capture.sh` can screenshot an app at fixed sizes and compare
+/// the Zig and Rust builds. Logged in docs/rust-port/status.md.
+fn sizeOverride() ?struct { width: f32, height: f32 } {
+    const value = getenv("ZANT_WINDOW_SIZE") orelse return null;
+    const sep = std.mem.indexOfScalar(u8, value, 'x') orelse return null;
+    const width = std.fmt.parseFloat(f32, value[0..sep]) catch return null;
+    const height = std.fmt.parseFloat(f32, value[sep + 1 ..]) catch return null;
+    if (width <= 0 or height <= 0) return null;
+    return .{ .width = width, .height = height };
+}
+
 pub fn createWindow(title: [:0]const u8, options: WindowOptions, host: *const Host) !*Window {
     if (!supported) return error.UnsupportedPlatform;
+    const size = sizeOverride();
     const native = NativeWindowOptions{
         .style = @backingInt(options.style),
-        .width = options.width,
-        .height = options.height,
+        .width = if (size) |s| s.width else options.width,
+        .height = if (size) |s| s.height else options.height,
         .min_width = options.min_width,
         .min_height = options.min_height,
         .background = options.background,
