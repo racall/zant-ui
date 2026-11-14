@@ -214,6 +214,20 @@ Release、窗口模式（Metal），`ZANT_FRAME_STATS=1 ZANT_STREAM_CHARS=6 ZANT
 |---|---|---|---|---|
 | 8 | 全量验证、移动原生源码、删除 Zig、CI、合并 main、发布 | lead | 待领取 | **需用户确认后执行** |
 
+**M8 切换脚本就绪（WP-M8-PREP，2026-11-14）**：`scripts/migrate/cutover-m8.sh` +
+`docs/rust-port/m8-cutover.md`。脚本默认 dry-run（打印全部 `git mv` / `git rm` / 路径改写并校验
+前置条件），`--apply` 先打 `rust-migration-pre-m8` 备份 tag，再按 plan M8.2/M8.3 移动
+`crates/zant-sys/native/`、删除 348 个 `*.zig` / `build.zig(.zon)` / `tools/` / `scaffold/template/` /
+Zig 构建脚本，改写 `build.rs`、bindgen、预编译库列表、CI、release/package、Rust 夹具与文档引用，
+最后跑全量验收；`--verify-only` 可单独复跑验收。`tools/zant/package/` 移到 `scripts/package/`，
+`tools/tsx/testdata/*.tsx` 与 `examples/tsx/**` 语料移到 `crates/zant-tsx/testdata/tsx/` 与
+`crates/zant-examples/tsx/corpus/`，CLI 删除 `--lang zig`。切换后 parity 只能对旧基线手工跑，
+`scripts/parity/bench.sh` 无 Zig 基线时进入 Rust-only 模式并对照本文件记录的数字；
+`scripts/tsx/examples-check.sh` 只跑 Rust 侧编译基准。**未执行任何切换**（需用户批准；本机 Windows
+验收仍缺）。一次性 `/tmp` 副本演练通过：71 个测试套件 / 1057 passed / 0 failed（比切换前少 2 条纯
+Zig 模板测试）、clippy 0、fmt 干净、模板 / TSX 示例检查通过、bench（Rust-only，best-of-8）default
+7/7 + list 7/7 PASS。细节见 `docs/rust-port/m8-cutover.md`「演练记录」。
+
 ## 并行执行与合并方式
 
 - 每个 WP 一份 git worktree：`scripts/worktree.sh new wp-3.1` → `.worktrees/wp-3.1`，分支 `rust/wp-3.1`。
