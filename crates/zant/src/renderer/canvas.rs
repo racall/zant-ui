@@ -136,3 +136,77 @@ impl Canvas {
         }
     }
 }
+
+impl Canvas {
+    /// Single-line glyph run with per-character font fallback (`y` is the
+    /// baseline); `scale_y` stretches glyphs vertically around it.
+    #[allow(clippy::too_many_arguments)] // mirrors the C ABI
+    pub fn draw_simple_text(
+        &self,
+        text: &str,
+        x: f32,
+        y: f32,
+        size: f32,
+        family: crate::renderer::text::Family,
+        weight: i32,
+        italic: bool,
+        color: u32,
+        scale_y: f32,
+    ) {
+        // SAFETY: live canvas handle; the text outlives the call.
+        unsafe {
+            ffi::zant_canvas_draw_simple_text(
+                self.handle,
+                text.as_ptr().cast(),
+                text.len(),
+                x,
+                y,
+                size,
+                family as i32,
+                weight,
+                i32::from(italic),
+                color,
+                scale_y,
+            )
+        }
+    }
+
+    /// Fills a polygon (`points` interleaved x/y pairs).
+    pub fn fill_path(&self, points: &[[f32; 2]], color: u32) {
+        let buffer = interleave(points);
+        // SAFETY: live canvas handle; `buffer` holds 2 * points.len() floats.
+        unsafe {
+            ffi::zant_canvas_fill_path(
+                self.handle,
+                buffer.as_ptr(),
+                i32::try_from(points.len()).unwrap_or(0),
+                color,
+            )
+        }
+    }
+
+    /// Strokes a polyline / polygon.
+    pub fn stroke_path(&self, points: &[[f32; 2]], color: u32, width: f32, closed: bool) {
+        let buffer = interleave(points);
+        // SAFETY: live canvas handle; `buffer` holds 2 * points.len() floats.
+        unsafe {
+            ffi::zant_canvas_stroke_path(
+                self.handle,
+                buffer.as_ptr(),
+                i32::try_from(points.len()).unwrap_or(0),
+                color,
+                width,
+                i32::from(closed),
+            )
+        }
+    }
+}
+
+fn interleave(points: &[[f32; 2]]) -> Vec<f32> {
+    let mut buffer = Vec::with_capacity(points.len() * 2);
+    for point in points {
+        buffer.push(point[0]);
+        buffer.push(point[1]);
+    }
+    buffer
+}

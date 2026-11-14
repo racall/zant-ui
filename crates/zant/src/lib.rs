@@ -7,6 +7,10 @@
 //! `image.rs` and `pdf/native.rs` (plan.md §3 rule 5).
 #![deny(unsafe_code)]
 
+// Lets `#[derive(Table)]` / `#[derive(TsxProps)]` generated code spell
+// `::zant::...` paths when compiling *inside* the zant crate as well.
+extern crate self as zant;
+
 #[allow(unsafe_code)]
 pub mod image;
 #[allow(unsafe_code)]
@@ -25,6 +29,9 @@ pub mod motion;
 pub mod pdf;
 pub mod runtime;
 pub mod store;
+pub mod str;
+
+pub use str::Str;
 pub mod theme;
 pub mod tsx;
 pub mod ui;

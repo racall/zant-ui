@@ -309,3 +309,51 @@ mod tests {
         assert_eq!(LAYOUT_STATS.take().0, 0, "take resets the counter");
     }
 }
+
+/// Glyph-ink metrics of a single-line run (see `zant_text_measure_ink`).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct InkMetrics {
+    pub advance: f32,
+    /// Ink extent above the baseline (positive).
+    pub ascent: f32,
+    /// Ink extent below the baseline (positive).
+    pub descent: f32,
+    pub font_ascent: f32,
+    pub font_descent: f32,
+    /// Signed ink bounds relative to the baseline (y grows down).
+    pub ink_top: f32,
+    pub ink_bottom: f32,
+}
+
+fn ink_metrics_from_native(native: ffi::ZantInkMetrics) -> InkMetrics {
+    InkMetrics {
+        advance: native.advance,
+        ascent: native.ascent,
+        descent: native.descent,
+        font_ascent: native.font_ascent,
+        font_descent: native.font_descent,
+        ink_top: native.ink_top,
+        ink_bottom: native.ink_bottom,
+    }
+}
+
+/// Measures a single-line glyph run's ink box without laying out a paragraph
+/// (math layout, stretchy delimiters).
+pub fn measure_ink(text: &str, size: f32, family: Family, weight: u16, italic: bool) -> InkMetrics {
+    if text.is_empty() {
+        return InkMetrics::default();
+    }
+    zant_sys::init();
+    // SAFETY: the text outlives the call; the bridge only reads it.
+    let native = unsafe {
+        ffi::zant_text_measure_ink(
+            text.as_ptr().cast(),
+            text.len(),
+            size,
+            family as i32,
+            i32::from(weight),
+            i32::from(italic),
+        )
+    };
+    ink_metrics_from_native(native)
+}

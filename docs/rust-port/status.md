@@ -63,7 +63,7 @@
 
 | WP | 内容 | 负责人 | 状态 | 备注 |
 |---|---|---|---|---|
-| 3.1 | markdown/remend（522 条夹具） | wp-3-1 | 进行中（worktree wp-3.1） | |
+| 3.1 | markdown/remend（522 条夹具） | wp-3-1 | 完成（已并入） | 522/522 夹具通过；5 个 Zig 测试移植 |
 | 3.2 | markdown/parser + blocks/cache/html/safety/highlight | — | 待领取（需先并入 3.1：parser/inline 与 cache 依赖 remend） | |
 | 3.3 | markdown/render、editor/edit、widgets 的 markdown 部分 | — | 待领取 | |
 | 3.4 | markdown/mermaid | — | 待领取 | 依赖 1.3 |
@@ -72,7 +72,7 @@
 | 3.7 | math/mhchem（823 条夹具，逐字节对齐） | wp-3-7 | 进行中（worktree wp-3.7） | |
 | 3.8 | pdf/{document,text,renderer,annotations,native}、platform/pdf | — | 待领取 | 依赖 1.1 |
 | 3.9 | pdf/viewer、ui.pdfPreview | — | 待领取 | |
-| 3.10 | db/sqlite → rusqlite + derive(Table) | wp-3-10 | 进行中（worktree wp-3.10） | |
+| 3.10 | db/sqlite → rusqlite + derive(Table) | wp-3-10 | 完成（已并入） | 生成的 SQL 与 Zig 逐字节一致（含迁移 ALTER）；Zig 建的库 Rust 可读已实测；fallback 表名差异登记见待决问题 |
 | 3.11 | examples/{markdown,math,markdown_stream,pdf} | — | 待领取 | |
 
 ### M4 TSX 编译器前端
