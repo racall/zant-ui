@@ -314,18 +314,11 @@ pub fn read_prop(g: &mut Generator<'_>, n: &str) -> Result<Option<Value>> {
         {
             return Ok(Some(functions::prop(g, d, default, ty, &code)?));
         }
-        return Ok(Some(Value {
-            ty,
-            code,
-            ..Value::default()
-        }));
+        // the prop lives in `self.props`: a non-`Copy` read clones
+        return Ok(Some(scope::owned_read(g, ty, code)));
     }
     if component.destructure.is_empty() && component.param == n {
-        return Ok(Some(Value {
-            ty: props,
-            code: "self.props".to_owned(),
-            ..Value::default()
-        }));
+        return Ok(Some(scope::owned_read(g, props, "self.props".to_owned())));
     }
     Ok(None)
 }

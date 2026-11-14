@@ -75,7 +75,9 @@ impl ChildList {
         if element.name.is_empty() {
             return self.append(g, c, &element.children, guard);
         }
-        let value = jsx::emit(g, c, element)?;
+        // nested component tags must route through the component-aware
+        // dispatcher (Zig `jsx.zig:251` emits components inside `emit`)
+        let value = super::generate::emit_jsx(g, c, element)?;
         self.node(g, c, value, guard, element.loc)
     }
 

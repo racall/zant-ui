@@ -113,13 +113,11 @@ pub fn process(g: &mut Generator<'_>, module: &ast::Module) -> Result<()> {
     let project = app_state::project();
     for import in &module.imports {
         let source = String::from_utf8_lossy(&import.source).into_owned();
-        // native module specs are WP-5.8's `native_specs.zig`
+        // native module specs (WP-5.8): the trait lives in the generated
+        // `native/spec.rs`, the app implements it in `native/<name>.rs`.
         if source.starts_with("native/") {
-            return fail(
-                g,
-                import.source_loc,
-                "native modules are implemented by WP-5.8",
-            );
+            process_native(g, import, &source)?;
+            continue;
         }
         if !is_relative(&source) {
             continue;
@@ -197,6 +195,85 @@ pub fn process(g: &mut Generator<'_>, module: &ast::Module) -> Result<()> {
             }
         }
     }
+    Ok(())
+}
+
+/// `import { list, type Clip } from "native/clips"` (WP-5.8): types resolve to
+/// the generated `crate::native::spec::<name>` modules, functions to the trait
+/// implemented by `crate::native::<name>::Native`.
+fn process_native(g: &mut Generator<'_>, import: &ast::Import, source: &str) -> Result<()> {
+    let Some(project) = app_state::project() else {
+        return fail(
+            g,
+            import.source_loc,
+            format!("cannot find `{source}`: no project"),
+        );
+    };
+    let specs: Vec<crate::native_specs::Spec<'_>> = project
+        .modules
+        .iter()
+        .filter(|module| module.native)
+        .map(|module| crate::native_specs::Spec {
+            name: module.name.as_str(),
+            module: &module.module,
+        })
+        .collect();
+    let spec = match crate::native_specs::spec_for(&specs, source, import.source_loc) {
+        Ok(spec) => *spec,
+        Err(diag) => {
+            if g.diag.is_none() {
+                *g.diag = Some(diag);
+            }
+            return Err(crate::codegen::Error::Tsx);
+        }
+    };
+    let spec_name = spec.name.to_owned();
+    let module_ident = crate::native_specs::module_ident(&spec_name);
+    let scope = push_scope(
+        g,
+        Scope {
+            decls: spec.module.types.clone(),
+            alias: crate::native_specs::app_spec_path(&spec_name),
+            imports: spec.module.imports.clone(),
+            native: true,
+        },
+    );
+    for n in &import.names {
+        let imported = String::from_utf8_lossy(&n.imported.name).into_owned();
+        let local = String::from_utf8_lossy(&n.local.name).into_owned();
+        let type_only = import.type_only || n.type_only;
+        match crate::native_specs::import(&spec, n, type_only) {
+            Ok(crate::native_specs::Imported::Type(_)) => {
+                app_state::with_module(|state| {
+                    state.imported_types.push(ImportedType {
+                        local,
+                        imported,
+                        scope,
+                    });
+                });
+            }
+            Ok(crate::native_specs::Imported::Function(function)) => {
+                let rust = format!(
+                    "<{} as {}>::{}",
+                    crate::native_specs::app_impl_path(&spec_name),
+                    crate::native_specs::app_trait_path(&spec_name),
+                    rust_text::id_at(g, &function.name, function.loc)?
+                );
+                let function = function.clone();
+                let mut signature =
+                    in_scope(g, scope, |g| functions::signature(g, &function, rust, true))?;
+                signature.name = local;
+                g.functions.push(signature);
+            }
+            Err(diag) => {
+                if g.diag.is_none() {
+                    *g.diag = Some(diag);
+                }
+                return Err(crate::codegen::Error::Tsx);
+            }
+        }
+    }
+    let _ = module_ident;
     Ok(())
 }
 

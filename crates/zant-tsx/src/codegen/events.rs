@@ -263,6 +263,11 @@ pub fn signature(
 
 /// Validate the action signature and reuse one adapter per setter and action kind.
 pub fn event(g: &mut Generator<'_>, e: &ast::Expr, prop: &tags::Prop, loc: ast::Loc) -> Result<()> {
+    // a child component's callback prop forwarded to a ui event is emitted
+    // directly (`onClick={onSave}`), nothing to register
+    if super::components::forwarded_prop(g, e, prop.kind, loc)? {
+        return Ok(());
+    }
     let address = expression_address(e);
     for previous in &g.events {
         if previous.expr == address && previous.kind == prop.kind {
@@ -374,10 +379,13 @@ pub fn event(g: &mut Generator<'_>, e: &ast::Expr, prop: &tags::Prop, loc: ast::
 /// `ui::action(..)` for a registered handler expression.
 pub fn event_value(
     g: &mut Generator<'_>,
-    _c: &mut scope::Context,
+    c: &mut scope::Context,
     e: &ast::Expr,
     kind: Kind,
 ) -> Result<String> {
+    if super::components::forwarded_prop(g, e, kind, e.loc)? {
+        return super::components::forwarded_action_value(g, c, e, kind);
+    }
     let address = expression_address(e);
     let events = g.events.clone();
     for event in events {

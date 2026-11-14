@@ -870,7 +870,9 @@ fn project_rejects_invalid_rust_sources() {
 }
 
 #[test]
-fn native_module_specs_are_wp_5_8() {
+fn native_module_specs_compile_to_the_generated_spec_module() {
+    // WP-5.8 is wired: a spec compiles to `native/spec.rs` (one `pub mod`)
+    // instead of failing with the old "implemented by WP-5.8" diagnostic.
     let files = [
         SourceFile::tsx(
             "src/App.tsx",
@@ -878,16 +880,18 @@ fn native_module_specs_are_wp_5_8() {
         ),
         SourceFile::native_spec(
             "native/clips.ts",
-            "export declare function list(): string[];",
+            "export interface Clip { row: number }\nexport declare function list(): Clip[];",
         ),
     ];
-    let error = compile::compile_project_with(&files, Some(install_stubs)).unwrap_err();
-    assert_eq!(1, error.file);
-    assert!(
-        error.diag.msg.contains("WP-5.8"),
-        "unexpected error: {}",
-        error.diag.msg
-    );
+    let build = compile::compile_project_with(&files, Some(install_stubs)).expect("spec compiles");
+    let spec = build
+        .outputs
+        .iter()
+        .find(|source| source.contains("pub mod clips"))
+        .expect("the spec module is generated");
+    assert!(spec.contains("pub mod clips"), "{spec}");
+    assert!(spec.contains("pub trait ClipsSpec"), "{spec}");
+    assert!(spec.contains("fn list()"), "{spec}");
 }
 
 #[test]

@@ -328,7 +328,10 @@ impl Format {
     pub fn finish(&self, g: &mut Generator<'_>, log: bool) -> Result<String> {
         let loc = 0;
         if !log && self.args.is_empty() {
-            return Ok(format!("{}.into()", quote_at(g, &self.literal, loc)?));
+            return Ok(format!(
+                "zant::Str::copy({})",
+                quote_at(g, &self.literal, loc)?
+            ));
         }
         // a lone string needs no formatting
         if !log && self.only_string && self.args.len() == 1 {
@@ -559,7 +562,10 @@ mod tests {
         with_generator(|g| {
             // without substitutions the text stays ordinary (only braces
             // matter for a format! pattern, which is built separately)
-            assert_eq!("\"a{b}\\n\".into()", format.finish(g, false).unwrap());
+            assert_eq!(
+                "zant::Str::copy(\"a{b}\\n\")",
+                format.finish(g, false).unwrap()
+            );
         });
         let pattern = String::from_utf8(format.pattern).unwrap();
         assert_eq!("a{{b}}\n", pattern);

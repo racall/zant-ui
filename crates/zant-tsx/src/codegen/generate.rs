@@ -49,7 +49,7 @@ use super::{Diag, Generator, Result, fail, parse_and_format};
 /// imports every generated file uses.
 pub const HEADER_ALLOWS: &str =
     "#![allow(clippy::redundant_clone)]\n#![allow(clippy::too_many_arguments)]\n";
-pub const PREAMBLE: &str = "use zant::tsx;\nuse zant::ui;\n\n";
+pub const PREAMBLE: &str = "#[allow(unused_imports)]\nuse zant::nodes;\n#[allow(unused_imports)]\nuse zant::tsx;\n#[allow(unused_imports)]\nuse zant::ui;\n\n";
 
 /// The input of one module compilation.
 #[derive(Clone, Copy, Debug)]
@@ -101,7 +101,7 @@ pub struct GeneratedFile {
 /// `None` entries with their module functions at merge time.
 /// `expr` sends every JSX element through this hook: child components first
 /// (they emit `Child::build(..)`), then the `ui::*` tags (`jsx::emit`).
-fn emit_jsx(
+pub(crate) fn emit_jsx(
     g: &mut Generator<'_>,
     c: &mut super::scope::Context,
     jsx: &ast::Jsx,
@@ -194,6 +194,33 @@ fn generate_inner(
     install_extra: Option<fn(&mut Generator<'_>)>,
     diag: &mut Option<Diag>,
 ) -> Result<GeneratedFile> {
+    if options.native {
+        // `native/<name>.ts`: the spec compiles to `pub mod <name> { … }` of
+        // `native/spec.rs` (WP-5.8); the project's specs resolve its imports.
+        let name = options
+            .source_path
+            .map(|path| path.rsplit(['/', '\\']).next().unwrap_or(path))
+            .and_then(|base| base.strip_suffix(".ts"))
+            .unwrap_or("native");
+        // keep the project alive: the specs borrow its parsed modules
+        let project = super::app_state::project();
+        let specs: Vec<crate::native_specs::Spec<'_>> = project
+            .as_deref()
+            .map(|project| {
+                project
+                    .modules
+                    .iter()
+                    .filter(|module| module.native)
+                    .map(|module| crate::native_specs::Spec {
+                        name: module.name.as_str(),
+                        module: &module.module,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let source = crate::native_specs::generate(module, name, &specs, diag)?;
+        return Ok(GeneratedFile { source });
+    }
     let mut g = Generator::new(diag);
     g.name.clear();
     g.type_decls = module.types.clone();
@@ -202,9 +229,6 @@ fn generate_inner(
     install(&mut g);
     if let Some(extra) = install_extra {
         extra(&mut g);
-    }
-    if options.native {
-        return fail(&mut g, 0, "native module specs are implemented by WP-5.8");
     }
     validate_imports(&mut g, module)?;
     if let Some(hook) = g.extensions.process_imports {
@@ -599,9 +623,14 @@ fn builder_function(
         "_props: Props"
     };
     if !component.stateful {
+        let props = if component.props.is_some() {
+            "props"
+        } else {
+            "Default::default()"
+        };
         return Ok(format!(
             "\npub fn build({props_argument}) -> ui::Node {{\n\
-             let mut instance = {name} {{ props: Default::default(), _state: Default::default() }};\n\
+             let mut instance = {name} {{ props: {props}, _state: Default::default() }};\n\
              instance.render()\n}}\n"
         ));
     }
