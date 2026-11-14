@@ -5,9 +5,14 @@
 //! cursor changes, multi-click counting, the click into an input (caret
 //! placement), and the press that starts a text selection (see `selection`).
 //!
-//! Zig called `components/select.zig:optionAt` for the open select popup; that
-//! component is not ported yet (WP-2.2), so while a select is open the runtime
-//! only keeps its open / close bookkeeping.
+//! While a select popup is open it owns the pointer: hover highlights the
+//! option under the cursor and a click selects it (Zig carried the popup in the
+//! runtime too — `components/select.zig:optionAt` is only the geometry).
+//!
+//! Toggle activation lives here as well: Zig's `Tree.toggleSet` called the
+//! stored `index_action` / `action` itself, but the Rust callbacks need the
+//! runtime's `ActionCx`, so [`Runtime::toggle_set`] clones them out of the node
+//! and calls them (plan.md §4).
 #![forbid(unsafe_code)]
 
 use crate::components::button;
@@ -132,10 +137,37 @@ impl Runtime {
             return;
         }
         if let Some(select_id) = self.open_select {
-            let node = self.tree.get(select_id);
-            if matches!(node.data, NodeData::Select(_)) {
-                // TODO(WP-2.2): components::select::option_at hover highlight.
-                let open = matches!(&node.data, NodeData::Select(data) if data.open);
+            let open = {
+                let node = self.tree.get(select_id);
+                match &node.data {
+                    NodeData::Select(data) => Some(data.open),
+                    _ => None,
+                }
+            };
+            if let Some(open) = open {
+                let hovered = crate::components::select::option_at(
+                    self.tree.get(select_id),
+                    p.x,
+                    p.y,
+                    self.viewport,
+                );
+                let changed = {
+                    let node = self.tree.get_mut(select_id);
+                    match &mut node.data {
+                        NodeData::Select(data) => {
+                            if data.hovered_option != hovered {
+                                data.hovered_option = hovered;
+                                true
+                            } else {
+                                false
+                            }
+                        }
+                        _ => false,
+                    }
+                };
+                if changed {
+                    self.tree.mark_dirty(select_id, false, true);
+                }
                 self.set_cursor(if open {
                     Cursor::PointingHand
                 } else {
@@ -315,11 +347,37 @@ impl Runtime {
     /// Zig `handlePointerDown`.
     pub(crate) fn handle_pointer_down(&mut self, p: PointerEvent) {
         if let Some(select_id) = self.open_select {
-            let node = self.tree.get(select_id);
-            if matches!(node.data, NodeData::Select(_)) {
-                // TODO(WP-2.2): components::select::option_at selects an item.
-                let inside = node.bounds.contains(p.x, p.y);
-                if inside {
+            let is_select = matches!(self.tree.get(select_id).data, NodeData::Select(_));
+            if is_select {
+                let option = crate::components::select::option_at(
+                    self.tree.get(select_id),
+                    p.x,
+                    p.y,
+                    self.viewport,
+                );
+                if let Some(index) = option {
+                    // copy the callback out before the state changes (an action
+                    // may change the UI; plan.md §4)
+                    let action = {
+                        let node = self.tree.get(select_id);
+                        match &node.data {
+                            NodeData::Select(data) => data.action.clone(),
+                            _ => None,
+                        }
+                    };
+                    if let NodeData::Select(data) = &mut self.tree.get_mut(select_id).data {
+                        data.selected = index;
+                        data.layout_dirty = true;
+                    }
+                    if let Some(action) = action {
+                        let mut cx = super::action_cx(&mut self.app);
+                        action.call(&mut cx, index);
+                    }
+                    self.close_select();
+                    self.needs_build = true;
+                    return;
+                }
+                if self.tree.get(select_id).bounds.contains(p.x, p.y) {
                     self.close_select();
                     return;
                 }
@@ -517,10 +575,10 @@ impl Runtime {
                 if inside && enabled {
                     if kind == crate::core::node::ToggleKind::Radio {
                         if !checked {
-                            self.tree.toggle_set(id, true);
+                            self.toggle_set(id, true);
                         }
                     } else {
-                        self.tree.toggle_flip(id);
+                        self.toggle_flip(id);
                     }
                 }
                 self.tree.poke(id);
@@ -560,21 +618,20 @@ impl Runtime {
         let scroll_x = data.scroll_x;
         let scroll_y = data.scroll_y;
         let text_len = data.text.len();
-        let text_left = super::ime::input_text_left(data, bounds);
-        let Some(byte) = ({
-            let Some(layout) = super::ime::ensure_input_layout(data) else {
-                return;
-            };
-            let origin_x = text_left - scroll_x;
-            let origin_y = if multiline {
-                bounds.y + 8.0 - scroll_y
-            } else {
-                bounds.y + (bounds.height - layout.metrics().height) * 0.5
-            };
-            Some(layout.index_at(x - origin_x, y - origin_y))
-        }) else {
+        let text_left = crate::components::input::text_left(data, bounds);
+        if !crate::components::input::ensure_layout(data) {
+            return;
+        }
+        let Some(layout) = data.layout.as_ref() else {
             return;
         };
+        let origin_x = text_left - scroll_x;
+        let origin_y = if multiline {
+            bounds.y + 8.0 - scroll_y
+        } else {
+            bounds.y + (bounds.height - layout.metrics().height) * 0.5
+        };
+        let byte = layout.index_at(x - origin_x, y - origin_y);
         data.cursor = byte.min(text_len);
         if !extend {
             data.anchor = data.cursor;
@@ -653,26 +710,64 @@ impl Runtime {
         }
         false
     }
+
+    /// Zig `Tree.toggleSet`: sets the checked state and calls the toggle's
+    /// callback — the index action when the toggle belongs to a radio group,
+    /// otherwise the boolean action. The callbacks are copied out of the node
+    /// before they run (plan.md §4).
+    pub(crate) fn toggle_set(&mut self, id: NodeId, checked: bool) {
+        {
+            let node = self.tree.get_mut(id);
+            let NodeData::Toggle(data) = &mut node.data else {
+                return;
+            };
+            data.checked = checked;
+        }
+        self.tree.poke(id);
+        let (index_action, index, action) = {
+            let node = self.tree.get(id);
+            match &node.data {
+                NodeData::Toggle(data) => {
+                    (data.index_action.clone(), data.index, data.action.clone())
+                }
+                _ => return,
+            }
+        };
+        let mut cx = super::action_cx(&mut self.app);
+        if let Some(index_action) = index_action {
+            index_action.call(&mut cx, index);
+        } else if let Some(action) = action {
+            action.call(&mut cx, checked);
+        }
+    }
+
+    /// Zig `Tree.toggleFlip`: flips a checkbox / switch (radios only ever turn
+    /// on, see the pointer / keyboard arms).
+    pub(crate) fn toggle_flip(&mut self, id: NodeId) {
+        let NodeData::Toggle(data) = &self.tree.get(id).data else {
+            return;
+        };
+        let checked = !data.checked;
+        self.toggle_set(id, checked);
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Str;
     use crate::core::events::{Event, Modifiers, PointerEvent};
     use crate::core::node::{FlexStyle, PointerArea};
     use crate::renderer::renderer::Renderer;
     use crate::ui::RunOptions;
-    use crate::ui::actions::{KeyAction, PointerAction, PointerPhase};
+    use crate::ui::actions::{KeyAction, PointerAction, PointerPhase, bool_action, index_action};
     use crate::ui::app::App;
-    use crate::ui::builders::column;
+    use crate::ui::builders::{checkbox, column, radio_group, select};
     use crate::ui::element::{Element, Node};
-    use crate::ui::options::BoxOptions;
-
-    fn frame(runtime: &mut Runtime, renderer: &mut Renderer) {
-        let canvas = renderer.begin(1.0).expect("canvas");
-        runtime.render_frame(canvas, 400.0, 300.0, 1.0);
-        renderer.end();
-    }
+    use crate::ui::options::{
+        BoxOptions, RadioGroupOptions, RadioOption, SelectOptions, ToggleOptions,
+    };
+    use std::sync::atomic::{AtomicI64, Ordering};
 
     fn pointer(x: f32, y: f32) -> PointerEvent {
         PointerEvent {
@@ -681,6 +776,12 @@ mod tests {
             button: crate::core::events::PointerButton::Left,
             modifiers: Modifiers::default(),
         }
+    }
+
+    fn frame(runtime: &mut Runtime, renderer: &mut Renderer) {
+        let canvas = renderer.begin(1.0).expect("canvas");
+        runtime.render_frame(canvas, 400.0, 300.0, 1.0);
+        renderer.end();
     }
 
     #[derive(Default)]
@@ -815,5 +916,218 @@ mod tests {
             repeat: false,
         }));
         assert_eq!(runtime.app_state_mut::<Log>().keys, 1);
+    }
+
+    // ── WP-2.1: toggle activation and the select popup ─────────────────────
+
+    #[derive(Default)]
+    struct Form {
+        checked: bool,
+        changes: u32,
+    }
+
+    impl App for Form {
+        fn render(&mut self) -> Node {
+            column(BoxOptions {
+                children: crate::nodes![checkbox(ToggleOptions {
+                    key: Some("notify".into()),
+                    label: "Notify".into(),
+                    checked: self.checked,
+                    on_change: Some(bool_action(|state: &mut Form, checked| {
+                        state.checked = checked;
+                        state.changes += 1;
+                    })),
+                    ..Default::default()
+                })],
+                ..Default::default()
+            })
+        }
+    }
+
+    #[test]
+    fn a_click_activates_a_toggle_and_calls_its_callback_once() {
+        crate::motion::motion::set_enabled(true);
+        let mut runtime = Runtime::init(Form::default(), RunOptions::default());
+        let mut renderer = Renderer::create_raster(400, 300).expect("renderer");
+        frame(&mut runtime, &mut renderer);
+        let id = runtime.find_key("notify").expect("toggle");
+        let bounds = runtime.tree.get(id).bounds;
+        let point = pointer(
+            bounds.x + bounds.width * 0.5,
+            bounds.y + bounds.height * 0.5,
+        );
+        runtime.dispatch(Event::PointerDown(point));
+        runtime.dispatch(Event::PointerUp(point));
+        assert_eq!(runtime.app_state_mut::<Form>().changes, 1, "once per click");
+        assert!(runtime.app_state_mut::<Form>().checked);
+        assert!(
+            matches!(&runtime.tree.get(id).data, NodeData::Toggle(data) if data.checked),
+            "the retained state follows the callback"
+        );
+        // the toggle is queued for its check / mark transition
+        assert!(runtime.animating_contains(id));
+        frame(&mut runtime, &mut renderer);
+        // a second click flips it back and fires the callback again
+        runtime.dispatch(Event::PointerDown(point));
+        runtime.dispatch(Event::PointerUp(point));
+        assert_eq!(runtime.app_state_mut::<Form>().changes, 2);
+        assert!(!runtime.app_state_mut::<Form>().checked);
+    }
+
+    #[derive(Default)]
+    struct Radios {
+        selected: usize,
+        changes: u32,
+    }
+
+    impl App for Radios {
+        fn render(&mut self) -> Node {
+            let options = ["S", "M", "L"]
+                .iter()
+                .map(|label| RadioOption {
+                    label: Str::from(*label),
+                    disabled: false,
+                })
+                .collect();
+            column(BoxOptions {
+                children: crate::nodes![radio_group(RadioGroupOptions {
+                    key: Some("size".into()),
+                    options,
+                    selected: self.selected,
+                    on_change: Some(index_action(|state: &mut Radios, index| {
+                        state.selected = index;
+                        state.changes += 1;
+                    })),
+                    ..Default::default()
+                })],
+                ..Default::default()
+            })
+        }
+    }
+
+    #[test]
+    fn a_radio_only_turns_on_and_calls_its_index_action_when_it_was_off() {
+        let mut runtime = Runtime::init(Radios::default(), RunOptions::default());
+        let mut renderer = Renderer::create_raster(400, 300).expect("renderer");
+        frame(&mut runtime, &mut renderer);
+        let click_key = |runtime: &mut Runtime, key: &str| {
+            let bounds = runtime.tree.get(runtime.find_key(key).expect(key)).bounds;
+            let point = pointer(
+                bounds.x + bounds.width * 0.5,
+                bounds.y + bounds.height * 0.5,
+            );
+            runtime.dispatch(Event::PointerDown(point));
+            runtime.dispatch(Event::PointerUp(point));
+        };
+        click_key(&mut runtime, "size-1");
+        assert_eq!(runtime.app_state_mut::<Radios>().changes, 1);
+        assert_eq!(runtime.app_state_mut::<Radios>().selected, 1);
+        assert!(
+            matches!(&runtime.tree.get(runtime.find_key("size-1").expect("radio")).data,
+                NodeData::Toggle(data) if data.checked)
+        );
+        // a click on the already checked radio must not fire the callback
+        frame(&mut runtime, &mut renderer);
+        click_key(&mut runtime, "size-1");
+        assert_eq!(runtime.app_state_mut::<Radios>().changes, 1);
+        // another radio fires it again
+        click_key(&mut runtime, "size-2");
+        assert_eq!(runtime.app_state_mut::<Radios>().changes, 2);
+        assert_eq!(runtime.app_state_mut::<Radios>().selected, 2);
+    }
+
+    #[derive(Default)]
+    struct Picker {
+        selected: usize,
+        changes: u32,
+    }
+
+    impl App for Picker {
+        fn render(&mut self) -> Node {
+            let options = ["Starter", "Pro", "Enterprise"]
+                .iter()
+                .map(|label| Str::from(*label))
+                .collect();
+            column(BoxOptions {
+                children: crate::nodes![select(SelectOptions {
+                    key: Some("plan".into()),
+                    options,
+                    selected: self.selected,
+                    width: Some(200.0),
+                    on_change: Some(index_action(|state: &mut Picker, index| {
+                        state.selected = index;
+                        state.changes += 1;
+                    })),
+                    ..Default::default()
+                })],
+                ..Default::default()
+            })
+        }
+    }
+
+    #[test]
+    fn the_select_popup_opens_hovers_and_selects_an_option() {
+        crate::motion::motion::set_enabled(true);
+        static NOW: AtomicI64 = AtomicI64::new(1_000);
+        fn clock() -> i64 {
+            NOW.load(Ordering::Relaxed)
+        }
+        NOW.store(1_000, Ordering::Relaxed);
+        let theme = crate::theme::tokens::ant_light();
+        let mut runtime = Runtime::init(Picker::default(), RunOptions::default());
+        runtime.clock = clock;
+        let mut renderer = Renderer::create_raster(400, 300).expect("renderer");
+        frame(&mut runtime, &mut renderer);
+        let id = runtime.find_key("plan").expect("select");
+        let bounds = runtime.tree.get(id).bounds;
+        let field = pointer(
+            bounds.x + bounds.width * 0.5,
+            bounds.y + bounds.height * 0.5,
+        );
+        runtime.dispatch(Event::PointerDown(field));
+        runtime.dispatch(Event::PointerUp(field));
+        assert_eq!(runtime.open_select, Some(id));
+        assert!(matches!(&runtime.tree.get(id).data, NodeData::Select(data) if data.open));
+        // the opening transition runs and the popup is painted after the tree
+        frame(&mut runtime, &mut renderer);
+        NOW.store(1_400, Ordering::Relaxed);
+        frame(&mut runtime, &mut renderer);
+        assert_eq!(runtime.popup_select, Some(id));
+        let rect = crate::components::select::popup_rect(runtime.tree.get(id), runtime.viewport);
+        let popup_pixel = renderer
+            .pixel_at(
+                (rect.x as usize) + (rect.width as usize) - 8,
+                (rect.y as usize) + 10,
+            )
+            .expect("popup pixel");
+        assert_eq!(
+            popup_pixel, theme.color_bg_elevated,
+            "the dropdown panel covers the page below the field"
+        );
+        // hovering an option highlights it (pointer hit test runs before the
+        // tree while the popup is open)
+        let row = |index: usize| {
+            pointer(
+                rect.x + rect.width * 0.5,
+                rect.y
+                    + crate::components::select::POPUP_PADDING
+                    + index as f32 * crate::components::select::ROW_HEIGHT
+                    + 15.0,
+            )
+        };
+        runtime.dispatch(Event::PointerMove(row(1)));
+        assert!(
+            matches!(&runtime.tree.get(id).data, NodeData::Select(data) if data.hovered_option == Some(1))
+        );
+        // clicking an option selects it, fires the index action once and
+        // closes the popup
+        runtime.dispatch(Event::PointerDown(row(2)));
+        assert_eq!(runtime.app_state_mut::<Picker>().changes, 1);
+        assert_eq!(runtime.app_state_mut::<Picker>().selected, 2);
+        assert!(
+            matches!(&runtime.tree.get(id).data, NodeData::Select(data) if data.selected == 2 && !data.open)
+        );
+        assert_eq!(runtime.open_select, None);
+        runtime.dispatch(Event::PointerUp(row(2)));
     }
 }

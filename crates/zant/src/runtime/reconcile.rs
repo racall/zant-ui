@@ -331,11 +331,16 @@ impl Runtime {
                 crate::core::node::NodeData::Image(data) => {
                     data.fit = element.image_fit;
                     if element.image_id != 0 {
-                        // Zig called `components/image.zig:setSource`; the
-                        // loader arrives with WP-2.2, the source id / handle
-                        // are kept so the patch pass stays consistent.
-                        data.source_id = element.image_id;
-                        data.handle = element.image_handle.clone();
+                        crate::components::image::set_source(
+                            data,
+                            element.image_handle.as_ref(),
+                            element.image_id,
+                        );
+                    } else {
+                        // Zig's `Tree.addImage` loaded the file; the Rust tree
+                        // does no I/O, so the runtime loads it here (outside
+                        // `render`), exactly where the Zig reconcile arm did.
+                        crate::components::image::load(data);
                     }
                 }
                 crate::core::node::NodeData::Select(data) => {

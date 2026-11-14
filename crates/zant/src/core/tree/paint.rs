@@ -189,9 +189,30 @@ impl Tree {
             }
             NodeKind::RichText => {
                 if let NodeData::RichText(data) = &mut self.nodes[index].data {
-                    // Rich-text selection painting needs the range-rect helper
-                    // of `renderer::rich_text::Layout` (WP-1.1c only wraps
-                    // `TextLayout::range_rects`); deferred with text selection.
+                    // selection highlight first, behind the paragraph (Zig
+                    // `paintRichText` used `zant_text_layout_range_rects` on the
+                    // rich layout's paragraph handle the same way)
+                    if let Some(range) = text_sel
+                        && let Some(layout) = data.ensure_layout(rect.width)
+                    {
+                        let mut rects = [Rect::default(); MAX_SELECTION_RECTS];
+                        let count =
+                            layout.range_rects(range[0] as usize, range[1] as usize, &mut rects);
+                        for selection_rect in &rects[..count] {
+                            if selection_rect.width <= 0.0 || selection_rect.height <= 0.0 {
+                                continue;
+                            }
+                            canvas.fill_rect(
+                                Rect::init(
+                                    rect.x + selection_rect.x,
+                                    rect.y + selection_rect.y,
+                                    selection_rect.width,
+                                    selection_rect.height,
+                                ),
+                                selection_color,
+                            );
+                        }
+                    }
                     data.paint_at(canvas, rect.x, rect.y, rect.width);
                 }
             }
@@ -302,11 +323,24 @@ fn paint_scroll_indicator(node: &crate::core::node::RetainedNode, canvas: Canvas
 
 #[cfg(test)]
 mod tests {
+    use crate::Str;
     use crate::core::geometry::Size;
-    use crate::core::node::FlexStyle;
+    use crate::core::node::{FlexStyle, RichSpan};
     use crate::core::tree::Tree;
     use crate::renderer::renderer::Renderer;
     use crate::theme::tokens::ant_light;
+
+    fn paint_tree(tree: &mut Tree, width: usize, height: usize) -> Renderer {
+        let mut renderer =
+            Renderer::create_raster(width as u32, height as u32).expect("raster renderer");
+        {
+            let canvas = renderer.begin(1.0).expect("canvas");
+            canvas.clear(0xffff_ffff);
+            tree.paint(canvas);
+        }
+        renderer.end();
+        renderer
+    }
 
     #[test]
     fn painting_a_container_fills_its_background() {
@@ -394,5 +428,40 @@ mod tests {
         tree.paint(canvas);
         renderer.end();
         assert_eq!(renderer.pixel_at(5, 5), Some(0xff00_ff00));
+    }
+
+    #[test]
+    fn rich_text_selection_highlights_the_selected_bytes() {
+        let theme = ant_light();
+        let mut tree = Tree::init(theme);
+        let root = tree.root;
+        tree.get_mut(root).style.direction = crate::layout::flex::Direction::Row;
+        let spans = [RichSpan {
+            text: Str::from("Hello rich text"),
+            font_size: 16.0,
+            color: theme.color_text,
+            ..Default::default()
+        }];
+        let id = tree.add_rich_text(Some(root), &spans);
+        tree.layout(Size {
+            width: 200.0,
+            height: 60.0,
+        });
+        let plain = paint_tree(&mut tree, 200, 60);
+        // select the first word (byte range into the joined span text)
+        tree.get_mut(id).text_sel = Some([0, 5]);
+        let selected = paint_tree(&mut tree, 200, 60);
+        let mut differing = 0;
+        for y in 0..60 {
+            for x in 0..200 {
+                if plain.pixel_at(x, y) != selected.pixel_at(x, y) {
+                    differing += 1;
+                }
+            }
+        }
+        assert!(
+            differing > 20,
+            "the selection highlight is painted behind the paragraph ({differing} px)"
+        );
     }
 }

@@ -364,16 +364,28 @@ impl Runtime {
                 };
                 if element.image_id != 0 {
                     if data.source_id != element.image_id {
-                        data.source_id = element.image_id;
-                        data.handle = element.image_handle.clone();
+                        // Zig compares the intrinsic size before / after
+                        // `image.zig:setSource`: a differently sized source
+                        // changes the measured box.
+                        let old_width = data.intrinsic_width;
+                        let old_height = data.intrinsic_height;
+                        crate::components::image::set_source(
+                            data,
+                            element.image_handle.as_ref(),
+                            element.image_id,
+                        );
+                        if old_width != data.intrinsic_width || old_height != data.intrinsic_height
+                        {
+                            layout_changed = true;
+                        }
                         paint_changed = true;
                     }
                 } else if data.source_id != 0 || data.path != element.content {
-                    // Zig synchronously loaded the file (`components/image.zig:load`);
-                    // loading arrives with WP-2.2, the path is still recorded.
+                    // Zig loads the file synchronously here (`image.zig:load`);
+                    // this runs during reconcile, never from `render`.
                     data.path = Str::copy(&element.content);
                     data.source_id = 0;
-                    data.handle = None;
+                    crate::components::image::load(data);
                     layout_changed = true;
                     paint_changed = true;
                 }
@@ -548,9 +560,10 @@ fn select_options_equal(data: &SelectData, options: &[Str]) -> bool {
 mod tests {
     use super::*;
     use crate::ui::app;
-    use crate::ui::builders::{column, text};
-    use crate::ui::options::{BoxOptions, TextOptions};
+    use crate::ui::builders::{column, image, text};
+    use crate::ui::options::{BoxOptions, ImageOptions, TextOptions};
     use crate::ui::{Node, RunOptions};
+    use std::rc::Rc;
 
     struct Doc {
         title: &'static str,
@@ -638,5 +651,96 @@ mod tests {
             std::slice::from_ref(&linked)
         ));
         assert!(!rich_spans_equal(std::slice::from_ref(&base), &[]));
+    }
+
+    // ── WP-2.1: image loading in the reconcile / patch arms ─────────────────
+
+    struct Picture {
+        path: String,
+        image: Option<Rc<crate::image::Image>>,
+    }
+
+    impl app::App for Picture {
+        fn render(&mut self) -> Node {
+            column(BoxOptions {
+                children: crate::nodes![image(ImageOptions {
+                    key: Some("pic".into()),
+                    src: Str::copy(&self.path),
+                    image: self.image.clone(),
+                    ..Default::default()
+                })],
+                ..Default::default()
+            })
+        }
+    }
+
+    fn image_state(runtime: &Runtime) -> &crate::core::node::ImageData {
+        let id = runtime.find_key("pic").expect("image node");
+        match &runtime.tree.get(id).data {
+            NodeData::Image(data) => data,
+            _ => panic!("expected an image node"),
+        }
+    }
+
+    #[test]
+    fn the_image_arms_load_paths_and_in_memory_sources() {
+        // a 40x20 PNG on disk
+        let pixels = vec![255u8; (40 * 20 * 4) as usize];
+        let source =
+            crate::image::Image::from_pixels(&pixels, 40, 20, 40 * 4).expect("image pixels");
+        let png = source.encode_png().expect("png");
+        let path =
+            std::env::temp_dir().join(format!("zant_wp21_patch_image_{}.png", std::process::id()));
+        std::fs::write(&path, &png).expect("write png");
+        let real_path = path.to_str().expect("utf-8 path").to_string();
+        let mut runtime = Runtime::init(
+            Picture {
+                path: String::from("this/image/does/not/exist.png"),
+                image: None,
+            },
+            RunOptions::default(),
+        );
+        // a created image node with an unreadable path stays a placeholder
+        runtime.rebuild_for_test();
+        {
+            let data = image_state(&runtime);
+            assert!(data.handle.is_none());
+            assert_eq!((data.intrinsic_width, data.intrinsic_height), (0, 0));
+        }
+        // the path changes: the patch arm loads it (Zig `image.zig:load`) and
+        // its intrinsic size re-lays out the box
+        runtime.app_state_mut::<Picture>().path = real_path.clone();
+        runtime.rebuild_for_test();
+        {
+            let data = image_state(&runtime);
+            assert!(data.handle.is_some(), "the png was decoded");
+            assert_eq!((data.intrinsic_width, data.intrinsic_height), (40, 20));
+        }
+        assert!(
+            runtime.tree.needs_layout(),
+            "a new intrinsic size dirties the layout"
+        );
+        // an in-memory source goes through `setSource`
+        runtime.app_state_mut::<Picture>().image = Some(Rc::new(source));
+        runtime.rebuild_for_test();
+        {
+            let data = image_state(&runtime);
+            assert!(data.handle.is_some());
+            assert_eq!(
+                data.source_id,
+                data.handle.as_ref().map_or(0, |image| image.id)
+            );
+            assert_eq!((data.intrinsic_width, data.intrinsic_height), (40, 20));
+        }
+        // switching back to the path loads the file again
+        runtime.app_state_mut::<Picture>().image = None;
+        runtime.rebuild_for_test();
+        {
+            let data = image_state(&runtime);
+            assert_eq!(data.source_id, 0);
+            assert!(data.handle.is_some());
+            assert_eq!((data.intrinsic_width, data.intrinsic_height), (40, 20));
+        }
+        std::fs::remove_file(&path).expect("remove png");
     }
 }
