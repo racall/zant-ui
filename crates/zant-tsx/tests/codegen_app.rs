@@ -1235,7 +1235,6 @@ fn a_types_only_spec_omits_the_unused_tsx_import() {
     assert!(!root.contains("use zant::tsx;"), "{root}");
 }
 
-
 #[test]
 fn a_component_call_passes_the_props_struct_not_the_component() {
     let files = [
