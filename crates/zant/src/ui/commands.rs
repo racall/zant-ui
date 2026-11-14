@@ -46,6 +46,11 @@ pub enum CommandKind {
     Focus,
     ScrollIntoView,
     ScrollToEnd,
+    /// The app-drawn Windows caption buttons (`ui::window_controls`): the
+    /// actions queue the window operation instead of reaching the runtime.
+    WindowMinimize,
+    WindowMaximize,
+    WindowClose,
 }
 
 /// Imperative request queued by [`focus`] / [`scroll_into_view`] /
@@ -152,6 +157,21 @@ pub fn scroll_to_end(key: &str) {
     queue_command(CommandKind::ScrollToEnd, key);
 }
 
+/// Minimizes this window (the app-drawn Windows caption's button).
+pub fn window_minimize() {
+    queue_command(CommandKind::WindowMinimize, "");
+}
+
+/// Toggles maximize/restore (the app-drawn Windows caption's button).
+pub fn window_maximize() {
+    queue_command(CommandKind::WindowMaximize, "");
+}
+
+/// Closes this window (the app-drawn Windows caption's button).
+pub fn window_close() {
+    queue_command(CommandKind::WindowClose, "");
+}
+
 /// Moves all queued commands out of the queue (runtime).
 ///
 /// Zig copies them into a caller-provided `[max_commands]Command` buffer
@@ -204,6 +224,28 @@ mod tests {
     fn reset() {
         let _ = take_commands();
         set_command_owner(None);
+    }
+
+    #[test]
+    fn window_operations_queue_without_a_key() {
+        reset();
+        let owner = Some(owner_of(&0u8));
+        set_command_owner(owner);
+        window_minimize();
+        window_maximize();
+        window_close();
+        let commands = take_commands();
+        let kinds: Vec<CommandKind> = commands.iter().map(|command| command.kind).collect();
+        assert_eq!(
+            vec![
+                CommandKind::WindowMinimize,
+                CommandKind::WindowMaximize,
+                CommandKind::WindowClose
+            ],
+            kinds
+        );
+        assert!(commands.iter().all(|command| command.key().is_empty()));
+        assert!(commands.iter().all(|command| command.owner == owner));
     }
 
     fn owner_of(test: &u8) -> *const () {

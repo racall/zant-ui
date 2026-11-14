@@ -36,6 +36,19 @@ impl Runtime {
         }
     }
 
+    /// Zig `drawsCaptionButtons`: a hidden-titlebar window on Windows draws
+    /// its own caption buttons (macOS keeps the traffic lights).
+    fn draws_caption_buttons(&self) -> bool {
+        cfg!(target_os = "windows")
+            && self.config.window.style == crate::platform::platform::WindowStyle::HiddenTitlebar
+    }
+
+    /// Height of the app-drawn title bar (Windows 11 default: 32).
+    fn caption_height(&self) -> f32 {
+        let height = self.config.window.titlebar_height;
+        if height > 0.0 { height } else { 32.0 }
+    }
+
     /// Zig `buildTree`: theme / window style / build states, then `render` and
     /// [`Runtime::reconcile_root`].
     pub(crate) fn build_tree(&mut self) {
@@ -67,8 +80,29 @@ impl Runtime {
         if !portals.is_empty() && root.element().kind == NodeKind::Container {
             root = crate::ui::append_children(root, &portals);
         }
-        // Windows caption buttons (`ui.windowControls`) are appended here in
-        // Zig; the Rust builder arrives with WP-2.5 (`components::window_controls`).
+        // App-drawn Windows caption buttons (Zig `drawsCaptionButtons`): a
+        // hidden-titlebar window on Windows gets the minimize / maximize /
+        // close buttons in the top-right corner of its own title bar.
+        if self.draws_caption_buttons() && root.element().kind == NodeKind::Container {
+            let options = crate::ui::WindowControlsOptions {
+                height: self.caption_height(),
+                maximized: self
+                    .window
+                    .as_ref()
+                    .is_some_and(|window| window.is_maximized()),
+                active: self.active,
+                on_minimize: Some(crate::ui::Action::new(|_cx| {
+                    crate::ui::window_minimize();
+                })),
+                on_maximize: Some(crate::ui::Action::new(|_cx| {
+                    crate::ui::window_maximize();
+                })),
+                on_close: Some(crate::ui::Action::new(|_cx| {
+                    crate::ui::window_close();
+                })),
+            };
+            root = crate::ui::append_children(root, &[crate::ui::window_controls(options)]);
+        }
         self.wake_at_ms = crate::ui::take_wake().map(|ms| self.now_ms + i64::from(ms));
         if let Some(edited) = crate::ui::take_document_edited()
             && edited != self.document_edited
@@ -188,6 +222,28 @@ mod tests {
         let canvas = renderer.begin(1.0).expect("canvas");
         runtime.render_frame(canvas, 300.0, 200.0, 1.0);
         renderer.end();
+    }
+
+    #[test]
+    fn caption_buttons_follow_the_platform_and_window_style() {
+        #[derive(Default)]
+        struct Empty;
+        impl App for Empty {
+            fn render(&mut self) -> crate::ui::Node {
+                column(BoxOptions::default())
+            }
+        }
+        let mut options = RunOptions::default();
+        options.window.style = crate::platform::platform::WindowStyle::HiddenTitlebar;
+        let mut runtime = Runtime::init(Empty, options);
+        // macOS keeps the traffic lights (and Zig only drew the buttons on
+        // Windows); the flag also tracks the window style.
+        assert_eq!(cfg!(target_os = "windows"), runtime.draws_caption_buttons());
+        assert_eq!(32.0, runtime.caption_height());
+        runtime.config.window.titlebar_height = 52.0;
+        assert_eq!(52.0, runtime.caption_height());
+        runtime.config.window.style = crate::platform::platform::WindowStyle::Native;
+        assert!(!runtime.draws_caption_buttons());
     }
 
     #[test]

@@ -159,6 +159,28 @@ impl Runtime {
     fn run_commands(&mut self) {
         let commands = crate::ui::take_commands_for(self.owner_ptr());
         for command in commands {
+            // window operations carry no node key: run them directly
+            match command.kind {
+                CommandKind::WindowMinimize => {
+                    if let Some(window) = &self.window {
+                        window.minimize();
+                    }
+                    continue;
+                }
+                CommandKind::WindowMaximize => {
+                    if let Some(window) = &self.window {
+                        window.toggle_maximize();
+                    }
+                    continue;
+                }
+                CommandKind::WindowClose => {
+                    if let Some(window) = &self.window {
+                        window.close();
+                    }
+                    continue;
+                }
+                _ => {}
+            }
             let Some(id) = self.find_key(command.key()) else {
                 crate::ui::requeue_command(command);
                 continue;
@@ -171,6 +193,10 @@ impl Runtime {
                     }
                 }
                 CommandKind::ScrollIntoView => self.scroll_into_view(id),
+                // handled above (no node key)
+                CommandKind::WindowMinimize
+                | CommandKind::WindowMaximize
+                | CommandKind::WindowClose => {}
                 CommandKind::ScrollToEnd => {
                     let (scroll, target) = {
                         let node = self.tree.get(id);

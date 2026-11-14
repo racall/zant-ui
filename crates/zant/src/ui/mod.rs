@@ -35,6 +35,7 @@ pub use builders::{
 pub use commands::{
     Command, CommandKind, MAX_COMMANDS, focus, queue_command_for, requeue_command,
     scroll_into_view, scroll_to_end, set_command_owner, take_commands, take_commands_for,
+    window_close, window_maximize, window_minimize,
 };
 pub use context::{
     BuildCx, begin_frame, build_states, current_theme, display_scale, document_edited, effect,
