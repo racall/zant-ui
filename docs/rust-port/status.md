@@ -38,8 +38,8 @@
 | 1.1b | core/{unicode,paths,hash} | wp-1-1b | 完成（已并入） | 9 个测试；hash 是 Zig Wyhash 4.2 的逐行移植并钉死 20 个 Zig 实测值；keys/text_select 改派 lead |
 | 1.1c | renderer/{canvas,text,rich_text,renderer}、image | lead | 完成 | 依赖 0.3；14 个测试（renderer raster/像素、TextLayout 度量/换行/relayout/caret、rich text、image PNG/缩略图/data URI）；`Image` 是唯一 `unsafe impl Send + Sync` 的句柄 |
 | 1.1d | platform/{platform,dialog}、core/events、core/keys | lead | 完成 | `Host` 回调表 → `Box<dyn HostHandler>` 蹦床；`ZANT_WINDOW_SIZE` 已照搬；`monotonic_us` 用 `Instant`（deviation）；事件 text 用 owned `String`；14 个测试 |
-| 1.2 | actions、ui Element / 选项 / 构建上下文 | wp-1-2 | 进行中（worktree wp-1.2） | ★★★ |
-| 1.3 | node、tree、layout、vector、components/button | lead | 待领取 | ★★★ |
+| 1.2 | actions、ui Element / 选项 / 构建上下文 | wp-1-2 | 完成（已并入） | 39 个新测试；52 字段 Element + 32 个选项结构体逐一对照 Zig；只做 column/row/text/button/styled，其余选项类型已声明 |
+| 1.3 | node、tree、layout、components/button、text_select | wp-1-3 | 进行中（worktree wp-1.3） | ★★★；vector 已提前并入；按阶段提交（node 数据 → layout → tree → paint/hit → select/button） |
 | 1.4 | ui_runtime 构建/协调/patch/事件/帧循环、launch、App trait | lead | 待领取 | ★★★ |
 | 1.5 | `zant-demo`（对应 src/main.zig） | lead | 待领取 | |
 
@@ -50,7 +50,7 @@
 | 2.1 | input + runtime 键盘 / IME / 焦点 / 文本选择 | — | 待领取 | |
 | 2.2 | toggle、select、image + select 弹层、tooltip | — | 待领取 | |
 | 2.3 | ui.zig 其余构建器、core/icons | wp-2-3a（icons 完成）/ lead（其余）| icons 已并入（2 测试，3317/3321 坐标逐位一致，4 个 1ulp 差来自 sin/cos 实现）；其余构建器等 1.2 |
-| 2.4 | memo、localState、portals、effects、commands | lead（local_state 已提前完成） | 进行中 | `core/local_state.rs`（Store/Slot/child_id，Rc<RefCell<T>> + TypeId panic）已完成并测试；memo/portals/effects/commands 等 1.2 |
+| 2.4 | memo、localState、portals、effects、commands | wp-2-4 | 进行中（worktree wp-2.4） | `core/local_state.rs` + `ui::local_state` 已由 lead 提前完成；memo/portals/commands 由 wp-2-4 做 |
 | 2.5 | menu、modal、segmented、message、shortcut_list、hotkey_input、view、window_controls | — | 待领取 | |
 | 2.6 | components/list（虚拟列表）+ ListState | — | 待领取 | |
 | 2.7 | 动效接入：presence、FLIP、layout_transition、runtime tick | — | 待领取 | |
@@ -80,7 +80,7 @@
 | WP | 内容 | 负责人 | 状态 | 备注 |
 |---|---|---|---|---|
 | 4.1 | lexer、ast、jsx_text、jsx_entities | wp-4-1 | 完成 | `rust/wp-4.1`；10/10 Rust 测试（Zig 可移植 10 个）；AST 字符串用 `Vec<u8>`（见待决问题）；`jsx_entities_test.zig` 另 2 个依赖 parser/compile 的测试待 4.2/4.3 补 |
-| 4.2 | parser、expr_parser、jsx_parser、type_parser、loop_parser、import_parser、react_compat | wp-4-2 | 进行中（worktree wp-4.2） | 依赖 4.1（已并入）；含 AST dump 函数 |
+| 4.2 | parser、expr_parser、jsx_parser、type_parser、loop_parser、import_parser、react_compat | wp-4-2 | 完成（已并入） | 33 测试；`dump_program`（确定性 AST dump，格式见报告）；仓库 32 个 testdata + examples/tsx 全部可解析 |
 | 4.3 | hooks/{expand,rewrite,resolve,leftover} | — | 待领取 | 依赖 4.2 |
 | 4.4 | tags、tag_aliases、string_method_names、诊断 | — | 待领取 | |
 

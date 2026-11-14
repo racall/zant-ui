@@ -145,4 +145,34 @@ pub enum NodeData { Root, Container(..), Text(..), Button(..), /* .. */ }
 
 ## 已冻结的补充约定（执行中新增，写在这里供后续 WP 引用）
 
-（暂无）
+### 由 WP-1.2 实现后定稿的细节
+
+1. **`Element` 的 `Default` 手写**（不是 derive）：Zig 的非零默认很多（`enabled = true`、`focus_ring = true`、
+   `icon_size = 18`、`button_size = Middle`、`toggle_kind = Checkbox`、`image_fit = Cover`、
+   `rich_line_height = 2.0`），`kind` 取 `NodeKind::Root`。
+2. **选项结构体的 `Default`**：Zig 默认全为零/枚举默认的用 `derive`（手写会被 `clippy::derivable_impls`
+   判错），其余逐字段手写。Zig 里必填的字段给中性 `Default` 以便 `..Default::default()`。
+3. **`run_effects(cx: &mut ActionCx<'_>) -> bool`**：Rust 的 `Action` 需要 `ActionCx`；先取走队列、
+   释放 context 借用，再逐个调用（与 Zig 语义一致）。
+4. **raw identifier 保住 Zig 字段名**：`PointerAreaOptions.r#box`、`ClickableOptions.r#box`、
+   `IconButtonOptions.r#box`、`AlertOptions.r#type`。`#[derive(TsxProps)]`（WP-5.2）反射字段名时要剥掉 `r#`。
+5. **`Element.image_handle: Option<Rc<Image>>`**（Zig 为 `?*anyopaque` + `image_id`，后者保留）；
+   `content/placeholder/tooltip/link/options` → `Str`/`Vec<Str>`；`children` → `Vec<Node>`；
+   `drawing` → `Option<Rc<VectorDrawing>>`；`memo_build` → `Option<MemoBuild>`（`Rc<dyn Fn() -> Node>`）。
+6. **新增小 API**：`Node::ptr_eq`（reconciler 身份比较）、`PointerInfo::default()`（`click_count = 1`）、
+   `Node::with_key`、`append_children`。
+
+### 决议（原契约未写清的地方）
+
+7. **`zant::Error`**：`crates/zant/src/error.rs`，`enum Error { Io, Utf8, Message }` + `pub type Result<T>`。
+   各模块自己的错误类型（`ParseError`、`DbError`、`MhchemError`、`RendererError`、`OpenError`…）保留，
+   以后统一加 `From` 并入；新代码有真实失败时优先用 `zant::Error`。
+8. **`ui::post_wake()`**：`platform::platform::post_wake()` 通过 `AtomicPtr<ZantWindow>` 保存唤醒目标
+   （原生 `zant_window_post_wake` 文档保证线程安全），`Window::create` 默认把第一个窗口设为目标，
+   runtime 多窗口时用 `platform::set_post_wake_window(raw)` 切换。`ui` 里不出现 unsafe。
+9. **`ui::key_bounds(key)`**：`ui/context.rs` 里的 `KeyBoundsHook`（`Rc<dyn Fn(&str) -> Option<Rect>>`），
+   runtime 每帧用 `set_key_bounds_hook` 装上「查保留树」的闭包；`ui` 不直接依赖 `core::tree`。
+10. **不提供 `frameAllocator`**：Zig 的帧 arena 在 Rust 里删除。需要「活过本帧」的数据一律由闭包捕获
+    `Rc`/`String`（回调生命周期即保证），字符串用 `Str::copy`。移植 pdf/markdown/tsx/components 时按此执行。
+11. **`mut`/所有权形态**：`Collection` 式容器方法取 `&self` + 内部可变（`Rc<RefCell<..>>`）或 `&mut self`，
+    按各 WP 的文件头说明；读路径优先返回 `Arc` 快照（PDF 缓存已如此）。
