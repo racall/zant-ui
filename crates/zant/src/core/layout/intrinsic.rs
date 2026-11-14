@@ -7,10 +7,8 @@
 //!
 //! Component measures (`measureWidth` / `measureHeight` of
 //! `src/components/{button,input,toggle,image,select}.zig`) live in their
-//! component modules: `components::{button,toggle,image,select}`. Input's
-//! constants are still here until WP-2.1 lands (same shape as the Zig
-//! functions); this file only dispatches to them, exactly like Zig
-//! `core/layout.zig:113-166`.
+//! component modules (`components::{button,input,toggle,image,select}`); this
+//! file only dispatches to them, exactly like Zig `core/layout.zig:113-166`.
 #![forbid(unsafe_code)]
 
 use crate::core::layout::Nodes;
@@ -80,25 +78,14 @@ fn finite(v: f32, fallback: f32) -> f32 {
 
 // ── component measures (see the module docs) ───────────────────────────────
 
-/// `src/components/input.zig`: `default_width` / `default_height` (WP-2.1
-/// moves these next to the input paint module).
-const INPUT_DEFAULT_WIDTH: f32 = 220.0;
-const INPUT_DEFAULT_HEIGHT: f32 = 32.0;
-
-/// `input.zig:measureWidth`.
+/// `input.zig:measureWidth` (`components::input` owns the port).
 pub(crate) fn input_measure_width(style: &FlexStyle) -> f32 {
-    if let Some(width) = style.width {
-        return width;
-    }
-    INPUT_DEFAULT_WIDTH
+    crate::components::input::measure_width(style)
 }
 
-/// `input.zig:measureHeight`.
+/// `input.zig:measureHeight` (`components::input` owns the port).
 pub(crate) fn input_measure_height(style: &FlexStyle) -> f32 {
-    if let Some(height) = style.height {
-        return height;
-    }
-    INPUT_DEFAULT_HEIGHT
+    crate::components::input::measure_height(style)
 }
 
 // ── intrinsic sizes ────────────────────────────────────────────────────────

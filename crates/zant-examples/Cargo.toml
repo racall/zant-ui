@@ -8,3 +8,7 @@ description = "Runnable examples for Zant UI (zant-demo, zant-components, zant-g
 
 [dependencies]
 zant.workspace = true
+
+[[bin]]
+name = "zant-demo"
+path = "src/bin/zant-demo.rs"
