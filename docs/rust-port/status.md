@@ -88,7 +88,7 @@
 
 | WP | 内容 | 负责人 | 状态 | 备注 |
 |---|---|---|---|---|
-| 5.1 | 代码生成设计文档 `tsx-codegen.md` | lead | 待领取 | ★★★ |
+| 5.1 | 代码生成设计文档 `tsx-codegen.md` | lead | 完成 | ★★★；见 docs/rust-port/tsx-codegen.md（类型映射、非 Copy 一律 clone、props/事件、组件/局部状态、JS 内建语义、黄金用例策略） |
 | 5.2 | zant-macros derive(TsxProps) + zant-tsx-tags + dts | — | 待领取 | |
 | 5.3 | codegen 核心（types/scope/expr/stmt/rust_text/builtins/narrowing/functions/loops/aggregate） | — | 待领取 | |
 | 5.4 | JSX 生成（jsx/jsx_values/jsx_children/rich_text/list/events） | — | 待领取 | |
