@@ -105,7 +105,7 @@
 | 5.2 | zant-macros derive(TsxProps) + zant-tsx-tags + dts | — | 待领取 | |
 | 5.3 | codegen 核心（types/scope/expr/stmt/rust_text/builtins/narrowing/functions/loops/aggregate） | — | 待领取 | |
 | 5.4 | JSX 生成（jsx/jsx_values/jsx_children/rich_text/list/events） | — | 待领取 | |
-| 5.5 | 组件与状态（codegen/components/model/stateful/hooks/stores/array_methods/local_state） | — | 待领取 | |
+| 5.5 | 组件与状态（codegen/components/model/stateful/hooks/stores/array_methods/local_state） | wp-5-5 | 完成（分支 rust/wp-5.5） | 入口 `codegen::generate::generate(source_name, &Module, &Options)`（另有 `generate_with(.., install_extra)`）→ `GeneratedFile { source }`（syn + prettyplease 校验/格式化，头部 `@generated` 注释在格式化后拼回）。新增 `generate/components/stateful/hooks/stores/array_methods/string_methods/captures/callbacks/free_names/globals/spread/nesting` 模块；`mod.rs` 加 Generator 生产字段与 WP-5.4/5.6/5.8 扩展钩子。测试：lib 114（+5：free_names 2、nesting 2、string_methods 2、stateful 2、stores 2、globals 2、array 1 等）、集成 `tests/codegen_components.rs` 7 条黄金用例。5.4 未落地：JSX/事件用测试桩注入（`install_extra`），合并时按 `generate::install` 里的注释逐行填 `emit_jsx/scan_body/scan_expr/emit_setter/method_param/...`；细节见待决问题 |
 | 5.6 | 应用层（imports/rust_imports/windows/desktop_hooks/zant_api/assets/entry/compile/main） | — | 待领取 | |
 | 5.7 | src/tsx*.zig → zant/src/tsx/ | — | 待领取 | |
 | 5.8 | native 模块（trait 化） | — | 待领取 | ★★★ |
@@ -203,6 +203,36 @@
 5. **打包脚本路径**（给 6.4）：CLI 仍调用 `tools/zant/package/{macos.sh,windows.ps1}` 的既有 action，ZANT_* 变量名不变；输出目录从 `zig-out/` 改为 `target/`（`ZANT_OUT=target/dist`、`ZANT_DIR=target/<标题>`、临时文件 `target/build/`），脚本里若还写死 `zig-out` 需要同步。
 
 ## 待决问题
+
+### WP-5.5 提出（2026-11-14）
+
+1. **WP-5.4/5.6/5.8 钩子待接线**：`codegen/generate.rs` 的 `install()` 里已按行列出
+   `g.extensions.hooks.emit_jsx/scan_body/scan_expr/emit_setter/method_param/forward_arrow/parameter_type`、
+   `extensions.process_imports/collect_windows/app_lifecycle/is_window_const`、`native` 的装配位置；
+   `mod.rs` 已加对应扩展字段。合并各 WP 时把这些注释行改成赋值即可（都是单行）。
+   在 5.4 落地前，任何渲染 JSX 的模块都会报 `JSX code generation is implemented by WP-5.4`。
+2. **子组件回调 prop 的调用需要运行时 `ActionCx`**（设计缺口，需负责人裁定）：Rust 的 `ui::Action`
+   只能由运行时用 `ActionCx` 调用；Zig 的 `tsx.Callback` 带根状态指针，允许在 handler 里直接
+   `callback.call(...)`。当前实现：签名为 ui 事件（`()/bool/string/usize`）的回调 prop 用
+   `ui::Action` 族，子 handler 调用时经 `ui::effect(...)` 延迟一帧执行（能编译、语义等价但晚一帧）；
+   非 ui 事件签名（如 `(id: number) => void`）目前报诊断。要彻底解决需要在 `ui` 里增加
+   “在 handler 中调用 Action”的能力（或给 handler 传 `ActionCx`）。
+3. **`tsx::Store<T>` 的契约**（给 WP-5.7）：生成代码假设 `tsx::Store::new(initial)` 与 `&self` 方法
+   `get/read/set/update(impl FnOnce(&mut T))`；每个 `createStore` 生成
+   `thread_local!` 静态 + `settings_{get,read,set,update}` 四个 `pub fn`（Rust 无可变 `static`）。
+4. **`tsx::strings` 的方法名**（给 WP-5.7）：`codegen/string_methods.rs::rust_name` 固定为
+   `starts_with/ends_with/index_of/last_index_of/to_lowercase/to_uppercase/pad_start/pad_end/char_at/char_code_at/code_point_at/replace_all` 等，
+   接收 `&str`/`f64`，字符串结果返回 `zant::Str`，`split` 返回 `tsx::List<zant::Str>`。
+5. **`scope.CaptureSource` 缺类型与 narrowing**：5.3 的实现只存可见名字，`captures.zig` 需要的
+   “外层 context 的类型 + narrowing 事实” 无法取到。WP-5.5 用 `Generator::capture_scope`
+   快照（`captures::prepare` 时记录）绕过；代价：narrowing 后的 optional 以声明类型捕获、
+   箭头套箭头的捕获不再向上递归。要补需改 `codegen/scope.rs`（5.3 文件）。
+6. **`<List>` 的 `ui::ListState` 字段**：`Generator::lists` 目前是 `Vec<String>`（字段名），
+   WP-5.4 的 `list.rs` 需要 `jsx`/`item_method`/`id_method`，合并时把该字段扩展成真正的 `ListInfo`。
+7. **子组件本地状态的实现形态**：设计文档 §6.2 写 `ChildState` + 回调捕获 `Rc<RefCell<_>>`；Rust 里
+   handler 要保持 `&mut self` 形态，所以子组件本地状态槽里放的是**整个子组件实例**（props+state），
+   并通过 `_state: Weak<RefCell<Child>>` 让 action 在回调时 upgrade（方法签名不变）。属实现偏差，
+   行为一致；如坚持 §6.2 字面形态需改 `scope::state_field` 的前缀规则（5.3 文件）。
 
 > 执行者遇到计划没写清的设计问题，登记在这里并停下来等负责人裁定，不要自行发明方案。
 

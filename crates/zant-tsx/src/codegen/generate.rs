@@ -1,0 +1,1152 @@
+//! The code generation entry point, module validation, state collection and
+//! component emission. Translation of `tools/tsx/codegen/codegen.zig`.
+//!
+//! [`generate`] turns one parsed module into a complete Rust source file in the
+//! shape frozen by `docs/rust-port/tsx-codegen.md` §5/§6:
+//!
+//! - the root component is a plain struct with its state as fields, a
+//!   hand-written `impl Default` (the `useState` initial values), inherent
+//!   handler methods and `impl ui::App for App` holding `render`;
+//! - a child component is `pub struct Child { props, _id, _state, … }` with
+//!   `Child::build(props, id)` (the local state comes from `ui::local_state`;
+//!   actions capture the slot through `self._state`, a `Weak` upgrade);
+//! - interface / enum declarations, file constants, stores and plain functions
+//!   are emitted before the components.
+//!
+//! The output is validated with [`crate::codegen::parse_and_format`] (`syn` +
+//! `prettyplease`); a parse failure panics with the generated source, exactly
+//! like the Zig compiler's AST re-parse.
+//!
+//! # Extension points still owned by other work packages
+//!
+//! `imports.zig` (module paths, WP-5.6), `windows.zig` (WP-5.6),
+//! `app_hooks.zig` (WP-5.6), `native_specs.zig` (WP-5.8) and the JSX / event
+//! modules `jsx.zig`, `events.zig`, `list.zig`, `jsx_fields.zig`,
+//! `jsx_values.zig` (WP-5.4) are hooks on [`Extensions`]. Until WP-5.4 lands,
+//! [`install`] cannot fill `emit_jsx`, `scan_body`, `scan_expr` and
+//! `emit_setter`; a component that renders JSX fails with
+//! `"JSX code generation is implemented by WP-5.4"`. Filling them in is the
+//! single-line merge action reported by WP-5.5.
+
+use crate::ast;
+use crate::tags;
+
+use super::components;
+use super::expr;
+use super::functions;
+use super::globals;
+use super::hooks;
+use super::model;
+use super::rust_text;
+use super::scope;
+use super::stateful;
+use super::stmt;
+use super::stores;
+use super::types::{self, Type};
+use super::{Diag, Generator, Result, fail, parse_and_format};
+
+/// The fixed file header (`docs/rust-port/tsx-codegen.md` §1) plus the module
+/// imports every generated file uses.
+pub const HEADER_ALLOWS: &str =
+    "#![allow(clippy::redundant_clone)]\n#![allow(clippy::too_many_arguments)]\n";
+pub const PREAMBLE: &str = "use zant::tsx;\nuse zant::ui;\n\n";
+
+/// The input of one module compilation.
+#[derive(Clone, Copy, Debug)]
+pub struct Options<'a> {
+    /// The file path for the `@generated` marker and diagnostics.
+    pub source_name: &'a str,
+    /// The project's parsed files, for relative imports (WP-5.6 fills this).
+    pub project: &'a [stateful::ModuleSource<'a>],
+    /// A file without a root component (only child components) is an error
+    /// unless false (library files of a project).
+    pub require_root: bool,
+    /// The file's path in a project build (asset imports, WP-5.6).
+    pub source_path: Option<&'a str>,
+    /// A native module spec (`native/<name>.ts`), compiled by WP-5.8.
+    pub native: bool,
+}
+
+impl Default for Options<'_> {
+    fn default() -> Self {
+        Options {
+            source_name: "app.tsx",
+            project: &[],
+            require_root: true,
+            source_path: None,
+            native: false,
+        }
+    }
+}
+
+thread_local! {
+    /// The diagnostic of the last failed [`generate`] (the codegen error type
+    /// carries no message; the caller renders this like the parser's `Diag`).
+    static LAST_DIAG: std::cell::RefCell<Option<Diag>> = const { std::cell::RefCell::new(None) };
+}
+
+/// The first diagnostic of the last [`generate`] that failed.
+pub fn last_diag() -> Option<Diag> {
+    LAST_DIAG.with(|diag| diag.borrow().clone())
+}
+
+/// One generated Rust module.
+#[derive(Clone, Debug)]
+pub struct GeneratedFile {
+    /// The validated, pretty-printed source.
+    pub source: String,
+}
+
+/// Fill in the hooks this work package owns. WP-5.4 / 5.6 / 5.8 replace the
+/// `None` entries with their module functions at merge time.
+pub fn install(g: &mut Generator<'_>) {
+    g.extensions.extra_hook = hooks::extra_hook;
+    g.extensions.hooks.ref_read = Some(hooks::ref_read);
+    g.extensions.hooks.ref_write = Some(hooks::ref_write);
+    g.extensions.hooks.bare_ref = Some(hooks::bare_ref);
+    g.extensions.hooks.hook_statement = Some(statement_hook);
+    g.extensions.hooks.hook_declaration = Some(declaration_hook);
+    g.extensions.hooks.cleanup_return = Some(hooks::cleanup_return);
+    g.extensions.hooks.components_read_prop = Some(components::read_prop);
+    g.extensions.hooks.callback_type = Some(components::callback_type);
+    g.extensions.hooks.nested = Some(super::captures::nested);
+    g.extensions.array_methods = Some(super::array_methods::emit);
+    g.extensions.call_before_functions = vec![components::try_call, stores::try_call];
+    // WP-5.4 (one line each):
+    // g.extensions.hooks.emit_jsx = Some(super::jsx::emit);
+    // g.extensions.hooks.scan_body = Some(super::events::scan_body);
+    // g.extensions.hooks.scan_expr = Some(super::events::scan_expr);
+    // g.extensions.hooks.emit_setter = Some(super::events::emit_setter);
+    // g.extensions.hooks.method_param = Some(super::events::method_param_type);
+    // g.extensions.hooks.forward_arrow = Some(super::events::forward_arrow);
+    // g.extensions.hooks.parameter_type = Some(super::events::parameter_type);
+    // WP-5.6 (one line each):
+    // g.extensions.process_imports = Some(super::imports::process);
+    // g.extensions.collect_windows = Some(super::windows::collect);
+    // g.extensions.app_lifecycle = Some(super::app_hooks::lifecycle);
+    // WP-5.8:
+    // (native module specs): g.extensions.native_spec = Some(super::native_specs::emit);
+}
+
+/// Statement-position hook (Zig `hooks.effect`; WP-5.6's app hooks chain in
+/// before this one).
+fn statement_hook(
+    g: &mut Generator<'_>,
+    c: &mut scope::Context,
+    e: &ast::Expr,
+    top: bool,
+) -> Result<String> {
+    match hooks::call_name(e).as_deref() {
+        Some("useEffect") => hooks::effect(g, c, e, top),
+        Some(name) => fail(
+            g,
+            e.loc,
+            format!(
+                "`{name}` cannot be used as a statement; keep its value in a const or call it at the top level"
+            ),
+        ),
+        None => fail(g, e.loc, "hook statements are not supported here"),
+    }
+}
+
+/// Declaration-position hook (`useMemo`, `useStore`; WP-5.6's hooks chain in
+/// before this one).
+fn declaration_hook(
+    g: &mut Generator<'_>,
+    c: &mut scope::Context,
+    loc: ast::Loc,
+    d: &ast::Decl,
+    top: bool,
+) -> Result<String> {
+    let Some(init) = d.init.as_deref() else {
+        return fail(g, loc, "hook declarations need an initializer");
+    };
+    match hooks::call_name(init).as_deref() {
+        Some("useMemo") => hooks::memo(g, c, loc, d, top),
+        Some("useStore") => stores::use_store(g, c, loc, d, top),
+        Some(name) => fail(g, loc, format!("hook `{name}` is implemented by WP-5.6")),
+        None => fail(g, loc, "hook declarations are not supported here"),
+    }
+}
+
+/// Validate the module, register state and handlers, then emit a complete
+/// Rust module.
+pub fn generate(
+    source_name: &str,
+    module: &ast::Module,
+    options: &Options<'_>,
+) -> Result<GeneratedFile> {
+    generate_with(source_name, module, options, None)
+}
+
+/// [`generate`] with one extra hook-installation step, run after [`install`].
+/// Tests inject the not-yet-landed WP-5.4 JSX / event emitters through it; the
+/// production entry point passes `None`.
+pub fn generate_with(
+    source_name: &str,
+    module: &ast::Module,
+    options: &Options<'_>,
+    install_extra: Option<fn(&mut Generator<'_>)>,
+) -> Result<GeneratedFile> {
+    let mut diag: Option<Diag> = None;
+    let result = generate_inner(source_name, module, options, install_extra, &mut diag);
+    LAST_DIAG.with(|slot| *slot.borrow_mut() = diag);
+    result
+}
+
+fn generate_inner(
+    source_name: &str,
+    module: &ast::Module,
+    options: &Options<'_>,
+    install_extra: Option<fn(&mut Generator<'_>)>,
+    diag: &mut Option<Diag>,
+) -> Result<GeneratedFile> {
+    let mut g = Generator::new(diag);
+    g.name.clear();
+    g.type_decls = module.types.clone();
+    g.react_imports = module.imports.clone();
+    g.resolving = vec![false; module.types.len()];
+    install(&mut g);
+    if let Some(extra) = install_extra {
+        extra(&mut g);
+    }
+    if options.native {
+        return fail(&mut g, 0, "native module specs are implemented by WP-5.8");
+    }
+    validate_imports(&mut g, module)?;
+    if let Some(hook) = g.extensions.process_imports {
+        hook(&mut g, module)?;
+    }
+    for declaration in &module.types {
+        let _ = model::named(&mut g, &declaration.name.name)?;
+    }
+    if let Some(first) = module.declared.first() {
+        return fail(
+            &mut g,
+            first.func.loc,
+            "`declare function` belongs in a native module spec (native/<module>.ts)",
+        );
+    }
+    // the root is the default export without props (the app's state); a file of
+    // a project may hold child components only
+    let mut root: Option<ast::Function> = None;
+    for top in &module.functions {
+        if !top.default {
+            continue;
+        }
+        if root.is_some() {
+            return fail(
+                &mut g,
+                top.func.loc,
+                "only one component can be the default export",
+            );
+        }
+        if !top.func.params.is_empty() && !options.require_root {
+            continue;
+        }
+        root = Some((*top.func).clone());
+    }
+    if root.is_none() && options.require_root {
+        return fail(
+            &mut g,
+            0,
+            "missing default exported component; use export default function App()",
+        );
+    }
+    if let Some(function) = &root {
+        if !function.params.is_empty() {
+            return fail(
+                &mut g,
+                function.params[0].name.loc,
+                "the root component takes no props; it is the app's state",
+            );
+        }
+        let name = String::from_utf8_lossy(&function.name);
+        if reserved_component_name(&name) {
+            return fail(
+                &mut g,
+                function.loc,
+                format!("component name `{name}` is reserved; rename it"),
+            );
+        }
+    }
+    let is_window = g.extensions.is_window_const.unwrap_or(|_| false);
+    let store_code = stores::collect(&mut g, &module.consts)?;
+    let plain = stores::plain_constants(&mut g, &module.consts, is_window)?;
+    let asset_code = globals::assets(&mut g, module, options.source_path)?;
+    let globals_code = format!(
+        "{asset_code}{}{store_code}",
+        globals::collect(&mut g, &plain)?
+    );
+    functions::collect(&mut g, module)?;
+    components::collect(&mut g, module, root.as_ref(), options.project)?;
+    let window_code = match g.extensions.collect_windows {
+        Some(hook) => hook(&mut g, module)?,
+        None => String::new(),
+    };
+    let function_code = functions::emit_all(&mut g)?;
+    // children first, then the root; the header needs every compound type
+    let mut bodies = String::new();
+    for index in 0..g.components.len() {
+        if g.components[index].external {
+            continue;
+        }
+        let function = (*g.components[index].func).clone();
+        bodies.push_str(&emit_component(&mut g, &function, Some(index))?);
+        bodies.push('\n');
+    }
+    if let Some(function) = &root {
+        bodies.push_str(&emit_component(&mut g, function, None)?);
+    }
+    let source_name = source_name.replace('\n', " ");
+    let declarations = globals::declarations(&g);
+    let mut out = String::new();
+    out.push_str(HEADER_ALLOWS);
+    out.push_str(PREAMBLE);
+    out.push_str(&declarations);
+    out.push_str(&globals_code);
+    out.push_str(&window_code);
+    out.push_str(&function_code);
+    out.push_str(&bodies);
+    let raw = scope::rename_modules(&mut g, out)?;
+    // `prettyplease` reformats from the `syn` AST and drops comments: keep the
+    // `@generated` marker out of the formatted body and prepend it verbatim.
+    let formatted = parse_and_format(&raw);
+    Ok(GeneratedFile {
+        source: format!("// @generated by zant-tsx from {source_name} — do not edit.\n{formatted}"),
+    })
+}
+
+/// Imports come from `"zant"`, `"react"`, a relative `.tsx` / `.zig` file or a
+/// `native/<module>` spec; imported names must be known.
+fn validate_imports(g: &mut Generator<'_>, module: &ast::Module) -> Result<()> {
+    for import in &module.imports {
+        let source = String::from_utf8_lossy(&import.source);
+        if source.starts_with('.') || source.starts_with("native/") {
+            continue;
+        }
+        if source != "zant" && source != "react" {
+            return fail(
+                g,
+                import.source_loc,
+                "imports come from \"zant\", \"react\", \"native/<module>\" or a relative .tsx / .zig file",
+            );
+        }
+        for name in &import.names {
+            let imported = String::from_utf8_lossy(&name.imported.name);
+            if tags::find(&imported).is_some()
+                || hooks::extra_hook(&imported)
+                || crate::codegen::hook_name(g, &imported)
+                || types::numeric_name(name.imported.name.as_slice()).is_some()
+                || types::node_name(name.imported.name.as_slice())
+                || matches!(
+                    imported.as_ref(),
+                    "useState"
+                        | "useTheme"
+                        | "List"
+                        | "createStore"
+                        | "useStore"
+                        | "KeyEvent"
+                        | "createWindow"
+                        | "Image"
+                )
+            {
+                continue;
+            }
+            if let Some(external) = g.extensions.hooks.external_name
+                && external(g, &imported)?.is_some()
+            {
+                continue;
+            }
+            return fail(
+                g,
+                name.imported.loc,
+                format!("unknown import `{imported}`; this name is not supported by Zant"),
+            );
+        }
+    }
+    Ok(())
+}
+
+/// Per-component generator state starts empty; types, constants and import
+/// aliases are shared by the whole module.
+fn reset_component(g: &mut Generator<'_>) {
+    g.states.clear();
+    g.methods.clear();
+    g.render_names.clear();
+    g.callback_events.clear();
+    g.lists.clear();
+    g.child_sites = 0;
+    g.hook_fields.clear();
+    g.effects.clear();
+    g.cleanups.clear();
+    g.capture_scope = None;
+    g.loop_depth = 0;
+    g.scroll_depth = 0;
+}
+
+/// One component as a struct: the root with its state fields, or a child with
+/// `props` and a builder function.
+fn emit_component(
+    g: &mut Generator<'_>,
+    f: &ast::Function,
+    component: Option<usize>,
+) -> Result<String> {
+    reset_component(g);
+    if let Some(reference) = f.ret.as_ref() {
+        let name = String::from_utf8_lossy(&reference.name);
+        if name != "JSX.Element"
+            && name != "React.ReactNode"
+            && name != "ReactNode"
+            && !crate::react_compat::node_type(&g.react_imports, &reference.name)
+        {
+            return fail(
+                g,
+                reference.loc,
+                "component return type must be JSX.Element, React.ReactNode, or ReactNode",
+            );
+        }
+    }
+    g.name = String::from_utf8_lossy(&f.name).into_owned();
+    g.current_component = component;
+    g.child_component = component.is_some();
+    collect(g, f)?;
+    scope::module_names(g)?;
+    if let Some(hook) = g.extensions.hooks.scan_body {
+        hook(g, &f.body)?;
+    }
+    let body = match &f.body {
+        ast::Body::Block(statements) => statements,
+        ast::Body::Expr(_) => {
+            return fail(
+                g,
+                f.loc,
+                "render must return a node on every path; the final statement must be a return",
+            );
+        }
+    };
+    if body.is_empty()
+        || !matches!(body[body.len() - 1].data, ast::StmtData::Ret(_))
+        || !stmt::returns_all(body)
+    {
+        return fail(
+            g,
+            f.loc,
+            "render must return a node on every path; the final statement must be a return",
+        );
+    }
+    let mut c = scope::Context {
+        render: true,
+        ret: Type::Node,
+        ..scope::Context::default()
+    };
+    let statements = stmt::statements(g, &mut c, body, true)?;
+    let mut methods: Vec<String> = Vec::new();
+    for index in 0..g.methods.len() {
+        if g.methods[index].inline_only {
+            continue;
+        }
+        let method = g.methods[index].clone();
+        methods.push(emit_method(g, &method)?);
+    }
+    let render_body = scope::finish(g, &c, statements)?;
+    let name = rust_text::id_at(g, &f.name, f.loc)?;
+    let fields = state_fields(g)?;
+    let captures = super::captures::declarations(g)?;
+    let mut out = String::new();
+    if let Some(child_index) = component {
+        let component_data = g.components[child_index].clone();
+        let props_type = match component_data.props {
+            Some(ty) => format!("pub type Props = {};", ty.rust(g)),
+            None => "pub struct Props;".to_owned(),
+        };
+        out.push_str(&format!("pub struct {name} {{\n"));
+        out.push_str("    props: Props,\n");
+        if component_data.stateful {
+            out.push_str("    _id: u64,\n");
+        }
+        // actions of a child reach their own local state slot through a `Weak`
+        // upgrade (`callbacks capture state.clone()` in the design doc; a weak
+        // handle lets handlers keep the `&mut self` receiver shape)
+        out.push_str(&format!(
+            "    _state: std::rc::Weak<std::cell::RefCell<{name}>>,\n"
+        ));
+        out.push_str(&fields);
+        out.push_str("}\n\n");
+        out.push_str(&format!("{props_type}\n\n"));
+        out.push_str(&default_impl(g, &name, &component_data)?);
+        out.push_str(&captures);
+        out.push_str(&format!("impl {name} {{\n"));
+        out.push_str(&builder_function(g, &name, &component_data)?);
+        out.push_str(&format!(
+            "pub fn render(&mut self) -> ui::Node {{\n{render_body}}}\n"
+        ));
+        for method in methods {
+            out.push('\n');
+            out.push_str(&method);
+        }
+        out.push_str("}\n");
+    } else {
+        // no `derive(Default)`: the hand-written impl below carries the
+        // `useState` initial values
+        out.push_str(&format!("pub struct {name} {{\n{fields}}}\n\n"));
+        out.push_str(&default_impl(g, &name, &root_component_stub())?);
+        out.push_str(&captures);
+        out.push_str(&format!("impl {name} {{\n"));
+        for method in methods {
+            out.push_str(&method);
+            out.push('\n');
+        }
+        out.push_str("}\n\n");
+        out.push_str(&format!(
+            "impl ui::App for {name} {{\nfn render(&mut self) -> ui::Node {{\n{render_body}}}\n"
+        ));
+        if let Some(hook) = g.extensions.app_lifecycle {
+            out.push_str(&hook(g)?);
+        }
+        out.push_str("}\n");
+    }
+    Ok(out)
+}
+
+/// A stand-in for the root "component data" (no props, no id).
+fn root_component_stub() -> components::Component {
+    components::Component {
+        name: String::new(),
+        builder: String::new(),
+        func: Box::new(ast::Function {
+            loc: 0,
+            name: Vec::new(),
+            params: Vec::new(),
+            ret: None,
+            body: ast::Body::Block(Vec::new()),
+        }),
+        props: None,
+        param: String::new(),
+        destructure: Vec::new(),
+        destructure_defaults: Vec::new(),
+        external: false,
+        stateful: false,
+    }
+}
+
+/// The hand-written `impl Default` of a component: state fields keep their
+/// `useState` / `useRef` initial values, everything else is `Default::default()`.
+fn default_impl(
+    g: &mut Generator<'_>,
+    name: &str,
+    component: &components::Component,
+) -> Result<String> {
+    let mut values = String::new();
+    if component.props.is_none() && component.name.is_empty() {
+        // root
+    } else {
+        values.push_str("            props: Default::default(),\n");
+        if component.stateful {
+            values.push_str("            _id: 0,\n");
+        }
+        values.push_str("            _state: Default::default(),\n");
+    }
+    let states = g.states.clone();
+    for state in &states {
+        let field = rust_text::id_at(g, state.name.as_bytes(), 0)?;
+        values.push_str(&format!("            {field}: {},\n", state.initial));
+    }
+    let hook_fields = g.hook_fields.clone();
+    for field in &hook_fields {
+        let id = rust_text::id_at(g, field.name.as_bytes(), 0)?;
+        values.push_str(&format!("            {id}: Default::default(),\n"));
+    }
+    Ok(format!(
+        "impl Default for {name} {{\n    fn default() -> Self {{\n        Self {{\n{values}        }}\n    }}\n}}\n\n"
+    ))
+}
+
+/// State fields with their types (values come from [`default_impl`]).
+fn state_fields(g: &mut Generator<'_>) -> Result<String> {
+    let mut out = String::new();
+    for index in 0..g.states.len() {
+        let state = g.states[index].clone();
+        let field = rust_text::id_at(g, state.name.as_bytes(), 0)?;
+        out.push_str(&format!("    {field}: {},\n", state.ty.rust(g)));
+    }
+    let hook_fields = g.hook_fields.clone();
+    for field in &hook_fields {
+        let id = rust_text::id_at(g, field.name.as_bytes(), 0)?;
+        out.push_str(&format!("    {id}: {},\n", field.rust_type));
+    }
+    // `<List>` scroll state (WP-5.4 `list.zig` pushes the field names)
+    for field in &g.lists {
+        out.push_str(&format!("    {field}: ui::ListState,\n"));
+    }
+    Ok(out)
+}
+
+/// `pub fn build(props: Props[, id: u64]) -> ui::Node` inside the component's
+/// impl: builds the frame-local instance over the `ui::local_state` slot.
+fn builder_function(
+    g: &mut Generator<'_>,
+    name: &str,
+    component: &components::Component,
+) -> Result<String> {
+    let _ = g;
+    let props_argument = if component.props.is_some() {
+        "props: Props"
+    } else {
+        "_props: Props"
+    };
+    if !component.stateful {
+        return Ok(format!(
+            "\npub fn build({props_argument}) -> ui::Node {{\n\
+             let mut instance = {name} {{ props: Default::default(), _state: Default::default() }};\n\
+             instance.render()\n}}\n"
+        ));
+    }
+    Ok(format!(
+        "\npub fn build({props_argument}, id: u64) -> ui::Node {{\n\
+         let state: std::rc::Rc<std::cell::RefCell<{name}>> = ui::local_state::<{name}>(id, {name}::default);\n\
+         {{\n\
+         let mut instance = state.borrow_mut();\n\
+         instance.props = props;\n\
+         instance._id = id;\n\
+         instance._state = std::rc::Rc::downgrade(&state);\n\
+         instance.render()\n\
+         }}\n}}\n"
+    ))
+}
+
+/// Emit a method with inferred event parameters.
+pub fn emit_method(g: &mut Generator<'_>, m: &super::Method) -> Result<String> {
+    if let Some(emitted) = &m.emitted {
+        return Ok(emitted.clone());
+    }
+    if m.setter.is_some() {
+        return match g.extensions.hooks.emit_setter {
+            Some(hook) => hook(g, m),
+            None => fail(
+                g,
+                0,
+                "setter adapter methods are implemented by WP-5.4 (`events.emitSetter`)",
+            ),
+        };
+    }
+    method(g, m, None, None)
+}
+
+/// `fn name(&mut self[, cap: &_CaptureN][, params…]) -> Ret { body }`.
+pub fn method(
+    g: &mut Generator<'_>,
+    m: &super::Method,
+    source: Option<&scope::Context>,
+    index: Option<usize>,
+) -> Result<String> {
+    let Some(f) = m.func.clone() else {
+        return fail(g, 0, format!("method `{}` has no function body", m.name));
+    };
+    let mut c = scope::Context {
+        render: false,
+        ret: m.ret,
+        capture_source: source.map(|source| source.capture_source()),
+        capture_method: index,
+        effect_field: m.effect_field.clone(),
+        cleanup: m.cleanup,
+        ..scope::Context::default()
+    };
+    let mut params: Vec<String> = Vec::new();
+    for (i, p) in f.params.iter().enumerate() {
+        let ty = match g.extensions.hooks.method_param {
+            Some(hook) => hook(g, m, i, p)?,
+            None => match p.ty.as_ref() {
+                Some(reference) => types::type_ref(g, reference, false)?,
+                None => {
+                    return fail(
+                        g,
+                        p.name.loc,
+                        format!(
+                            "parameter `{}` needs a type (event parameter inference is WP-5.4)",
+                            String::from_utf8_lossy(&p.name.name)
+                        ),
+                    );
+                }
+            },
+        };
+        let binding = scope::bind(g, &mut c, &p.name.name, ty, false)?;
+        c.params.push(binding);
+        let id = c.bindings[binding].zig.clone();
+        params.push(format!(", {id}: {}", ty.rust(g)));
+    }
+    if let Some(expected) = &m.callback_params
+        && f.params.len() < expected.len()
+    {
+        for ty in &expected[f.params.len()..] {
+            params.push(format!(", _: {}", ty.rust(g)));
+        }
+    } else if let Some(kind) = m.action
+        && !matches!(kind, tags::Kind::Action)
+        && f.params.is_empty()
+    {
+        params.push(format!(
+            ", _: {}",
+            components::action_value_type(kind).rust(g)
+        ));
+    }
+    let body = match &f.body {
+        ast::Body::Block(statements) => method_block(g, &mut c, f.loc, statements)?,
+        ast::Body::Expr(e) => method_expression(g, &mut c, e)?,
+    };
+    let finished = scope::finish(g, &c, body)?;
+    let name = rust_text::id_at(g, m.name.as_bytes(), 0)?;
+    let receiver = if m.captures.is_empty() {
+        "&mut self".to_owned()
+    } else {
+        format!(
+            "&mut self, cap: &{}",
+            m.capture_name.clone().unwrap_or_default()
+        )
+    };
+    let returns = if m.ret == Type::Void {
+        String::new()
+    } else {
+        format!(" -> {}", m.ret.rust(g))
+    };
+    Ok(format!(
+        "fn {name}({receiver}{}){returns} {{\n{finished}}}\n",
+        params.join("")
+    ))
+}
+
+/// Collect top-level hooks and component functions before resolving JSX event
+/// references.
+pub fn collect(g: &mut Generator<'_>, f: &ast::Function) -> Result<()> {
+    let ast::Body::Block(statements) = &f.body else {
+        return fail(g, f.loc, "a component body must be a block");
+    };
+    for s in statements {
+        match &s.data {
+            ast::StmtData::Decl(d) => collect_declaration(g, s.loc, d)?,
+            ast::StmtData::Func(func) => collect_method(g, &func.name, func)?,
+            ast::StmtData::Expr(e) => {
+                if let Some(name) = hooks::call_name(e)
+                    && name == "useEffect"
+                {
+                    hooks::collect_effect(g, e)?;
+                }
+            }
+            _ => {}
+        }
+    }
+    for s in statements {
+        render_names(g, s);
+    }
+    mark_inline(g)?;
+    // desktop hooks may take a function that reads render locals (marked above)
+    for s in statements {
+        let e = match &s.data {
+            ast::StmtData::Decl(d) => match d.init.as_deref() {
+                Some(e) => e,
+                None => continue,
+            },
+            ast::StmtData::Expr(e) => e,
+            _ => continue,
+        };
+        if let Some(name) = hooks::call_name(e)
+            && (g.extensions.is_desktop_hook)(&name)
+        {
+            return fail(g, e.loc, "desktop hooks are implemented by WP-5.6");
+        }
+    }
+    for state in g.states.clone() {
+        if scope::method_index(g, state.name.as_bytes()).is_some() || state.name == "render" {
+            return fail(
+                g,
+                f.loc,
+                format!("state `{}` conflicts with a method; rename it", state.name),
+            );
+        }
+    }
+    Ok(())
+}
+
+/// Component functions that read render locals (also through another such
+/// function) are emitted where they are passed, capturing that render.
+fn mark_inline(g: &mut Generator<'_>) -> Result<()> {
+    let mut names: Vec<String> = Vec::new();
+    // refs are fields of the component: functions read them directly
+    for name in g.render_names.clone() {
+        if scope::state_index(g, name.as_bytes()).is_none() {
+            names.push(name);
+        }
+    }
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for index in 0..g.methods.len() {
+            if !g.methods[index].user || g.methods[index].inline_only {
+                continue;
+            }
+            let Some(function) = g.methods[index].func.clone() else {
+                continue;
+            };
+            if !super::free_names::function(
+                &function,
+                &names.iter().map(|name| name.as_str()).collect::<Vec<_>>(),
+            ) {
+                continue;
+            }
+            g.methods[index].inline_only = true;
+            names.push(g.methods[index].name.clone());
+            changed = true;
+        }
+    }
+    Ok(())
+}
+
+/// The function of a component function that reads render locals.
+pub fn inline_function(g: &Generator<'_>, n: &str) -> Option<ast::Function> {
+    let index = scope::source_method(g, n.as_bytes())?;
+    let method = &g.methods[index];
+    if method.inline_only {
+        method.func.as_deref().cloned()
+    } else {
+        None
+    }
+}
+
+pub fn collect_method(g: &mut Generator<'_>, n: &[u8], f: &ast::Function) -> Result<()> {
+    let name = String::from_utf8_lossy(n);
+    let reserved = name == "render" || name == "build" || name == "self" || name == g.name;
+    if scope::method_index(g, n).is_some() || scope::state_index(g, n).is_some() || reserved {
+        return fail(
+            g,
+            f.loc,
+            format!("duplicate or reserved method name `{name}`; rename it"),
+        );
+    }
+    let ret = match f.ret.as_ref() {
+        Some(reference) => types::type_ref(g, reference, true)?,
+        None => Type::Void,
+    };
+    g.methods.push(super::Method {
+        name: name.into_owned(),
+        func: Some(Box::new(f.clone())),
+        ret,
+        user: true,
+        ..super::Method::default()
+    });
+    Ok(())
+}
+
+pub fn collect_state(
+    g: &mut Generator<'_>,
+    loc: ast::Loc,
+    d: &ast::Decl,
+    call: &ast::Call,
+) -> Result<()> {
+    if !state_pattern(&d.pattern) {
+        return fail(
+            g,
+            loc,
+            "useState needs exactly two names: const [value, setValue] = useState(...)",
+        );
+    }
+    if !d.is_const {
+        return fail(g, loc, "declare useState with const");
+    }
+    if call.args.len() != 1 || call.type_args.len() > 1 {
+        return fail(
+            g,
+            loc,
+            "useState takes one literal initializer and at most one type argument",
+        );
+    }
+    let init = &call.args[0];
+    let aggregate_init = matches!(
+        init.data,
+        ast::ExprData::Array(_)
+            | ast::ExprData::Object(_)
+            | ast::ExprData::NullLit
+            | ast::ExprData::Ident(_)
+    );
+    if !types::is_literal(init) && !aggregate_init {
+        return fail(
+            g,
+            init.loc,
+            "useState initializer must be a number, string, or boolean literal",
+        );
+    }
+    let mut c = scope::Context {
+        render: true,
+        ret: Type::Node,
+        constant: true,
+        ..scope::Context::default()
+    };
+    let target = match call.type_args.first() {
+        Some(reference) => Some(types::type_ref(g, reference, false)?),
+        None => None,
+    };
+    let mut value = expr::emit(g, &mut c, init, target, false)?;
+    let concrete = target.unwrap_or_else(|| value.ty.concrete());
+    value = types::coerce(g, value, concrete, init.loc)?;
+    let ast::Pattern::Array(names) = &d.pattern else {
+        unreachable!("state pattern")
+    };
+    let n = String::from_utf8_lossy(&names[0].as_ref().expect("value name").name).into_owned();
+    let setter =
+        String::from_utf8_lossy(&names[1].as_ref().expect("setter name").name).into_owned();
+    let value_conflict = scope::state_index(g, n.as_bytes()).is_some()
+        || scope::setter_index(g, n.as_bytes()).is_some();
+    let setter_conflict = scope::state_index(g, setter.as_bytes()).is_some()
+        || scope::setter_index(g, setter.as_bytes()).is_some();
+    if n == setter || value_conflict || setter_conflict {
+        return fail(
+            g,
+            loc,
+            format!("duplicate state or setter name; rename `{n}`"),
+        );
+    }
+    g.states.push(super::State {
+        name: n,
+        setter,
+        ty: value.ty,
+        initial: value.code,
+        kind: super::StateKind::State,
+    });
+    Ok(())
+}
+
+/// Emit a `ui::*` action for method `index` (the Zig `ui.action(receiver,
+/// method)` of `events.zig` / `components.zig`), capturing render locals when
+/// the method needs them.
+pub fn action_value(
+    g: &mut Generator<'_>,
+    c: &mut scope::Context,
+    index: usize,
+    kind: Option<tags::Kind>,
+) -> Result<String> {
+    let Some(kind) = kind else {
+        return fail(
+            g,
+            0,
+            "callback props whose signature is not a ui event need the runtime `ActionCx`; \
+             this is an open design question (see the WP-5.5 report)",
+        );
+    };
+    let (constructor, closure_params, call_argument) = match kind {
+        tags::Kind::Action => ("ui::Action", String::new(), String::new()),
+        tags::Kind::BoolAction => (
+            "ui::BoolAction",
+            ", value: bool".to_owned(),
+            ", value".to_owned(),
+        ),
+        tags::Kind::TextAction => (
+            "ui::TextAction",
+            ", value: &str".to_owned(),
+            ", value".to_owned(),
+        ),
+        tags::Kind::IndexAction => (
+            "ui::IndexAction",
+            ", index: usize".to_owned(),
+            ", index".to_owned(),
+        ),
+        other => {
+            return fail(
+                g,
+                0,
+                format!("action kind `{}` is not supported here", other as i32),
+            );
+        }
+    };
+    let method = g.methods[index].clone();
+    if method.capture_name.is_some() {
+        super::captures::prepare(g, c, index)?;
+    }
+    let method = g.methods[index].clone();
+    let capture = if method.captures.is_empty() {
+        None
+    } else {
+        Some(super::captures::value(g, &method)?)
+    };
+    let name = rust_text::id_at(g, method.name.as_bytes(), 0)?;
+    let root = g.current_component.is_none();
+    let generator_name = g.name.clone();
+    let root_name = rust_text::id_at(g, generator_name.as_bytes(), 0)?;
+    let mut prefix = String::new();
+    if let Some(capture) = &capture {
+        prefix.push_str(&format!("let _capture = {capture};\n"));
+    }
+    let mut arguments: Vec<&str> = Vec::new();
+    if capture.is_some() {
+        arguments.push("&_capture");
+    }
+    if !call_argument.is_empty() {
+        arguments.push(call_argument.trim_start_matches(", "));
+    }
+    let arguments = arguments.join(", ");
+    let arguments = if arguments.is_empty() {
+        String::new()
+    } else {
+        format!(", {arguments}")
+    };
+    if root {
+        // root handlers take the runtime state: `ui::action(|s: &mut App| …)`
+        let builder = components::action_builder(kind);
+        return Ok(format!(
+            "{builder}({{\n{prefix}move |s: &mut {root_name}{closure_params}| {root_name}::{name}(s{arguments})\n}})"
+        ));
+    }
+    Ok(format!(
+        "{constructor}::new({{\n{prefix}let _state = self._state.clone();\n\
+         move |_cx{closure_params}| {{\n\
+         if let Some(state) = _state.upgrade() {{\n\
+         state.borrow_mut().{name}({arguments});\n\
+         }}\n}}\n}})"
+    ))
+}
+
+/// Collect top-level state and functions without adding derived render locals.
+fn collect_declaration(g: &mut Generator<'_>, loc: ast::Loc, d: &ast::Decl) -> Result<()> {
+    let Some(init) = d.init.as_deref() else {
+        return Ok(());
+    };
+    if super::hook(g, init) {
+        let ast::ExprData::Call(call) = &init.data else {
+            unreachable!("hook call")
+        };
+        let ast::ExprData::Ident(name) = &call.callee.data else {
+            unreachable!("hook callee")
+        };
+        let name = String::from_utf8_lossy(name);
+        if name == "useRef" {
+            return hooks::collect_ref(g, loc, d, call);
+        }
+        if name == "useMemo" || name == "useStore" {
+            return Ok(()); // render locals (stmt.declaration)
+        }
+        if name == "useEffect" {
+            return fail(g, loc, "useEffect returns nothing");
+        }
+        if (g.extensions.is_desktop_hook)(&name) {
+            return Ok(()); // after `mark_inline`
+        }
+        return collect_state(g, loc, d, call);
+    }
+    if matches!(init.data, ast::ExprData::Arrow(_))
+        && let ast::Pattern::Ident(name) = &d.pattern
+    {
+        let ast::ExprData::Arrow(function) = &init.data else {
+            unreachable!("arrow")
+        };
+        return collect_method(g, &name.name, function);
+    }
+    Ok(())
+}
+
+/// Validate destructuring with short circuit checks before accessing its names.
+fn state_pattern(pattern: &ast::Pattern) -> bool {
+    match pattern {
+        ast::Pattern::Array(names) => names.len() == 2 && names[0].is_some() && names[1].is_some(),
+        _ => false,
+    }
+}
+
+/// Keep reserved import and receiver names out of the component declaration.
+fn reserved_component_name(name: &str) -> bool {
+    matches!(name, "self" | "std" | "zant" | "ui" | "tsx")
+}
+
+/// Check complete returns before emitting a component method's statements.
+fn method_block(
+    g: &mut Generator<'_>,
+    c: &mut scope::Context,
+    loc: ast::Loc,
+    statements: &[Box<ast::Stmt>],
+) -> Result<String> {
+    if c.ret != Type::Void && !stmt::returns_all(statements) {
+        return fail(g, loc, "function must return a value on every path");
+    }
+    stmt::statements(g, c, statements, false)
+}
+
+/// Treat a concise arrow as a statement or return according to its declared
+/// type.
+fn method_expression(
+    g: &mut Generator<'_>,
+    c: &mut scope::Context,
+    e: &ast::Expr,
+) -> Result<String> {
+    if c.ret == Type::Void {
+        return stmt::expression_statement(g, c, e);
+    }
+    let value = expr::emit(g, c, e, Some(c.ret), false)?;
+    Ok(format!("return {};\n", value.code))
+}
+
+/// Collect the render locals of a statement's declarations (`codegen.renderNames`).
+fn render_names(g: &mut Generator<'_>, s: &ast::Stmt) {
+    match &s.data {
+        ast::StmtData::Decl(d) => {
+            if let ast::Pattern::Ident(name) = &d.pattern
+                && d.init
+                    .as_deref()
+                    .is_none_or(|init| !matches!(init.data, ast::ExprData::Arrow(_)))
+            {
+                g.render_names
+                    .push(String::from_utf8_lossy(&name.name).into_owned());
+            }
+        }
+        ast::StmtData::Block(statements) => {
+            for child in statements {
+                render_names(g, child);
+            }
+        }
+        ast::StmtData::If(v) => {
+            render_names(g, &v.then);
+            if let Some(otherwise) = v.else_.as_deref() {
+                render_names(g, otherwise);
+            }
+        }
+        _ => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::parser::Parser;
+
+    fn parse_module(src: &str) -> ast::Module {
+        let mut parser = Parser::init(src);
+        parser.parse_module().expect("test source parses")
+    }
+
+    #[test]
+    fn a_component_without_a_root_is_rejected() {
+        let module = parse_module("function Child() { return <Text>hi</Text>; }\n");
+        let error = generate("app.tsx", &module, &Options::default()).unwrap_err();
+        assert_eq!(crate::codegen::Error::Tsx, error);
+    }
+
+    #[test]
+    fn a_module_without_components_emits_types_and_constants() {
+        let source = "interface Point { x: number; y: number }\nexport const origin: Point = { x: 0, y: 0 };\n";
+        let module = parse_module(source);
+        let options = Options {
+            source_name: "types.tsx",
+            require_root: false,
+            ..Options::default()
+        };
+        // requires JSX-free emission: types + constants only
+        let file = generate("types.tsx", &module, &options).expect("types generate");
+        assert!(file.source.contains("pub struct Point"), "{}", file.source);
+        assert!(
+            file.source.contains("pub const origin: Point"),
+            "{}",
+            file.source
+        );
+        assert!(
+            file.source.starts_with("// @generated by zant-tsx"),
+            "{}",
+            file.source
+        );
+    }
+}
