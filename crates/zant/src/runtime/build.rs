@@ -84,7 +84,10 @@ impl Runtime {
             eprintln!("Zant UI: render() must return a container (ui.column/ui.row/ui.card)");
         }
         self.needs_build = false;
-        crate::ui::set_key_bounds_hook(None);
+        // Keep the hook installed for the rest of the frame: layout followers
+        // (`notify_resizes`, app `on_resize` callbacks) still ask `ui::key_bounds`
+        // for the boxes just laid out. The snapshot is refreshed after every
+        // layout and cleared when the runtime is dropped.
         crate::ui::set_command_owner(prev_owner);
         crate::ui::set_build_states(None);
         crate::ui::end_frame();
