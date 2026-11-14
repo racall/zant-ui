@@ -1,18 +1,21 @@
-﻿# Scaffold check in a real console window (OEM code page 936 like a Chinese
-# Windows default): runs `zant create`, types a Chinese title, a window style
-# and an app identifier (an invalid one first) with Unicode key events,
-# screenshots the console, and checks the generated app.config.json has the
-# shared settings only. Run in the logged-in
-# session:
+# Scaffold check in a real console window (OEM code page 936 like a Chinese
+# Windows default): runs `zant create` for the Rust + TSX template, types a
+# Chinese title, a window style and an app identifier (an invalid one first)
+# with Unicode key events, screenshots the console, checks the generated Rust
+# project (Cargo.toml / build.rs / src/App.tsx / native/*.ts+*.rs, no Zig
+# files), then builds it with cargo and runs it headless to a snapshot.
+# Run in the logged-in session:
 #   powershell -File scripts/win/run-desktop.ps1 -Exe powershell.exe `
-#     -Arguments "-NoProfile -ExecutionPolicy Bypass -File <repo>\scripts\win\scaffold-check.ps1" -Wait 120
+#     -Arguments "-NoProfile -ExecutionPolicy Bypass -File <repo>\scripts\win\scaffold-check.ps1" -Wait 600
 param(
     [string]$Zant = "",
-    [string]$Out = "",
-    # the language answer: 1 = Zig, 2 = TypeScript + TSX
-    [ValidateSet("1", "2")][string]$Lang = "1"
+    [string]$Out = ""
 )
-if (!$Zant) { $Zant = (Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) "zig-out\bin\zant.exe") }
+if (!$Zant) { $Zant = (Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) "target\debug\zant.exe") }
+if (!(Test-Path $Zant)) {
+    # build the CLI once if the caller did not pass -Zant
+    & cargo build --manifest-path (Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) "Cargo.toml") -p zant-cli
+}
 if (!$Out) { $Out = (Join-Path $env:TEMP "zant-checks\scaffold") }
 $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.Drawing
@@ -87,8 +90,8 @@ Start-Sleep -Seconds 2
 [ZantKeys]::SetForegroundWindow($h) | Out-Null
 Start-Sleep -Milliseconds 300
 Shot $h "01-prompt"
-# language first
-[ZantKeys]::Type($Lang); [ZantKeys]::Enter(); Start-Sleep -Milliseconds 800
+# language first: 1 = TypeScript + TSX (the default)
+[ZantKeys]::Type("1"); [ZantKeys]::Enter(); Start-Sleep -Milliseconds 800
 [ZantKeys]::Type($title); Start-Sleep -Milliseconds 300
 Shot $h "02-typed"
 [ZantKeys]::Enter()
@@ -108,11 +111,32 @@ Result ($cfg -and $cfg.window.style -eq "hidden-titlebar") ("window style: '{0}'
 # only shared settings on Windows: no macOS section or bundle files
 Result ($cfg -and !$cfg.macos -and !(Test-Path (Join-Path $work "demo-app\Info.plist"))) "no macOS-only settings or files"
 $app = Join-Path $work "demo-app"
-if ($Lang -eq "2") {
-    $ts = (Test-Path "$app\src\App.tsx") -and !(Test-Path "$app\src\main.zig") -and (Test-Path "$app\zant.d.ts")
-    Result $ts "TS project: src\App.tsx and zant.d.ts, no src\main.zig"
+$expected = @(
+    "Cargo.toml", "build.rs", "rust-toolchain.toml", "zant.d.ts", "tsconfig.json",
+    "src\main.rs", "src\App.tsx", "src\app_config.rs",
+    "native\lib.rs", "native\system.ts", "native\system.rs",
+    "assets\icons\app-macos.png"
+)
+$missing = @($expected | Where-Object { !(Test-Path (Join-Path $app $_)) })
+Result ($missing.Count -eq 0) ("Rust TSX template files ({0})" -f ($expected -join ", "))
+Result (!(Test-Path "$app\src\main.zig") -and !(Test-Path "$app\build.zig")) "no Zig entry or build files"
+Result ((Get-Content -Raw -Encoding UTF8 (Join-Path $app "Cargo.toml")) -match "crates/zant") "Cargo.toml depends on the zant path"
+# build the generated app (the real scaffold contract) and render it headless
+$build = Start-Process -Wait -PassThru -NoNewWindow -FilePath "cargo" `
+    -ArgumentList "build", "--manifest-path", (Join-Path $app "Cargo.toml") `
+    -RedirectStandardOutput (Join-Path $Out "cargo-build.log") `
+    -RedirectStandardError (Join-Path $Out "cargo-build.err")
+Result ($build.ExitCode -eq 0) ("cargo build of the created app (exit {0})" -f $build.ExitCode)
+$exe = Join-Path $app "target\debug\demo-app.exe"
+if (!(Test-Path $exe)) { $exe = Join-Path $app "target\debug\demo-app" }
+if (Test-Path $exe) {
+    $env:ZANT_SNAPSHOT = Join-Path $Out "app-snapshot.png"
+    $env:ZANT_SNAPSHOT_EXIT = "1"
+    $env:ZANT_NO_MOTION = "1"
+    $run = Start-Process -Wait -PassThru -NoNewWindow -FilePath $exe
+    Result (($run.ExitCode -eq 0) -and (Test-Path (Join-Path $Out "app-snapshot.png"))) "created app renders a snapshot headless"
 } else {
-    Result ((Test-Path "$app\src\main.zig") -and !(Test-Path "$app\src\App.tsx")) "Zig project: src\main.zig"
+    Result $false "created app executable"
 }
 & cmd.exe /c "chcp" | Out-File -Encoding UTF8 (Join-Path $Out "chcp.txt")
 Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue

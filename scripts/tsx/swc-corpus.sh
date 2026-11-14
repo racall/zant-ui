@@ -13,8 +13,11 @@
 set -u
 swc=${1:?usage: swc-corpus.sh <swc clone>}
 tests="$swc/crates/swc_ecma_parser/tests"
-tool="$(cd "$(dirname "$0")/../.." && pwd)/zig-out/bin/zant-tsx"
-[ -x "$tool" ] || { echo "build zant-tsx first: zig build install"; exit 1; }
+repo="$(cd "$(dirname "$0")/../.." && pwd)"
+tool="${ZANT_TSX_BIN:-$repo/target/release/zant-tsx}"
+if [ ! -x "$tool" ]; then
+    ( cd "$repo" && CARGO_HOME="${CARGO_HOME:-$repo/.cargo-home}" cargo build --release -p zant-tsx --bin zant-tsx ) || exit 1
+fi
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 (cd "$tests" && { find . \( -name '*.tsx' -o -name 'input.ts' \) -not -path '*flow*'; find . -path '*jsx*' -name 'input.js'; }) > "$work/files"
