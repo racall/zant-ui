@@ -129,7 +129,7 @@
 |---|---|---|---|---|
 | 7.1 | ../cliphop-ts native 引擎移植 | — | 待领取 | |
 | 7.2 | ../stillmd 移植 | — | 待领取 | |
-| 7.3 | 文档重写 | — | 待领取 | |
+| 7.3 | 文档重写 | wp-7-3 | 完成（worktree wp-7.3） | `rust/wp-7.3`。README / AGENTS / CLAUDE / docs 8 篇 / 34 个组件文档全部改为 Rust + TSX；未合入的 TSX 应用层（WP-5.6/5.8–5.10、WP-6.2）统一标「迁移中」；motion/flex/architecture/window-config/showcase 只替换 Zig 片段；`THIRD_PARTY_NOTICES.md` 更新原生路径与 Rust 依赖；剩余 Zig 引用只在 parity 基线（`ZANT_ZIG_BIN`）与 Windows 迁移中脚本处。 |
 
 ### M8 切换
 

@@ -1,6 +1,6 @@
 # Zant Markdown 渲染一览
 
-原生渲染，不用 WebView：**粗体**、*斜体*、~~删除线~~、==高亮==、`行内代码`、[链接](https://ziglang.org)、自动链接 https://ziglang.org 和脚注[^1]。行内公式与正文基线对齐：$e^{i\pi} + 1 = 0$，$\sum_{k=1}^{n} k = \frac{n(n+1)}{2}$，其中 $U=[u_1\ \cdots\ u_m]$；金额 $20 与 $10 不会被当成公式。
+原生渲染，不用 WebView：**粗体**、*斜体*、~~删除线~~、==高亮==、`行内代码`、[链接](https://www.rust-lang.org)、自动链接 https://www.rust-lang.org 和脚注[^1]。行内公式与正文基线对齐：$e^{i\pi} + 1 = 0$，$\sum_{k=1}^{n} k = \frac{n(n+1)}{2}$，其中 $U=[u_1\ \cdots\ u_m]$；金额 $20 与 $10 不会被当成公式。
 
 > [!TIP]
 > 支持 GFM 提示块（NOTE / TIP / IMPORTANT / WARNING / CAUTION）。
@@ -50,11 +50,9 @@ $$
 
 ## 代码
 
-```zig
-const std = @import("std");
-
-pub fn main() void {
-    std.debug.print("hello, {s}\n", .{"zant"}); // 语法高亮
+```rust
+fn main() {
+    println!("hello, zant"); // 语法高亮
 }
 ```
 

@@ -1,20 +1,20 @@
 # 单选组
 
-```zig
-ui.radioGroup(.{
-    .options = &.{
-        .{ .label = "Basic" },
-        .{ .label = "Pro" },
-        .{ .label = "Enterprise", .disabled = true },
-    },
-    .selected = self.plan,
-    .on_change = ui.indexAction(self, State.setPlan),
-})
+```tsx
+<RadioGroup
+  options={[
+    { label: "Basic" },
+    { label: "Pro" },
+    { label: "Enterprise", disabled: true },
+  ]}
+  selected={plan}
+  onChange={setPlan}
+/>
 ```
 
 ## 选项
 
-`key`、`options`（`[]RadioOption`）、`selected`、`direction`、`gap`、
-`on_change`。
+`key`、`options`（`{ label, disabled }[]`）、`selected`、`direction`、`gap`、
+`onChange`。手写 Rust：`ui::radio_group(ui::RadioGroupOptions { .. })`，回调用 `ui::index_action`。
 
-`RadioOption` 包含 `label` 和 `disabled`。选中索引通过 `usize` 回调。
+`options` 每项包含 `label` 和 `disabled`。选中索引通过 `usize` 回调（TSX 里是 `number`）。

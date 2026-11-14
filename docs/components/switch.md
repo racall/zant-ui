@@ -1,15 +1,12 @@
 # 开关
 
-```zig
-ui.@"switch"(.{
-    .checked = self.enabled,
-    .on_change = ui.boolAction(self, State.toggle),
-})
+```tsx
+const [enabled, setEnabled] = useState(false);
+<Switch checked={enabled} onChange={setEnabled} />
 ```
 
 ## 选项
 
-`key`、`label`、`checked`、`on_change`、`disabled`、`font_size`（与 checkbox 共用
-`ToggleOptions`）。
-
-`switch` 是 Zig 关键字，因此 API 写作 `ui.@"switch"`。
+`key`、`label`、`checked`、`onChange`（`(checked: boolean) => void`）、`disabled`、`fontSize`
+（与 Checkbox 共用 `ToggleOptions`）。手写 Rust：`ui::r#switch(ui::ToggleOptions { .. })`
+（`switch` 是 Rust 关键字，builder 名写作 `r#switch`）。

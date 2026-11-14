@@ -3,7 +3,7 @@
 Zant UI animates in the spirit of **Ant Design motion** (durations, easing
 curves, per-component transitions) using two ideas borrowed from **Framer
 Motion**: *presence* (enter / exit transitions) and *layout* transitions
-(FLIP). Everything is plain Zig in `src/motion/`; no dependency.
+(FLIP). Everything is plain Rust in `crates/zant/src/motion/`; no dependency.
 
 Because the whole window is painted by Skia on one surface (a `CAMetalLayer`
 on macOS, a Direct3D 12 swap chain on Windows), the system compositor cannot
@@ -13,7 +13,7 @@ something animates (`CADisplayLink` on macOS; the swap chain's vsync /
 **Reduce motion**, Windows **Animation effects**).
 
 Measure frame times on a release build with `ZANT_FRAME_STATS=1`
-(`zig build run-components` with `ZANT_AUTOPLAY=quiet` animates on its own);
+(`cargo run -p zant-examples --bin zant-components` with `ZANT_AUTOPLAY=quiet` animates on its own);
 see `docs/development.md`.
 
 ## Rules
@@ -24,7 +24,7 @@ see `docs/development.md`.
 - Every interactive component has antd-style state transitions (hover,
   press, focus, check). New components must too: keep the boolean state as
   the source of truth and ease a presented value towards it with
-  `motion.Animated` (see `src/components/button.zig` `animate`).
+  `motion::motion::Animated` (see `crates/zant/src/components/button.rs` `animate`).
 - Popups / overlays use a presence preset; give them a stable `key` so a
   re-added node revives instead of being duplicated.
 - Node ids are recycled (nodes are freed, exiting nodes after their
@@ -32,9 +32,13 @@ see `docs/development.md`.
 
 ## Presence (enter / exit)
 
-```zig
-// the key belongs to the node itself, e.g. ui.column(.{ .key = "menu", ... })
-ui.styled(panel, .{ .motion = .slide_up, .motion_origin = .top_right })
+```rust
+// the key belongs to the node itself, e.g. ui::column(BoxOptions { key: Some("menu".into()), .. })
+ui::styled(panel, ui::Style {
+    motion: Some(zant::motion::motion::Presence::SlideUp),
+    motion_origin: Some(zant::motion::motion::Origin::TopRight),
+    ..Default::default()
+})
 ```
 
 | preset          | effect                               | enter / exit (antd)                     |
@@ -48,23 +52,31 @@ ui.styled(panel, .{ .motion = .slide_up, .motion_origin = .top_right })
 
 When a node with a presence leaves the spec it keeps painting while its
 exit transition plays, but it is already out of layout, hit testing and
-focus. `ui.dropdownMenu` (slide-up) and the Markdown link-safety modal
+focus. `DropdownMenu` (slide-up) and the Markdown link-safety modal
 (fade + zoom) use presences by default.
 
 ## Layout transitions (FLIP) and anchors
 
-```zig
-ui.styled(ui.column(.{ .key = "thumb" }), .{
-    .absolute = true,
-    .anchor = selected, // follow the n-th in-flow sibling's box
-    .layout_transition = .{ .duration_ms = 300, .easing = .ease_in_out },
-})
+```rust
+ui::styled(
+    ui::column(ui::BoxOptions { key: Some("thumb".into()), ..Default::default() }),
+    ui::Style {
+        absolute: Some(true),
+        anchor: Some(selected), // follow the n-th in-flow sibling's box
+        layout_transition: Some(zant::motion::motion::Transition {
+            duration_ms: 300,
+            easing: zant::motion::easing::Easing::EaseInOut,
+            ..Default::default()
+        }),
+        ..Default::default()
+    },
+)
 ```
 
 After a layout pass a node with `layout_transition` whose parent-relative
 box moved animates from the old box to the new one (its own background,
 border and shadow). Supported on leaf containers. A window resize never
-starts a transition. `ui.segmented` (thumb) and `ui.tabs` (ink bar) use
+starts a transition. `Segmented` (thumb) and `Tabs` (ink bar) use
 this.
 
 ## Built-in component motion
@@ -80,14 +92,14 @@ this.
 
 ## Turning motion off
 
-`motion.enabled = false` completes every transition immediately. The
-runtime sets it in `Runtime.run` from the system setting (macOS *Reduce
+`motion::motion::set_enabled(false)` (the runtime's flag) completes every transition immediately. The
+runtime sets it in its frame loop from the system setting (macOS *Reduce
 motion*, Windows *Animation effects*), `ZANT_NO_MOTION=1` and
 `ZANT_SNAPSHOT` (snapshots are static).
 
 ## Testing
 
-Inject a fake clock: `runtime.clock = fakeClock`, advance a module-level
+Inject a fake clock: `runtime.clock = fake_clock`, advance a module-level
 timestamp between `renderFrame` calls and assert on the presented values
-(`hover_t`, `NodeAnim.fx`, `flip_delta`). See `tests/motion_test.zig`.
+(`hover_t`, `NodeAnim.fx`, `flip_delta`). See `crates/zant/tests/motion_test.rs`.
 Never sleep in tests.
