@@ -79,4 +79,68 @@ mod tests {
         assert_eq!(child_id(7, "row"), child_id(7, "row"));
         assert_ne!(child_id(7, 1u64), child_id(7, "1"));
     }
+
+    #[test]
+    fn runtime_store_drives_persistence_and_sweeps() {
+        let store = Rc::new(RefCell::new(Store::new()));
+        context::set_build_states(Some(Rc::clone(&store)));
+
+        store.borrow_mut().begin_build();
+        {
+            let slot = local_state(0x5EED_u64, || 1u32);
+            assert_eq!(*slot.borrow(), 1);
+            *slot.borrow_mut() = 7;
+        }
+        store.borrow_mut().sweep();
+        assert_eq!(store.borrow().count(), 1);
+
+        store.borrow_mut().begin_build();
+        let again = local_state(0x5EED_u64, || 0u32);
+        assert_eq!(
+            *again.borrow(),
+            7,
+            "the runtime store keeps the value across builds"
+        );
+        drop(again);
+        store.borrow_mut().sweep();
+        assert_eq!(store.borrow().count(), 1);
+
+        // the next rebuild does not ask for the slot: it unmounted
+        store.borrow_mut().begin_build();
+        store.borrow_mut().sweep();
+        assert_eq!(store.borrow().count(), 0);
+
+        context::set_build_states(None);
+    }
+
+    #[test]
+    fn memo_recording_keeps_skipped_slots_alive() {
+        let store = Rc::new(RefCell::new(Store::new()));
+        context::set_build_states(Some(Rc::clone(&store)));
+
+        // a memo build records the ids it touches
+        store.borrow_mut().begin_build();
+        store.borrow_mut().record();
+        let _ = local_state(0xA1_u64, || 0u8);
+        let recorded = store.borrow_mut().end_record();
+        store.borrow_mut().sweep();
+        assert_eq!(recorded, vec![0xA1]);
+        assert_eq!(store.borrow().count(), 1);
+
+        // the memo is skipped next build: its ids are touched instead
+        store.borrow_mut().begin_build();
+        store.borrow_mut().touch(&recorded);
+        store.borrow_mut().sweep();
+        assert_eq!(
+            store.borrow().count(),
+            1,
+            "the skipped memo keeps its component state"
+        );
+
+        store.borrow_mut().begin_build();
+        store.borrow_mut().sweep();
+        assert_eq!(store.borrow().count(), 0, "the memo subtree unmounted");
+
+        context::set_build_states(None);
+    }
 }
