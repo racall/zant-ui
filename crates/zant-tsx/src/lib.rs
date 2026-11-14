@@ -5,3 +5,6 @@
 #![forbid(unsafe_code)]
 
 pub mod ast;
+pub mod jsx_entities;
+pub mod jsx_text;
+pub mod lexer;

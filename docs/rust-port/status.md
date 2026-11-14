@@ -79,7 +79,7 @@
 
 | WP | 内容 | 负责人 | 状态 | 备注 |
 |---|---|---|---|---|
-| 4.1 | lexer、ast、jsx_text、jsx_entities | wp-4-1 | 进行中（worktree wp-4.1） | `--dump-ast` 验收等 4.2 parser 落地 |
+| 4.1 | lexer、ast、jsx_text、jsx_entities | wp-4-1 | 完成 | `rust/wp-4.1`；10/10 Rust 测试（Zig 可移植 10 个）；AST 字符串用 `Vec<u8>`（见待决问题）；`jsx_entities_test.zig` 另 2 个依赖 parser/compile 的测试待 4.2/4.3 补 |
 | 4.2 | parser、expr_parser、jsx_parser、type_parser、loop_parser、import_parser、react_compat | — | 待领取 | 依赖 4.1 |
 | 4.3 | hooks/{expand,rewrite,resolve,leftover} | — | 待领取 | 依赖 4.2 |
 | 4.4 | tags、tag_aliases、string_method_names、诊断 | — | 待领取 | |
