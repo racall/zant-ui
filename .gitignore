@@ -29,3 +29,4 @@ target/
 .worktrees/
 .cargo-home
 .zig-global-cache
+/third_party
