@@ -363,7 +363,7 @@ fn scrolling(
             };
             let emitted = expr::emit(g, c, value, Some(Type::F64), false)?;
             let value = types::coerce(g, emitted, Type::F64, value.loc)?;
-            format!("Some(tsx::list_index({}))", value.code)
+            format!("tsx::list_index({})", value.code)
         }
         None => "None".to_owned(),
     };

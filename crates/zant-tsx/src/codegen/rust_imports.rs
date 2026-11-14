@@ -369,7 +369,21 @@ pub fn map_type(
         syn::Type::Tuple(tuple) if tuple.elems.is_empty() => Ok(allow_void.then_some(Type::Void)),
         syn::Type::Tuple(_) => Ok(None),
         syn::Type::Never(_) => Ok(None),
-        syn::Type::Reference(reference) => map_type(g, alias, file, &reference.elem, allow_void),
+        syn::Type::Reference(reference) => {
+            // `&'static [u8]`: imported asset bytes (`rust_imports::bytes`)
+            let is_static = reference
+                .lifetime
+                .as_ref()
+                .is_some_and(|lifetime| lifetime.ident == "static");
+            if is_static
+                && let syn::Type::Slice(slice) = &*reference.elem
+                && matches!(&*slice.elem, syn::Type::Path(path)
+                    if path.path.is_ident("u8"))
+            {
+                return Ok(Some(bytes(g)?));
+            }
+            map_type(g, alias, file, &reference.elem, allow_void)
+        }
         syn::Type::Slice(slice) => {
             let Some(child) = map_type(g, alias, file, &slice.elem, false)? else {
                 return Ok(None);

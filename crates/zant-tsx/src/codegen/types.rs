@@ -270,15 +270,16 @@ fn integer_peer(a: Type, b: Type) -> Type {
 /// A type annotation (Zig `types.typeRef`).
 pub fn type_ref(g: &mut Generator<'_>, reference: &ast::TypeRef, allow_void: bool) -> Result<Type> {
     if let Some(detail) = reference.detail.as_deref() {
-        let address = super::detail_address(detail);
-        for resolved in &g.resolved_types {
-            if resolved.detail == address {
-                return Ok(resolved.ty);
-            }
+        if let Some(resolved) = g
+            .resolved_types
+            .iter()
+            .find(|resolved| resolved.detail == *detail)
+        {
+            return Ok(resolved.ty);
         }
         let ty = model::resolve(g, reference, None)?;
         g.resolved_types.push(super::ResolvedType {
-            detail: address,
+            detail: detail.clone(),
             ty,
         });
         return Ok(ty);

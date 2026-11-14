@@ -145,8 +145,19 @@ impl Fields {
 
     /// `ui::XOptions { field: value, ..Default::default() }`.
     pub fn emit(&self, options: &str) -> String {
+        self.emit_with_default(options, true)
+    }
+
+    /// `emit`, with or without the trailing `..Default::default()` (item
+    /// structs whose every field is required have no `Default`).
+    pub fn emit_with_default(&self, options: &str, default: bool) -> String {
+        let spread = if default {
+            "..Default::default() }"
+        } else {
+            "}"
+        };
         if self.list.is_empty() {
-            return format!("{options} {{ ..Default::default() }}");
+            return format!("{options} {{ {spread}");
         }
         let mut out = format!("{options} {{ ");
         for entry in &self.list {
@@ -162,7 +173,7 @@ impl Fields {
             };
             out.push_str(&format!("{}: {code}, ", rust_field(&entry.field)));
         }
-        out.push_str("..Default::default() }");
+        out.push_str(spread);
         out
     }
 }
@@ -410,7 +421,9 @@ pub fn strings(
     }
     if !matches!(e.data, ast::ExprData::Array(_)) || spread {
         let expected = model::array(g, Type::String)?;
-        return Ok(expr::emit(g, c, e, Some(expected), false)?.code);
+        let code = expr::emit(g, c, e, Some(expected), false)?.code;
+        // `SelectOptions.options` is a `Vec<Str>` (List<Str> → Vec<Str>)
+        return Ok(format!("({code}).as_slice().to_vec()"));
     }
     let mut codes: Vec<String> = Vec::new();
     for item in array(g, prop, e)? {
@@ -508,7 +521,13 @@ fn struct_item(
         }
     }
     required(g, &prop.item_props, &fields, item.loc, owner, "key")?;
-    Ok(fields.emit(item_path))
+    // item structs with only required fields (e.g. `ui::TabItem`) do not
+    // implement `Default`
+    let defaulted = prop
+        .item_props
+        .iter()
+        .any(|field| !field.required && !fields.has_prop(field));
+    Ok(fields.emit_with_default(item_path, defaulted))
 }
 
 /// `ui.MenuItem` → `ui::MenuItem` (Rust paths use `::`).

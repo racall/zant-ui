@@ -16,7 +16,7 @@ pub struct App {
 impl Default for App {
     fn default() -> Self {
         Self {
-            draft: zant::Str::copy(""),
+            draft: zant::Str::from(""),
             copied: 0.0f64,
             until: 0.0f64,
         }
@@ -25,7 +25,7 @@ impl Default for App {
 impl App {
     fn copy(&mut self) {
         let draft: zant::Str = self.draft.clone();
-        if tsx::platform::clipboard::set_text(draft.clone()) {
+        if tsx::platform::clipboard::set_text((draft.clone()).as_str()) {
             self.copied = tsx::platform::clipboard::change_count();
             self.until = tsx::builtins::performance_now() + 1800.0f64;
         }
@@ -36,7 +36,7 @@ impl App {
     }
     fn _on_click1(&mut self) {
         let draft: zant::Str = self.draft.clone();
-        let _ = tsx::platform::clipboard::set_text(draft.clone());
+        let _ = tsx::platform::clipboard::set_text((draft.clone()).as_str());
         self.copied = tsx::platform::clipboard::change_count();
     }
     fn _on_click2(&mut self) {
@@ -44,7 +44,7 @@ impl App {
     }
     fn _on_click3(&mut self) {
         let draft: zant::Str = self.draft.clone();
-        let _ = tsx::platform::clipboard::set_text(draft.clone());
+        let _ = tsx::platform::clipboard::set_text((draft.clone()).as_str());
         self.copied = tsx::platform::clipboard::change_count();
     }
     fn _on_click4(&mut self) {
@@ -53,7 +53,7 @@ impl App {
 }
 impl ui::App for App {
     fn render(&mut self) -> ui::Node {
-        let insets: zant::platform::TitlebarInsets = ui::titlebar_insets();
+        let insets: zant::platform::platform::TitlebarInsets = ui::titlebar_insets();
         let pad: f32 = insets.left + insets.right;
         let now: f64 = tsx::builtins::performance_now();
         let _pad: f32 = pad;

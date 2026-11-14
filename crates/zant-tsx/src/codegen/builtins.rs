@@ -273,7 +273,7 @@ pub fn try_call(
             let digits = expr::emit(g, c, arg, Some(Type::F64), false)?;
             builder.add(g, c, digits, Type::F64, arg.loc)?;
         } else {
-            builder.args.push("0".to_owned());
+            builder.args.push("0.0".to_owned());
         }
     }
     let helper = if fixed { "to_fixed" } else { "string" };
@@ -341,12 +341,19 @@ fn global(
         let digits = expr::emit(g, c, arg, Some(Type::F64), false)?;
         builder.add(g, c, digits, Type::F64, arg.loc)?;
     } else if name == "parseInt" {
-        builder.args.push("0".to_owned());
+        builder.args.push("0.0".to_owned());
+    }
+    // `parse_int` / `parse_float` take `&str`
+    if (name == "parseInt" || name == "parseFloat")
+        && let Some(first) = builder.args.first_mut()
+    {
+        *first = format!("({first}).as_str()");
     }
     let helper = match name {
         "Number" => "number",
         "String" => "string",
         "parseInt" => "parse_int",
+        "parseFloat" => "parse_float",
         other => other,
     };
     let ty = if name == "String" {
@@ -413,7 +420,12 @@ fn math(
         let variant = unary_variant(&name);
         format!("tsx::builtins::unary(tsx::builtins::Unary::{variant}, {args})")
     } else if extrema {
-        format!("tsx::builtins::extrema({}, &[{args}])", name == "min")
+        // `extrema::<T>`: `Math.max()` has no value to infer `T` from
+        format!(
+            "tsx::builtins::extrema::<{}>({}, &[{args}])",
+            ty.rust(g),
+            name == "min"
+        )
     } else if variadic {
         format!("tsx::builtins::hypot(&[{args}])")
     } else if name == "pow" {

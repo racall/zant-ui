@@ -67,8 +67,10 @@ impl Builder {
             return Ok(());
         }
         let text = self.run.finish(g, false)?;
-        self.spans
-            .push(format!("tsx::text::span({text}, {})", style.emit()));
+        self.spans.push(format!(
+            "tsx::text::span(({text}).as_str(), {})",
+            style.emit()
+        ));
         self.run = Format::default();
         Ok(())
     }
@@ -257,7 +259,7 @@ pub fn emit(g: &mut Generator<'_>, c: &mut scope::Context, jsx: &ast::Jsx) -> Re
     fields.push_str(&format!("spans: vec![{}], ", builder.spans.join(", ")));
     if !builder.links.is_empty() {
         fields.push_str(&format!(
-            "on_link: Some(tsx::text::links(&[{}])), ",
+            "on_link: Some(tsx::text::links(vec![{}])), ",
             builder.links.join(", ")
         ));
     }

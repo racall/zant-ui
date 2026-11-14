@@ -60,10 +60,25 @@ fn closure_body(
     pattern: &str,
     expected: Option<Type>,
 ) -> Result<(String, Type)> {
+    // The closure body is emitted lexically inside the enclosing body (a
+    // render, a handler, or another closure), so the enclosing locals are in
+    // scope and a Rust closure captures them directly; keep them visible.
+    let mut visible: Vec<(String, Type, String)> = Vec::new();
+    visible.extend(outer.active.iter().map(|index| {
+        let binding = &outer.bindings[*index];
+        // a narrowed local (`current && (…)`) keeps its proven type
+        match super::narrowing::find(outer, binding.name.as_bytes()) {
+            Some(value) => (binding.name.clone(), value.ty, value.code),
+            None => (binding.name.clone(), binding.ty, binding.zig.clone()),
+        }
+    }));
     let mut c = scope::Context {
         render: outer.render,
         ret: Type::Void,
         capture_source: outer.capture_source.clone(),
+        // a closure nested in a handler still reads the handler's captures
+        // (`cap.field`) instead of re-capturing them
+        capture_method: outer.capture_method,
         ..scope::Context::default()
     };
     for (param, ty) in function.params.iter().zip(arguments) {
@@ -87,6 +102,16 @@ fn closure_body(
         // closure parameters are already names: no `let` is emitted, but an
         // unused one still needs its `let _ = …;` discard in the body
         c.params.push(binding);
+    }
+    // enclosing locals after the parameters, so a parameter shadows one with
+    // the same name; their initializer is none (they are already declared)
+    for (name, ty, code) in visible {
+        if c.bindings.iter().any(|binding| binding.name == name) {
+            continue;
+        }
+        let binding = scope::bind(g, &mut c, name.as_bytes(), ty, false)?;
+        c.bindings[binding].name = name.clone();
+        c.bindings[binding].zig = code;
     }
     let annotation = match function.ret.as_ref() {
         Some(reference) => Some(types::type_ref(g, reference, false)?),

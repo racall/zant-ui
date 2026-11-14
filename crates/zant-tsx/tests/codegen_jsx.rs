@@ -124,8 +124,17 @@ fn compile(
         g.resolving = vec![false; module.types.len()];
         g.react_imports = module.imports.clone();
         (|| -> codegen::Result<Generated> {
-            // The hook the WP-5.5 entry point installs (docs/rust-port/tsx-codegen.md §1).
+            // The hooks the WP-5.5 entry point installs (docs/rust-port/tsx-codegen.md §1).
             g.extensions.hooks.emit_jsx = Some(jsx::emit);
+            // WP-5.4 event hooks: `event_value` emits a handler whose capture
+            // struct is known before it is used, so the method pass can run.
+            g.extensions.hooks.scan_body = Some(events::scan_body);
+            g.extensions.hooks.scan_expr = Some(events::scan_expr);
+            g.extensions.hooks.emit_setter = Some(events::emit_setter);
+            g.extensions.hooks.method_param = Some(events::method_param_type);
+            g.extensions.hooks.parameter_type = Some(events::parameter_type);
+            g.extensions.hooks.captures_read = Some(codegen::captures::read);
+            g.extensions.hooks.nested = Some(codegen::captures::nested);
             setup(&mut g)?;
             let expr = ast::Expr {
                 loc,
@@ -227,8 +236,8 @@ fn button_emits_options_action_and_optional_key() {
     );
     generated
         .assert_render("ui::button(ui::ButtonOptions { ")
-        .assert_render("key: Some(zant::Str::copy(\"reset\")), ")
-        .assert_render("text: zant::Str::copy(\"Reset\"), ")
+        .assert_render("key: Some(zant::Str::from(\"reset\")), ")
+        .assert_render("text: zant::Str::from(\"Reset\"), ")
         .assert_render("disabled: self.count == 0u32, ")
         .assert_render("on_click: Some(ui::action(|s: &mut App| s._on_click1())), ")
         .assert_render("..Default::default() })");
@@ -244,9 +253,9 @@ fn input_emits_text_action_for_a_setter() {
     );
     generated
         .assert_render("ui::input(ui::InputOptions { ")
-        .assert_render("key: Some(zant::Str::copy(\"name\")), ")
+        .assert_render("key: Some(zant::Str::from(\"name\")), ")
         .assert_render("value: Some(self.name.clone()), ")
-        .assert_render("placeholder: zant::Str::copy(\"Your name\"), ")
+        .assert_render("placeholder: zant::Str::from(\"Your name\"), ")
         .assert_render("on_change: Some(ui::text_action(|s: &mut App, v: &str| s._set_name(v))), ")
         .assert_methods("fn _set_name(&mut self, value: &str) {")
         .assert_methods("self.name = zant::Str::copy(value);");
@@ -287,7 +296,7 @@ fn list_emits_a_closure_over_the_data_copy() {
         .assert_render(
             "ui::text(todo.clone().title.clone(), ui::TextOptions { ..Default::default() })",
         )
-        .assert_render("key: zant::Str::copy(\"todos\"), ");
+        .assert_render("key: zant::Str::from(\"todos\"), ");
 }
 
 #[test]
@@ -299,7 +308,7 @@ fn conditional_children_are_optional_nodes() {
         vec![state("show", "setShow", Type::Boolean)],
     );
     generated
-        .assert_render("ui::column(ui::BoxOptions { children: nodes![if self.show { Some(ui::text(zant::Str::copy(\"hi\"), ui::TextOptions { ..Default::default() })) } else { None }], ..Default::default() })");
+        .assert_render("ui::column(ui::BoxOptions { children: nodes![if self.show { Some(ui::text(zant::Str::from(\"hi\"), ui::TextOptions { ..Default::default() })) } else { None }], ..Default::default() })");
 }
 
 #[test]
@@ -313,9 +322,9 @@ fn ternaries_with_a_fragment_split_into_guarded_children() {
     generated
         .assert_render("'_children: {")
         .assert_render("let _condition: bool = self.show;")
-        .assert_render("nodes![if _condition { ui::text(zant::Str::copy(\"on\"), ui::TextOptions { ..Default::default() }) } else { None }, ")
-        .assert_render("if _condition { ui::text(zant::Str::copy(\"now\"), ui::TextOptions { ..Default::default() }) } else { None }, ")
-        .assert_render("if !_condition { ui::text(zant::Str::copy(\"off\"), ui::TextOptions { ..Default::default() }) } else { None }]")
+        .assert_render("nodes![if _condition { Some(ui::text(zant::Str::from(\"on\"), ui::TextOptions { ..Default::default() })) } else { None }, ")
+        .assert_render("if _condition { Some(ui::text(zant::Str::from(\"now\"), ui::TextOptions { ..Default::default() })) } else { None }, ")
+        .assert_render("if !_condition { Some(ui::text(zant::Str::from(\"off\"), ui::TextOptions { ..Default::default() })) } else { None }]")
         .assert_render("break '_children ");
 }
 
@@ -331,15 +340,15 @@ fn rich_text_builds_spans_links_and_span_styles() {
         .assert_render("ui::rich_text(ui::RichTextOptions { ")
         .assert_render("line_height: 0.0, ")
         .assert_render(
-            "tsx::text::span(zant::Str::copy(\"Read \"), tsx::text::SpanStyle { size: Some(16.0f32), ..Default::default() })",
+            "tsx::text::span((zant::Str::from(\"Read \")).as_str(), tsx::text::SpanStyle { size: Some(16.0f32), ..Default::default() })",
         )
         .assert_render(
-            "tsx::text::span(zant::Str::copy(\"this\"), tsx::text::SpanStyle { size: Some(16.0f32), weight: Some(zant::renderer::text::Weight::Bold), ..Default::default() })",
+            "tsx::text::span((zant::Str::from(\"this\")).as_str(), tsx::text::SpanStyle { size: Some(16.0f32), weight: Some(zant::renderer::text::Weight::Bold), ..Default::default() })",
         )
         .assert_render(
-            "tsx::text::span(zant::Str::copy(\"the docs\"), tsx::text::SpanStyle { size: Some(16.0f32), link: Some(0), ..Default::default() })",
+            "tsx::text::span((zant::Str::from(\"the docs\")).as_str(), tsx::text::SpanStyle { size: Some(16.0f32), link: Some(0), ..Default::default() })",
         )
-        .assert_render("on_link: Some(tsx::text::links(&[Some(ui::action(|s: &mut App| s._on_click1()))])), ");
+        .assert_render("on_link: Some(tsx::text::links(vec![Some(ui::action(|s: &mut App| s._on_click1()))])), ");
 }
 
 #[test]
@@ -351,7 +360,7 @@ fn fragments_become_a_view_with_children() {
         vec![],
     );
     generated
-        .assert_render("ui::view(ui::ViewOptions { children: nodes![ui::text(zant::Str::copy(\"a\"), ui::TextOptions { ..Default::default() }), ui::text(zant::Str::copy(\"b\"), ui::TextOptions { ..Default::default() })], ..Default::default() })");
+        .assert_render("ui::view(ui::ViewOptions { children: nodes![ui::text(zant::Str::from(\"a\"), ui::TextOptions { ..Default::default() }), ui::text(zant::Str::from(\"b\"), ui::TextOptions { ..Default::default() })], ..Default::default() })");
 }
 
 #[test]
@@ -498,7 +507,7 @@ fn string_lists_are_vectors_of_str() {
         }"#,
         vec![],
     );
-    generated.assert_render("options: vec![zant::Str::copy(\"a\"), zant::Str::copy(\"b\")], ");
+    generated.assert_render("options: vec![zant::Str::from(\"a\"), zant::Str::from(\"b\")], ");
 }
 
 #[test]
@@ -510,7 +519,7 @@ fn struct_lists_emit_typed_rust_structs() {
         vec![],
     );
     generated.assert_render(
-        "items: vec![ui::TabItem { label: zant::Str::copy(\"One\"), content: ui::text(zant::Str::copy(\"a\"), ui::TextOptions { ..Default::default() }), ..Default::default() }], ",
+        "items: vec![ui::TabItem { label: zant::Str::from(\"One\"), content: ui::text(zant::Str::from(\"a\"), ui::TextOptions { ..Default::default() }), }], ",
     );
 }
 
@@ -524,7 +533,7 @@ fn button_text_and_icon_children_are_split() {
     );
     generated
         .assert_render("icon: ui::Icon::Check, ")
-        .assert_render("text: zant::Str::copy(\"Save\"), ");
+        .assert_render("text: zant::Str::from(\"Save\"), ");
 }
 
 #[test]
@@ -533,12 +542,12 @@ fn overlays_are_portals() {
         r#"function App() {
             return <Modal content={<Text>body</Text>} title="Hi" onClose={() => setOpen(false)} />;
         }"#,
-        vec![],
+        vec![state("open", "setOpen", Type::Boolean)],
     );
     generated
         .assert_render("ui::portal(ui::modal(ui::ModalOptions { ")
         .assert_render(
-            "content: ui::text(zant::Str::copy(\"body\"), ui::TextOptions { ..Default::default() }), ",
+            "content: ui::text(zant::Str::from(\"body\"), ui::TextOptions { ..Default::default() }), ",
         );
 }
 
@@ -563,7 +572,7 @@ fn bool_and_index_actions_use_their_closure_parameters() {
     generated.assert_render(
         "on_change: Some(ui::index_action(|s: &mut App, v: usize| s._on_change1(v))), ",
     )
-    .assert_render("options: vec![ui::SegmentedOption { label: zant::Str::copy(\"a\"), ..Default::default() }, ui::SegmentedOption { label: zant::Str::copy(\"b\"), ..Default::default() }], ");
+    .assert_render("options: vec![ui::SegmentedOption { label: zant::Str::from(\"a\"), ..Default::default() }, ui::SegmentedOption { label: zant::Str::from(\"b\"), ..Default::default() }], ");
 }
 
 #[test]
@@ -599,7 +608,7 @@ fn list_key_extractor_hashes_strings_and_follow_scrolls() {
             "item_id: Some(std::rc::Rc::new(move |_index: usize| -> u64 {",
         )
         .assert_render("return zant::core::hash::hash(0, (todo.clone().id.clone()).as_str());")
-        .assert_render("self._list1.borrow_mut().follow(0, Some(tsx::list_index(2.0f64)), ui::ListScrollPosition::End);");
+        .assert_render("self._list1.borrow_mut().follow(0, tsx::list_index(2.0f64), ui::ListScrollPosition::End);");
 }
 
 #[test]
@@ -613,9 +622,9 @@ fn stateful_widgets_take_an_instance_id() {
     generated
         .assert_render("ui::markdown(")
         .assert_render(", ui::MarkdownOptions { ")
-        .assert_render("key: Some(zant::Str::copy(\"doc\")), ");
+        .assert_render("key: Some(zant::Str::from(\"doc\")), ");
     // the id comes from the key: child_id(parent, "Markdown", key)
-    generated.assert_render("tsx::child_id(0, \"Markdown\", (zant::Str::copy(\"doc\")).as_str())");
+    generated.assert_render("tsx::child_id(0, \"Markdown\", (zant::Str::from(\"doc\")).as_str())");
 
     let generated = compiled(
         r#"function App() { return <Markdown source="x" />; }"#,
@@ -635,8 +644,8 @@ fn fragments_inside_conditionals_flatten_under_one_guard() {
     generated
         .assert_render("'_children: {")
         .assert_render("let _condition: bool = self.show;")
-        .assert_render("if _condition { ui::text(zant::Str::copy(\"a\"), ui::TextOptions { ..Default::default() }) } else { None }")
-        .assert_render("if _condition { ui::text(zant::Str::copy(\"b\"), ui::TextOptions { ..Default::default() }) } else { None }");
+        .assert_render("if _condition { Some(ui::text(zant::Str::from(\"a\"), ui::TextOptions { ..Default::default() })) } else { None }")
+        .assert_render("if _condition { Some(ui::text(zant::Str::from(\"b\"), ui::TextOptions { ..Default::default() })) } else { None }");
 }
 
 #[test]
@@ -648,7 +657,7 @@ fn a_fragment_as_the_whole_render_is_flattened_into_view_children() {
         vec![state("show", "setShow", Type::Boolean)],
     );
     generated
-        .assert_render("ui::view(ui::ViewOptions { children: nodes![if self.show { Some(ui::text(zant::Str::copy(\"a\"), ui::TextOptions { ..Default::default() })) } else { None }, ui::text(zant::Str::copy(\"b\"), ui::TextOptions { ..Default::default() })]");
+        .assert_render("ui::view(ui::ViewOptions { children: nodes![if self.show { Some(ui::text(zant::Str::from(\"a\"), ui::TextOptions { ..Default::default() })) } else { None }, ui::text(zant::Str::from(\"b\"), ui::TextOptions { ..Default::default() })]");
 }
 
 #[test]
@@ -660,7 +669,7 @@ fn nested_fragment_children_and_string_keys_are_supported() {
         vec![],
     );
     generated.assert_render(
-        "children: nodes![ui::text(zant::Str::copy(\"a\"), ui::TextOptions { key: Some(zant::Str::copy(\"a\")), ..Default::default() }), ui::text(zant::Str::copy(\"b\"), ui::TextOptions { key: Some(zant::Str::copy(\"b\")), ..Default::default() })]",
+        "children: nodes![ui::text(zant::Str::from(\"a\"), ui::TextOptions { key: Some(zant::Str::from(\"a\")), ..Default::default() }), ui::text(zant::Str::from(\"b\"), ui::TextOptions { key: Some(zant::Str::from(\"b\")), ..Default::default() })]",
     );
 }
 
@@ -673,7 +682,7 @@ fn spread_object_literals_merge_in_source_order() {
         vec![],
     );
     generated
-        .assert_render("key: Some(zant::Str::copy(\"b\"))")
+        .assert_render("key: Some(zant::Str::from(\"b\"))")
         .assert_render("size: 12.0f32");
 }
 
@@ -726,7 +735,7 @@ fn explicit_children_props_use_the_nodes_macro() {
         vec![state("show", "setShow", Type::Boolean)],
     );
     generated.assert_render(
-        "children: nodes![ui::text(zant::Str::copy(\"a\"), ui::TextOptions { ..Default::default() }), if self.show { Some(ui::text(zant::Str::copy(\"b\"), ui::TextOptions { ..Default::default() })) } else { None }], ",
+        "children: nodes![ui::text(zant::Str::from(\"a\"), ui::TextOptions { ..Default::default() }), if self.show { Some(ui::text(zant::Str::from(\"b\"), ui::TextOptions { ..Default::default() })) } else { None }], ",
     );
 }
 
@@ -763,7 +772,7 @@ fn clickable_flattens_its_box_options_and_raw_identifiers() {
         .assert_render("padding: ui::inset(6.0f32), ")
         .assert_render("gap: 4.0f32, ")
         .assert_render(
-            "children: nodes![ui::text(zant::Str::copy(\"x\"), ui::TextOptions { ..Default::default() })], ",
+            "children: nodes![ui::text(zant::Str::from(\"x\"), ui::TextOptions { ..Default::default() })], ",
         )
         .assert_render("on_click: Some(ui::action(|s: &mut App| s._on_click1()))");
 }
@@ -779,7 +788,7 @@ fn alert_type_field_is_a_rust_raw_identifier() {
     generated
         .assert_render("ui::alert(ui::AlertOptions { ")
         .assert_render("r#type: zant::ui::AlertType::Success, ")
-        .assert_render("title: zant::Str::copy(\"Saved\"), ");
+        .assert_render("title: zant::Str::from(\"Saved\"), ");
 }
 
 #[test]

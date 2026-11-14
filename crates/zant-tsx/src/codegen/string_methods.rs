@@ -123,8 +123,8 @@ fn lookup(name: &str) -> Option<Method> {
 /// `starts_with`), the contract with WP-5.7's `zant::tsx::strings`.
 pub fn rust_name(name: &str) -> String {
     match name {
-        "toLowerCase" => return "to_lowercase".to_owned(),
-        "toUpperCase" => return "to_uppercase".to_owned(),
+        "toLowerCase" => return "to_lower_case".to_owned(),
+        "toUpperCase" => return "to_upper_case".to_owned(),
         _ => {}
     }
     let mut out = String::with_capacity(name.len() + 4);
@@ -182,10 +182,7 @@ pub fn emit(
     let source = aggregate::temporary(g, c, b"_text")?;
     let mut setup: Vec<String> = Vec::new();
     let mut args: Vec<String> = Vec::new();
-    setup.push(format!(
-        "let {source}: zant::Str = {}.clone();",
-        receiver.code
-    ));
+    setup.push(format!("let {source}: zant::Str = {};", receiver.code));
     args.push(format!("&{source}"));
     let endpoints = name == "slice" || name == "substring";
     for (index, arg) in call.args.iter().enumerate() {
@@ -197,6 +194,10 @@ pub fn emit(
         setup.push(format!("let {temp}: {} = {};", ty.rust(g), value.code));
         args.push(if ty == Type::String {
             format!("&{temp}")
+        } else if endpoints && index == 1 {
+            // `slice(start, end)` / `substring(start, end)`: the runtime's
+            // end is `Option<f64>` (`None` when the argument is omitted)
+            format!("Some({temp})")
         } else {
             temp
         });
@@ -220,8 +221,10 @@ pub fn emit(
         ResultKind::OptionalNumber => model::optional(g, Type::F64)?,
     };
     let helper = rust_name(&name);
+    // Rust labeled blocks take a tick and `break 'label value` (Zig writes
+    // `label: { … break :label value; }`).
     let code = format!(
-        "{label}: {{\n{}\nbreak {label} tsx::strings::{helper}({});\n}}",
+        "'{label}: {{\n{}\nbreak '{label} tsx::strings::{helper}({});\n}}",
         setup.join("\n"),
         args.join(", ")
     );
@@ -243,7 +246,7 @@ mod tests {
     fn helper_names_are_snake_case() {
         assert_eq!("starts_with", rust_name("startsWith"));
         assert_eq!("last_index_of", rust_name("lastIndexOf"));
-        assert_eq!("to_lowercase", rust_name("toLowerCase"));
+        assert_eq!("to_lower_case", rust_name("toLowerCase"));
         assert_eq!("code_point_at", rust_name("codePointAt"));
         assert_eq!("replace_all", rust_name("replaceAll"));
         assert_eq!("trim", rust_name("trim"));

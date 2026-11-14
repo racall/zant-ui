@@ -22,7 +22,7 @@ use zant_tsx::codegen::{self, components, generate, scope};
 use zant_tsx::parser::Parser;
 use zant_tsx::tags;
 
-const STUB_NODE: &str = "ui::text(\"stub\", ui::TextOptions::default())";
+const STUB_NODE: &str = "ui::text(zant::Str::from(\"stub\"), ui::TextOptions::default())";
 
 fn parse_module(src: &str) -> ast::Module {
     let mut parser = Parser::init(src);
@@ -251,7 +251,7 @@ fn counter_matches_the_design_doc_snippet() {
     assert_eq!(
         vec![
             "count: 0u32".to_owned(),
-            "name: zant::Str::copy(\"Zant\")".to_owned(),
+            "name: zant::Str::from(\"Zant\")".to_owned(),
             "notify: false".to_owned(),
         ],
         default_fields(source, "Counter"),
@@ -332,7 +332,7 @@ fn state_refs_memo_effects_and_stores_lower() {
     // `useMemo` compares the dependency tuple in its cache field.
     assert!(source.contains("_memo"), "{source}");
     assert!(
-        source.contains("let _deps: (u32,) = (self.count);"),
+        source.contains("let _deps: (u32,) = (self.count,);"),
         "{source}"
     );
 
@@ -369,7 +369,7 @@ fn array_map_filter_reduce_lower_to_iterator_adapters() {
     let file = generated(ARRAYS);
     let source = &file.source;
     assert!(source.contains("tsx::List::from_vec("), "{source}");
-    assert!(source.contains(".map(|item|"), "{source}");
+    assert!(source.contains(".map(|item: u32|"), "{source}");
     assert!(source.contains(".filter_map(|item|"), "{source}");
     assert!(source.contains(".fold("), "{source}");
     // the receiver is evaluated once, in source order

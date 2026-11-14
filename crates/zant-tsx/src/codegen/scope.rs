@@ -423,8 +423,9 @@ pub fn read(g: &mut Generator<'_>, c: &mut Context, n: &[u8], loc: ast::Loc) -> 
         .iter()
         .find(|constant| constant.name.as_bytes() == n)
     {
+        // the constant's code is the accessor (`name()`, see globals.rs)
         let ty = constant.value.ty;
-        let code = rust_text::id_at(g, n, 0)?;
+        let code = constant.value.code.clone();
         return Ok(owned_read(g, ty, code));
     }
     if let Some(hook) = g.extensions.hooks.zant_api_read

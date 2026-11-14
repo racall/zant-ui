@@ -412,7 +412,13 @@ fn emit_call(
     for (argument, kind) in call.args.iter().zip(function.params.iter()) {
         let ty = kind_type(g, *kind)?;
         let value = expr::emit(g, c, argument, Some(ty), false)?;
-        arguments.push(types::coerce(g, value, ty, argument.loc)?.code);
+        let code = types::coerce(g, value, ty, argument.loc)?.code;
+        // the runtime's platform functions take `&str` (Zig took `[]const u8`)
+        arguments.push(if *kind == Kind::String {
+            format!("({code}).as_str()")
+        } else {
+            code
+        });
     }
     Ok(Value::new(
         kind_type(g, function.ret)?,
@@ -498,7 +504,7 @@ fn titlebar_insets(
         return fail(g, loc, "titlebarInsets() takes no arguments");
     }
     for (index, entry) in g.compounds.iter().enumerate() {
-        if entry.rust == "zant::platform::TitlebarInsets" {
+        if entry.rust == "zant::platform::platform::TitlebarInsets" {
             return Ok(Value::new(
                 Type::Compound(index as u32),
                 "ui::titlebar_insets()",
@@ -509,7 +515,7 @@ fn titlebar_insets(
         g,
         model::Info {
             kind: model::InfoKind::Object,
-            rust: "zant::platform::TitlebarInsets".to_owned(),
+            rust: "zant::platform::platform::TitlebarInsets".to_owned(),
             fields: vec![
                 model::Field {
                     name: b"left".to_vec(),

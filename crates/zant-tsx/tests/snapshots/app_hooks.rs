@@ -18,7 +18,7 @@ impl Default for App {
         Self {
             dirty: true,
             asked: 0.0f64,
-            last: zant::Str::copy(""),
+            last: zant::Str::from(""),
         }
     }
 }

@@ -39,13 +39,20 @@ pub fn collect(g: &mut Generator<'_>, constants: &[&ast::TopConst]) -> Result<St
         let concrete = expected.unwrap_or_else(|| value.ty.concrete());
         value = types::coerce(g, value, concrete, constant.value.loc)?;
         let id = rust_text::id_at(g, &constant.name.name, 0)?;
+        // Rust `const` items cannot allocate or run `format!`; a TSX module
+        // constant is usually a `Str` / `List`, so it becomes a function over a
+        // `thread_local!` value (a cached per-thread initializer; the read
+        // clones, which is cheap for `Str` / `List`). Zig evaluated these at
+        // comptime (WP-5.9 deviation, see docs/rust-port/status.md).
+        let slot = format!("_{id}_VALUE");
         code.push_str(&format!(
-            "{}const {id}: {} = {};\n\n",
+            "{}fn {id}() -> {} {{\n    thread_local! {{\n        static {slot}: {} = {};\n    }}\n    {slot}.with(|value| value.clone())\n}}\n\n",
             if constant.exported { "pub " } else { "" },
+            value.ty.rust(g),
             value.ty.rust(g),
             value.code
         ));
-        value.code = id;
+        value.code = format!("{id}()");
         value.inference = types::Inference::Known;
         value.text = None;
         value.formatted = None;
@@ -112,7 +119,9 @@ mod tests {
         g.resolving = vec![false; module.types.len()];
         let refs: Vec<&ast::TopConst> = module.consts.iter().collect();
         let code = collect(&mut g, &refs).expect("constants lower");
-        assert!(code.contains("pub const limit: u32 ="), "{code}");
+        // a constant is a `thread_local!` accessor (Rust const items cannot allocate)
+        assert!(code.contains("pub fn limit() -> u32"), "{code}");
+        assert!(code.contains("static _limit_VALUE: u32 = 10u32;"), "{code}");
         assert_eq!(1, g.constants.len());
     }
 

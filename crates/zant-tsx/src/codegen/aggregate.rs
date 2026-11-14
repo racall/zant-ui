@@ -361,7 +361,7 @@ fn member_read(
         // strings count UTF-16 code units, as in TypeScript
         return Ok(Value {
             ty: Type::Usize,
-            code: format!("tsx::utf16_length({operand})"),
+            code: format!("tsx::utf16_length(({operand}).as_str())"),
             precedence: Precedence::Suffix,
             ..Value::default()
         });

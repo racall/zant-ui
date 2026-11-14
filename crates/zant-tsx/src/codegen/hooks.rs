@@ -202,7 +202,8 @@ pub fn ref_write(
             return fail(g, e.loc, "++ and -- require a number");
         }
         let op = if update.op == b"++" { "+=" } else { "-=" };
-        return Ok(Some(format!("self.{field} {op} 1;\n")));
+        let one = if state.ty.float() { "1.0" } else { "1" };
+        return Ok(Some(format!("self.{field} {op} {one};\n")));
     }
     let ast::ExprData::Assign(assign) = &e.data else {
         unreachable!("assignment")
@@ -278,8 +279,14 @@ pub fn dep_list(g: &mut Generator<'_>, c: &mut scope::Context, e: &ast::Expr) ->
         values.push(value.code);
         tys.push(value.ty.rust(g).to_owned());
     }
+    let tuple = format!("({})", values.join(", "));
+    let tuple = if values.len() == 1 {
+        format!("({},)", values[0])
+    } else {
+        tuple
+    };
     Ok(DepList {
-        value: format!("({})", values.join(", ")),
+        value: tuple,
         ty: if tys.is_empty() {
             "()".to_owned()
         } else if tys.len() == 1 {
@@ -571,6 +578,12 @@ pub fn effect(
         let _ = deps_ty;
         cleanup_field = Some(scope::state_field(g, field.as_bytes())?);
     }
+    // the effect's cleanup field must be known while its body is emitted
+    // (`return () => …` stores the cleanup there), before `captures::prepare`
+    // emits and caches the method
+    if let Some(field) = &cleanup_field {
+        g.methods[info.method].effect_field = Some(field.clone());
+    }
     captures::prepare(g, c, info.method)?;
     if changes_state(
         g,
@@ -586,9 +599,6 @@ pub fn effect(
                 &emitted[open + 2..]
             ));
         }
-    }
-    if let Some(field) = &cleanup_field {
-        g.methods[info.method].effect_field = Some(field.clone());
     }
     let action = super::generate::action_value(g, c, info.method, Some(tags::Kind::Action))?;
     let cleanup_field = cleanup_field.clone();

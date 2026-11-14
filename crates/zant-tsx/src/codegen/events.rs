@@ -15,23 +15,26 @@
 use crate::ast;
 use crate::tags::{self, Kind};
 
+use super::app_state;
+use super::expr;
 use super::functions;
+use super::model;
 use super::rust_text;
 use super::scope;
 use super::types::{self, Type};
 use super::{Generator, Method, Result, fail};
 
 /// A handler expression registered before emission (Zig `events.Event`).
+///
+/// Zig identifies an expression by its pointer. Rust's AST owns its nodes and
+/// the spread / JSX shape helpers clone expressions, so the pointer is not
+/// stable there; the source location is: a clone keeps it, and one source
+/// position holds at most one expression.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Event {
-    pub expr: usize,
+    pub loc: ast::Loc,
     pub kind: Kind,
     pub method: usize,
-}
-
-/// The address of an AST expression for handler identity.
-fn expression_address(e: &ast::Expr) -> usize {
-    std::ptr::from_ref(e) as usize
 }
 
 /// Register event methods before local allocation, so names and inferred
@@ -60,8 +63,8 @@ pub fn scan_expr(g: &mut Generator<'_>, e: &ast::Expr) -> Result<()> {
         }
         ast::ExprData::Cond(value) => scan_conditional(g, value),
         ast::ExprData::Call(call) => {
-            // `timers.scan` belongs to the hook module (WP-5.5); the arguments
-            // still register nested handlers.
+            scan_timer(g, call)?;
+            // arguments (including inline arrows) still register handlers
             for arg in &call.args {
                 scan_expr(g, arg)?;
             }
@@ -83,6 +86,175 @@ pub fn scan_expr(g: &mut Generator<'_>, e: &ast::Expr) -> Result<()> {
         }
         _ => Ok(()),
     }
+}
+
+/// The name of a plain call (`setTimeout(…)`) or `None`.
+fn call_ident(call: &ast::Call, name: &str) -> bool {
+    matches!(&call.callee.data, ast::ExprData::Ident(n) if String::from_utf8_lossy(n) == name)
+}
+
+/// `setTimeout(() => …, ms)` registers its callback as a method while the
+/// component is scanned (Zig `codegen/timers.zig` `scan`). The lowering lives
+/// in `events.rs` because the unowned `timers.zig` has no Rust module yet;
+/// the callback behaves like an event arrow (captures, no parameters).
+fn scan_timer(g: &mut Generator<'_>, call: &ast::Call) -> Result<()> {
+    if !call_ident(call, "setTimeout") {
+        return Ok(());
+    }
+    let loc = call.args.first().map_or(0, |arg| arg.loc);
+    if call.args.len() != 2 {
+        return fail(g, loc, "setTimeout(() => …, ms)");
+    }
+    let callback = &call.args[0];
+    let arrow = match &callback.data {
+        ast::ExprData::Arrow(function) => ast::Function {
+            loc: callback.loc,
+            name: Vec::new(),
+            params: function.params.clone(),
+            ret: function.ret.clone(),
+            body: function.body.clone(),
+        },
+        ast::ExprData::Ident(_) => {
+            let forwarded = forward_arrow(callback, 0);
+            let ast::ExprData::Arrow(function) = forwarded.data else {
+                unreachable!("forward arrow")
+            };
+            *function
+        }
+        _ => {
+            return fail(
+                g,
+                callback.loc,
+                "the callback is an arrow or a function name",
+            );
+        }
+    };
+    if !arrow.params.is_empty() {
+        return fail(g, callback.loc, "a timer callback takes no parameters");
+    }
+    g.counter += 1;
+    let method = g.methods.len();
+    app_state::with_module(|state| {
+        state.desktop_callbacks.push(app_state::DesktopCallback {
+            expr: (**callback).clone(),
+            method,
+        })
+    });
+    let name = scope::unique_method(g, &format!("_timeout{}", g.counter))?;
+    let capture_name = scope::unique_method(g, &format!("_TimeoutCapture{}", g.counter))?;
+    g.methods.push(Method {
+        name,
+        func: Some(Box::new(arrow)),
+        action: Some(Kind::Action),
+        capture_name: Some(capture_name),
+        ..Method::default()
+    });
+    Ok(())
+}
+
+/// Values a timer keeps after the frame that scheduled it is gone: numbers,
+/// booleans and enums, and optionals of them.
+fn timer_plain(g: &Generator<'_>, ty: Type) -> bool {
+    if ty == Type::Boolean || ty.numeric() {
+        return true;
+    }
+    if let Some(child) = model::optional_child(g, ty) {
+        return timer_plain(g, child);
+    }
+    model::info(g, ty).is_some_and(|entry| entry.kind == model::InfoKind::Enumeration)
+}
+
+/// `setTimeout(…)` / `clearTimeout(id)` in a handler (Zig `timers.tryCall`).
+pub fn timer_call(
+    g: &mut Generator<'_>,
+    c: &mut scope::Context,
+    loc: ast::Loc,
+    call: &ast::Call,
+) -> Result<Option<super::types::Value>> {
+    let set = call_ident(call, "setTimeout");
+    if !set && !call_ident(call, "clearTimeout") {
+        return Ok(None);
+    }
+    let name = if set { "setTimeout" } else { "clearTimeout" };
+    if super::builtins::shadowed(g, c, name) {
+        return Ok(None);
+    }
+    if c.render || c.constant {
+        return fail(
+            g,
+            loc,
+            "{name} runs in event handlers and effects, not while rendering",
+        );
+    }
+    if !set {
+        if call.args.len() != 1 {
+            return fail(g, loc, "clearTimeout(id)");
+        }
+        let id = expr::emit(g, c, &call.args[0], Some(Type::F64), false)?;
+        let id = types::coerce(g, id, Type::F64, call.args[0].loc)?;
+        return Ok(Some(super::types::Value::new(
+            Type::Void,
+            format!("tsx::timers::clear({});", id.code),
+        )));
+    }
+    if c.no_self {
+        return fail(
+            g,
+            loc,
+            "setTimeout runs in a component's handlers (a plain function has none)",
+        );
+    }
+    if let Some(component) = g.current_component
+        && g.components[component].props.is_some()
+    {
+        return fail(
+            g,
+            loc,
+            "timers belong to the root component or a window's (components without props): they outlive other components; set it there and pass the result down",
+        );
+    }
+    if call.args.len() != 2 {
+        return fail(g, loc, "setTimeout(() => …, ms)");
+    }
+    let callback = &call.args[0];
+    let Some(info) = app_state::with_module(|state| {
+        state
+            .desktop_callbacks
+            .iter()
+            .find(|item| item.expr == **callback)
+            .cloned()
+    }) else {
+        return fail(g, callback.loc, "the timer callback was not scanned");
+    };
+    super::captures::prepare(g, c, info.method)?;
+    let method = g.methods[info.method].clone();
+    // the capture struct is built where `setTimeout` is called: re-read each
+    // value in the enclosing context (`cap.doubled` inside an effect, a local
+    // of the handler, …) instead of the render binding the snapshot recorded
+    for (index, capture) in method.captures.iter().enumerate() {
+        if let Some(value) = super::captures::read(g, c, &capture.name)? {
+            g.methods[info.method].captures[index].source = value.code;
+        }
+    }
+    for capture in &method.captures {
+        if !timer_plain(g, capture.ty) {
+            return fail(
+                g,
+                callback.loc,
+                format!(
+                    "a timer callback can capture numbers, booleans and enums (`{}` is not one); keep other values in state and read them when it runs",
+                    capture.name
+                ),
+            );
+        }
+    }
+    let action = super::generate::action_value(g, c, info.method, Some(Kind::Action))?;
+    let ms = expr::emit(g, c, &call.args[1], Some(Type::F64), false)?;
+    let ms = types::coerce(g, ms, Type::F64, call.args[1].loc)?;
+    Ok(Some(super::types::Value::new(
+        Type::F64,
+        format!("tsx::timers::set({}, {action})", ms.code),
+    )))
 }
 
 /// Register attribute callbacks before recursively scanning JSX children.
@@ -268,14 +440,11 @@ pub fn event(g: &mut Generator<'_>, e: &ast::Expr, prop: &tags::Prop, loc: ast::
     if super::components::forwarded_prop(g, e, prop.kind, loc)? {
         return Ok(());
     }
-    let address = expression_address(e);
     for previous in &g.events {
-        if previous.expr == address && previous.kind == prop.kind {
+        if previous.loc == e.loc && previous.kind == prop.kind {
             return Ok(());
         }
     }
-    // A child component's callback prop forwarded (`onClick={onSave}`) is
-    // handled by the component layer (`components.zig`, WP-5.5) before this.
     let index: usize;
     match &e.data {
         ast::ExprData::Ident(name) => {
@@ -369,7 +538,7 @@ pub fn event(g: &mut Generator<'_>, e: &ast::Expr, prop: &tags::Prop, loc: ast::
         }
     }
     g.events.push(Event {
-        expr: address,
+        loc: e.loc,
         kind: prop.kind,
         method: index,
     });
@@ -383,40 +552,63 @@ pub fn event_value(
     e: &ast::Expr,
     kind: Kind,
 ) -> Result<String> {
+    // A child component's callback prop forwarded to a ui event already is
+    // the action value (`onClick={props.onSave}`).
     if super::components::forwarded_prop(g, e, kind, e.loc)? {
-        return super::components::forwarded_action_value(g, c, e, kind);
+        return Ok(expr::emit(g, c, e, None, false)?.code);
     }
-    let address = expression_address(e);
     let events = g.events.clone();
     for event in events {
-        if event.expr != address || event.kind != kind {
+        if event.loc != e.loc || event.kind != kind {
             continue;
         }
         let method = g.methods[event.method].clone();
-        if g.name.is_empty() {
-            return fail(g, e.loc, "component name is not set before JSX emission");
+        if method.capture_name.is_some() {
+            super::captures::prepare(g, c, event.method)?;
         }
-        let Some(class) = rust_text::id(g.name.as_bytes()) else {
-            return fail(g, e.loc, "component name is not valid UTF-8");
-        };
-        let target = rust_text::id_at(g, method.name.as_bytes(), e.loc)?;
-        let (params, call_args) = match kind {
-            Kind::Action => (String::new(), String::new()),
-            Kind::TextAction => (", v: &str".to_owned(), "v".to_owned()),
-            Kind::BoolAction => (", v: bool".to_owned(), "v".to_owned()),
-            Kind::IndexAction => (", v: usize".to_owned(), "v".to_owned()),
-            _ => {
-                return fail(
-                    g,
-                    e.loc,
-                    "event handler must be a component function, setter, or inline arrow",
-                );
+        let method = g.methods[event.method].clone();
+        let root = g.current_component.is_none();
+        if root {
+            // the shape of docs/rust-port/tsx-codegen.md §5:
+            // `ui::action(|s: &mut App| s._on_click1())`; a handler that reads
+            // render locals gets a capture struct first
+            let Some(class) = rust_text::id(g.name.as_bytes()) else {
+                return fail(g, e.loc, "component name is not valid UTF-8");
+            };
+            let target = rust_text::id_at(g, method.name.as_bytes(), e.loc)?;
+            let (params, call_args) = match kind {
+                Kind::Action => (String::new(), String::new()),
+                Kind::TextAction => (", v: &str".to_owned(), "v".to_owned()),
+                Kind::BoolAction => (", v: bool".to_owned(), "v".to_owned()),
+                Kind::IndexAction => (", v: usize".to_owned(), "v".to_owned()),
+                _ => {
+                    return fail(
+                        g,
+                        e.loc,
+                        "event handler must be a component function, setter, or inline arrow",
+                    );
+                }
+            };
+            if method.captures.is_empty() {
+                return Ok(format!(
+                    "ui::{}(|s: &mut {class}{params}| s.{target}({call_args}))",
+                    action_builder(kind)
+                ));
             }
-        };
-        return Ok(format!(
-            "ui::{}(|s: &mut {class}{params}| s.{target}({call_args}))",
-            action_builder(kind)
-        ));
+            let capture = super::captures::value(g, &method)?;
+            let arguments = if call_args.is_empty() {
+                "&_capture".to_owned()
+            } else {
+                format!("&_capture, {call_args}")
+            };
+            return Ok(format!(
+                "ui::{}({{\nlet _capture = {capture};\nmove |s: &mut {class}{params}| s.{target}({arguments})\n}})",
+                action_builder(kind)
+            ));
+        }
+        // a child component: the shared action emitter upgrades its local
+        // state slot and passes captures
+        return super::generate::action_value(g, c, event.method, Some(kind));
     }
     fail(
         g,
@@ -654,11 +846,13 @@ fn register_arrow(g: &mut Generator<'_>, prop: &tags::Prop, e: &ast::Expr) -> Re
         Some(reference) => types::type_ref(g, reference, true)?,
         None => Type::Void,
     };
+    let capture_name = scope::unique_method(g, &format!("_Capture{}", g.counter))?;
     let method = Method {
         name,
         func: Some(function.clone()),
         action: Some(prop.kind),
         ret,
+        capture_name: Some(capture_name),
         ..Method::default()
     };
     signature(g, &method, prop.kind, e.loc, true)?;

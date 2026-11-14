@@ -131,6 +131,7 @@ pub fn install(g: &mut Generator<'_>) {
     g.extensions.hooks.cleanup_return = Some(hooks::cleanup_return);
     g.extensions.hooks.components_read_prop = Some(components::read_prop);
     g.extensions.hooks.callback_type = Some(components::callback_type);
+    g.extensions.hooks.captures_read = Some(super::captures::read);
     g.extensions.hooks.nested = Some(super::captures::nested);
     g.extensions.array_methods = Some(super::array_methods::emit);
     // Zig `expr.callValue`'s dispatch order: components, .rs functions,
@@ -142,11 +143,16 @@ pub fn install(g: &mut Generator<'_>) {
         super::windows::try_call,
     ];
     // Zig `expr.callValue`: `zant_api` before the JS builtins
-    g.extensions.call_before_builtins = vec![super::zant_api::try_call];
+    g.extensions.call_before_builtins = vec![
+        super::zant_api::try_call,
+        // `setTimeout` / `clearTimeout` (the unowned `timers.zig` lives here)
+        super::events::timer_call,
+    ];
     g.extensions.is_app_hook = super::app_hooks::is_app_hook;
     g.extensions.is_desktop_hook = super::desktop_hooks::is_hook;
     g.extensions.hooks.zant_api_read = Some(super::zant_api::read);
     g.extensions.hooks.key_event_type = Some(super::app_hooks::key_event_type);
+    g.extensions.hooks.image_type = Some(super::jsx::image_type);
     g.extensions.hooks.imported_type = Some(super::imports::named);
     g.extensions.hooks.zig_type = Some(super::rust_imports::named);
     g.extensions.hooks.external_name = Some(super::imports::external_name);
@@ -355,7 +361,9 @@ fn validate_imports(g: &mut Generator<'_>, module: &ast::Module) -> Result<()> {
         }
         for name in &import.names {
             let imported = String::from_utf8_lossy(&name.imported.name);
-            if tags::find(&imported).is_some()
+            let local = String::from_utf8_lossy(&name.local.name);
+            let tag = tags::find(&imported).is_some();
+            let known = tag
                 || hooks::extra_hook(&imported)
                 || crate::codegen::hook_name(g, &imported)
                 || types::numeric_name(name.imported.name.as_slice()).is_some()
@@ -370,20 +378,40 @@ fn validate_imports(g: &mut Generator<'_>, module: &ast::Module) -> Result<()> {
                         | "KeyEvent"
                         | "createWindow"
                         | "Image"
-                )
-            {
-                continue;
+                );
+            if !known {
+                if let Some(external) = g.extensions.hooks.external_name
+                    && external(g, &imported)?.is_some()
+                {
+                    continue;
+                }
+                return fail(
+                    g,
+                    name.imported.loc,
+                    format!("unknown import `{imported}`; this name is not supported by Zant"),
+                );
             }
-            if let Some(external) = g.extensions.hooks.external_name
-                && external(g, &imported)?.is_some()
-            {
-                continue;
+            // Zig `codegen.zig`: `import type {u16 as Small} from "zant"`
+            // aliases the numeric type; tags cannot be renamed.
+            if imported != local {
+                if tag {
+                    return fail(
+                        g,
+                        name.local.loc,
+                        format!("tag imports cannot be renamed; use `{imported}`"),
+                    );
+                }
+                if imported == "useState" {
+                    g.hook_names.push(local.into_owned());
+                } else if let Some(ty) = types::numeric_name(name.imported.name.as_slice()) {
+                    g.type_aliases.push(super::TypeAlias {
+                        name: local.into_owned(),
+                        ty,
+                    });
+                } else {
+                    return fail(g, name.local.loc, format!("`{imported}` cannot be renamed"));
+                }
             }
-            return fail(
-                g,
-                name.imported.loc,
-                format!("unknown import `{imported}`; this name is not supported by Zant"),
-            );
         }
     }
     Ok(())
@@ -394,6 +422,7 @@ fn validate_imports(g: &mut Generator<'_>, module: &ast::Module) -> Result<()> {
 fn reset_component(g: &mut Generator<'_>) {
     g.states.clear();
     g.methods.clear();
+    g.events.clear();
     g.render_names.clear();
     g.callback_events.clear();
     g.lists.clear();
@@ -477,12 +506,16 @@ fn emit_component(
     let mut out = String::new();
     if let Some(child_index) = component {
         let component_data = g.components[child_index].clone();
+        // a module-level `Props` would collide between components (and an
+        // inherent associated type is unstable), so each component's props
+        // type is named after it: `TodoRowProps = RowProps` / `PanelProps`
+        let props_name = format!("{name}Props_");
         let props_type = match component_data.props {
-            Some(ty) => format!("pub type Props = {};", ty.rust(g)),
-            None => "pub struct Props;".to_owned(),
+            Some(ty) => format!("pub type {props_name} = {};", ty.rust(g)),
+            None => format!("#[derive(Default)]\npub struct {props_name};"),
         };
         out.push_str(&format!("pub struct {name} {{\n"));
-        out.push_str("    props: Props,\n");
+        out.push_str(&format!("    props: {props_name},\n"));
         if component_data.stateful {
             out.push_str("    _id: u64,\n");
         }
@@ -498,7 +531,7 @@ fn emit_component(
         out.push_str(&default_impl(g, &name, &component_data)?);
         out.push_str(&captures);
         out.push_str(&format!("impl {name} {{\n"));
-        out.push_str(&builder_function(g, &name, &component_data)?);
+        out.push_str(&builder_function(g, &name, &component_data, &props_name)?);
         out.push_str(&format!(
             "pub fn render(&mut self) -> ui::Node {{\n{render_body}}}\n"
         ));
@@ -619,13 +652,10 @@ fn builder_function(
     g: &mut Generator<'_>,
     name: &str,
     component: &components::Component,
+    props_name: &str,
 ) -> Result<String> {
     let _ = g;
-    let props_argument = if component.props.is_some() {
-        "props: Props"
-    } else {
-        "_props: Props"
-    };
+    let props_argument = format!("props: {props_name}");
     if !component.stateful {
         let props = if component.props.is_some() {
             "props"
@@ -689,6 +719,7 @@ pub fn method(
         ..scope::Context::default()
     };
     let mut params: Vec<String> = Vec::new();
+    let mut text_parameter: Option<String> = None;
     for (i, p) in f.params.iter().enumerate() {
         let ty = match g.extensions.hooks.method_param {
             Some(hook) => hook(g, m, i, p)?,
@@ -709,7 +740,13 @@ pub fn method(
         let binding = scope::bind(g, &mut c, &p.name.name, ty, false)?;
         c.params.push(binding);
         let id = c.bindings[binding].zig.clone();
-        params.push(format!(", {id}: {}", ty.rust(g)));
+        // `ui::TextAction` passes `&str`; the TSX parameter is a string
+        if m.action == Some(tags::Kind::TextAction) && ty == Type::String {
+            params.push(format!(", {id}: &str"));
+            text_parameter = Some(id);
+        } else {
+            params.push(format!(", {id}: {}", ty.rust(g)));
+        }
     }
     if let Some(expected) = &m.callback_params
         && f.params.len() < expected.len()
@@ -721,18 +758,29 @@ pub fn method(
         && !matches!(kind, tags::Kind::Action)
         && f.params.is_empty()
     {
-        params.push(format!(
-            ", _: {}",
-            components::action_value_type(kind).rust(g)
-        ));
+        let ty = match kind {
+            tags::Kind::TextAction => "&str".to_owned(),
+            other => components::action_value_type(other).rust(g).to_owned(),
+        };
+        params.push(format!(", _: {ty}"));
     }
     let body = match &f.body {
         ast::Body::Block(statements) => method_block(g, &mut c, f.loc, statements)?,
         ast::Body::Expr(e) => method_expression(g, &mut c, e)?,
     };
+    let body = match &text_parameter {
+        Some(id) => format!("let {id}: zant::Str = zant::Str::copy({id});\n{body}"),
+        None => body,
+    };
     let finished = scope::finish(g, &c, body)?;
     let name = rust_text::id_at(g, m.name.as_bytes(), 0)?;
-    let receiver = if m.captures.is_empty() {
+    // captures are discovered while emitting the body, so read them back from
+    // the generator rather than from `m` (captures.prepare passes a snapshot)
+    let captures = match index {
+        Some(index) => g.methods[index].captures.clone(),
+        None => m.captures.clone(),
+    };
+    let receiver = if captures.is_empty() {
         "&mut self".to_owned()
     } else {
         format!(
@@ -1020,11 +1068,11 @@ pub fn action_value(
     if !call_argument.is_empty() {
         arguments.push(call_argument.trim_start_matches(", "));
     }
-    let arguments = arguments.join(", ");
-    let arguments = if arguments.is_empty() {
+    let child_arguments = arguments.join(", ");
+    let arguments = if child_arguments.is_empty() {
         String::new()
     } else {
-        format!(", {arguments}")
+        format!(", {child_arguments}")
     };
     if root {
         // root handlers take the runtime state: `ui::action(|s: &mut App| …)`.
@@ -1042,8 +1090,68 @@ pub fn action_value(
         "{constructor}::new({{\n{prefix}let _state = self._state.clone();\n\
          move |_cx{closure_params}| {{\n\
          if let Some(state) = _state.upgrade() {{\n\
-         state.borrow_mut().{name}({arguments});\n\
+         state.borrow_mut().{name}({child_arguments});\n\
          }}\n}}\n}})"
+    ))
+}
+
+/// A callback prop whose signature is not a ui event (`(id: u32) => void`):
+/// `std::rc::Rc<dyn Fn(&mut ui::ActionCx<'_>, …)>` calling the generated
+/// handler with the runtime context (the Rust equivalent of the Zig
+/// `tsx.callback(fn (…) void, self, Class.method)`).
+pub fn callback_value(
+    g: &mut Generator<'_>,
+    c: &mut scope::Context,
+    index: usize,
+    params: &[Type],
+) -> Result<String> {
+    let method = g.methods[index].clone();
+    if method.capture_name.is_some() {
+        super::captures::prepare(g, c, index)?;
+    }
+    let method = g.methods[index].clone();
+    let capture = if method.captures.is_empty() {
+        None
+    } else {
+        Some(super::captures::value(g, &method)?)
+    };
+    let name = rust_text::id_at(g, method.name.as_bytes(), 0)?;
+    let root = g.current_component.is_none();
+    let generator_name = g.name.clone();
+    let root_name = rust_text::id_at(g, generator_name.as_bytes(), 0)?;
+    let mut prefix = String::new();
+    if let Some(capture) = &capture {
+        prefix.push_str(&format!("let _capture = {capture};\n"));
+    }
+    let mut closure_params = String::new();
+    let mut call_args: Vec<String> = Vec::new();
+    if capture.is_some() {
+        call_args.push("&_capture".to_owned());
+    }
+    for (index, ty) in params.iter().enumerate() {
+        closure_params.push_str(&format!(", _a{index}: {}", ty.rust(g)));
+        call_args.push(format!("_a{index}"));
+    }
+    let call_args = call_args.join(", ");
+    let call_args = if call_args.is_empty() {
+        String::new()
+    } else {
+        format!(", {call_args}")
+    };
+    if root {
+        return Ok(format!(
+            "std::rc::Rc::new({{\n{prefix}move |_cx: &mut ui::ActionCx<'_>{closure_params}| {{\n\
+             let _root = _cx.state::<{root_name}>();\n\
+             {root_name}::{name}(_root{call_args})\n}}\n}})"
+        ));
+    }
+    Ok(format!(
+        "std::rc::Rc::new({{\n{prefix}let _state = self._state.clone();\n\
+         move |_cx: &mut ui::ActionCx<'_>{closure_params}| {{\n\
+         if let Some(state) = _state.upgrade() {{\n\
+         state.borrow_mut().{name}({})\n\
+         }}\n}}\n}})",
+        call_args.trim_start_matches(", ")
     ))
 }
 
@@ -1183,7 +1291,7 @@ mod tests {
         let file = generate("types.tsx", &module, &options).expect("types generate");
         assert!(file.source.contains("pub struct Point"), "{}", file.source);
         assert!(
-            file.source.contains("pub const origin: Point"),
+            file.source.contains("pub fn origin() -> Point"),
             "{}",
             file.source
         );

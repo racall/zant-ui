@@ -167,7 +167,7 @@ return zant::Str::copy(&format!("{}:{}", label.clone(), tsx::builtins::string(n)
 #[test]
 fn string_equality_names_the_static_str_variant() {
     // `zant::Str` has several `PartialEq` implementations, so a bare
-    // `zant::Str::copy("a")` would leave Rust's inference ambiguous.
+    // `"a".into()` would leave Rust's inference ambiguous.
     let compiled = generated(r#"function same(name: string): boolean { return name === "zant"; }"#);
     assert_contains(
         &compiled.functions,
@@ -245,7 +245,7 @@ function spread(p: Pair): Pair { return { ...p, a: 2 }; }"#,
         &compiled.functions,
         r#"return Pair {
     a: 1.0f64,
-    b: zant::Str::copy("x"),
+    b: zant::Str::from("x"),
 };"#,
     );
     assert_contains(
@@ -268,7 +268,7 @@ function copy(o: Opt): string { return o.b ?? "none"; }"#,
     assert_contains(&compiled.declarations, "pub b: Option<zant::Str>,");
     assert_contains(
         &compiled.functions,
-        r#"return o.clone().b.clone().unwrap_or_else(|| zant::Str::copy("none"));"#,
+        r#"return o.clone().b.clone().unwrap_or_else(|| zant::Str::from("none"));"#,
     );
 }
 
@@ -285,7 +285,7 @@ function nul(x: number | null): number { return x === null ? 0 : x; }"#,
     assert_contains(&compiled.functions, "return name.clone().unwrap();");
     assert_contains(
         &compiled.functions,
-        r#"return name.clone().unwrap_or_else(|| zant::Str::copy("none"));"#,
+        r#"return name.clone().unwrap_or_else(|| zant::Str::from("none"));"#,
     );
     assert_contains(
         &compiled.functions,
@@ -446,17 +446,19 @@ fn function_types_become_rc_dyn_fn() {
 function make(cb: Cb): number { return 1; }"#,
     );
     // `Rc<dyn Fn>` is neither `Default` nor `PartialEq`, so the struct derives
-    // `Clone` and gets a no-op default closure.
+    // `Clone` and gets a no-op default closure. A callback that is not a ui
+    // action takes the runtime `ActionCx` first (WP-5.9, so handlers can call
+    // it `ui::effect`-queued): `(value: number) => void` is not an event.
     assert_eq!(
         r#"#[derive(Clone)]
 pub struct Cb {
-    pub on_done: std::rc::Rc<dyn Fn(f64)>,
+    pub on_done: std::rc::Rc<dyn Fn(&mut ui::ActionCx<'_>, f64)>,
 }
 
 impl Default for Cb {
     fn default() -> Self {
         Self {
-            on_done: std::rc::Rc::new(|_: f64| ()),
+            on_done: std::rc::Rc::new(|_: &mut ui::ActionCx<'_>, _: f64| ()),
         }
     }
 }
@@ -489,7 +491,7 @@ tsx::builtins::unary(tsx::builtins::Unary::Floor, _arg)
 }) + ({
 let _arg_2: f64 = x;
 let _arg_3: f64 = 1.0f64;
-tsx::builtins::extrema(false, &[_arg_2, _arg_3])
+tsx::builtins::extrema::<f64>(false, &[_arg_2, _arg_3])
 });
 }
 
@@ -502,7 +504,7 @@ fn console_log_is_a_statement_with_js_number_formatting() {
     assert_functions(
         r#"function log(x: number): void { console.log("x", x); }"#,
         r#"pub fn log(x: f64) {
-tsx::builtins::log(&format!("x {}\n", tsx::builtins::string(x)));
+tsx::builtins::log(&[tsx::Any::from(zant::Str::copy(&format!("x {}", tsx::builtins::string(x))))]);
 }
 
 "#,

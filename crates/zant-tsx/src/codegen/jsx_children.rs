@@ -91,17 +91,23 @@ impl ChildList {
     ) -> Result<()> {
         // `Option<Vec<Node>>`: a list-valued optional child
         if let Some(child) = model::optional_child(g, value.ty)
-            && model::element(g, child).is_some()
+            && let Some(element) = model::element(g, child)
         {
             let (_, name) = self.hidden(g, c, b"_nodes", child)?;
-            let unwrapped = Value::new(
-                child,
-                format!(
-                    "if let Some({name}) = {} {{ {name} }} else {{ Vec::new() }}",
+            let converted = Self::list_nodes(name.clone(), element);
+            let code = match guard {
+                Some(cond) => format!(
+                    "if {cond} {{ if let Some({name}) = {value} {{ {converted} }} else {{ Vec::new() }} }} else {{ Vec::new() }}",
+                    value = value.code
+                ),
+                None => format!(
+                    "if let Some({name}) = {} {{ {converted} }} else {{ Vec::new() }}",
                     value.code
                 ),
-            );
-            return self.node(g, c, unwrapped, guard, loc);
+            };
+            self.values
+                .push(Value::new(model::array(g, Type::Node)?, code));
+            return Ok(());
         }
         if let Some(element_type) = model::element(g, value.ty) {
             if element_type == Type::Null {
@@ -111,9 +117,12 @@ impl ChildList {
             if element_type != Type::Node && element_type != Type::OptionalNode {
                 return fail(g, loc, "children arrays must contain nodes");
             }
+            // `nodes!` flattens `Vec<Node>`; a `tsx::List<Node>` (a `children`
+            // prop, a `map` result) and a list of optional nodes become one
+            let converted = Self::list_nodes(value.code, element_type);
             let code = match guard {
-                Some(cond) => format!("if {cond} {{ {} }} else {{ Vec::new() }}", value.code),
-                None => value.code,
+                Some(cond) => format!("if {cond} {{ {converted} }} else {{ Vec::new() }}"),
+                None => converted,
             };
             self.values.push(Value::new(value.ty, code));
             return Ok(());
@@ -130,10 +139,12 @@ impl ChildList {
                 if value.ty == Type::Null {
                     return Ok(());
                 }
-                self.values.push(Value::new(
-                    Type::OptionalNode,
-                    format!("if {cond} {{ {} }} else {{ None }}", value.code),
-                ));
+                let code = if value.ty == Type::Node {
+                    format!("if {cond} {{ Some({}) }} else {{ None }}", value.code)
+                } else {
+                    format!("if {cond} {{ {} }} else {{ None }}", value.code)
+                };
+                self.values.push(Value::new(Type::OptionalNode, code));
             }
             None => self.values.push(value),
         }
@@ -224,6 +235,15 @@ impl ChildList {
         }
         let value = expr::emit(g, c, e, None, true)?;
         self.node(g, c, value, guard, e.loc)
+    }
+
+    /// `tsx::List<T>` → `Vec<Node>` (what `nodes!` takes).
+    fn list_nodes(code: String, element: Type) -> String {
+        if element == Type::OptionalNode {
+            format!("({code}).as_slice().iter().cloned().flatten().collect::<Vec<ui::Node>>()")
+        } else {
+            format!("({code}).as_slice().to_vec()")
+        }
     }
 
     /// Wrap the finished node in a labeled block when conditions were hoisted.

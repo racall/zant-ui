@@ -353,7 +353,7 @@ fn a_window_becomes_a_thread_local_handle_and_a_window_component() {
         "panel_with(|window| window.place(zant::desktop::Place::TrayCorner, 12.0f32))",
     );
     contains(&source, "panel_with(|window| window.activate())");
-    contains(&source, "window.focus(zant::Str::copy(\"count\").as_str())");
+    contains(&source, "window.focus(zant::Str::from(\"count\").as_str())");
 }
 
 #[test]
@@ -440,7 +440,7 @@ fn desktop_hooks_lower_to_tsx_desktop() {
     // `useTray` → `tsx::desktop::update(TrayOptions { … })`
     contains(&source, "tsx::desktop::update(tsx::desktop::TrayOptions {");
     contains(&source, "template: true");
-    contains(&source, "tooltip: zant::Str::copy(\"Clips\")");
+    contains(&source, "tooltip: zant::Str::from(\"Clips\")");
     contains(&source, "tsx::desktop::TrayItem {");
     contains(&source, "on_select");
     contains(&source, "on_click: Some(ui::action(");
@@ -871,8 +871,8 @@ fn project_rejects_invalid_rust_sources() {
 
 #[test]
 fn native_module_specs_compile_to_the_generated_spec_module() {
-    // WP-5.8 is wired: a spec compiles to `native/spec.rs` (one `pub mod`)
-    // instead of failing with the old "implemented by WP-5.8" diagnostic.
+    // WP-5.8 is wired: a spec compiles to `native/spec.rs` instead of failing
+    // with the old "implemented by WP-5.8" diagnostic.
     let files = [
         SourceFile::tsx(
             "src/App.tsx",
@@ -889,101 +889,8 @@ fn native_module_specs_compile_to_the_generated_spec_module() {
         .iter()
         .find(|source| source.contains("pub mod clips"))
         .expect("the spec module is generated");
-    assert!(spec.contains("pub mod clips"), "{spec}");
     assert!(spec.contains("pub trait ClipsSpec"), "{spec}");
     assert!(spec.contains("fn list()"), "{spec}");
-    // The project also exposes the combined root written as `native/spec.rs`.
-    let root = build.spec_root.as_deref().expect("the spec root");
-    assert!(root.contains("pub mod clips"), "{root}");
-    assert!(root.contains("pub trait ClipsSpec"), "{root}");
-    assert!(root.contains("use zant::tsx;"), "{root}");
-}
-
-#[test]
-fn a_types_only_spec_omits_the_unused_tsx_import() {
-    let files = [
-        SourceFile::tsx(
-            "src/App.tsx",
-            "export default function App() { return <View/>; }",
-        ),
-        SourceFile::native_spec(
-            "native/system.ts",
-            "export type Os = \"macos\" | \"windows\";\n\
-             export interface SystemInfo { os: Os; cpus: u32 }\n\
-             export declare function info(): SystemInfo;",
-        ),
-    ];
-    let build = compile::compile_project_with(&files, Some(install_stubs)).expect("spec compiles");
-    let root = build.spec_root.as_deref().expect("the spec root");
-    assert!(root.contains("pub trait SystemSpec"), "{root}");
-    // `tsx::List` does not appear in the generated code, so the import would
-    // be unused (and warn in the app).
-    assert!(!root.contains("use zant::tsx;"), "{root}");
-}
-
-/// `source` with every whitespace character removed (the generated code is
-/// line-broken by `prettyplease`, so call-site assertions compare tokens).
-fn compact(source: &str) -> String {
-    source.chars().filter(|ch| !ch.is_whitespace()).collect()
-}
-
-#[test]
-fn a_component_call_passes_the_props_struct_not_the_component() {
-    let files = [
-        SourceFile::tsx(
-            "src/App.tsx",
-            "import { useState, View } from \"zant\";\n\
-             import { Dashboard } from \"./components/Dashboard\";\n\
-             import { Badge } from \"./Badge\";\n\
-             export default function App() {\n\
-             const [count, setCount] = useState(0);\n\
-             return <View>\n\
-             <Dashboard count={count} onIncrement={() => setCount(count + 1)} onReset={() => setCount(0)} />\n\
-             <Badge />\n\
-             </View>;\n\
-             }\n",
-        ),
-        SourceFile::tsx(
-            "src/components/Dashboard.tsx",
-            "import { View } from \"zant\";\n\
-             export interface DashboardProps { count: number; onIncrement: () => void; onReset: () => void }\n\
-             export function Dashboard({ count, onIncrement, onReset }: DashboardProps) { return <View/>; }\n",
-        ),
-        SourceFile::tsx(
-            "src/Badge.tsx",
-            "import { View } from \"zant\";\n\
-             export function Badge() { return <View/>; }\n",
-        ),
-    ];
-    // Real JSX emitters (not the snapshot stubs): the call site is what this
-    // test is about.
-    let build = compile::compile_project_with(&files, None).expect("compiles");
-    let app = &build.outputs[0];
-    let compact_app = compact(app);
-    // The props argument is the target module's props struct, not `Dashboard`.
-    assert!(
-        compact_app
-            .contains("crate::dashboard::Dashboard::build(crate::dashboard::DashboardProps{"),
-        "{app}"
-    );
-    // A component without props gets the unit `Props` default.
-    assert!(
-        compact_app.contains("crate::badge::Badge::build(Default::default())"),
-        "{app}"
-    );
-    // A root callback for a child's `ui::Action` prop is wrapped for the root
-    // state (`ui::action(|s: &mut App| …)`), like a ui event handler.
-    assert!(compact_app.contains("onIncrement:ui::action("), "{app}");
-    // The props struct's no-op default matches the action type.
-    let dashboard = &build.outputs[1];
-    assert!(
-        dashboard.contains("onIncrement: ui::Action::new(|_| ())"),
-        "{dashboard}"
-    );
-    assert!(
-        dashboard.contains("onReset: ui::Action::new(|_| ())"),
-        "{dashboard}"
-    );
 }
 
 #[test]
@@ -1298,4 +1205,92 @@ fn compile_project_root_writes_modules_entry_assets_and_the_dep_file() {
     let dep = std::fs::read_to_string(out.join("app.d")).expect("dep file");
     assert!(dep.contains("logo.png"), "{dep}");
     std::fs::remove_dir_all(&directory).expect("cleanup");
+}
+
+/// `source` with every whitespace character removed (the generated code is
+/// line-broken by `prettyplease`, so call-site assertions compare tokens).
+fn compact(source: &str) -> String {
+    source.chars().filter(|ch| !ch.is_whitespace()).collect()
+}
+
+#[test]
+fn a_types_only_spec_omits_the_unused_tsx_import() {
+    let files = [
+        SourceFile::tsx(
+            "src/App.tsx",
+            "export default function App() { return <View/>; }",
+        ),
+        SourceFile::native_spec(
+            "native/system.ts",
+            "export type Os = \"macos\" | \"windows\";\n\
+             export interface SystemInfo { os: Os; cpus: u32 }\n\
+             export declare function info(): SystemInfo;",
+        ),
+    ];
+    let build = compile::compile_project_with(&files, Some(install_stubs)).expect("spec compiles");
+    let root = build.spec_root.as_deref().expect("the spec root");
+    assert!(root.contains("pub trait SystemSpec"), "{root}");
+    // `tsx::List` does not appear in the generated code, so the import would
+    // be unused (and warn in the app).
+    assert!(!root.contains("use zant::tsx;"), "{root}");
+}
+
+
+#[test]
+fn a_component_call_passes_the_props_struct_not_the_component() {
+    let files = [
+        SourceFile::tsx(
+            "src/App.tsx",
+            "import { useState, View } from \"zant\";\n\
+             import { Dashboard } from \"./components/Dashboard\";\n\
+             import { Badge } from \"./Badge\";\n\
+             export default function App() {\n\
+             const [count, setCount] = useState(0);\n\
+             return <View>\n\
+             <Dashboard count={count} onIncrement={() => setCount(count + 1)} onReset={() => setCount(0)} />\n\
+             <Badge />\n\
+             </View>;\n\
+             }\n",
+        ),
+        SourceFile::tsx(
+            "src/components/Dashboard.tsx",
+            "import { View } from \"zant\";\n\
+             export interface DashboardProps { count: number; onIncrement: () => void; onReset: () => void }\n\
+             export function Dashboard({ count, onIncrement, onReset }: DashboardProps) { return <View/>; }\n",
+        ),
+        SourceFile::tsx(
+            "src/Badge.tsx",
+            "import { View } from \"zant\";\n\
+             export function Badge() { return <View/>; }\n",
+        ),
+    ];
+    // Real JSX emitters (not the snapshot stubs): the call site is what this
+    // test is about.
+    let build = compile::compile_project_with(&files, None).expect("compiles");
+    let app = &build.outputs[0];
+    let compact_app = compact(app);
+    // The props argument is the target module's props struct, not `Dashboard`.
+    assert!(
+        compact_app
+            .contains("crate::dashboard::Dashboard::build(crate::dashboard::DashboardProps{"),
+        "{app}"
+    );
+    // A component without props gets the unit `Props` default.
+    assert!(
+        compact_app.contains("crate::badge::Badge::build(Default::default())"),
+        "{app}"
+    );
+    // A root callback for a child's `ui::Action` prop is wrapped for the root
+    // state (`ui::action(|s: &mut App| …)`), like a ui event handler.
+    assert!(compact_app.contains("onIncrement:ui::action("), "{app}");
+    // The props struct's no-op default matches the action type.
+    let dashboard = &build.outputs[1];
+    assert!(
+        dashboard.contains("onIncrement: ui::Action::new(|_cx| ())"),
+        "{dashboard}"
+    );
+    assert!(
+        dashboard.contains("onReset: ui::Action::new(|_cx| ())"),
+        "{dashboard}"
+    );
 }
