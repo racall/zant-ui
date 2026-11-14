@@ -60,14 +60,14 @@
 
 | WP | 内容 | 负责人 | 状态 | 备注 |
 |---|---|---|---|---|
-| 2.1 | input + runtime 键盘 / IME / 焦点 / 文本选择 | 组件半完成（随 1.5 并入） | 部分完成 | components/input.rs 全量移植 + 8 测试；剩余：runtime animate 接线、toggle 回调派发、select 弹层命中、input 助手三处重复合并、IME 真机验证 |
+| 2.1 | input + runtime 键盘 / IME / 焦点 / 文本选择 | wp-2-1 | 进行中（worktree wp-2.1） | 组件半已随 1.5 并入；本包负责 6 个已知缺口接线 + tests |
 | 2.2 | toggle、select、image + select 弹层、tooltip | wp-2-2 | 完成（已并入），runtime 接线待 1.4 | 32 个测试（含 raster 像素断言）；`Image::draw_rect` 已加；select/tooltip 的浮层生命周期、image load 调用点在 1.4 |
 | 2.3 | ui.zig 其余构建器、core/icons | wp-2-3a + wp-2-3b | 完成（已并入） | icons + 30 个 builder（builders/ 拆 8 个文件）；53 个 builder 测试；`ui.icon` 与 Zig 一样生成 Vector 节点（Element 无独立 icon 色/描边字段） |
 | 2.4 | memo、localState、portals、effects、commands | wp-2-4（local_state 由 lead 提前完成） | 完成（worktree wp-2.4，待并入） | `core/local_state.rs`（Store/Slot/child_id，Rc<RefCell<T>> + TypeId panic，child_id 与 Zig 钉死值一致）+ `ui/local_state` 包装；`ui::{memo,portals,commands}` 与运行时钩子（`memo_hash`/`memo_build`/`resolve_memo`、`take_portals`、`take_commands_for`/`requeue_command`/`set_command_owner`、`set_build_states`）完成；本模块新增 22 个测试 |
-| 2.5 | menu、modal、segmented、message、shortcut_list、hotkey_input、view、window_controls | — | 待领取 | |
+| 2.5 | menu、modal、segmented、message、shortcut_list、hotkey_input、view、window_controls | wp-2-5 | 进行中（worktree wp-2.5） | |
 | 2.6 | components/list（虚拟列表）+ ListState | — | 待领取 | |
 | 2.7 | 动效接入：presence、FLIP、layout_transition、runtime tick | — | 待领取 | |
-| 2.8 | desktop、store、多窗口 | — | 待领取 | |
+| 2.8 | desktop、store、多窗口 | wp-2-8 | 进行中（worktree wp-2.8） | store.rs 已完成；本包做 desktop + 多窗口 |
 | 2.9 | examples/{declarative,components,gallery}、gallery.zig、app.zig | — | 待领取 | |
 | 2.10 | tests/*_test.zig 对应测试移植 | — | 待领取 | |
 | 2.11 | examples/bench.zig → zant-bench；性能闸门 | — | 待领取 | |
@@ -78,13 +78,13 @@
 |---|---|---|---|---|
 | 3.1 | markdown/remend（522 条夹具） | wp-3-1 | 完成（已并入） | 522/522 夹具通过；5 个 Zig 测试移植 |
 | 3.2 | markdown/parser + blocks/cache/html/safety/highlight | wp-3-2 | 完成（已并入） | 23 个内联测试 + 6/12 个 markdown_test（余 6 个需 render/editor → 3.3）；与 Zig 逐字节差分 15.2MB 输出 sha256 一致 |
-| 3.3 | markdown/render、editor/edit、widgets 的 markdown 部分 | — | 待领取 | |
+| 3.3 | markdown/render、editor/edit、widgets 的 markdown 部分 | wp-3-3 | 进行中（worktree wp-3.3） | |
 | 3.4 | markdown/mermaid | wp-3-4 | 完成（已并入） | 8 测试（Zig 2）；flowchart/sequence/pie + fallback 逐段移植 |
 | 3.5 | math/{parser,symbols,fonts} | wp-3-5 | 完成（已并入） | 16 个 Rust 测试（Zig 2）；`parse(&str) -> Result<Vec<Node>, ParseError>`，Node 为 owned enum；symbols/fonts 数据逐条对照 |
 | 3.6 | math/layout | wp-3-6 | 完成（已并入） | 6 测试（Zig 6）；入口 `layout(&str, Options) -> Drawing`；18 个示例公式排版非空；`math/mod.zig` 的 UI 层（block/render）留给 2.10/3.11 |
 | 3.7 | math/mhchem（823 条夹具，逐字节对齐） | wp-3-7 | 完成（已并入） | 823/823；207 条状态机转移与 Zig 逐条对照；拆成 15 个文件；`to_tex(&str, Machine) -> Result<String, MhchemError>` |
 | 3.8 | pdf/{document,text,renderer,annotations,native}、platform/pdf | wp-3-8 | 完成（已并入） | `Document` Send+Sync（原生层已串行化）；渲染 worker 的 wake 用注入回调（3.9 传 `ui::post_wake`）；缓存返回 `Arc` 快照；Windows PDFium 待验证 |
-| 3.9 | pdf/viewer、ui.pdfPreview | — | 待领取 | |
+| 3.9 | pdf/viewer、ui.pdfPreview | wp-3-9 | 进行中（worktree wp-3.9） | 文档层 + preview builder 已就绪 |
 | 3.10 | db/sqlite → rusqlite + derive(Table) | wp-3-10 | 完成（已并入） | 生成的 SQL 与 Zig 逐字节一致（含迁移 ALTER）；Zig 建的库 Rust 可读已实测；fallback 表名差异登记见待决问题 |
 | 3.11 | examples/{markdown,math,markdown_stream,pdf} | — | 待领取 | |
 
@@ -95,7 +95,7 @@
 | 4.1 | lexer、ast、jsx_text、jsx_entities | wp-4-1 | 完成 | `rust/wp-4.1`；10/10 Rust 测试（Zig 可移植 10 个）；AST 字符串用 `Vec<u8>`（见待决问题）；`jsx_entities_test.zig` 另 2 个依赖 parser/compile 的测试待 4.2/4.3 补 |
 | 4.2 | parser、expr_parser、jsx_parser、type_parser、loop_parser、import_parser、react_compat | wp-4-2 | 完成（已并入） | 33 测试；`dump_program`（确定性 AST dump，格式见报告）；仓库 32 个 testdata + examples/tsx 全部可解析 |
 | 4.3 | hooks/{expand,rewrite,resolve,leftover} | wp-4-3 | 完成（已并入） | 41 个 zant-tsx 测试；5/5 Zig hooks 测试同名移植；真实 tests/tsx/hooks 项目与 Zig 编译器输出逐名对照 |
-| 4.4 | tags、tag_aliases、string_method_names、诊断 | — | 待领取 | |
+| 4.4 | tags、tag_aliases、string_method_names、诊断 | wp-4-4 | 进行中（worktree wp-4.4） | |
 
 ### M5 TSX 后端与运行时
 
