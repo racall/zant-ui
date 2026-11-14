@@ -777,6 +777,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
+ "toml",
  "zant-build",
  "zant-tsx",
 ]
@@ -789,6 +790,13 @@ dependencies = [
  "zant",
  "zant-build",
  "zant-tsx",
+]
+
+[[package]]
+name = "zant-hot-host"
+version = "0.1.0"
+dependencies = [
+ "zant-sys",
 ]
 
 [[package]]

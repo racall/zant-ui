@@ -57,7 +57,7 @@ fn no_arguments_prints_the_usage_text() {
     assert!(text.starts_with("用法: zant <命令>"), "{text}");
     for line in [
         "create <项目名>",
-        "run [--watch]",
+        "run ",
         "compile [--release]",
         "package",
         "build [配置文件]",

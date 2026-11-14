@@ -117,13 +117,22 @@ fn main() {
     // ZANT_NATIVE_SHARED=<dir>: one shared library instead of static linking
     // (hot reload: the host and the replaceable UI library share it).
     if let Some(dir) = shared::requested() {
-        LINK_STATIC.store(false, std::sync::atomic::Ordering::Relaxed);
-        let objects = match target_os.as_str() {
-            "macos" => compile_macos(&root, &sources),
-            "windows" => compile_windows(&root, &sources),
-            other => unreachable!("checked above: {other}"),
-        };
-        shared::link(&root, &target_os, &dir, &objects);
+        // Every build that points at the same directory (the hot-reload host
+        // and each app's UI library) shares one library: compile it once per
+        // native source state.
+        let hash = prebuilt::source_hash(&root, &sources)
+            .unwrap_or_else(|reason| panic!("zant-sys: {reason}"));
+        if !shared::is_current(&dir, &target_os, &hash) {
+            LINK_STATIC.store(false, std::sync::atomic::Ordering::Relaxed);
+            let objects = match target_os.as_str() {
+                "macos" => compile_macos(&root, &sources),
+                "windows" => compile_windows(&root, &sources),
+                other => unreachable!("checked above: {other}"),
+            };
+            shared::link(&root, &target_os, &dir, &objects);
+            shared::write_stamp(&dir, &hash);
+        }
+        shared::emit_link(&dir);
         return;
     }
 

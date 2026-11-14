@@ -79,11 +79,15 @@ impl Instance {
         runtime.invalidate();
     }
 
-    /// Stops the app: effects, timers and desktop registrations of this
-    /// version end here. The native window stays with the host.
-    pub fn stop(self) {
-        let app = self.core.borrow().shared_app();
-        app.borrow_mut().on_exit();
+    /// Stops the app: timers and desktop registrations of this version end
+    /// here; `exiting` also runs the app's exit hooks (the app ends, it is not
+    /// being reloaded). The native window stays with the host.
+    pub fn stop(self, exiting: bool) {
+        if exiting {
+            let app = self.core.borrow().shared_app();
+            app.borrow_mut().on_exit();
+        }
+        crate::tsx::timers::set_running(false);
         crate::ui::app::stop(&self.core);
     }
 }
@@ -142,13 +146,13 @@ pub unsafe extern "C" fn api_notice(instance: *mut c_void, text: *const u8, len:
 
 /// # Safety
 /// As [`api_save`]; the instance must not be used afterwards.
-pub unsafe extern "C" fn api_destroy(instance: *mut c_void) {
+pub unsafe extern "C" fn api_destroy(instance: *mut c_void, exiting: i32) {
     if instance.is_null() {
         return;
     }
     // SAFETY: see above.
     let instance = unsafe { Box::from_raw(instance as *mut Instance) };
-    instance.stop();
+    instance.stop(exiting != 0);
 }
 
 /// Exports the hot-reload entry of a UI library.
@@ -177,13 +181,22 @@ macro_rules! hot_entry {
             state_len: usize,
             host: *mut $crate::hot::sys::ZantHost,
         ) -> *mut ::std::ffi::c_void {
-            let (app, options) = $prepare;
             // SAFETY: the host passes a valid buffer (or null).
             let state = unsafe { $crate::hot::state_text(state, state_len) };
-            let (instance, table) = $crate::hot::Instance::start(app, options, window, state);
-            // SAFETY: the host passes a valid out pointer.
-            unsafe { *host = table };
-            ::std::boxed::Box::into_raw(::std::boxed::Box::new(instance)).cast()
+            // A panic must not unwind into the host: report it as a failed
+            // start (null) so the host can keep the previous version.
+            let started = ::std::panic::catch_unwind(::std::panic::AssertUnwindSafe(|| {
+                let (app, options) = $prepare;
+                $crate::hot::Instance::start(app, options, window, state)
+            }));
+            match started {
+                Ok((instance, table)) => {
+                    // SAFETY: the host passes a valid out pointer.
+                    unsafe { *host = table };
+                    ::std::boxed::Box::into_raw(::std::boxed::Box::new(instance)).cast()
+                }
+                Err(_) => ::std::ptr::null_mut(),
+            }
         }
 
         #[unsafe(no_mangle)]

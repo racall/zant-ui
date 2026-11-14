@@ -1,0 +1,15 @@
+[package]
+name = "zant-hot-host"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Hot-reload host of Zant UI: owns the window, swaps the app's UI library"
+publish = false
+
+[[bin]]
+name = "zant-hot-host"
+path = "src/main.rs"
+
+[dependencies]
+zant-sys.workspace = true

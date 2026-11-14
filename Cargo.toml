@@ -7,6 +7,7 @@ members = [
     "crates/zant-tsx",
     "crates/zant-build",
     "crates/zant-cli",
+    "crates/zant-hot-host",
     "crates/zant-examples",
     # TSX example apps: TSX → Rust in their own `build.rs`
     # (`zant_build::try_tsx_app()`, the `scaffold/template-ts` shape), built
@@ -46,6 +47,8 @@ prettyplease = "0.3"
 # CLI
 clap = { version = "4.6", features = ["derive"] }
 notify = "8.2"
+# CLI: reads an app's Cargo.toml for the hot-reload crate
+toml = "1.2"
 
 # internal crates
 zant-sys = { path = "crates/zant-sys", version = "0.1.0" }

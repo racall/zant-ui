@@ -50,6 +50,7 @@ pub struct ZantHotApi {
     pub save: unsafe extern "C" fn(instance: *mut c_void, sink: ZantHotSink, ctx: *mut c_void),
     /// Shows a message over the UI (a build error); empty text hides it.
     pub notice: unsafe extern "C" fn(instance: *mut c_void, text: *const u8, len: usize),
-    /// Stops the app and frees the instance. The window stays.
-    pub destroy: unsafe extern "C" fn(instance: *mut c_void),
+    /// Stops the app and frees the instance; the window stays. `exiting` is
+    /// non-zero when the app ends (its exit hooks run), zero for a reload.
+    pub destroy: unsafe extern "C" fn(instance: *mut c_void, exiting: i32),
 }

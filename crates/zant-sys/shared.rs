@@ -99,8 +99,33 @@ pub fn link(root: &Path, target_os: &str, dir: &Path, objects: &[PathBuf]) {
         "windows" => link_windows(root, dir, objects),
         other => panic!("zant-sys: unsupported target OS {other}"),
     }
+}
+
+/// Links the crate against the shared library in `dir`.
+pub fn emit_link(dir: &Path) {
     println!("cargo:rustc-link-search=native={}", dir.display());
     println!("cargo:rustc-link-lib=dylib={LIBRARY}");
+}
+
+/// The file in `dir` holding the native source hash the library was built from.
+fn stamp_path(dir: &Path) -> PathBuf {
+    dir.join(format!("{LIBRARY}.source-hash"))
+}
+
+/// Whether `dir` holds a library built from the native sources with `hash`.
+pub fn is_current(dir: &Path, target_os: &str, hash: &str) -> bool {
+    let library = match target_os {
+        "macos" => dir.join(format!("lib{LIBRARY}.dylib")),
+        _ => dir.join(format!("{LIBRARY}.lib")),
+    };
+    library.is_file()
+        && std::fs::read_to_string(stamp_path(dir)).is_ok_and(|stamp| stamp.trim() == hash)
+}
+
+pub fn write_stamp(dir: &Path, hash: &str) {
+    let path = stamp_path(dir);
+    std::fs::write(&path, hash)
+        .unwrap_or_else(|error| panic!("zant-sys: write {}: {error}", path.display()));
 }
 
 fn link_macos(root: &Path, dir: &Path, objects: &[PathBuf]) {
@@ -110,7 +135,9 @@ fn link_macos(root: &Path, dir: &Path, objects: &[PathBuf]) {
     compiler.cpp(true);
     let mut command = compiler.get_compiler().to_command();
     command.arg("-dynamiclib").arg("-o").arg(&output);
-    command.arg(format!("-Wl,-install_name,@rpath/lib{LIBRARY}.dylib"));
+    // An absolute install name: the host and every UI library find the one
+    // copy without rpaths or DYLD_* variables.
+    command.arg(format!("-Wl,-install_name,{}", output.display()));
     command.args(objects);
     command.arg(format!("-L{}", skia.display()));
     for lib in super::MACOS_SKIA_LIBS {

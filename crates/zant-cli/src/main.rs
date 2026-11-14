@@ -12,6 +12,7 @@ mod bundle;
 mod create;
 mod distribute;
 mod generate;
+mod hot;
 #[allow(dead_code)]
 mod icon;
 mod png;
@@ -41,7 +42,7 @@ pub const IS_WINDOWS: bool = cfg!(windows);
 /// prints when zant is called without a command.
 pub const USAGE: &str = "用法: zant <命令>
   create <项目名>       生成项目（TSX + Rust）
-  run [--watch]         编译并运行（--watch 热更新）
+  run                   编译并运行，改动后界面原地刷新（--no-hot 关闭，--watch 改为重启）
   compile [--release]   只编译
   package               生成本机测试用的 .app / 程序目录
   build [配置文件]      发布构建：签名、公证、DMG / 安装包，或提交商店
@@ -494,7 +495,7 @@ fn is_benign_log(line: &str) -> bool {
 }
 
 /// Forwards the app's stderr, dropping the benign framework lines.
-fn filter_stderr(stderr: std::process::ChildStderr) {
+pub(crate) fn filter_stderr(stderr: std::process::ChildStderr) {
     use std::io::BufRead as _;
     let lines = std::io::BufReader::new(stderr).lines();
     for line in lines.map_while(Result::ok) {
@@ -649,9 +650,12 @@ enum Command {
     },
     /// 编译并运行
     Run {
-        /// 热更新：改动后自动重新编译并重启
+        /// 改动后重新编译并重启应用（不保留窗口）
         #[arg(long)]
         watch: bool,
+        /// 只运行一次，不监听改动
+        #[arg(long = "no-hot")]
+        no_hot: bool,
         /// Release 构建
         #[arg(long)]
         release: bool,
@@ -707,11 +711,17 @@ fn main() {
             sandbox,
             sign,
         }),
-        Command::Run { watch, release } => {
+        Command::Run {
+            watch,
+            no_hot,
+            release,
+        } => {
             if watch {
                 run::cmd_watch(release)
-            } else {
+            } else if no_hot || !hot::available() {
                 run::cmd_run(release)
+            } else {
+                hot::cmd_hot(release)
             }
         }
         Command::Compile { release } => run::cmd_compile(release),
@@ -769,7 +779,7 @@ mod tests {
     fn usage_lists_every_command() {
         for needle in [
             "create <项目名>",
-            "run [--watch]",
+            "run ",
             "compile [--release]",
             "package",
             "build [配置文件]",
