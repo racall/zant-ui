@@ -9,7 +9,7 @@
 | 项 | 值 |
 |---|---|
 | 分支 | `feat/rust-port`（全部 WP 直接合入这里，提交带 `WP-x.y:` 前缀） |
-| Rust 测试 | `cargo test --workspace` 全绿：**~490 个**（lib 346 + 集成 54 + zant-tsx 41 + examples 5） |
+| Rust 测试 | `cargo test --workspace` 全绿：**lib 427 + 集成 66 + zant-tsx 53 + 示例 5 ≈ 551** |
 | Zig 测试 | `zig build test` 仍全绿（Zig 版未改行为，只加了 `ZANT_WINDOW_SIZE` 钩子与 `ZANT_STATIC_DATA` 原生补丁） |
 | 质量门 | `cargo fmt --all -- --check` 干净；`cargo clippy --workspace --all-targets -- -D warnings` 0 告警 |
 | 已完成 | M0 全部（0.1 macOS/0.2/0.3/0.4/0.5）、1.1a–d、1.2、1.3、2.2、2.3、2.4、3.1、3.2、3.4、3.5、3.6、3.7、3.8、3.10、4.1、4.2、4.3、5.1 |
@@ -64,11 +64,11 @@
 | 2.2 | toggle、select、image + select 弹层、tooltip | wp-2-2 | 完成（已并入），runtime 接线待 1.4 | 32 个测试（含 raster 像素断言）；`Image::draw_rect` 已加；select/tooltip 的浮层生命周期、image load 调用点在 1.4 |
 | 2.3 | ui.zig 其余构建器、core/icons | wp-2-3a + wp-2-3b | 完成（已并入） | icons + 30 个 builder（builders/ 拆 8 个文件）；53 个 builder 测试；`ui.icon` 与 Zig 一样生成 Vector 节点（Element 无独立 icon 色/描边字段） |
 | 2.4 | memo、localState、portals、effects、commands | wp-2-4（local_state 由 lead 提前完成） | 完成（worktree wp-2.4，待并入） | `core/local_state.rs`（Store/Slot/child_id，Rc<RefCell<T>> + TypeId panic，child_id 与 Zig 钉死值一致）+ `ui/local_state` 包装；`ui::{memo,portals,commands}` 与运行时钩子（`memo_hash`/`memo_build`/`resolve_memo`、`take_portals`、`take_commands_for`/`requeue_command`/`set_command_owner`、`set_build_states`）完成；本模块新增 22 个测试 |
-| 2.5 | menu、modal、segmented、message、shortcut_list、hotkey_input、view、window_controls | wp-2-5 | 完成（worktree wp-2.5，待并入） | 8 个 builder + 选项结构体（含 `TsxProps`）+ 47 个新测试（Zig 0 个 test 块：全部为新增结构 / raster 断言）；`ui::*` 导出待 lead 在 `ui/mod.rs` 加 8 行（见待决问题 4）；`desktop.Shortcut` 子集暂放 `components/hotkey_input.rs`（见待决问题 5） |
+| 2.5 | menu、modal、segmented、message、shortcut_list、hotkey_input、view、window_controls | wp-2-5 | 完成（已并入） | 8 个 builder + 选项结构体（含 `TsxProps`）+ 47 个新测试（Zig 0 个 test 块：全部为新增结构 / raster 断言）；`ui::*` 导出待 lead 在 `ui/mod.rs` 加 8 行（见待决问题 4）；`desktop.Shortcut` 子集暂放 `components/hotkey_input.rs`（见待决问题 5） |
 | 2.6 | components/list（虚拟列表）+ ListState | — | 待领取 | |
 | 2.7 | 动效接入：presence、FLIP、layout_transition、runtime tick | — | 待领取 | |
 | 2.8 | desktop、store、多窗口 | wp-2-8 | 进行中（worktree wp-2.8） | store.rs 已完成；本包做 desktop + 多窗口 |
-| 2.9 | examples/{declarative,components,gallery}、gallery.zig、app.zig | — | 待领取 | |
+| 2.9 | examples/{declarative,components,gallery}、gallery.zig、app.zig | wp-2-9 | 进行中（worktree wp-2.9） | declarative 已作为 zant-demo 完成；本包做 components + gallery |
 | 2.10 | tests/*_test.zig 对应测试移植 | — | 待领取 | |
 | 2.11 | examples/bench.zig → zant-bench；性能闸门 | — | 待领取 | |
 
@@ -116,7 +116,7 @@
 
 | WP | 内容 | 负责人 | 状态 | 备注 |
 |---|---|---|---|---|
-| 6.1 | tools/zant → zant-cli | — | 待领取 | |
+| 6.1 | tools/zant → zant-cli | wp-6-1 | 进行中（worktree wp-6.1） | |
 | 6.2 | zant-build（tsx_app、图标、manifest、pdfium） | — | 待领取 | |
 | 6.3 | scaffold/template-ts | — | 待领取 | |
 | 6.4 | package 脚本产物路径 | — | 待领取 | |
