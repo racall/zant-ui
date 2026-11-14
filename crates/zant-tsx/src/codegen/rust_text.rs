@@ -270,6 +270,10 @@ impl Format {
                 self.pattern.push(*byte);
             }
         }
+        // Staged port fix (M7.1): a literal after/before a value means the
+        // pattern is no longer just `{}`; without this the literal text was
+        // dropped (`"a" + x` and `${x} MB` lost their text).
+        self.only_string = false;
     }
 
     pub fn value(&mut self, g: &mut Generator<'_>, raw: Value, loc: ast::Loc) -> Result<()> {

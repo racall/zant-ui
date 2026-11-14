@@ -555,6 +555,22 @@ fn prepare_imports(
         }
         if source == "zant" || source == "react" {
             for imported in &import.names {
+                // Staged port fix (M7.1): an in-memory image handle. Zig specs
+                // imported `Image` from "zant"; Rust maps it to the JSX hooks'
+                // `Rc<zant::image::Image>` (the type `<Image image>` takes).
+                if imported.imported.name == b"Image" {
+                    let local = rust_text::id_at(g, &imported.local.name, imported.local.loc)?;
+                    let ty = model::add(
+                        g,
+                        model::Info {
+                            kind: model::InfoKind::Object,
+                            rust: "std::rc::Rc<zant::image::Image>".to_owned(),
+                            ..model::Info::default()
+                        },
+                    )?;
+                    g.type_aliases.push(TypeAlias { name: local, ty });
+                    continue;
+                }
                 let Some(ty) = types::numeric_name(&imported.imported.name) else {
                     return fail(
                         g,

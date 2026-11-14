@@ -15,7 +15,7 @@ pub struct Todo {
     pub done: bool,
     pub note: Option<zant::Str>,
 }
-#[derive(Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Filter {
     #[default]
     All,

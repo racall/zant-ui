@@ -13,7 +13,7 @@ pub struct ButtonLook {
     pub variant: _Enum1,
     pub size: _Enum2,
 }
-#[derive(Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum _Enum1 {
     #[default]
     Primary,
@@ -27,7 +27,7 @@ impl _Enum1 {
         }
     }
 }
-#[derive(Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum _Enum2 {
     #[default]
     Small,

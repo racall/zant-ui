@@ -26,6 +26,17 @@ use super::actions::{
 #[derive(Clone)]
 pub struct Node(Rc<Element>);
 
+impl PartialEq for Node {
+    /// Node identity: generated TSX props derive `PartialEq` and compare the
+    /// node fields (a rebuilt tree makes a new node, like React's element
+    /// identity).
+    fn eq(&self, other: &Node) -> bool {
+        Rc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+impl Eq for Node {}
+
 /// A node that is a `MemoBuild` subtree (`ui::memo`, WP-2.4).
 #[derive(Clone)]
 pub struct MemoBuild(Rc<dyn Fn() -> Node>);

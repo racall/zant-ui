@@ -342,8 +342,9 @@ pub fn type_ref(g: &mut Generator<'_>, reference: &ast::TypeRef, allow_void: boo
         g,
         reference.loc,
         format!(
-            "unsupported type `{}`; use number, boolean, string, Uint8Array, or a numeric type",
-            String::from_utf8_lossy(name)
+            "unsupported type `{}` in module `{}`; use number, boolean, string, Uint8Array, or a numeric type",
+            String::from_utf8_lossy(name),
+            g.name
         ),
     )
 }
@@ -427,14 +428,22 @@ pub fn coerce(g: &mut Generator<'_>, v: Value, t: Type, loc: ast::Loc) -> Result
         // widening (`u8` → `u32`): Rust needs an explicit `as` cast
         return Ok(Value {
             ty: t,
-            code: format!("({} as {})", concrete(g, v)?.code, t.rust(g)),
+            code: format!(
+                "({} as {})",
+                rust_text::operand(&concrete(g, v)?, Precedence::Cast, false),
+                t.rust(g)
+            ),
             ..Value::default()
         });
     }
     if v.ty.integer() && t.float() {
         return Ok(Value {
             ty: t,
-            code: format!("({} as {})", concrete(g, v)?.code, t.rust(g)),
+            code: format!(
+                "({} as {})",
+                rust_text::operand(&concrete(g, v)?, Precedence::Cast, false),
+                t.rust(g)
+            ),
             inference: Inference::ResultLocation,
             ..Value::default()
         });
@@ -442,7 +451,11 @@ pub fn coerce(g: &mut Generator<'_>, v: Value, t: Type, loc: ast::Loc) -> Result
     if v.ty.float() && t.float() {
         return Ok(Value {
             ty: t,
-            code: format!("({} as {})", concrete(g, v)?.code, t.rust(g)),
+            code: format!(
+                "({} as {})",
+                rust_text::operand(&concrete(g, v)?, Precedence::Cast, false),
+                t.rust(g)
+            ),
             inference: Inference::ResultLocation,
             ..Value::default()
         });
@@ -522,7 +535,11 @@ pub fn explicit_cast(
     let source = concrete(g, source)?;
     Ok(Value {
         ty: target,
-        code: format!("({} as {})", source.code, target.rust(g)),
+        code: format!(
+            "({} as {})",
+            rust_text::operand(&source, Precedence::Cast, false),
+            target.rust(g)
+        ),
         inference: Inference::ResultLocation,
         ..Value::default()
     })

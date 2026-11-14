@@ -18,7 +18,7 @@ pub mod clips {
         pub pinned: Option<bool>,
     }
 
-    #[derive(Clone, Copy, Default, PartialEq, Eq)]
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
     pub enum CopyResult {
         #[default]
         Ok,
@@ -62,7 +62,7 @@ pub mod clips {
 /// The spec `native/kinds.ts`: types shared with other specs.
 #[allow(dead_code)]
 pub mod kinds {
-    #[derive(Clone, Copy, Default, PartialEq, Eq)]
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
     pub enum Kind {
         #[default]
         Text,

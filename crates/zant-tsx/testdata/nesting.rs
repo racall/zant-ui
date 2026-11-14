@@ -133,9 +133,10 @@ impl ui::App for App {
                 ..Default::default() }),
                 tsx::text::span((zant::Str::from("open the docs")).as_str(),
                 tsx::text::SpanStyle { size : Some(16.0f32), link : Some(0),
-                ..Default::default() }), tsx::text::span((if self.clicks > 0.0f64 {
-                zant::Str::copy(& format!(" ({})", tsx::builtins::string(self.clicks))) }
-                else { zant::Str::from("") }).as_str(), tsx::text::SpanStyle { size :
+                ..Default::default() }), tsx::text::span((zant::Str::copy(&
+                format!("{}.", if self.clicks > 0.0f64 { zant::Str::copy(&
+                format!(" ({})", tsx::builtins::string(self.clicks))) } else {
+                zant::Str::from("") }))).as_str(), tsx::text::SpanStyle { size :
                 Some(16.0f32), ..Default::default() })], on_link :
                 Some(tsx::text::links(vec![Some(ui::action(| s : & mut App | s
                 ._on_click2()))])), ..Default::default() }), ui::row(ui::BoxOptions { gap

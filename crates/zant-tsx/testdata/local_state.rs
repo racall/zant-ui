@@ -125,8 +125,8 @@ impl Section {
             children: nodes![
                 Counter::build(CounterProps { label : self.props.label.clone(), },
                 tsx::site_id(self._id, "Counter", 1)), Counter::build(CounterProps {
-                label : self.props.label.clone(), }, tsx::site_id(self._id, "Counter",
-                2))
+                label : zant::Str::copy(& format!("{} 2", self.props.label.clone())), },
+                tsx::site_id(self._id, "Counter", 2))
             ],
             ..Default::default()
         });

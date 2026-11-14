@@ -520,7 +520,7 @@ fn enumeration(g: &mut Generator<'_>, members: &[Vec<u8>], name: Option<&[u8]>) 
     if !names.is_empty() {
         variants[0] = format!("    #[default]\n{}", variants[0]);
         declaration.push_str(&format!(
-            "#[derive(Clone, Copy, Default, PartialEq, Eq)]\npub enum {rust} {{\n{}\n}}\n\n",
+            "#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]\npub enum {rust} {{\n{}\n}}\n\n",
             variants.join("\n")
         ));
         declaration.push_str(&format!(
@@ -822,7 +822,7 @@ mod tests {
             assert!(ty.copy(g));
             let declaration = declarations(g);
             assert!(
-                declaration.contains("#[derive(Clone, Copy, Default, PartialEq, Eq)]"),
+                declaration.contains("#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]"),
                 "{declaration}"
             );
             assert!(declaration.contains("InProgress,"), "{declaration}");

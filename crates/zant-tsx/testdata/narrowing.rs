@@ -51,7 +51,7 @@ pub fn describe(s: Session) -> zant::Str {
         }
     }
     return if s.clone().peer.clone().unwrap().files.clone().len() > 0usize {
-        initials.clone()
+        zant::Str::copy(&format!("{}+files", initials.clone()))
     } else {
         initials.clone()
     };

@@ -512,6 +512,76 @@ fn resolve(g: &mut Generator<'_>, scope: usize, name: &str) -> Result<Option<Typ
                 let imported = String::from_utf8_lossy(&n.imported.name).into_owned();
                 return rust_imports::named_in(g, &source, &imported);
             }
+            // Staged port fix (M7.1): a native spec type (`import type { Kind }
+            // from "native/clips"`) used inside this file's own type
+            // declarations (an interface field). `process_native` registers the
+            // import for plain annotations; a declaration resolved here runs in
+            // `in_scope`, where `model::named` goes through this function and
+            // the import has to be resolved from the spec itself.
+            if let Some(spec_name) = source.strip_prefix("native/") {
+                let Some(project) = app_state::project() else {
+                    return Ok(None);
+                };
+                let specs: Vec<crate::native_specs::Spec<'_>> = project
+                    .modules
+                    .iter()
+                    .filter(|module| module.native)
+                    .map(|module| crate::native_specs::Spec {
+                        name: module.name.as_str(),
+                        module: &module.module,
+                    })
+                    .collect();
+                let spec = match crate::native_specs::find(&specs, spec_name) {
+                    Some(spec) => *spec,
+                    None => return Ok(None),
+                };
+                let imported = String::from_utf8_lossy(&n.imported.name).into_owned();
+                let spec_scope = push_scope(
+                    g,
+                    Scope {
+                        decls: spec.module.types.clone(),
+                        alias: crate::native_specs::app_spec_path(spec_name),
+                        imports: spec.module.imports.clone(),
+                        native: true,
+                    },
+                );
+                return resolve(g, spec_scope, &imported);
+            }
+            // Staged port fix (M7.1): inside a native spec, a relative import
+            // names another spec's type (`import type { Kind } from "./clips"`),
+            // which the generated `native/spec.rs` spells `super::clips::Kind`.
+            if native && is_relative(&source) {
+                let Some(project) = app_state::project() else {
+                    return Ok(None);
+                };
+                let specs: Vec<crate::native_specs::Spec<'_>> = project
+                    .modules
+                    .iter()
+                    .filter(|module| module.native)
+                    .map(|module| crate::native_specs::Spec {
+                        name: module.name.as_str(),
+                        module: &module.module,
+                    })
+                    .collect();
+                let name = stem(&source);
+                let Some(spec) = crate::native_specs::find(&specs, &name).copied() else {
+                    return Ok(None);
+                };
+                let nested = push_scope(
+                    g,
+                    Scope {
+                        decls: spec.module.types.clone(),
+                        // app code names the generated spec modules absolutely
+                        // (`crate::native::spec::<name>`), unlike `native/spec.rs`
+                        // itself where the sibling is `super::<name>`
+                        alias: crate::native_specs::app_spec_path(&name),
+                        imports: spec.module.imports.clone(),
+                        native: true,
+                    },
+                );
+                let imported = String::from_utf8_lossy(&n.imported.name).into_owned();
+                return resolve(g, nested, &imported);
+            }
             if !is_relative(&source) || crate::assets::is_asset(&source) {
                 return Ok(None);
             }

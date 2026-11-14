@@ -8,7 +8,7 @@ use zant::nodes;
 use zant::tsx;
 #[allow(unused_imports)]
 use zant::ui;
-#[derive(Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Mode {
     #[default]
     A,

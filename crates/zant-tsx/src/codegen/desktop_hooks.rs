@@ -93,6 +93,27 @@ fn callback(g: &mut Generator<'_>, e: &ast::Expr) -> Result<()> {
                     loc: e.loc,
                     data: ast::ExprData::Arrow(Box::new(function)),
                 }
+            } else if crate::codegen::functions::find_index(g, name).is_some() {
+                // Staged port fix (M7.1): a plain function passed by name is
+                // called, like `events::function_arrow` does for JSX handlers.
+                let call = ast::Expr {
+                    loc: e.loc,
+                    data: ast::ExprData::Call(ast::Call {
+                        callee: Box::new(e.clone()),
+                        type_args: Vec::new(),
+                        args: Vec::new(),
+                    }),
+                };
+                ast::Expr {
+                    loc: e.loc,
+                    data: ast::ExprData::Arrow(Box::new(ast::Function {
+                        loc: e.loc,
+                        name: Vec::new(),
+                        params: Vec::new(),
+                        ret: None,
+                        body: ast::Body::Expr(Box::new(call)),
+                    })),
+                }
             } else {
                 return fail(
                     g,

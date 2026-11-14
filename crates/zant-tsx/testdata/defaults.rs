@@ -15,7 +15,7 @@ pub struct BadgeProps {
     pub tone: Option<_Enum2>,
     pub bold: Option<bool>,
 }
-#[derive(Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum _Enum2 {
     #[default]
     Info,

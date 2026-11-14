@@ -225,6 +225,17 @@ impl Image {
     }
 }
 
+/// Two handles are equal when they are the same image (the runtime identity,
+/// like comparing the handles): generated TSX props derive `PartialEq` and
+/// compare image fields.
+impl PartialEq for Image {
+    fn eq(&self, other: &Image) -> bool {
+        self.id == other.id
+    }
+}
+
+impl Eq for Image {}
+
 impl Clone for Image {
     /// `clone` is `retain`: another owned handle to the same pixels.
     fn clone(&self) -> Self {

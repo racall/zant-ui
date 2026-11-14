@@ -318,7 +318,12 @@ pub fn node(
     let value = expr::emit(g, c, e, None, false)?;
     let optional = prop.kind == Kind::OptionalNode;
     if value.ty == Type::Node {
-        return Ok(value.code);
+        // the option field is `Option<Node>`: wrap the element
+        return Ok(if optional {
+            format!("Some({})", value.code)
+        } else {
+            value.code
+        });
     }
     if optional && (value.ty == Type::OptionalNode || value.ty == Type::Null) {
         return Ok(types::coerce(g, value, Type::OptionalNode, e.loc)?.code);

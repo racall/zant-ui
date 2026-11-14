@@ -122,7 +122,7 @@ impl Events {
         }
         {
             let p_2: zant::Str = self.name.clone();
-            self.name = p_2.clone();
+            self.name = zant::Str::copy(&format!("{}!", p_2.clone()));
         }
     }
     fn _set_name(&mut self, value: &str) {

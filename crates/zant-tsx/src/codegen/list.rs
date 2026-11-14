@@ -291,7 +291,7 @@ pub fn emit(g: &mut Generator<'_>, c: &mut scope::Context, jsx: &ast::Jsx) -> Re
     g.loop_depth -= 1;
     g.scroll_depth -= 1;
     let item_id = match arrow(g, jsx, "keyExtractor", false)? {
-        Some(key_extractor) => Some(id_closure(g, key_extractor, element, "_ids")?),
+        Some(key_extractor) => Some(id_closure(g, key_extractor, element, "_ids", &captures)?),
         None => None,
     };
     let mut capture_decls = String::new();
@@ -469,6 +469,9 @@ fn item_closure(
         let binding = scope::bind(g, &mut c, &capture.name, capture.ty, false)?;
         c.bindings[binding].zig = capture.local.clone();
     }
+    // inside the closure prop reads go through the `_cap_props` local, not
+    // `self.props` (the closure outlives the `&mut self` borrow)
+    let component = std::mem::take(&mut g.current_component);
     let prologue = bind_item(g, &mut c, function, element, rows)?;
     let mut body = prologue;
     match &function.body {
@@ -488,6 +491,7 @@ fn item_closure(
         }
     }
     let finished = scope::finish(g, &c, body)?;
+    g.current_component = component;
     Ok(format!(
         "std::rc::Rc::new(move |_index: usize| -> ui::Node {{\n{finished}}})"
     ))
@@ -500,12 +504,18 @@ fn id_closure(
     function: &ast::Function,
     element: Type,
     rows: &str,
+    captures: &[Capture],
 ) -> Result<String> {
     let mut c = scope::Context {
         render: false,
         ret: Type::U64,
         ..scope::Context::default()
     };
+    for capture in captures {
+        let binding = scope::bind(g, &mut c, &capture.name, capture.ty, false)?;
+        c.bindings[binding].zig = capture.local.clone();
+    }
+    let component = std::mem::take(&mut g.current_component);
     let prologue = bind_item(g, &mut c, function, element, rows)?;
     let e = match &function.body {
         ast::Body::Expr(e) => e,
@@ -527,6 +537,7 @@ fn id_closure(
         return fail(g, e.loc, "keyExtractor must return a string or a number");
     };
     let finished = scope::finish(g, &c, format!("{prologue}return {id};\n"))?;
+    g.current_component = component;
     Ok(format!(
         "std::rc::Rc::new(move |_index: usize| -> u64 {{\n{finished}}})"
     ))
@@ -557,6 +568,31 @@ fn collect_captures(
                 name,
                 local,
                 ty,
+                init,
+            });
+            continue;
+        }
+        if let Some(component) = g.current_component.map(|index| g.components[index].clone())
+            && component.destructure.is_empty()
+            && !component.param.is_empty()
+            && component.param.as_bytes() == name.as_slice()
+        {
+            // Staged port fix (M7.1): a renderItem body reading `props.x`
+            // (a non-destructured props parameter) must capture the props
+            // struct before the closure, like render locals and state.
+            let Some(props) = component.props else {
+                continue;
+            };
+            let init = if props.copy(g) {
+                "self.props".to_owned()
+            } else {
+                "self.props.clone()".to_owned()
+            };
+            let local = format!("_cap_{}", String::from_utf8_lossy(&name));
+            captures.push(Capture {
+                name,
+                local,
+                ty: props,
                 init,
             });
             continue;
