@@ -935,6 +935,29 @@ let shown: bool = tsx::desktop::update(tsx::desktop::TrayOptions { icon: icon(),
 | `./scripts/tsx/build-template-check.sh` | `scaffold/template-ts` end-to-end: **OK**（debug build，含无窗口快照） |
 | Zig 改动 | 无：`git status --porcelain -- '*.zig'` 为空（未跑 `zig build test` 也不需要，Zig 树未动） |
 
+## M5 验收达成（本轮）
+
+- `zant-tsx-counter / -gallery / -todos / -reader / -app / -notes` 六个 TSX 示例均真实构建、运行并与
+  Zig 基线对照：layout 完全一致，**gallery/todos/reader/notes 0 像素**（gallery 的 21px 尾随 `.` 由
+  WP-TSX-BUGS 修复）；`scripts/mac/tsx-counter.steps` 全步骤通过。
+- `bench-tsx`：TSX 生成代码 vs 手写 Rust 对照组，**全部 ≤1.11×（闸门 1.2×）**，6 应用 / 11 场景 PASS。
+- WP-TSX-BUGS 修复：子组件回调 prop 现在**同步调用**（不再经 `ui::effect` 丢失）、`Option<Node>` 裸元素、
+  rich text 尾随文本、非根组件 `<List>`（含子组件行内 action 捕获自身状态）。
+- 迁移后测试：Rust 1092 passed / 0 failed；Zig 基线 359 个 test 块 + remend 522 / mhchem 823 夹具全部覆盖
+  （`WP-COVERAGE` 对照表）。
+
+## Windows 真机验证（2026-11-14，测试机恢复）
+
+机器：`192.168.31.197`（WIN-AUA9GNCCOI7，`E:/dev/XyUI`，Rust 1.96.1 MSVC、Zig 0.17.1、Skia/PDFium 预编译齐全）。
+`scripts/win/{remote,sync}.sh` 已支持 `ZANT_WIN_SSH_OPTS`（沙箱 known_hosts/进程替换限制）。
+
+已修复的 Windows 专属缺陷：
+1. `crates/zant-sys/build.rs`：`canonicalize()` 的 `\\?\` 谓词前缀导致 cl.exe `C1083`——加 `plain_path()` 剥离。
+2. `crates/zant-sys/build.rs`：生成的 `static_data.rs` 用 `//!` 内层文档注释但被 `include!` → `E0753`——改 `//`。
+3. **窗口应用崩溃**（`SkIcuLoader: datafile missing icudtl.dat`）：Windows 窗口化路径没调用
+   `zant_sys::init()`（只有光栅测试路径调了）——在 `platform.rs` 的 Windows 分支补上；`zant-demo.exe` 正常出窗+截图。
+4. 测试平台差异：`shortcut_list` 宽度断言按平台（macOS 250 / 其他 310）。
+
 ## 待决问题
 
 ### WP-5.9 提出（2026-11-14）
