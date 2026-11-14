@@ -1,6 +1,8 @@
 #import <Foundation/Foundation.h>
 #import <AppKit/AppKit.h>
 #import <PDFKit/PDFKit.h>
+
+#include <vector>
 #include "../pdf.h"
 
 static NSString *cached_pdf_page(const char *path, int page, int width, int height) {
@@ -97,7 +99,7 @@ static CGSize zant_pdf_display_size(PDFPage *page) {
 }
 
 /* Page space (PDF user space, y up) -> displayed page (top-left, y down). */
-static CGRect zant_pdf_to_display(PDFPage *page, CGAffineTransform t, CGFloat display_h, NSRect r) {
+static CGRect zant_pdf_to_display(CGAffineTransform t, CGFloat display_h, NSRect r) {
     const CGRect box = CGRectApplyAffineTransform(NSRectToCGRect(r), t);
     return CGRectMake(box.origin.x, display_h - box.origin.y - box.size.height, box.size.width, box.size.height);
 }
@@ -163,7 +165,7 @@ int zant_pdf_render(ZantPdfDocument *doc, int page, int page_width, int page_hei
     @autoreleasepool {
         CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
         CGContextRef ctx = CGBitmapContextCreate(pixels, (size_t)width, (size_t)height, 8, (size_t)stride, space,
-                                                 kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big);
+                                                 (CGBitmapInfo)kCGImageAlphaPremultipliedLast | (CGBitmapInfo)kCGBitmapByteOrder32Big);
         CGColorSpaceRelease(space);
         if (!ctx) return -1;
         CGContextSetRGBFillColor(ctx, 1, 1, 1, 1);
@@ -227,7 +229,7 @@ int zant_pdf_glyphs(ZantPdfDocument *doc, int page, ZantPdfGlyph *out, int capac
             if (cp == 0 || cp == '\n' || cp == '\r' || r.size.width <= 0 || r.size.height <= 0) {
                 g.flags = 2;
             } else {
-                const CGRect box = zant_pdf_to_display(p, t, display_h, r);
+                const CGRect box = zant_pdf_to_display(t, display_h, r);
                 g.x = g.tight_x = (float)box.origin.x;
                 g.y = g.tight_y = (float)box.origin.y;
                 g.width = g.tight_width = (float)box.size.width;
@@ -280,7 +282,7 @@ int zant_pdf_links(ZantPdfDocument *doc, int page, ZantPdfLink *out, int capacit
             if (out && n < capacity) {
                 ZantPdfLink *l = &out[n];
                 memset(l, 0, sizeof(*l));
-                const CGRect box = zant_pdf_to_display(p, t, display_h, a.bounds);
+                const CGRect box = zant_pdf_to_display(t, display_h, a.bounds);
                 l->x = (float)box.origin.x;
                 l->y = (float)box.origin.y;
                 l->width = (float)box.size.width;
@@ -376,7 +378,7 @@ int zant_pdf_save_annotated(const char *source_path, const char *password, const
             if (a->kind <= ZANT_PDF_ANNOT_SQUIGGLY) {
                 if (a->rect_count <= 0) continue;
                 NSRect bounds = NSZeroRect;
-                NSRect boxes[a->rect_count];
+                std::vector<NSRect> boxes((size_t)a->rect_count);
                 for (int r = 0; r < a->rect_count; r++) {
                     const float *v = &a->rects[r * 4];
                     boxes[r] = zant_pdf_from_display(page, v[0], v[1], v[2], v[3]);
