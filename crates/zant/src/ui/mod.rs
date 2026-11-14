@@ -72,6 +72,22 @@ pub use crate::components::list::{
     ListOptions, ListState, ScrollPosition as ListScrollPosition, list,
 };
 
+// Composition components (they live in `components/` like the Zig sources).
+pub use crate::components::hotkey_input::{
+    HotkeyAction, HotkeyInputOptions, hotkey_action, hotkey_input,
+};
+pub use crate::components::menu::{MenuItem, MenuItemKind, MenuOptions, dropdown_menu};
+pub use crate::components::message::{MessageKind, MessageOptions, message};
+pub use crate::components::modal::{ModalOptions, modal};
+pub use crate::components::segmented::{SegmentedOption, SegmentedOptions, segmented};
+pub use crate::components::shortcut_list::{
+    Shortcut, ShortcutGroup, ShortcutListOptions, shortcut_list,
+};
+pub use crate::components::view::{ViewOptions, view};
+pub use crate::components::window_controls::{
+    CAPTION_MAXIMIZE_KEY, WindowControlsOptions, window_controls,
+};
+
 #[cfg(test)]
 mod contract_tests {
     //! The call shapes frozen by docs/rust-port/api.md §4, as the TSX codegen
@@ -147,19 +163,3 @@ mod contract_tests {
         assert!(!state.notify);
     }
 }
-
-// Composition components (they live in `components/` like the Zig sources).
-pub use crate::components::hotkey_input::{
-    HotkeyAction, HotkeyInputOptions, hotkey_action, hotkey_input,
-};
-pub use crate::components::menu::{MenuItem, MenuItemKind, MenuOptions, dropdown_menu};
-pub use crate::components::message::{MessageKind, MessageOptions, message};
-pub use crate::components::modal::{ModalOptions, modal};
-pub use crate::components::segmented::{SegmentedOption, SegmentedOptions, segmented};
-pub use crate::components::shortcut_list::{
-    Shortcut, ShortcutGroup, ShortcutListOptions, shortcut_list,
-};
-pub use crate::components::view::{ViewOptions, view};
-pub use crate::components::window_controls::{
-    CAPTION_MAXIMIZE_KEY, WindowControlsOptions, window_controls,
-};
