@@ -1,11 +1,7 @@
-//! Port of `src/markdown/ast.zig` — WP-3.2.
-//!
 //! Markdown document model produced by the parser and consumed by renderers.
-//! The Zig version keeps every slice in the document's arena; the Rust port
-//! owns `String` / `Vec` instead, so the tree is immutable after parsing and
-//! needs no explicit `deinit`.
+//! The tree owns its `String`s / `Vec`s and is immutable after parsing.
 
-/// Inline styling of a [`Span`] (Zig `ast.Style`).
+/// Inline styling of a [`Span`].
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
 pub struct Style {
     pub bold: bool,
@@ -24,7 +20,7 @@ pub struct Style {
     pub marker: bool,
 }
 
-/// A styled run of inline text (Zig `ast.Span`).
+/// A styled run of inline text.
 #[derive(Clone, PartialEq, Eq, Default, Debug)]
 pub struct Span {
     pub text: String,
@@ -33,7 +29,7 @@ pub struct Span {
     pub url: String,
 }
 
-/// An ATX / setext heading (Zig `ast.Heading`).
+/// An ATX / setext heading.
 #[derive(Clone, PartialEq, Eq, Default, Debug)]
 pub struct Heading {
     pub level: u8,
@@ -42,7 +38,7 @@ pub struct Heading {
     pub id: String,
 }
 
-/// A fenced or indented code block (Zig `ast.Code`).
+/// A fenced or indented code block.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Code {
     pub lang: String,
@@ -66,7 +62,7 @@ impl Default for Code {
     }
 }
 
-/// One list item (Zig `ast.ListItem`).
+/// One list item.
 #[derive(Clone, PartialEq, Eq, Default, Debug)]
 pub struct ListItem {
     /// Task list state; `None` for normal items.
@@ -74,7 +70,7 @@ pub struct ListItem {
     pub blocks: Vec<Block>,
 }
 
-/// A list block (Zig `ast.List`).
+/// A list block.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct List {
     pub ordered: bool,
@@ -95,7 +91,7 @@ impl Default for List {
     }
 }
 
-/// Table column alignment (Zig `ast.Align`).
+/// Table column alignment.
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
 pub enum Align {
     #[default]
@@ -105,7 +101,7 @@ pub enum Align {
     Right,
 }
 
-/// A GFM table (Zig `ast.Table`).
+/// A GFM table.
 #[derive(Clone, PartialEq, Eq, Default, Debug)]
 pub struct Table {
     pub headers: Vec<Vec<Span>>,
@@ -116,7 +112,7 @@ pub struct Table {
     pub raw_rows: Vec<Vec<String>>,
 }
 
-/// An image block / `![]()` span payload (Zig `ast.Image`).
+/// An image block / `![]()` span payload.
 #[derive(Clone, PartialEq, Eq, Default, Debug)]
 pub struct Image {
     pub alt: String,
@@ -124,7 +120,7 @@ pub struct Image {
     pub title: String,
 }
 
-/// GFM alert kind (Zig `ast.CalloutKind`).
+/// GFM alert kind.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum CalloutKind {
     Note,
@@ -146,14 +142,14 @@ impl CalloutKind {
     }
 }
 
-/// A block quote that is a GFM alert (Zig `ast.Callout`).
+/// A block quote that is a GFM alert.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Callout {
     pub kind: CalloutKind,
     pub blocks: Vec<Block>,
 }
 
-/// A display-math block (Zig `ast.Math`).
+/// A display-math block.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Math {
     pub source: String,
@@ -169,7 +165,7 @@ impl Default for Math {
     }
 }
 
-/// A top-level block (Zig `ast.Block`).
+/// A top-level block.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Block {
     Heading(Heading),
@@ -185,7 +181,7 @@ pub enum Block {
     Rule,
 }
 
-/// A footnote definition with its display number (Zig `ast.Footnote`).
+/// A footnote definition with its display number.
 #[derive(Clone, PartialEq, Eq, Default, Debug)]
 pub struct Footnote {
     pub label: String,
@@ -194,7 +190,7 @@ pub struct Footnote {
     pub blocks: Vec<Block>,
 }
 
-/// Parser output without the owning arena (Zig `ast.Document.Parts`).
+/// The parts of a document as the parser produces them.
 #[derive(Clone, PartialEq, Eq, Default, Debug)]
 pub struct Parts {
     pub blocks: Vec<Block>,
@@ -202,7 +198,7 @@ pub struct Parts {
     pub front_matter: String,
 }
 
-/// A parsed markdown document (Zig `ast.Document`).
+/// A parsed markdown document.
 #[derive(Clone, PartialEq, Eq, Default, Debug)]
 pub struct Document {
     pub blocks: Vec<Block>,

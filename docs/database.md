@@ -2,7 +2,7 @@
 
 `zant::db` 的目标是让业务代码感觉不到 SQLite：一个 Store，存键值、JSON 和
 对象集合，不写 SQL，不管理表、连接、statement 或结果集。底层用 `rusqlite`（bundled SQLite），
-不需要额外分发系统库；旧 Zig 版用系统 SQLite 写的库文件可以**原样打开**（生成的 SQL 逐字节一致）。
+不需要额外分发系统库。
 
 ## 打开
 
@@ -70,7 +70,7 @@ store.set_json("settings", &Settings {
 let settings: Settings = store.get_json("settings")?.unwrap_or_default();
 ```
 
-单个 JSON 值最大 64 KB（与旧 Zig 版一致，超出返回 `ValueTooLarge`）；更大的数据用对象集合或文件。
+单个 JSON 值最大 64 KB（超出返回 `ValueTooLarge`）；更大的数据用对象集合或文件。
 JSON 字符串由反序列化结果拥有，不需要分配器。
 
 ## 对象集合
@@ -84,7 +84,7 @@ use zant::db::SqlEnum;
 use zant_macros::Table;
 
 #[derive(Table)]
-#[table(name = "users")]      // 可选；默认用类型名（旧 Zig 版写的是模块名 + 类型名，已有库请显式写上）
+#[table(name = "users")]      // 可选；默认用类型名（已有库的表名不同时显式写上）
 struct User {
     id: i64,                  // 自增主键（INSERT/UPDATE 时跳过）
     name: String,
@@ -122,7 +122,7 @@ for id in ids {
 store.commit()?;
 ```
 
-旧 Zig 版的 `free` / `freeAll` 不再需要：Rust 的值自己拥有字符串，离开作用域即释放。
+查询结果不需要手动释放：值自己拥有字符串，离开作用域即释放。
 
 ## 开发者需要记住的 API
 

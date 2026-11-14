@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::compile::SourceFile;
 
-/// The WP-6.2 fixture app (`tests/fixtures/tsx-app`).
+/// The fixture app (`tests/fixtures/tsx-app`).
 pub(crate) fn fixture_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tsx-app")
 }
@@ -76,7 +76,7 @@ fn the_root_component_must_be_a_default_export_without_props() {
     crate::validate_root(path, "const x = ;").expect("syntax errors are the compiler's");
 }
 
-// ── icons (Zig `addAppIcons`) ─────────────────────────────────────────
+// ── icons ─────────────────────────────────────────────────────────────
 
 #[test]
 fn the_icon_module_is_written_with_relative_include_paths() {
@@ -95,7 +95,7 @@ fn the_icon_module_is_written_with_relative_include_paths() {
     let _ = std::fs::remove_dir_all(&out);
 }
 
-// ── the Windows `.ico` (Zig `addWindowsIcon` / `zant-icon ico`) ────────
+// ── the Windows `.ico` ────────────────────────────────────────────────
 
 #[test]
 fn the_windows_icon_is_built_from_the_256px_png() {

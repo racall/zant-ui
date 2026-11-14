@@ -1,6 +1,5 @@
-//! `todos.tsx` written by hand in Rust (`examples/tsx/todos_manual.zig`
-//! ported): the control group of the `todos-add` / `todos-toggle` /
-//! `todos-filter` scenarios.
+//! `todos.tsx` written by hand in Rust: the control group of the
+//! `todos-add` / `todos-toggle` / `todos-filter` scenarios.
 #![forbid(unsafe_code)]
 
 use zant::Str;
@@ -24,7 +23,7 @@ enum Filter {
     Done,
 }
 
-/// Zig `todos_manual.Todos`.
+/// The todo page state.
 pub struct Todos {
     todos: Vec<Todo>,
     next_id: u32,
@@ -129,7 +128,6 @@ impl Todos {
 }
 
 impl App for Todos {
-    /// Zig `Todos.render`.
     fn render(&mut self) -> ui::Node {
         let left = self.todos.iter().filter(|todo| !todo.done).count();
         let rows: Vec<ui::Node> = self

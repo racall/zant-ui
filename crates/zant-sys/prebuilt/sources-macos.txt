@@ -1,6 +1,6 @@
 # Native sources compiled by crates/zant-sys/build.rs on macOS.
 #
-# User-facing description: WP-6.6 in docs/rust-port/plan.md.
+# User-facing description: crates/zant-sys/prebuilt/README.md.
 #
 # This file is canonical: build.rs compiles the `.cpp` / `.mm` / `.m` entries in
 # this order, and the prebuilt native library's `source_hash` (metadata.txt) is

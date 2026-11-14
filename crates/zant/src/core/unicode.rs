@@ -1,12 +1,9 @@
-//! Port of `src/core/unicode.zig` — WP-1.1b.
-//!
 //! Grapheme-cluster movement, UTF-8 ↔ UTF-16 offset conversion and word
 //! boundaries for the text widgets.
 //!
-//! Zig stores codepoints as `u21` and falls back to the raw first byte when a
-//! byte sequence is invalid or truncated. Every value produced here is a valid
-//! Unicode scalar value (the invalid-byte fallback is always `< 0x100`), so the
-//! port uses `char`.
+//! Decoding falls back to the raw first byte when a byte sequence is invalid
+//! or truncated. Every value produced here is a valid Unicode scalar value
+//! (the invalid-byte fallback is always `< 0x100`), so codepoints are `char`s.
 
 /// One decoded codepoint at a byte offset.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -17,7 +14,7 @@ pub struct Decoded {
     pub len: usize,
 }
 
-/// Zig `std.unicode.utf8ByteSequenceLength`: the sequence length implied by a
+/// The sequence length implied by a
 /// lead byte, or `None` when the byte cannot start a sequence.
 fn utf8_byte_sequence_length(first_byte: u8) -> Option<usize> {
     match first_byte {
@@ -29,7 +26,7 @@ fn utf8_byte_sequence_length(first_byte: u8) -> Option<usize> {
     }
 }
 
-/// Zig `decodeAt`: decode one codepoint at `at`, never splitting a sequence and
+/// Decodes one codepoint at `at`, never splitting a sequence and
 /// falling back to the raw byte at `at` for malformed input.
 pub fn decode_at(text: &str, at: usize) -> Decoded {
     let bytes = text.as_bytes();
@@ -273,8 +270,7 @@ mod tests {
         assert_eq!(s.len(), utf16_to_byte(s, 4));
     }
 
-    /// Cross-checked with the Zig implementation (`decodeAt` on the same input):
-    /// an offset inside a sequence yields the raw continuation byte.
+    /// An offset inside a sequence yields the raw continuation byte.
     #[test]
     fn decode_at_falls_back_to_the_raw_byte() {
         let s = "é"; // c3 a9
@@ -286,9 +282,9 @@ mod tests {
         assert_eq!(0, end.len);
     }
 
-    /// Cross-checked with the Zig implementation on the same inputs.
+    /// Regression values for word boundaries in mixed Latin / CJK text.
     #[test]
-    fn word_helpers_match_zig() {
+    fn word_helpers_find_word_boundaries() {
         let s = "hello, 世界";
         assert_eq!(0, word_start(s, 3));
         assert_eq!(5, word_end(s, 0));

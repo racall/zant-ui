@@ -1,6 +1,5 @@
 //! Runtime of nested TSX text: `<Text>a <Text weight="bold">b</Text>
-//! <Link>c</Link></Text>` compiles to `ui::rich_text` with one span per run
-//! (port of `src/tsx_text.zig`).
+//! <Link>c</Link></Text>` compiles to `ui::rich_text` with one span per run.
 //!
 //! A span's unset style fields fall back to the theme the way `ui::text` does;
 //! inline links get an index and a shared `on_link` action dispatching to the
@@ -11,7 +10,7 @@ use crate::core::node::RichSpan;
 use crate::renderer::text;
 use crate::ui::{self, Action, TextAction};
 
-/// The style of one flattened `<Text>` run (`tsx.text.SpanStyle` in Zig).
+/// The style of one flattened `<Text>` run.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct SpanStyle {
     pub size: Option<f32>,
@@ -48,7 +47,7 @@ pub fn span(value: &str, style: SpanStyle) -> RichSpan {
     }
 }
 
-/// The link name of a span index (Zig `linkName`): "0" … "9" without an
+/// The link name of a span index: "0" … "9" without an
 /// allocation, larger indexes formatted.
 pub fn link_name(index: usize) -> Str {
     match index {
@@ -67,9 +66,8 @@ pub fn link_name(index: usize) -> Str {
 }
 
 /// The `on_link` of a text with inline `<Link>`s: a click on link span `i`
-/// runs `targets[i]` (Zig `tsx.text.links`). Unlike the Zig frame-arena
-/// version the targets are owned by the closure, so they live as long as the
-/// node's callback.
+/// runs `targets[i]`. The targets are owned by the closure, so they live as
+/// long as the node's callback.
 pub fn links(targets: Vec<Option<Action>>) -> TextAction {
     TextAction::new(move |cx, name| {
         let Ok(index) = name.parse::<usize>() else {

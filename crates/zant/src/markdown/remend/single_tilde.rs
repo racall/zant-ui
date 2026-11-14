@@ -1,5 +1,4 @@
-//! Port of `src/markdown/remend/single_tilde.zig` (remend
-//! `single-tilde-handler.ts`): escapes a single `~` between word characters
+//! remend `single-tilde-handler.ts`: escapes a single `~` between word characters
 //! (`20~25`) so it is not read as strikethrough.
 
 use super::context::Context;

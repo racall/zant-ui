@@ -1,5 +1,4 @@
-//! Port of `src/components/shortcut_list.zig` — WP-2.5: the keyboard shortcut
-//! reference.
+//! The keyboard shortcut reference.
 //!
 //! Grouped "action — keys" rows laid out in balanced columns (macOS / antd
 //! Descriptions style). Typically the content of a `ui::modal` opened with
@@ -60,7 +59,6 @@ impl Default for ShortcutListOptions {
             key: Str::Static("shortcuts"),
             groups: Vec::new(),
             columns: 2,
-            // Zig: `if (@import("builtin").os.tag == .macos) 250 else 310`
             column_width: if crate::core::keys::IS_MACOS {
                 250.0
             } else {
@@ -73,7 +71,7 @@ impl Default for ShortcutListOptions {
     }
 }
 
-/// Zig `shortcutList`: grouped shortcuts in balanced columns.
+/// Grouped shortcuts in balanced columns.
 pub fn shortcut_list(o: ShortcutListOptions) -> Node {
     let theme = current_theme();
     let n_cols = o.columns.clamp(1, 8);
@@ -202,7 +200,7 @@ mod tests {
     }
 
     #[test]
-    fn shortcut_list_defaults_match_the_zig_struct() {
+    fn shortcut_list_defaults() {
         let defaults = ShortcutListOptions::default();
         assert_eq!(defaults.key.as_str(), "shortcuts");
         assert!(defaults.groups.is_empty());
@@ -240,7 +238,6 @@ mod tests {
         // File (2 rows) goes to the first (both empty) column, then Edit fits
         // the second column and View also goes there: 0 vs 1+2 groups
         let first = list.children[0].element();
-        // Zig: `if (@import("builtin").os.tag == .macos) 250 else 310`
         let column_width = if crate::core::keys::IS_MACOS {
             250.0
         } else {

@@ -1,7 +1,5 @@
 //! Character helpers reproducing JS regexp semantics over UTF-8 bytes, plus
 //! the small position-set simulator used by `amount_math`.
-//!
-//! Port of `src/math/mhchem.zig` (character helpers, `PosSet`, string helpers).
 
 use super::types::{Match, Mv, Str};
 
@@ -277,7 +275,7 @@ fn find_subslice(haystack: &[u8], needle: &[u8]) -> Option<usize> {
         .position(|window| window == needle)
 }
 
-/// `std.mem.trim` over a byte set.
+/// Trims the bytes of `set` from both ends.
 pub fn trim_bytes<'a>(s: &'a [u8], set: &[u8]) -> &'a [u8] {
     let mut start = 0;
     let mut end = s.len();

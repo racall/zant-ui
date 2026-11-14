@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Compare two PNG screenshots for the Zig/Rust parity check (plan.md §6).
+"""Compare two PNG screenshots; also the PNG decoder of the check scripts.
 
 Pure standard library on purpose: decoding/encoding PNG only needs `zlib`, so
-the parity scripts run on a machine without Pillow installed.
+the scripts run on a machine without Pillow installed
+(`scripts/tsx/examples-check.sh` imports `read_png` from here).
 
-    python3 scripts/parity/imgdiff.py a.png b.png [--diff out.png]
+    python3 scripts/lib/imgdiff.py a.png b.png [--diff out.png]
         [--tolerance 2] [--max-ratio 0.001]
 
 Exit status 0 when the images match within the tolerance, 1 otherwise.

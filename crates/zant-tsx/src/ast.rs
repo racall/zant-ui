@@ -1,12 +1,10 @@
 //! Syntax tree of the TSX subset `zant-tsx` compiles (`docs/tsx.md`).
 //! Every node keeps the byte offset it starts at for error messages.
 //!
-//! Direct translation of `tools/tsx/ast.zig`: node kinds, fields and field
-//! order are unchanged. Zig's `[]const u8` slices become `Vec<u8>` (not
-//! `String`): decoded string literals, template quasis and JSX text may hold
-//! WTF-8 bytes (lone surrogates, `\xNN` escapes), which Rust's UTF-8 `String`
-//! cannot represent. `*T` pointers become `Box<T>`; `?*T` becomes
-//! `Option<Box<T>>`.
+//! Text is `Vec<u8>` (not `String`): decoded string literals, template quasis
+//! and JSX text may hold WTF-8 bytes (lone surrogates, `\xNN` escapes), which
+//! Rust's UTF-8 `String` cannot represent. Child nodes are `Box<T>`, optional
+//! ones `Option<Box<T>>`.
 
 /// Byte offset into the source.
 pub type Loc = u32;
@@ -63,7 +61,7 @@ pub struct Expr {
     pub data: ExprData,
 }
 
-/// Mirrors `Expr.Data` in `tools/tsx/ast.zig`.
+/// The kinds of expression.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExprData {
     /// Raw literal text (`12`, `0.5`, `0xff1677ff`).
@@ -189,7 +187,7 @@ pub struct Attr {
     pub name: Name,
     /// Null for a bare attribute (`<Input password />` means `true`).
     pub value: Option<Box<Expr>>,
-    /// `{...value}`: `name` is empty (`spread.zig` expands it).
+    /// `{...value}`: `name` is empty (`codegen::spread` expands it).
     pub spread: bool,
 }
 
@@ -202,7 +200,7 @@ pub enum Child {
     Element(Box<Jsx>),
 }
 
-/// Mirrors `Child.Text` in `tools/tsx/ast.zig`.
+/// A run of JSX text.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct JsxText {
     pub value: Vec<u8>,
@@ -247,7 +245,7 @@ pub struct Stmt {
     pub data: StmtData,
 }
 
-/// Mirrors `Stmt.Data` in `tools/tsx/ast.zig`.
+/// The kinds of statement.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum StmtData {
     Decl(Decl),
@@ -318,7 +316,7 @@ pub enum Pattern {
     Ident(Name),
     /// `const [value, setValue] = ...`; null for a hole (`[, b]`).
     Array(Vec<Option<Name>>),
-    /// `const { ok, label: text } = ...` (custom hooks, `custom_hooks.zig`).
+    /// `const { ok, label: text } = ...` (custom hooks, `crate::hooks`).
     Object(Vec<ObjectBinding>),
 }
 

@@ -1,5 +1,5 @@
-//! Child-component instance ids of TSX-generated code (`tsx.childId` /
-//! `tsx.siteId` in `src/tsx.zig`).
+//! Child-component instance ids of TSX-generated code (`tsx::child_id` /
+//! `tsx::site_id`).
 //!
 //! A stateful child component gets its `local_state` slot from the parent's
 //! instance id mixed with:
@@ -7,9 +7,8 @@
 //! - `child_id`: the component's name and its `key` prop (string or number), or
 //! - `site_id`: the component's name and its call-site number (no key).
 //!
-//! The hash is the same Wyhash stream as Zig's `core/local_state.zig`
-//! (`child_id`), so the two implementations produce bit-identical ids (pinned
-//! by tests, see plan.md §4).
+//! The hash is the same Wyhash stream as `core::local_state::child_id`; the
+//! resulting ids are pinned by tests.
 
 use crate::core::hash::Wyhash;
 use crate::core::local_state::child_id as local_child_id;
@@ -31,8 +30,8 @@ pub fn site_id(parent: u64, name: &str, site: u32) -> u64 {
     local_child_id(parent ^ Wyhash::hash(1, name.as_bytes()), site)
 }
 
-/// A TSX `key` value: a string or a number (Zig `tsx.childId`'s `anytype`;
-/// floats are compared by their f64 bits, like `tsx.listKey`).
+/// A TSX `key` value: a string or a number (floats are compared by
+/// their f64 bits, like `tsx::list_key`).
 pub trait ChildKey {
     fn child_id_part(self, parent: u64) -> u64;
 }
@@ -85,11 +84,9 @@ impl ChildKey for f32 {
 mod tests {
     use super::*;
 
-    /// Reference values printed by Zig 0.17.1 `tsx.childId` / `tsx.siteId`
-    /// (`src/tsx.zig`): ids must be bit-identical to the Zig version so
-    /// memo / local-state parity runs can compare them.
+    /// Pinned regression values of the Wyhash-based ids.
     #[test]
-    fn ids_match_zig() {
+    fn ids_are_pinned() {
         assert_eq!(child_id(0, "Child", 0u64), 0x4232_64cd_89a6_5067);
         assert_eq!(child_id(0, "Child", "row"), 0x7240_374a_9028_02dd);
         assert_eq!(child_id(42, "Row", 7u32), 0x2a3f_103b_05e3_5c30);

@@ -1,5 +1,5 @@
 # Builds the prebuilt native library that released apps link instead of
-# compiling C++/C (WP-6.6, docs/rust-port/plan.md §5). The release workflow
+# compiling C++/C (crates/zant-sys/prebuilt/README.md). The release workflow
 # compiles the native layer once per platform and ships the archive inside
 # zant-ui\third_party\zant-native-prebuilt\.
 #

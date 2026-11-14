@@ -1,6 +1,4 @@
-//! Port of `src/markdown/table_utils.zig` — WP-3.2.
-//!
-//! Port of Streamdown `lib/table/utils.ts`: table → CSV / TSV / Markdown.
+//! Streamdown `lib/table/utils.ts`: table → CSV / TSV / Markdown.
 
 pub struct TableData<'a> {
     pub headers: &'a [&'a str],

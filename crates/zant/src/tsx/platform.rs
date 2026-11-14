@@ -1,5 +1,5 @@
 //! The desktop functions generated TSX code imports from `"zant"`
-//! (`src/tsx_platform.zig`, docs/tsx.md "桌面函数"):
+//! (docs/tsx.md "桌面函数"):
 //!
 //! ```ignore
 //! import { clipboard, app, mainWindow, wakeAfter, keyLabel, isMacos } from "zant";
@@ -7,11 +7,9 @@
 //! ```
 //!
 //! TS-friendly wrappers of [`crate::desktop`], [`crate::core::paths`] and
-//! [`crate::ui`]: strings come back as owned `Str` values (the Zig version used
-//! the frame arena), failures read as `""` / `None` / `false`.
+//! [`crate::ui`]: strings come back as owned `Str` values, failures read as `""` / `None` / `false`.
 //!
-//! Generated code names (kept close to the Zig module so codegen tables stay
-//! readable): `tsx::platform::clipboard::text()`,
+//! Generated code names: `tsx::platform::clipboard::text()`,
 //! `tsx::platform::app::quit()`, `tsx::platform::main_window::show()`,
 //! `tsx::platform::wake_after(ms)`, `tsx::platform::key_label("mod+s")`,
 //! `tsx::platform::IS_MACOS`.
@@ -24,18 +22,17 @@ use crate::desktop;
 use crate::image::Image;
 use crate::tsx::Bytes;
 
-/// The host is macOS (Zig `desktop.is_macos`, a constant for TSX).
+/// The host is macOS (a constant for TSX).
 pub const IS_MACOS: bool = desktop::IS_MACOS;
 /// The host is Windows.
 pub const IS_WINDOWS: bool = crate::platform::platform::IS_WINDOWS;
 
 thread_local! {
-    /// The app's bundle id, set by `tsx::app::run` (Zig `tsx_platform.app_id`).
+    /// The app's bundle id, set by `tsx::app::run`.
     static APP_ID: RefCell<Option<String>> = const { RefCell::new(None) };
 }
 
-/// Sets the app's bundle id (`tsx::app::run` does; Zig's generated entry set
-/// `tsx_platform.app_id`).
+/// Sets the app's bundle id (`tsx::app::run` does).
 pub fn set_app_id(id: &str) {
     APP_ID.with(|current| *current.borrow_mut() = Some(id.to_owned()));
 }
@@ -88,9 +85,8 @@ pub mod app {
     }
 
     /// `app.dataDir()`: the app's own data folder (`zant.paths.appDataDir`
-    /// with the bundle id); `None` before the app started (the Zig test's
-    /// "needs the environment" case: Rust always has an environment, so the
-    /// app id being unset stands in for it).
+    /// with the bundle id); `None` before the app started (the app id
+    /// is unset).
     pub fn data_dir() -> Option<Str> {
         let id = super::app_id()?;
         crate::core::paths::app_data_dir(&id).map(|path| Str::copy(&path.to_string_lossy()))
@@ -196,8 +192,7 @@ pub fn shortcut_label(shortcut: &str) -> Str {
 }
 
 struct AssetImage {
-    /// Address + length identify the static asset bytes (Zig compared the
-    /// slice pointer).
+    /// Address + length identify the static asset bytes.
     ptr: usize,
     len: usize,
     image: Option<Rc<Image>>,
@@ -233,7 +228,7 @@ pub fn asset_image(bytes: &'static [u8]) -> Option<Rc<Image>> {
 
 /// `wakeAfter(ms)`: rebuilds after `ms` milliseconds (call it while
 /// rendering: a toast that hides itself reads `performance.now()` against its
-/// deadline). Clamped like the Zig wrapper.
+/// deadline). The delay is clamped.
 pub fn wake_after(ms: f64) {
     if ms.is_nan() || ms <= 0.0 {
         crate::ui::wake_after(0);
@@ -261,8 +256,7 @@ mod tests {
 
     #[test]
     fn the_data_folder_needs_the_environment() {
-        // a fresh thread: the app id is unset, like a Zig `run` that never set
-        // `tsx_platform.environ`
+        // a fresh thread: the app id is unset
         assert_eq!(app_id(), None);
         assert!(app::data_dir().is_none());
         set_app_id("dev.zant.tsx-test");

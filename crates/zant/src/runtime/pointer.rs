@@ -1,4 +1,4 @@
-//! Port of `src/ui_runtime.zig:1808-2215`: pointer dispatch.
+//! Pointer dispatch.
 //!
 //! Hover / press state of buttons, toggles and inputs, the container hover look,
 //! pointer-area capture (`ui::pointer_area`: down / drag / up / hover / leave),
@@ -6,13 +6,12 @@
 //! placement), and the press that starts a text selection (see `selection`).
 //!
 //! While a select popup is open it owns the pointer: hover highlights the
-//! option under the cursor and a click selects it (Zig carried the popup in the
-//! runtime too — `components/select.zig:optionAt` is only the geometry).
+//! option under the cursor and a click selects it (`components::select` only
+//! provides the geometry).
 //!
-//! Toggle activation lives here as well: Zig's `Tree.toggleSet` called the
-//! stored `index_action` / `action` itself, but the Rust callbacks need the
-//! runtime's `ActionCx`, so [`Runtime::toggle_set`] clones them out of the node
-//! and calls them (plan.md §4).
+//! Toggle activation lives here as well: the stored `index_action` / `action`
+//! callbacks need the runtime's `ActionCx`, so [`Runtime::toggle_set`] clones
+//! them out of the node and calls them.
 #![forbid(unsafe_code)]
 
 use crate::components::button;
@@ -24,7 +23,7 @@ use crate::ui::actions::{PointerInfo, PointerPhase};
 use super::Runtime;
 
 impl Runtime {
-    /// The link of the rich-text span under a window point (Zig `linkAt`).
+    /// The link of the rich-text span under a window point.
     pub(crate) fn link_at(&mut self, id: NodeId, x: f32, y: f32) -> Option<String> {
         let bounds = self.tree.get(id).bounds;
         let NodeData::RichText(data) = &mut self.tree.get_mut(id).data else {
@@ -46,7 +45,7 @@ impl Runtime {
         None
     }
 
-    /// The pointer area handler of a container (`pointerAreaNode`).
+    /// The pointer area handler of a container.
     fn pointer_area_node(&self, id: NodeId) -> Option<crate::core::node::PointerArea> {
         let node = self.tree.get(id);
         if !node.alive {
@@ -58,7 +57,7 @@ impl Runtime {
         }
     }
 
-    /// Zig `sendPointer`: calls a pointer area's handler with coordinates
+    /// Calls a pointer area's handler with coordinates
     /// relative to it.
     pub(crate) fn send_pointer(
         &mut self,
@@ -124,7 +123,8 @@ impl Runtime {
         self.send_pointer(id, PointerPhase::Up, p, 0.0, 0.0);
     }
 
-    /// Zig `handlePointerMove`.
+    /// Pointer moved: text-selection drag, pointer-area capture, hover and
+    /// cursor updates.
     pub(crate) fn handle_pointer_move(&mut self, p: PointerEvent) {
         if self.sel_dragging {
             self.drag_text_selection(p);
@@ -228,7 +228,7 @@ impl Runtime {
         self.update_cursor_at(target, Some([p.x, p.y]));
     }
 
-    /// Zig `setHover`: moves the hover state of the widget under the pointer and
+    /// Moves the hover state of the widget under the pointer and
     /// arms its tooltip timer.
     pub(crate) fn set_hover(&mut self, target: Option<NodeId>) {
         if self.hovered == target {
@@ -265,7 +265,7 @@ impl Runtime {
         }
     }
 
-    /// Zig `clearPressed`: releases the pressed button / toggle without
+    /// Releases the pressed button / toggle without
     /// activating it.
     pub(crate) fn clear_pressed(&mut self) {
         if let Some(id) = self.pressed_button {
@@ -295,7 +295,7 @@ impl Runtime {
         self.update_cursor_at(target, None);
     }
 
-    /// Zig `updateCursorAt`: the cursor of the node under the pointer
+    /// The cursor of the node under the pointer
     /// (`point` lets containers / rich text probe text and links).
     fn update_cursor_at(&mut self, target: Option<NodeId>, point: Option<[f32; 2]>) {
         let cursor = match target {
@@ -345,7 +345,8 @@ impl Runtime {
         }
     }
 
-    /// Zig `handlePointerDown`.
+    /// Pointer pressed: the open select popup first, then focus, press state,
+    /// input caret placement and the start of a text selection.
     pub(crate) fn handle_pointer_down(&mut self, p: PointerEvent) {
         if let Some(select_id) = self.open_select {
             let is_select = matches!(self.tree.get(select_id).data, NodeData::Select(_));
@@ -358,7 +359,7 @@ impl Runtime {
                 );
                 if let Some(index) = option {
                     // copy the callback out before the state changes (an action
-                    // may change the UI; plan.md §4)
+                    // may change the UI)
                     let action = {
                         let node = self.tree.get(select_id);
                         match &node.data {
@@ -480,7 +481,7 @@ impl Runtime {
         self.update_cursor(Some(id));
     }
 
-    /// Zig `countClick`: double / triple click detection.
+    /// Double / triple click detection.
     pub(crate) fn count_click(&mut self, p: PointerEvent) {
         let near = (p.x - self.last_click_x).abs() <= 4.0 && (p.y - self.last_click_y).abs() <= 4.0;
         if near && self.now_ms - self.last_click_ms <= 500 && self.click_count > 0 {
@@ -497,7 +498,7 @@ impl Runtime {
         self.last_click_y = p.y;
     }
 
-    /// Zig `handlePointerUp`: activates buttons / toggles / links, finishes a
+    /// Activates buttons / toggles / links, finishes a
     /// pointer-area drag and a text selection.
     pub(crate) fn handle_pointer_up(&mut self, p: PointerEvent) {
         self.drag_input = None;
@@ -608,7 +609,7 @@ impl Runtime {
         self.update_cursor_at(self.tree.hit_test(p.x, p.y), Some([p.x, p.y]));
     }
 
-    /// Zig `setInputCursor`: places the input caret at a window point (a click
+    /// Places the input caret at a window point (a click
     /// or a drag inside the input).
     fn set_input_cursor(&mut self, id: NodeId, x: f32, y: f32, extend: bool) {
         let bounds = self.tree.get(id).bounds;
@@ -663,7 +664,7 @@ impl Runtime {
             .any(|child| self.text_node_under(self.tree.get(*child), x, y))
     }
 
-    /// Zig `hoverBoxFor`: the container whose hover look applies: the nearest
+    /// The container whose hover look applies: the nearest
     /// one around the widget under the pointer, or the innermost one containing
     /// the point.
     fn hover_box_for(&self, target: Option<NodeId>, x: f32, y: f32) -> Option<NodeId> {
@@ -681,7 +682,7 @@ impl Runtime {
         }
     }
 
-    /// Zig `setHoverBox`: moves the container hover look (paint-only, animated).
+    /// Moves the container hover look (paint-only, animated).
     pub(crate) fn set_hover_box(&mut self, id: Option<NodeId>) {
         if self.hover_box == id {
             return;
@@ -703,7 +704,7 @@ impl Runtime {
         }
     }
 
-    /// Zig `isAncestor`: `ancestor` is `id` or one of its ancestors.
+    /// Whether `ancestor` is `id` or one of its ancestors.
     pub(crate) fn is_ancestor(&self, ancestor: NodeId, id: NodeId) -> bool {
         let mut current = Some(id);
         while let Some(node) = current {
@@ -715,10 +716,10 @@ impl Runtime {
         false
     }
 
-    /// Zig `Tree.toggleSet`: sets the checked state and calls the toggle's
+    /// Sets the checked state and calls the toggle's
     /// callback — the index action when the toggle belongs to a radio group,
     /// otherwise the boolean action. The callbacks are copied out of the node
-    /// before they run (plan.md §4).
+    /// before they run.
     pub(crate) fn toggle_set(&mut self, id: NodeId, checked: bool) {
         {
             let node = self.tree.get_mut(id);
@@ -746,7 +747,7 @@ impl Runtime {
         }
     }
 
-    /// Zig `Tree.toggleFlip`: flips a checkbox / switch (radios only ever turn
+    /// Flips a checkbox / switch (radios only ever turn
     /// on, see the pointer / keyboard arms).
     pub(crate) fn toggle_flip(&mut self, id: NodeId) {
         let NodeData::Toggle(data) = &self.tree.get(id).data else {
@@ -927,7 +928,7 @@ mod tests {
         assert_eq!(runtime.app_state_mut::<Log>().keys, 1);
     }
 
-    // ── WP-2.1: toggle activation and the select popup ─────────────────────
+    // ── toggle activation and the select popup ─────────────────────────────
 
     #[derive(Default)]
     struct Form {

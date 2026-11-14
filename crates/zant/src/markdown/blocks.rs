@@ -1,6 +1,4 @@
-//! Port of `src/markdown/blocks.zig` — WP-3.2.
-//!
-//! Port of Streamdown `lib/parse-blocks.tsx`: splits a document into
+//! Streamdown `lib/parse-blocks.tsx`: splits a document into
 //! top-level block strings so each block can be parsed, cached and rendered
 //! independently.
 //!
@@ -342,8 +340,7 @@ impl Splitter {
         self.input.clear();
     }
 
-    /// Returns the blocks of `markdown` (owned copies; the Zig version returns
-    /// slices valid until the next call).
+    /// Returns the blocks of `markdown` as owned copies.
     pub fn split(&mut self, markdown: &str) -> Vec<String> {
         let normalized;
         let input: &str = if markdown.as_bytes().contains(&b'\r') {

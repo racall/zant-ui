@@ -1,12 +1,11 @@
-//! `list_bench.tsx` vs `list_manual.zig` (ported): a 10 000-row virtual list,
-//! 300 wheel scrolls and then 100 row clicks — Zig `bench_list.zig`.
+//! `list_bench.tsx` vs the hand-written list: a 10 000-row virtual list,
+//! 300 wheel scrolls and then 100 row clicks.
 //!
-//! The Zig benchmark filled the TSX root's `rows` state from the driver
-//! (`app.rows.set(tsx_rows)`); Rust codegen keeps root state private, so the
-//! generated page builds the same 10 000 `Row title` rows in its `useState`
-//! initialiser (`tsx_views/ListBench.tsx`, `list_bench.tsx` plus a `makeRows()`
-//! function) and this driver just runs the root app. Both sides get the
-//! identical 10 000 rows.
+//! The driver cannot fill the TSX root's `rows` state (the codegen keeps root
+//! state private), so the generated page builds the same 10 000 `Row title`
+//! rows in its `useState` initialiser (`tsx_views/ListBench.tsx`,
+//! `list_bench.tsx` plus a `makeRows()` function) and this driver just runs
+//! the root app. Both sides get the identical 10 000 rows.
 #![forbid(unsafe_code)]
 
 use zant::Str;
@@ -22,7 +21,7 @@ type TsxList = list_case::app::ListBench;
 
 const ROWS: usize = 10_000;
 
-/// Zig `scenario`: 300 scroll frames, then 100 clicks on the rows on screen.
+/// 300 scroll frames, then 100 clicks on the rows on screen.
 fn run(app: impl App) -> Vec<Stats> {
     let mut harness = Harness::new(app);
 
@@ -63,7 +62,7 @@ pub fn tsx() -> Vec<Stats> {
     run(TsxList::default())
 }
 
-/// The hand-written control: `list_manual.zig` ported.
+/// The hand-written control.
 pub fn manual() -> Vec<Stats> {
     let rows: Vec<ManualRow> = (0..ROWS)
         .map(|index| ManualRow {

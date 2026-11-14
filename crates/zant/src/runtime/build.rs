@@ -1,4 +1,4 @@
-//! Port of `src/ui_runtime.zig:292-382` + `setTheme`: the build stage.
+//! The build stage.
 //!
 //! [`Runtime::rebuild`] runs the app's `render`, expands portals, performs the
 //! `ui::wake_after` / `ui::document_edited` bookkeeping and reconciles the
@@ -6,7 +6,7 @@
 //! [`Runtime::set_theme`] switches the theme and drops every cached text
 //! layout.
 //!
-//! **Hard rule (plan.md §4):** the build context borrow is released before
+//! **Hard rule:** the build context borrow is released before
 //! `App::render` runs — every `ui::*` call borrows it again.
 #![forbid(unsafe_code)]
 
@@ -19,7 +19,7 @@ use crate::ui::element::Node;
 use super::{Runtime, action_cx};
 
 impl Runtime {
-    /// Runs one rebuild: `buildTree` plus the `ui::effect` callbacks. An effect
+    /// Runs one rebuild: `build_tree` plus the `ui::effect` callbacks. An effect
     /// that changed state asks for another build (`needs_build`).
     pub(crate) fn rebuild(&mut self) {
         self.build_tree();
@@ -36,7 +36,7 @@ impl Runtime {
         }
     }
 
-    /// Zig `drawsCaptionButtons`: a hidden-titlebar window on Windows draws
+    /// A hidden-titlebar window on Windows draws
     /// its own caption buttons (macOS keeps the traffic lights).
     fn draws_caption_buttons(&self) -> bool {
         cfg!(target_os = "windows")
@@ -49,7 +49,7 @@ impl Runtime {
         if height > 0.0 { height } else { 32.0 }
     }
 
-    /// Zig `buildTree`: theme / window style / build states, then `render` and
+    /// Theme / window style / build states, then `render` and
     /// [`Runtime::reconcile_root`].
     pub(crate) fn build_tree(&mut self) {
         let theme = self.app.borrow().theme();
@@ -64,8 +64,8 @@ impl Runtime {
         crate::ui::set_build_states(Some(Rc::clone(&self.local_states)));
         crate::ui::begin_frame();
         // `ui::key_bounds` answers from this window's snapshot while it builds
-        // (Zig pointed the build context at the live tree; multi-window needs
-        // the hook to follow the window being built).
+        // (with several windows the hook has to follow the window being
+        // built).
         let bounds = Rc::clone(&self.key_bounds);
         crate::ui::set_key_bounds_hook(Some(Rc::new(move |key: &str| {
             bounds.borrow().get(key).copied()
@@ -80,7 +80,7 @@ impl Runtime {
         if !portals.is_empty() && root.element().kind == NodeKind::Container {
             root = crate::ui::append_children(root, &portals);
         }
-        // App-drawn Windows caption buttons (Zig `drawsCaptionButtons`): a
+        // App-drawn Windows caption buttons: a
         // hidden-titlebar window on Windows gets the minimize / maximize /
         // close buttons in the top-right corner of its own title bar.
         if self.draws_caption_buttons() && root.element().kind == NodeKind::Container {
@@ -128,7 +128,7 @@ impl Runtime {
         self.local_states.borrow_mut().sweep();
     }
 
-    /// Zig `reconcileRoot`: the root always fills the window and needs a
+    /// The root always fills the window and needs a
     /// background, so the spec is normalised before it is compared.
     pub(crate) fn reconcile_root(&mut self, root_spec: Node) -> bool {
         let root_id = self.tree.root;
@@ -172,7 +172,7 @@ impl Runtime {
         changed_layout
     }
 
-    /// Zig `setTheme`: switches the active theme and invalidates every cached
+    /// Switches the active theme and invalidates every cached
     /// text layout (the colours are baked into the shaped paragraphs).
     pub(crate) fn set_theme(&mut self, theme: Theme) {
         if self.theme == theme {
@@ -236,7 +236,7 @@ mod tests {
         let mut options = RunOptions::default();
         options.window.style = crate::platform::platform::WindowStyle::HiddenTitlebar;
         let mut runtime = Runtime::init(Empty, options);
-        // macOS keeps the traffic lights (and Zig only drew the buttons on
+        // macOS keeps the traffic lights (the buttons are only drawn on
         // Windows); the flag also tracks the window style.
         assert_eq!(cfg!(target_os = "windows"), runtime.draws_caption_buttons());
         assert_eq!(32.0, runtime.caption_height());

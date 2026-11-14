@@ -1,9 +1,9 @@
-//! Port of `src/components/segmented.zig` — WP-2.5: the antd Segmented control.
+//! The antd Segmented control.
 //!
 //! A `bg_layout` track (2 px padding, 6 px radius) with a raised `bg_elevated`
 //! thumb that slides to the selected option (antd: 300 ms ease-in-out). The
 //! thumb follows the selected item through the layout `anchor`; the runtime's
-//! FLIP transition (WP-2.7) animates the slide from the old to the new box.
+//! FLIP transition animates the slide from the old to the new box.
 #![forbid(unsafe_code)]
 
 use crate::Str;
@@ -61,7 +61,7 @@ impl Default for SegmentedOptions {
     }
 }
 
-/// Zig `segmented`: the antd Segmented control.
+/// The antd Segmented control.
 pub fn segmented(o: SegmentedOptions) -> Node {
     let theme = current_theme();
     let base = o.key.clone().unwrap_or(Str::Static("segmented"));
@@ -221,7 +221,7 @@ mod tests {
     }
 
     #[test]
-    fn segmented_defaults_match_the_zig_struct() {
+    fn segmented_defaults() {
         let defaults = SegmentedOptions::default();
         assert_eq!(defaults.key.as_deref(), Some("segmented"));
         assert!(defaults.options.is_empty());
@@ -354,7 +354,7 @@ mod tests {
             ..Default::default()
         });
         let outer = node.element();
-        assert!(outer.key.is_none(), "the wrapper row has no key (Zig)");
+        assert!(outer.key.is_none(), "the wrapper row has no key");
         assert_eq!(outer.kind, NodeKind::Container);
         assert_eq!(outer.layout.direction, flex::Direction::Row);
         assert_eq!(outer.children.len(), 1);
@@ -399,8 +399,8 @@ mod tests {
         });
         let track = node.element();
         assert_eq!(track.children[0].element().layout.anchor, Some(1));
-        // no option is active when `selected` is out of range (Zig compares
-        // the raw index), so every hit uses the text variant
+        // no option is active when `selected` is out of range (the raw
+        // index is compared), so every hit uses the text variant
         assert_eq!(
             track.children[1].element().children[0]
                 .element()

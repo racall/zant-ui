@@ -1,8 +1,7 @@
-//! `setTimeout` / `clearTimeout` and the Rust-side interval / animation-frame
-//! helpers for generated TSX code (port of `src/tsx_timers.zig`).
+//! `setTimeout` / `clearTimeout` and the interval / animation-frame
+//! helpers for generated TSX code.
 //!
-//! Zig's timer registry stored a Zig callback plus a value context; generated
-//! Rust code owns closures, so a timer stores a [`ui::Action`] (the same
+//! Generated code owns closures, so a timer stores a [`ui::Action`] (the same
 //! callback type every other event uses). Timers run on the UI thread: a
 //! short-lived sleeper thread only posts `ui::post_wake` at the due time, the
 //! app's `on_wake` hook fires what is due (see [`crate::tsx::app::Shell`]).
@@ -13,12 +12,9 @@
 //! ```
 //!
 //! The registry is thread-local (one UI thread per process) and ids grow
-//! monotonically per thread; `clear_*` ignores unknown ids. Behavior of
-//! `set_timeout` / `clear` / `fire` / `fire_due` / `pending` matches the Zig
-//! version, including "a timer set by a callback waits for a later call" and
-//! the 4 ms early-wake tolerance. `set_interval` and
-//! `request_animation_frame` are Rust-side additions: JS has them, the Zig
-//! compiler never emitted them. An animation frame is a 0 ms timer, i.e. it
+//! monotonically per thread; `clear_*` ignores unknown ids. A timer set by a
+//! callback waits for a later `fire` call, and a wake may come up to 4 ms
+//! early and still run its timer. An animation frame is a 0 ms timer, i.e. it
 //! runs on the next UI-thread wake (there is no separate paint callback).
 
 use std::cell::{Cell, RefCell};
@@ -33,12 +29,11 @@ thread_local! {
     static NEXT_ID: Cell<u64> = const { Cell::new(1) };
     /// Test clock override (monotonic milliseconds).
     static CLOCK: Cell<Option<fn() -> i64>> = const { Cell::new(None) };
-    /// Whether sleepers should post wakes (only inside `tsx::app::run`; Zig
-    /// returned early without `zant.tsx.app.io()`).
+    /// Whether sleepers should post wakes (only inside `tsx::app::run`).
     static RUNNING: Cell<bool> = const { Cell::new(false) };
 }
 
-/// How early a wake may come and still run its timer (Zig `early_ms`).
+/// How early a wake may come and still run its timer.
 const EARLY_MS: i64 = 4;
 
 struct Timer {
@@ -107,7 +102,7 @@ pub fn set_timeout(ms: f64, callback: Action) -> f64 {
     id as f64
 }
 
-/// Zig name of [`set_timeout`] (`tsx.timers.set` in generated code).
+/// Short name of [`set_timeout`] (`tsx::timers::set` in generated code).
 pub fn set(ms: f64, callback: Action) -> f64 {
     set_timeout(ms, callback)
 }
@@ -152,7 +147,7 @@ pub fn clear_timeout(id: f64) {
     });
 }
 
-/// Zig name of [`clear_timeout`] (`tsx.timers.clear` in generated code).
+/// Short name of [`clear_timeout`] (`tsx::timers::clear` in generated code).
 pub fn clear(id: f64) {
     clear_timeout(id);
 }
@@ -168,7 +163,7 @@ pub fn cancel_animation_frame(id: f64) {
 }
 
 /// Runs the timers due by `now_ms` (in the order they were set); true when one
-/// ran. Timers set by a callback wait for a later call (Zig `fire`).
+/// ran. Timers set by a callback wait for a later call.
 pub fn fire(now_ms: i64, action_cx: &mut ActionCx<'_>) -> bool {
     let snapshot = TIMERS.with(|timers| timers.borrow().len());
     let mut ran = false;
@@ -361,7 +356,7 @@ mod tests {
     }
 
     #[test]
-    fn delays_are_clamped_like_zig() {
+    fn delays_are_clamped() {
         setup();
         let id = set_timeout(-5.0, Action::new(|_| {}));
         assert!(id > 0.0);

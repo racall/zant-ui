@@ -1,6 +1,6 @@
 //! Windows build-script extras: the executable's `.ico` + manifest resources,
 //! the GUI subsystem for release builds and `pdfium.dll` next to the
-//! executable. Port of Zig `configureApp` / `addWindowsIcon` / `installRuntime`.
+//! executable.
 //!
 //! Everything here runs on the *host* (build scripts are host programs), so
 //! this module is only built when the app is built on Windows.
@@ -69,7 +69,7 @@ fn write_resources(app_root: &Path, out_dir: &Path) -> Result<Option<(PathBuf, P
     Ok(Some((rc_path, out_dir.to_path_buf())))
 }
 
-/// Zig `configureApp`: release builds are GUI programs (`windows_subsystem`).
+/// Release builds are GUI programs (`windows_subsystem`).
 /// The Rust entry point is `fn main`, so `mainCRTStartup` is the linker entry
 /// for `/SUBSYSTEM:WINDOWS`.
 fn print_subsystem() {
@@ -87,8 +87,7 @@ fn print_subsystem() {
 /// A missing DLL fails release builds loudly: those are the ones that get
 /// packaged, and a package without `pdfium.dll` has a silently broken
 /// `PdfPreview`. Debug builds (`zant run`) only warn and keep every non-PDF
-/// feature working — the same "fail loudly when packaging" rule as Zig's
-/// `configureApp`, except Zig's install step failed both profiles.
+/// feature working.
 fn install_pdfium(out_dir: &Path) -> Result<(), Error> {
     let source = crate::zant_ui_root().join("third_party/pdfium-win/bin/pdfium.dll");
     let release = std::env::var("PROFILE").is_ok_and(|profile| profile != "debug");

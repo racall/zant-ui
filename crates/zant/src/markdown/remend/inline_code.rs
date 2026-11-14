@@ -1,4 +1,5 @@
-//! Port of `src/markdown/remend/inline_code.zig` (remend `inline-code-handler.ts`).
+//! remend `inline-code-handler.ts`: completes inline code that is still open
+//! at the end of a streamed text.
 
 use super::context::Context;
 use super::patterns as p;

@@ -1,5 +1,3 @@
-//! Port of `src/markdown/render/controls.zig` — WP-3.3.
-//!
 //! Small toolbar buttons used by code blocks, tables and diagrams.
 
 use crate::Str;

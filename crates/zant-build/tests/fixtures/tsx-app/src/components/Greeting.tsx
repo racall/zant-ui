@@ -3,8 +3,8 @@ import { View, Text } from "zant";
 // A second project module (not used by `App.tsx`): `zant-build` declares it in
 // the generated `main.rs`, so `src/main.rs` sees it as `crate::greeting`.
 //
-// The fixture works around three WP-5.4/5.5 code-generation gaps in this base
-// (reported by WP-6.2; `zant-build` itself is not involved) so the end-to-end
+// The fixture works around three `zant-tsx` code-generation gaps
+// (`zant-build` itself is not involved) so the end-to-end
 // build-script check can compile:
 // - non-`Copy` prop reads (`self.props.label` in a `<Text>` child) need a
 //   `.clone()`, so the prop is not rendered here;

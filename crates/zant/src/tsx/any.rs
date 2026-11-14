@@ -1,10 +1,9 @@
 //! `zant::tsx::Any`: a dynamically typed value for the few places generated
 //! code loses the TypeScript type (`console.log`, dynamic props).
 //!
-//! Port of the `any` row of docs/rust-port/tsx-codegen.md §2: the Zig compiler
-//! only needed a value when it cannot infer a type; Rust codegen uses [`Any`]
-//! for the same edge cases. The variants follow that document: `Str`, `f64`
-//! and `bool` (`Any` in the Zig runtime did not exist as a type).
+//! The compiler only needs such a value when it cannot infer a type; the
+//! codegen uses [`Any`] for those edge cases. The variants are `Str`, `f64`
+//! and `bool`.
 
 use crate::Str;
 

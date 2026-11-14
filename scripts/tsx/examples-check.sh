@@ -1,6 +1,5 @@
 #!/bin/sh
-# End-to-end check of the TSX example apps and the TSX compile benchmark
-# (WP-5.10; the remaining M5 acceptance apps in WP-5.10b).
+# End-to-end check of the TSX example apps and the TSX compile benchmark.
 #
 #   scripts/tsx/examples-check.sh
 #
@@ -27,45 +26,30 @@
 #      rodata). That is the text half of the screenshot assertion; the layout
 #      dump cannot see text either.
 #
-# The apps are the M5 acceptance set: counter, demo and the benchmark workload
-# (WP-5.10) plus gallery, todos, reader and notes (WP-5.10b, the Zig
-# `examples/tsx/{gallery,todos,reader,notes}` apps). When `ZANT_ZIG_BIN` names a
-# `zig-out-baseline/bin` directory (the variable and layout
-# `scripts/parity/compare.sh` uses), the same four apps are also checked
-# against their Zig baseline binaries: identical `ZANT_LAYOUT_FILE` dumps and
-# ≤ 0.1 % differing pixels (`scripts/parity/imgdiff.py`), the M5 acceptance
-# "zant-tsx-* 与 Zig 版对照一致". The section is skipped without the variable
-# (the Zig tree is frozen and not built here).
+# The apps are counter, demo, the benchmark workload, gallery, todos, reader
+# and notes.
 #
 # Then it runs the compile benchmark. `crates/zant-examples`' `zant-tsx-bench`
 # compiles every `crates/zant-tsx/testdata/tsx/*.tsx` through `zant_tsx::compile`
-# in process (10 warm-up + 100 iterations each). While the Zig tree existed
-# this compared against the Zig compiler in process
-# (`tools/tsx/compile_bench.zig`, gate ≤ 1.25×, see docs/rust-port/status.md
-# WP-5.10). The Zig toolchain and sources were removed at M8, so the script
-# now runs the Rust benchmark alone and checks that every corpus file compiled
-# (the recorded pre-M8 ratio was 1.08-1.10×).
+# in process (10 warm-up + 100 iterations each); the script checks how many
+# corpus files compiled (at least 30 of the 32; files the compiler rejects are
+# reported and skipped by the benchmark).
 #
-# `ZANT_CARGO`, `ZANT_ZIG`, `ZANT_PYTHON` and `CARGO_TARGET_DIR` override the
-# tools / build directory. Never opens a visible window; needs no network.
+# `ZANT_CARGO`, `ZANT_PYTHON` and `CARGO_TARGET_DIR` override the tools / build
+# directory. Never opens a visible window; needs no network.
 set -eu
 
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 cargo=${ZANT_CARGO:-cargo}
 cargo_home="$repo/.cargo-home"
-zig=${ZANT_ZIG:-zig}
 python=${ZANT_PYTHON:-python3}
 target_dir=${CARGO_TARGET_DIR:-"$repo/target"}
 corpus="$repo/crates/zant-tsx/testdata/tsx"
-# The measured corpus, warm-up rounds and iterations of the compile benchmark;
-# the Zig harness takes the same arguments.
+# The measured corpus, warm-up rounds and iterations of the compile benchmark.
 warmup=10
 iterations=100
-gate=1.25
-# Compile time is sensitive to other load on the machine; run both benchmarks
-# several times and compare the best round of each file (`scripts/parity/bench.sh`
-# takes the best of several alternating rounds for the same reason). Override
-# with `ZANT_BENCH_ROUNDS`.
+# Compile time is sensitive to other load on the machine, so the benchmark runs
+# several rounds. Override with `ZANT_BENCH_ROUNDS`.
 rounds=${ZANT_BENCH_ROUNDS:-3}
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/zant-tsx-examples.XXXXXX")
@@ -77,10 +61,10 @@ CARGO_HOME="$cargo_home" "$cargo" build -p zant-tsx-counter -p zant-tsx-demo -p 
     -p zant-tsx-gallery -p zant-tsx-todos -p zant-tsx-reader -p zant-tsx-notes
 bin_dir="$target_dir/debug"
 
-# PNG checks (2., 3.) of one snapshot. `scripts/parity/imgdiff.py` is the
-# pure-stdlib PNG decoder of the parity scripts, shared here.
+# PNG checks (2., 3.) of one snapshot. `scripts/lib/imgdiff.py` provides the
+# pure-stdlib PNG decoder.
 check_png() {
-    "$python" - "$1" "$2" "$3" "$repo/scripts/parity/imgdiff.py" <<'PY'
+    "$python" - "$1" "$2" "$3" "$repo/scripts/lib/imgdiff.py" <<'PY'
 import collections
 import importlib.util
 import sys
@@ -207,157 +191,36 @@ run_app gallery zant-tsx-gallery "TSX Gallery" "TSX component gallery" 960 760 \
     refresh saved nesting rich save-icon copy-icon clickable-card inner tabs
 run_app todos zant-tsx-todos "TSX Todos" "Nothing to do yet." 560 640 \
     new add filter empty left clear
-# The reader opens the repo's small PDF fixture (`tests/fixtures/widgets.pdf`,
-# the path the Zig example uses), so the script runs from the repo root.
+# The reader opens the repo's small PDF fixture (`tests/fixtures/widgets.pdf`),
+# so the script runs from the repo root.
 run_app reader zant-tsx-reader "TSX Reader" "Document reader" 1120 760 \
     append finish reply-scroll reply path open reader
 run_app notes zant-tsx-notes "TSX Notes" "No notes yet." 520 560 \
     new add search empty
-
-# 7. parity with the Zig baseline binaries (`ZANT_ZIG_BIN`), when available.
-if [ -n "${ZANT_ZIG_BIN:-}" ] && [ -x "$ZANT_ZIG_BIN/zant-tsx-gallery" ]; then
-    echo "== Zig-baseline parity of the TSX example apps"
-    for app in gallery todos reader notes; do
-        shot="$work/zig-$app.png"
-        layout="$work/zig-$app.layout"
-        log="$work/zig-$app.log"
-        if ! ZANT_THEME=light ZANT_NO_MOTION=1 ZANT_SNAPSHOT="$shot" \
-            ZANT_SNAPSHOT_EXIT=1 ZANT_LAYOUT_FILE="$layout" \
-            timeout 120 "$ZANT_ZIG_BIN/zant-tsx-$app" >"$log" 2>&1; then
-            echo "the Zig baseline zant-tsx-$app did not run to a snapshot" >&2
-            tail -20 "$log" >&2 || true
-            exit 1
-        fi
-        if ! cmp -s "$work/$app-1.layout" "$layout"; then
-            echo "$app: the layout dump differs from the Zig baseline" >&2
-            diff -u "$layout" "$work/$app-1.layout" >&2 || true
-            exit 1
-        fi
-        if ! "$python" "$repo/scripts/parity/imgdiff.py" "$work/$app-1.png" "$shot" >"$work/zig-$app.diff" 2>&1; then
-            cat "$work/zig-$app.diff" >&2
-            exit 1
-        fi
-        echo "   $app: layout identical to Zig, $(tail -1 "$work/zig-$app.diff")"
-    done
-else
-    echo "   note: ZANT_ZIG_BIN is not set (or has no Zig TSX baseline); skipping the Zig parity comparison" >&2
-fi
 
 echo
 echo "== TSX compile benchmark: zant-tsx-bench"
 CARGO_HOME="$cargo_home" "$cargo" build --release -p zant-examples --bin zant-tsx-bench
 rust_bench="$target_dir/release/zant-tsx-bench"
 mkdir -p "$work/bench"
-zig_available=1
-if ! command -v "$zig" >/dev/null 2>&1; then
-    zig_available=0
-fi
-if [ "$zig_available" -eq 1 ] && [ -f "$repo/tools/tsx/compile_bench.zig" ]; then
-    if ! ZIG_GLOBAL_CACHE_DIR="$repo/.zig-global-cache" "$zig" build-exe \
-        -OReleaseFast -lc --name tsx-compile-bench-zig \
-        --cache-dir "$work/bench/zig-cache" \
-        "$repo/tools/tsx/compile_bench.zig" \
-        -femit-bin="$work/bench/zig-bench"; then
-        echo "could not build the Zig compile benchmark (tools/tsx/compile_bench.zig)" >&2
+echo "   $rounds rounds"
+round=1
+while [ "$round" -le "$rounds" ]; do
+    if ! "$rust_bench" "$corpus" "$warmup" "$iterations" \
+        >"$work/bench/rust-$round.log" 2>&1; then
+        echo "zant-tsx-bench failed in round $round:" >&2
+        tail -30 "$work/bench/rust-$round.log" >&2 || true
         exit 1
     fi
-    echo "   $rounds rounds, best round of each file (load-insensitive)"
-    round=1
-    while [ "$round" -le "$rounds" ]; do
-        if ! "$rust_bench" "$corpus" "$warmup" "$iterations" \
-            >"$work/bench/rust-$round.log" 2>&1; then
-            echo "zant-tsx-bench failed in round $round:" >&2
-            tail -30 "$work/bench/rust-$round.log" >&2 || true
-            exit 1
-        fi
-        if ! (cd "$repo" && "$work/bench/zig-bench" "$corpus" "$warmup" "$iterations") \
-            >"$work/bench/zig-$round.log" 2>&1; then
-            echo "the Zig compile benchmark failed in round $round:" >&2
-            tail -30 "$work/bench/zig-$round.log" >&2 || true
-            exit 1
-        fi
-        round=$((round + 1))
-    done
-    "$python" - "$work/bench" "$rounds" "$gate" <<'PY'
-import glob
-import os
-import re
-import sys
-
-ROW = re.compile(
-    r"^(?P<name>\S+)\s+frames=\s*(?P<frames>\d+)\s+avg=\s*(?P<avg>[0-9.]+) ms"
-)
-
-
-def rows(path):
-    values = {}
-    with open(path, encoding="utf-8") as log:
-        for line in log:
-            match = ROW.match(line)
-            if match and match.group("name") != "total":
-                values[match.group("name")] = float(match.group("avg"))
-    return values
-
-
-def best(prefix):
-    """The best (lowest) per-file average over the rounds of one side."""
-    values = {}
-    for path in sorted(glob.glob(os.path.join(sys.argv[1], prefix + "-*.log"))):
-        for name, avg in rows(path).items():
-            values[name] = min(values.get(name, avg), avg)
-    return values
-
-
-rounds = int(sys.argv[2])
-gate = float(sys.argv[3])
-rust = best("rust")
-zig = best("zig")
-common = sorted(set(rust) & set(zig))
-only_zig = sorted(set(zig) - set(rust))
-if not common:
-    sys.exit("the two benchmarks have no corpus file in common")
-rust_avg = sum(rust[name] for name in common) / len(common)
-zig_avg = sum(zig[name] for name in common) / len(common)
-ratio = rust_avg / zig_avg
-print(
-    f"   {len(common)} common corpus files, per-file average compile time, "
-    f"best of {rounds} rounds"
-)
-slowest = sorted(common, key=lambda name: rust[name] / zig[name], reverse=True)[:8]
-for name in slowest:
-    print(
-        f"   {name:<20} rust={rust[name]:>6.3f} ms  zig={zig[name]:>6.3f} ms"
-        f"  {rust[name] / zig[name]:>5.2f}x"
-    )
-print(f"   {'average':<20} rust={rust_avg:>6.3f} ms  zig={zig_avg:>6.3f} ms  {ratio:>5.2f}x")
-if only_zig:
-    print(
-        "   only in the Zig baseline (rejected by the Rust compiler, "
-        f"status.md WP-5.9: {', '.join(only_zig)})"
-    )
-print(f"   gate: Rust <= {gate}x Zig -> {'PASS' if ratio <= gate else 'FAIL'}")
-sys.exit(0 if ratio <= gate else 1)
-PY
-else
-    echo "   Zig toolchain/sources are gone (M8): Rust-only compile benchmark" >&2
-    round=1
-    while [ "$round" -le "$rounds" ]; do
-        if ! "$rust_bench" "$corpus" "$warmup" "$iterations" \
-            >"$work/bench/rust-$round.log" 2>&1; then
-            echo "zant-tsx-bench failed in round $round:" >&2
-            tail -30 "$work/bench/rust-$round.log" >&2 || true
-            exit 1
-        fi
-        round=$((round + 1))
-    done
-    compiled=$(grep -c 'frames=' "$work/bench/rust-1.log" || true)
-    if [ "$compiled" -lt 30 ]; then
-        echo "zant-tsx-bench compiled only $compiled of the 32 corpus files:" >&2
-        tail -30 "$work/bench/rust-1.log" >&2 || true
-        exit 1
-    fi
-    echo "   Rust-only: $compiled corpus files compiled (recorded pre-M8 ratio 1.08-1.10x Zig)"
+    round=$((round + 1))
+done
+compiled=$(grep -c 'frames=' "$work/bench/rust-1.log" || true)
+if [ "$compiled" -lt 30 ]; then
+    echo "zant-tsx-bench compiled only $compiled of the 32 corpus files:" >&2
+    tail -30 "$work/bench/rust-1.log" >&2 || true
+    exit 1
 fi
+echo "   $compiled corpus files compiled"
 
 echo
 echo "TSX examples and compile benchmark: OK"

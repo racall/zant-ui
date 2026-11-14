@@ -1,4 +1,4 @@
-# The TSX document reader (port of examples/tsx/reader.tsx) (WP-5.10b).
+# The TSX document reader (Markdown streaming + PDF).
 #
 # The app is a Cargo workspace member: `build.rs` calls
 # `zant_build::try_tsx_app()` (the template's TSX → Rust step) and writes

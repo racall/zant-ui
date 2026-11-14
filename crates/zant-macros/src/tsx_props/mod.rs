@@ -1,18 +1,14 @@
-//! `#[derive(TsxProps)]` code generation (WP-5.2).
+//! `#[derive(TsxProps)]` code generation.
 //!
-//! Port of the reflection half of `tools/tsx/manifest/reflect.zig`: the Zig
-//! generator saw `ui.*` option structs through `@typeInfo` at comptime; Rust
-//! cannot reflect on a type from inside a `proc-macro`, so the derive emits the
-//! field list as a `const` and `zant-tsx-tags` reads it back at run time (the
-//! generator links the `zant` crate). The trait and the metadata types live in
-//! `zant::ui::options::tsx_props` because a `proc-macro` crate cannot export
-//! runtime items.
+//! Rust cannot reflect on a type from inside a `proc-macro`, so the derive
+//! emits the field list as a `const` and `zant-tsx-tags` reads it back at run
+//! time (the generator links the `zant` crate). The trait and the metadata
+//! types live in `zant::ui::options::tsx_props` because a `proc-macro` crate
+//! cannot export runtime items.
 //!
 //! Field types are emitted as tokens (`stringify!`), not classified: the
 //! generator resolves them against the `zant` sources (enums, nested options
-//! structs) and decides the TSX [`Kind`] exactly like `reflect.zig:kind` did.
-//!
-//! [`Kind`]: docs/rust-port/tsx-codegen.md
+//! structs) and decides the TSX prop kind.
 
 mod emit;
 mod model;

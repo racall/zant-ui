@@ -1,11 +1,9 @@
-//! Port of `src/markdown/edit.zig` — WP-3.3.
-//!
 //! Pure Markdown editing commands used by the editor component: formatting
 //! toggles, line prefixes, list continuation on Enter and list indentation.
 //! Every command returns the new text plus the selection to apply.
 //!
-//! Zig allocated the results in a caller arena; the Rust port returns owned
-//! `String`s (the editor's callbacks own what they hand to the app).
+//! The results are owned `String`s (the editor's callbacks own what they hand
+//! to the app).
 
 use crate::markdown::scan;
 
@@ -102,8 +100,10 @@ pub fn wrap(text: &str, sel_in: Selection, open: &str, close: &str) -> Result {
     // already wrapped outside the selection → unwrap
     if s >= open.len()
         && e + close.len() <= text.len()
-        && &text[s - open.len()..s] == open
-        && &text[e..e + close.len()] == close
+        // compared as bytes: the marker-sized window before / after the
+        // selection may start inside a multi-byte character
+        && text.as_bytes()[s - open.len()..s] == *open.as_bytes()
+        && text.as_bytes()[e..e + close.len()] == *close.as_bytes()
     {
         let out = splice(text, s - open.len(), e + close.len(), &text[s..e]);
         return Result {
@@ -549,7 +549,6 @@ pub fn indent_list(text: &str, sel_in: Selection, outdent: bool) -> Option<Resul
 mod tests {
     use super::*;
 
-    /// Zig `edit.zig`: `test "wrap toggles"`.
     #[test]
     fn wrap_toggles() {
         let r1 = apply(
@@ -566,7 +565,28 @@ mod tests {
         assert_eq!(r2.text, "hello world");
     }
 
-    /// Zig `edit.zig`: `test "list continuation"`.
+    #[test]
+    fn wrap_handles_multi_byte_text() {
+        // "好" selected: the marker-sized window before it starts inside "你"
+        let text = "你好世界";
+        let bold = apply(
+            text,
+            Selection {
+                anchor: 3,
+                cursor: 6,
+            },
+            Command::Bold,
+        );
+        assert_eq!(bold.text, "你**好**世界");
+        let plain = apply(&bold.text, bold.selection, Command::Bold);
+        assert_eq!(plain.text, text);
+        // a caret between two characters inserts an empty pair
+        let italic = apply(text, Selection::collapsed(6), Command::Italic);
+        assert_eq!(italic.text, "你好**世界");
+        let code = apply(text, Selection::collapsed(3), Command::InlineCode);
+        assert_eq!(code.text, "你``好世界");
+    }
+
     #[test]
     fn list_continuation() {
         let r = continue_list("1. one", Selection::collapsed(6)).expect("list item");
@@ -579,7 +599,6 @@ mod tests {
         assert!(continue_list("plain", Selection::collapsed(5)).is_none());
     }
 
-    /// Zig `edit.zig`: `test "line prefixes and headings"`.
     #[test]
     fn line_prefixes_and_headings() {
         let q = apply(

@@ -2,8 +2,8 @@
 //! Source: W3C XHTML 1.0, https://www.w3.org/TR/xhtml1/#h-A2
 //! (xhtml-lat1.ent, xhtml-symbol.ent and xhtml-special.ent).
 //!
-//! Direct translation of `tools/tsx/jsx_entities.zig`; the order is the Zig
-//! table order (code point order, not alphabetic).
+//! The table is in the order of the entity files (code point order within
+//! each file, not alphabetic).
 
 /// Exact, case-sensitive XHTML entity name to Unicode code point lookup.
 pub const TABLE: [(&str, char); 253] = [

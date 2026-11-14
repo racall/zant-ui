@@ -1,4 +1,4 @@
-//! Port of `tests/lifecycle_test.zig` — node lifecycle: removed subtrees are
+//! Node lifecycle: removed subtrees are
 //! freed and recycled, runtime references to them are cleared, keyed children
 //! match strictly.
 
@@ -183,8 +183,8 @@ impl App for VetoState {
 fn close_requests_are_vetoed_by_close_fn() {
     let mut runtime = Runtime::init(VetoState { veto: true }, RunOptions::default());
     assert_eq!(runtime.dispatch(Event::WindowCloseRequest), 1);
-    // Zig cleared `config.close_fn`; Rust's `App::on_close_request` default
-    // allows the close, so the state flag turns the veto off instead.
+    // `App::on_close_request` allows the close once the state flag turns the
+    // veto off.
     runtime.app_state_mut::<VetoState>().veto = false;
     assert_eq!(runtime.dispatch(Event::WindowCloseRequest), 0);
 }
@@ -196,7 +196,7 @@ fn close_requests_are_vetoed_by_close_fn() {
 ///
 /// The frame is painted through the runtime's `Rc<RefCell<Runtime>>` (the
 /// `RuntimeHost` path); the borrow is already held by `dispatch`, so the
-/// nested paint is skipped — the Rust port of "keep showing the current tree".
+/// nested paint is skipped, i.e. the window keeps showing the current tree.
 struct ModalInner {
     replaced: bool,
     core: Option<Weak<RefCell<Runtime>>>,

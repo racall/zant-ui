@@ -1,5 +1,3 @@
-//! Port of `src/markdown/entities.zig` — WP-3.2.
-//!
 //! HTML character reference decoding (`&amp;`, `&#169;`, `&#x1F600;`).
 
 use std::borrow::Cow;
@@ -89,7 +87,7 @@ pub fn decode_at<'b>(text: &str, buf: &'b mut [u8; 4]) -> Option<(&'b str, usize
         }
         let digits = std::str::from_utf8(digits).ok()?;
         let code = u32::from_str_radix(digits, if hex { 16 } else { 10 }).ok()?;
-        // Zig parses into `u21`; values above its max are a parse error.
+        // values above the 21-bit code point range are a parse error
         if code > 0x1F_FFFF {
             return None;
         }

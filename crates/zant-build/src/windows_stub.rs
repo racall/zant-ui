@@ -1,6 +1,6 @@
 //! Non-Windows build-script extras: nothing to do.
 //!
-//! Zig's `configureApp` only touched Windows executables; macOS app bundles
+//! Only Windows executables need build-script configuration; macOS app bundles
 //! and their `AppIcon.icns` are produced by `zant package` (not by the build
 //! script), so `tsx_app()` stops after writing the Rust modules, `icons.rs`
 //! and `app.d`.

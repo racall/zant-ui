@@ -1,8 +1,8 @@
-//! Media builders of `src/ui.zig`: `image`, `icon`, `iconButton`, `vector`
-//! (WP-2.3). `pdfPreview` lives in the sibling `pdf_preview` module.
+//! Media builders: `image`, `icon`, `icon_button`, `vector`. `pdf_preview`
+//! lives in the sibling `pdf_preview` module.
 //!
 //! `ui::icon` is a `vector` node whose drawing comes from `core::icons`, and
-//! `ui::iconButton` is a small text-variant button carrying the icon name —
+//! `ui::icon_button` is a small text-variant button carrying the icon name —
 //! the retained-tree painter draws both from `core::icons` (no bitmap).
 #![forbid(unsafe_code)]
 
@@ -25,7 +25,7 @@ use super::{button, tooltip};
 pub fn image(options: ImageOptions) -> Node {
     let image_handle = options.image.as_ref().map(Rc::clone);
     let image_id = options.image.as_ref().map_or(0, |img| img.id);
-    // Zig: an in-memory image wins, and its handle replaces the path.
+    // An in-memory image wins, and its handle replaces the path.
     let content = if options.image.is_some() {
         Str::default()
     } else {
@@ -54,12 +54,6 @@ pub fn image(options: ImageOptions) -> Node {
     })
 }
 
-// Icon enums: the base has two copies of the icon list — `core::node::Icon`
-// (declared by WP-1.2 for `Element::icon` and the option structs) and
-// `core::icons::Icon` (the tracer, WP-2.3a). They list the same variants in
-// the same order and `icons::Icon::ALL` is documented as that order, so the
-// conversion is an index lookup. WP-2.3 reports the duplication: in the base
-// `core::node::ButtonIcon` should be `pub use icons::Icon`.
 /// `ui::icon`: a line icon from the Zant icon set.
 pub fn icon(options: IconOptions) -> Node {
     let theme = current_theme();
@@ -77,7 +71,7 @@ pub fn icon(options: IconOptions) -> Node {
     })
 }
 
-/// `ui::iconButton`: a square icon-only button with hover feedback.
+/// `ui::icon_button`: a square icon-only button with hover feedback.
 pub fn icon_button(options: IconButtonOptions) -> Node {
     let theme = current_theme();
     let node = styled(
@@ -205,7 +199,7 @@ mod tests {
         assert_eq!(element.content, "", "the path is dropped");
         assert_eq!(element.image_id, id);
         assert!(element.image_handle.is_some());
-        assert_eq!(element.visual.radius, 8.0, "the Zig default radius");
+        assert_eq!(element.visual.radius, 8.0, "the default radius");
         assert_eq!(element.image_fit, ImageFit::Cover);
     }
 

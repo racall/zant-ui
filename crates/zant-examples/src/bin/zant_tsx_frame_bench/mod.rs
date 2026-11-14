@@ -1,10 +1,9 @@
-//! `zant-tsx-frame-bench`: the TSX frame benchmark (WP-5.10c), the Rust port
-//! of the Zig `bench-tsx` harness in `examples/tsx/bench.zig`.
+//! `zant-tsx-frame-bench`: the TSX frame benchmark.
 //!
 //! It runs each TSX benchmark page — compiled to Rust by `zant-build` in this
 //! crate's `build.rs` — against a hand-written `ui::App` control with the same
 //! UI tree, through the same headless frame loop (raster canvas, fake clock),
-//! and gates the TSX/manual frame-time ratio at 1.2× (plan.md §5 M5).
+//! and gates the TSX/manual frame-time ratio at 1.2×.
 //!
 //! ```text
 //! cargo build --release -p zant-examples --bin zant-tsx-frame-bench
@@ -19,16 +18,14 @@
 //! The two sides are ordinary `ui::App`s driven by the same [`Harness`]:
 //!
 //! - the **TSX side** is the real generated app: the case's `src/App.tsx` is
-//!   the `examples/tsx/*.tsx` input, compiled by `zant_build::tsx_app_in` in
+//!   the `tsx/corpus/*.tsx` input, compiled by `zant_build::tsx_app_in` in
 //!   `build.rs`, and included here as `mod *_case`. For `list` / `markdown`
 //!   the generated code is a component taking the data as a prop (see
-//!   `build.rs`), because Rust codegen keeps root-state fields private; the
+//!   `build.rs`), because the codegen keeps root-state fields private; the
 //!   JSX and widget calls are the ones of `list_bench.tsx` / `markdown_bench.tsx`.
-//! - the **manual side** is a hand-written `ui::App` in `controls/`, a
-//!   line-by-line Rust port of the Zig `*_manual.zig` control groups (plus the
-//!   `settings` control, which the Zig benchmark did not have: it only measured
-//!   the TSX settings page, while plan.md §5 M5 asks for the ratio of every
-//!   reported scenario).
+//! - the **manual side** is a hand-written `ui::App` in `controls/` with the
+//!   same UI tree, one control per page, so every reported scenario has a
+//!   ratio.
 //!
 //! Both are measured per frame as `renderer.begin` → `Runtime::render_frame`
 //! (rebuild + layout + paint) → `renderer.end`, exactly like `zant-bench`
@@ -39,7 +36,7 @@
 //! `ZANT_BENCH_REPEAT` (default 3) rounds are timed, alternating which side
 //! runs first (load on a shared machine hits both sides evenly); the best
 //! round per side — the lowest average frame time — is compared, like
-//! `scripts/parity/bench.sh`. The gate (`ZANT_BENCH_MAX_RATIO`, default 1.2)
+//! `scripts/bench.sh`. The gate (`ZANT_BENCH_MAX_RATIO`, default 1.2)
 //! applies to every scenario and every app aggregate. `scripts/tsx/bench-tsx.sh`
 //! is the reproducible entry point; it formats the comparison table.
 #![forbid(unsafe_code)]
@@ -54,9 +51,9 @@ use zant::ui::{App, RunOptions};
 
 // The generated TSX cases. Each `build.rs`-generated `main.rs` is a list of
 // `#[path] pub mod …;` declarations resolved relative to the generated file,
-// so `include!` nests them under the case module. `clippy::all` is the
-// generated-code allowance of WP-5.10 (the codegen emits constructs clippy
-// simplifies); it is scoped to the generated modules, not this crate.
+// so `include!` nests them under the case module. `clippy::all` is allowed
+// for generated code (the codegen emits constructs clippy simplifies); it is
+// scoped to the generated modules, not this crate.
 #[allow(clippy::all, dead_code)]
 mod counter_case {
     include!(concat!(
@@ -109,12 +106,12 @@ mod markdown;
 mod settings;
 mod todos;
 
-/// The benchmark window, from the Zig `bench_harness.zig` (`W` / `H`).
+/// The benchmark window size.
 pub const W: f32 = 640.0;
 pub const H: f32 = 900.0;
 
-/// `fake_now = 1_000_000` in Zig: the runtime clock injected into every
-/// scenario (motion is off; it drives the caret and wake timers only).
+/// The runtime clock injected into every scenario (motion is off; it drives
+/// the caret and wake timers only).
 static FAKE_NOW: AtomicI64 = AtomicI64::new(1_000_000);
 
 fn fake_clock() -> i64 {
@@ -126,7 +123,7 @@ fn advance_clock(ms: i64) {
 }
 
 /// One scenario's frame samples. `report` prints the average, p95 (index
-/// `len * 95 / 100` of the sorted list, the Zig index) and max.
+/// `len * 95 / 100` of the sorted list) and max.
 #[derive(Clone, Default)]
 pub struct Stats {
     pub samples: Vec<f64>,
@@ -197,7 +194,7 @@ impl Stats {
 }
 
 /// One whole frame in milliseconds (`renderer.begin` → `render_frame` →
-/// `renderer.end`), the Zig `Harness.frame`.
+/// `renderer.end`).
 pub fn frame(rt: &mut Runtime, renderer: &mut Renderer) -> f64 {
     advance_clock(16);
     let t0 = platform::monotonic_us();
@@ -207,17 +204,17 @@ pub fn frame(rt: &mut Runtime, renderer: &mut Renderer) -> f64 {
     (platform::monotonic_us() - t0) as f64 / 1000.0
 }
 
-/// The Zig `bench_harness.Harness`: a headless runtime on the fake clock with
-/// an untimed warm-up frame, clicks by key and per-frame timing. The raster
-/// canvas lives here (one per side per round).
+/// A headless runtime on the fake clock with an untimed warm-up frame,
+/// clicks by key and per-frame timing. The raster canvas lives here (one per
+/// side per round).
 pub struct Harness {
     pub rt: Runtime,
     renderer: Renderer,
 }
 
 impl Harness {
-    /// Zig `Harness.init`: runtime over `app` at 640×900, fake clock, then one
-    /// untimed warm-up frame.
+    /// Runtime over `app` at 640×900, fake clock, then one untimed warm-up
+    /// frame.
     pub fn new(app: impl App) -> Harness {
         let mut rt = Runtime::init(
             app,
@@ -246,7 +243,7 @@ impl Harness {
         harness
     }
 
-    /// Zig `Harness.frame`.
+    /// Times one frame.
     pub fn frame(&mut self) -> f64 {
         frame(&mut self.rt, &mut self.renderer)
     }
@@ -257,8 +254,8 @@ impl Harness {
     }
 
     /// Clicks the control with `key` (move + down + up at its centre), then
-    /// times the frame that shows the result. Zig `Harness.click`: a missing
-    /// key is an error (the scenario would silently measure nothing).
+    /// times the frame that shows the result. A missing key is an error (the
+    /// scenario would silently measure nothing).
     pub fn click(&mut self, key: &str) -> Result<f64, String> {
         let rect = self
             .bounds(key)
@@ -289,7 +286,7 @@ impl Harness {
     }
 
     /// The benchmark app state (`markdown` needs to set its source between
-    /// frames, like the Zig harness held a state pointer).
+    /// frames).
     pub fn app_mut<T: App + 'static>(&mut self) -> RefMut<'_, T> {
         RefMut::map(self.rt.app.borrow_mut(), |app| {
             let app: &mut dyn std::any::Any = &mut **app;
@@ -299,13 +296,13 @@ impl Harness {
     }
 
     /// `Runtime::invalidate` without a window: ask for a rebuild in the next
-    /// timed frame (Zig `h.rt.needs_build = true`).
+    /// timed frame.
     pub fn invalidate(&mut self) {
         self.rt.invalidate();
     }
 }
 
-/// Zig `init.environ_map.get("ZANT_FRAME_STATS")` then `v[0] == '1'`.
+/// `ZANT_FRAME_STATS` set to a value starting with `1`.
 fn frame_stats_enabled() -> bool {
     std::env::var("ZANT_FRAME_STATS")
         .map(|value| value.starts_with('1'))
@@ -313,7 +310,7 @@ fn frame_stats_enabled() -> bool {
 }
 
 /// One benchmark app: one harness run per side produces one [`Stats`] per
-/// scenario (the Zig bench drove each app's phases through a single harness).
+/// scenario (an app's phases run through a single harness).
 pub struct Suite {
     /// App row of the comparison table (`counter`, `todos`, …).
     pub app: &'static str,
@@ -325,7 +322,7 @@ pub struct Suite {
     pub manual: fn() -> Vec<Stats>,
 }
 
-/// The apps of the Zig `bench.zig`, with their scenarios. `ZANT_BENCH_LIST` /
+/// The benchmark apps with their scenarios. `ZANT_BENCH_LIST` /
 /// `ZANT_BENCH_MESSAGES` of `zant-bench` do not apply here.
 pub const SUITES: &[Suite] = &[
     Suite {
@@ -366,8 +363,8 @@ pub const SUITES: &[Suite] = &[
     },
 ];
 
-/// `ZANT_BENCH_REPEAT` rounds per suite, best round wins (`scripts/parity/
-/// bench.sh` uses the same variable; default 3).
+/// `ZANT_BENCH_REPEAT` rounds per suite, best round wins (`scripts/bench.sh`
+/// uses the same variable; default 3).
 fn repeats() -> usize {
     std::env::var("ZANT_BENCH_REPEAT")
         .ok()
@@ -376,7 +373,7 @@ fn repeats() -> usize {
         .unwrap_or(3)
 }
 
-/// `ZANT_BENCH_MAX_RATIO`, the gate of plan.md §5 M5 (default 1.2).
+/// `ZANT_BENCH_MAX_RATIO`, the TSX/manual ratio gate (default 1.2).
 fn max_ratio() -> f64 {
     std::env::var("ZANT_BENCH_MAX_RATIO")
         .ok()
@@ -385,9 +382,9 @@ fn max_ratio() -> f64 {
         .unwrap_or(1.2)
 }
 
-/// Zig `want`: no argument runs everything; an argument may name the app
-/// (`counter`), one of its scenarios (`counter-typing`), or the Zig scenario
-/// names of `bench.zig` (`clicks` / `typing`, `scroll` / `click`, `mount`,
+/// Whether to run `app`: no argument runs everything; an argument may name
+/// the app (`counter`), one of its scenarios (`counter-typing`), or a short
+/// scenario name (`clicks` / `typing`, `scroll` / `click`, `mount`,
 /// `stream`).
 fn want(args: &[String], app: &str, scenarios: &[&str]) -> bool {
     if args.is_empty() {
@@ -566,7 +563,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn p95_uses_the_zig_index() {
+    fn p95_uses_the_clamped_95_percent_index() {
         let mut stats = Stats::new();
         for i in 1..=100 {
             stats.add(f64::from(i));
@@ -589,7 +586,7 @@ mod tests {
     }
 
     #[test]
-    fn scenario_arguments_accept_apps_scenarios_and_zig_names() {
+    fn scenario_arguments_accept_apps_scenarios_and_short_names() {
         let counter = &SUITES[0];
         assert!(want(&[], counter.app, counter.scenarios));
         assert!(want(
@@ -630,7 +627,7 @@ mod tests {
             "the generated page is laid out"
         );
         assert!(tsx.click("inc").is_ok(), "the generated action runs");
-        // The hand-written control of `counter_manual.zig` is laid out the same.
+        // The hand-written control is laid out the same.
         let mut manual = Harness::new(controls::counter::Counter::new());
         assert!(manual.bounds("inc").is_some());
         assert!(manual.click("inc").is_ok());

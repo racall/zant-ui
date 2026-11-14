@@ -1,11 +1,9 @@
-//! The framework error type (`zant::Error`), see docs/rust-port/api.md.
+//! The framework error type (`zant::Error`).
 //!
-//! Zig used `anyerror` / per-module error sets. Rust only keeps a `Result` where
-//! a failure is real (I/O, parsing, SQLite); out-of-memory errors disappear
-//! (allocation failure aborts). Modules with a localised failure kind (e.g.
-//! `math::parser::ParseError`, `db::sqlite::DbError`) keep their own type until
-//! the consolidation pass recorded in docs/rust-port/status.md; they convert
-//! into this type through `From`.
+//! A `Result` is only used where a failure is real (I/O, parsing, SQLite);
+//! out-of-memory errors disappear (allocation failure aborts). Modules with a
+//! localised failure kind (e.g. `math::parser::ParseError`,
+//! `db::sqlite::DbError`) keep their own type.
 
 use thiserror::Error;
 

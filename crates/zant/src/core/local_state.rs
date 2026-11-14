@@ -1,5 +1,3 @@
-//! Port of `src/core/local_state.zig` — WP-2.4 (drawn early: `ui::local_state`).
-//!
 //! Per-instance component state: the runtime owns one heap slot per state id; a
 //! slot that no rebuild asks for again is freed after that rebuild (the
 //! component unmounted).
@@ -7,10 +5,10 @@
 //! Subtrees skipped by `ui::memo` do not run their builders, so the ids a memo
 //! build touched are remembered on its node and touched again on a skip.
 //!
-//! Rust shape (plan.md §4): values are stored as `Rc<dyn Any>` and handed out as
-//! `Rc<RefCell<T>>`; one id used with two different types panics. Dropping the
-//! last `Rc` runs `T`'s destructor, so callbacks that captured a slot keep it
-//! alive even after the component unmounted (safer than the Zig raw pointer).
+//! Values are stored as `Rc<dyn Any>` and handed out as `Rc<RefCell<T>>`; one
+//! id used with two different types panics. Dropping the last `Rc` runs `T`'s
+//! destructor, so callbacks that captured a slot keep it alive even after the
+//! component unmounted.
 
 use std::any::Any;
 use std::cell::RefCell;
@@ -62,8 +60,7 @@ impl Store {
 
     /// The slot for `id`, created from `init` on first use.
     ///
-    /// Panics when the same id is used with a different type (Zig:
-    /// `@typeName` check).
+    /// Panics when the same id is used with a different type.
     pub fn slot<T: 'static>(&mut self, id: u64, init: impl FnOnce() -> T) -> Slot<T> {
         if let Some(entry) = self.entries.get_mut(&id) {
             let Some(cell) = entry.value.clone().downcast::<RefCell<T>>().ok() else {
@@ -163,9 +160,8 @@ impl Default for Store {
 
 /// One child instance id: its parent's id mixed with a name, key or position.
 ///
-/// Zig: `childId(parent, part)` hashes `u64` parts with a trailing `"#"` and
-/// byte-string parts with a trailing `"$"`, through Wyhash — the Rust port keeps
-/// the same byte stream so ids match the Zig version.
+/// Integer parts are hashed as `u64` with a trailing `"#"` and byte-string
+/// parts with a trailing `"$"`, through Wyhash seeded with the parent id.
 pub fn child_id(parent: u64, part: impl ChildIdPart) -> u64 {
     let mut hasher = Wyhash::init(parent);
     part.hash_into(&mut hasher);
@@ -216,8 +212,8 @@ macro_rules! impl_child_id_signed {
         $(
             impl ChildIdPart for $ty {
                 fn hash_into(&self, hasher: &mut Wyhash) {
-                    // Zig `@intCast`s to u64; negative indices are a programming
-                    // error there. Keep the two's-complement bits here.
+                    // Negative indices are a programming error; they keep
+                    // their two's-complement bits.
                     hasher.update(&(*self as u64).to_le_bytes());
                     hasher.update(b"#");
                 }
@@ -317,12 +313,10 @@ mod tests {
         assert_ne!(child_id(9, "row"), child_id(9, "column"));
     }
 
-    /// Reference values produced by Zig 0.17.1 `childId`
-    /// (`src/core/local_state.zig`, values printed with `zig run`): ids must be
-    /// bit-identical across the two implementations so memo / local-state
-    /// parity runs can compare them (plan.md §4).
+    /// Regression values: memo and local-state ids are derived from these,
+    /// so the byte stream fed to the hash must never change.
     #[test]
-    fn child_ids_match_zig() {
+    fn child_ids_are_pinned() {
         assert_eq!(child_id(0, 0u64), 0x3076_e496_f66a_89bb);
         assert_eq!(child_id(0, "row"), 0x8943_aef2_fe85_1d89);
         assert_eq!(child_id(9, "row"), 0x288e_2b61_86b3_ff10);

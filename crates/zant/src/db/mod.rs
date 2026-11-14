@@ -1,5 +1,3 @@
-//! Port of `src/db/mod.zig` — WP-3.10.
-//!
 //! Persistence for Zant UI apps: one [`Store`] for key/value, JSON and object
 //! collections, with no SQL surface for business code.
 //!
@@ -19,10 +17,7 @@ pub mod table;
 pub use sqlite::DbError as Error;
 pub use table::{SqlEnum, Table, TableModel};
 
-/// Object collection for one model (Zig `Collection(T)`).
-///
-/// Zig freed rows with `free` / `freeAll`; Rust values own their strings and
-/// drop them, so those methods are not ported.
+/// Object collection for one model. Returned rows own their strings.
 pub struct Collection<'a, T: TableModel> {
     db: &'a Database,
     model: PhantomData<T>,
@@ -63,7 +58,7 @@ impl<'a, T: TableModel> Collection<'a, T> {
     }
 }
 
-/// ZIP of the scalar types Zig's generic `Store.set` accepted.
+/// The scalar types [`Store::set`] accepts.
 ///
 /// It also covers the wire format: the `kind` column stores 0 = string,
 /// 1 = int, 2 = bool, 3 = float, 4 = JSON.
@@ -131,13 +126,13 @@ impl From<&String> for StoreValue {
     }
 }
 
-/// The store of one application data file (Zig `Store`).
+/// The store of one application data file.
 pub struct Store {
     db: Database,
 }
 
 impl Store {
-    /// Opens the database and prepares it for small writes (Zig `Store.open`).
+    /// Opens the database and prepares it for small writes.
     pub fn open(path: &str) -> Result<Store, Error> {
         let db = Database::open(path)?;
         // write-ahead log: small writes (one per user action) without a full
@@ -150,7 +145,7 @@ impl Store {
         Ok(Store { db })
     }
 
-    /// Closes the store; dropping has the same effect (Zig `close`).
+    /// Closes the store; dropping has the same effect.
     pub fn close(self) {}
 
     /// Groups many changes into one write (and makes them all-or-nothing).
@@ -203,7 +198,7 @@ impl Store {
         self.kv_put(key, 4, &text)
     }
 
-    /// Writes a scalar, picking the wire format from its type (Zig `Store.set`).
+    /// Writes a scalar, picking the wire format from its type.
     pub fn set<V: Into<StoreValue>>(&self, key: &str, value: V) -> Result<(), Error> {
         match value.into() {
             StoreValue::Bool(value) => self.set_bool(key, value),
@@ -247,7 +242,7 @@ impl Store {
     }
 
     pub fn get_json<T: serde::de::DeserializeOwned>(&self, key: &str) -> Result<Option<T>, Error> {
-        // Zig read JSON through a 64 KB stack buffer and rejected larger values.
+        // JSON values are limited to 64 KB; larger ones are rejected.
         const JSON_MAX_BYTES: usize = 64 * 1024;
         let Some((_kind, text)) = self.kv_get(key)? else {
             return Ok(None);
@@ -280,7 +275,7 @@ impl Store {
     }
 }
 
-/// Opens an application data file (Zig `db.open`).
+/// Opens an application data file.
 pub fn open(path: &str) -> Result<Store, Error> {
     Store::open(path)
 }

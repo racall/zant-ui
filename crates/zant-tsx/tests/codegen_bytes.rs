@@ -1,16 +1,15 @@
-//! `Uint8Array` → `&'static [u8]` (WP-COVERAGE): a TSX `Uint8Array` is the
+//! `Uint8Array` → `&'static [u8]`: a TSX `Uint8Array` is the
 //! runtime's static byte slice, the type of imported assets
 //! (`include_bytes!`), `TrayOptions::{icon, iconLight}` and
 //! `tsx::platform::asset_image`. Byte literals become a promoted `&[..]` slice
-//! (`const icon: Uint8Array = [137, 80, 78, 71]` → `&[137u8, 80u8, 78u8, 71u8]`
-//! as Zig emitted `&[_]u8{ 137, 80, 78, 71 }`).
+//! (`const icon: Uint8Array = [137, 80, 78, 71]` → `&[137u8, 80u8, 78u8, 71u8]`).
 //!
 //! The type is intentionally *not* `tsx::List<u8>`: the tray icon must be a
 //! `'static` slice, and `List` is a runtime `Vec`. Dynamic bytes from the
 //! clipboard stay `tsx::Bytes` (`Rc<[u8]>`) inside the `"zant"` function
 //! signatures; those are runtime values, not literals.
 //!
-//! `tools/tsx/testdata/desktop.tsx` is the end-to-end case: it is the
+//! `testdata/tsx/desktop.tsx` is the end-to-end case: it is the
 //! `desktop` golden in `tests/golden.rs`, compiled against the runtime there.
 
 use zant_tsx::compile::{self, SourceFile};

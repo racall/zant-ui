@@ -1,14 +1,13 @@
 #!/bin/sh
 # End-to-end check of the `scaffold/template-ts` application with
-# `zant_build::tsx_app()` (WP-6.2): copy the template to a temp directory,
+# `zant_build::tsx_app()`: copy the template to a temp directory,
 # rewrite its path placeholders to this checkout, generate `src/app_config.rs`
 # with `zant sync`, build it and start the binary headless with `ZANT_SNAPSHOT`.
 # Never opens a visible window.
 #
 # The template is the project `zant create` writes; it exercises the whole
-# stack (TSX codegen, native modules, the app layer), so this script can fail on
-# work packages other than 6.2 while the migration is in progress — the failure
-# output says which step failed.
+# stack (TSX codegen, native modules, the app layer); the failure output says
+# which step failed.
 #
 # Usage: scripts/tsx/build-template-check.sh [--release]
 

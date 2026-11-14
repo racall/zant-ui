@@ -1,5 +1,4 @@
-//! Port of `src/markdown/remend/katex.zig` (remend `katex-handler.ts`): closes
-//! `$$` blocks (and, opt-in, single-dollar inline math).
+//! remend `katex-handler.ts`: closes `$$` blocks (and, opt-in, single-dollar inline math).
 
 use super::context::Context;
 use super::scan::Region;

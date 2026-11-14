@@ -55,7 +55,7 @@ if ($Exe -like "*zant-components*") {
     foreach ($line in $lines) { Add-Content -Encoding UTF8 $script:ResultFile ("  " + $line) }
     $worst = @($lines | ForEach-Object { if ($_ -match "max_frame_ms=([\d.]+)") { [double]$Matches[1] } })
     $slowest = if ($worst.Count) { ($worst | Measure-Object -Maximum).Maximum } else { 99 }
-    Write-Result ($slowest -lt 16.7) ("slowest animation frame (Zig + Skia recording): {0:N1} ms" -f $slowest)
+    Write-Result ($slowest -lt 16.7) ("slowest animation frame (build + Skia recording): {0:N1} ms" -f $slowest)
     Stop-ZantApp $auto
     $env:ZANT_AUTOPLAY = ""
 }
@@ -111,7 +111,7 @@ $slowest = if ($worst.Count) { ($worst | Measure-Object -Maximum).Maximum } else
 $lat = if ($latency.Count) { ($latency | Measure-Object -Maximum).Maximum } else { 0 }
 Write-Result ($avg -ge 55) ("frames drawn at new sizes while dragging: avg {0:N1} per second (60 Hz display)" -f $avg)
 Write-Result ($lat -lt 20) ("longest delay from a size change to its frame: {0:N1} ms" -f $lat)
-Write-Result ($slowest -lt 16.7) ("slowest frame (Zig + Skia recording) while sizing: {0:N1} ms" -f $slowest)
+Write-Result ($slowest -lt 16.7) ("slowest frame (build + Skia recording) while sizing: {0:N1} ms" -f $slowest)
 Write-Result (!$app.Process.HasExited) "app survives live resize"
 
 # layout after the drag: every keyed node inside the window

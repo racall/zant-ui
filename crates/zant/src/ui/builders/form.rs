@@ -1,8 +1,8 @@
-//! Form builders of `src/ui.zig`: `input`, `checkbox`, `switch` (WP-2.3).
+//! Form builders: `input`, `checkbox`, `switch`.
 //!
 //! The builders only fill the declaration fields — editing, focus and the
-//! toggle animation are runtime behaviour (WP-2.1 / WP-2.2). `radioGroup`,
-//! `tabs` and `select` live in the sibling `choice` module.
+//! toggle animation are runtime behaviour. `radio_group`, `tabs` and `select`
+//! live in the sibling `choice` module.
 #![forbid(unsafe_code)]
 
 use crate::core::node::{FlexStyle, NodeKind, ToggleKind, Visual};

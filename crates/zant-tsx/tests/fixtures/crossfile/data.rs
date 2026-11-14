@@ -1,5 +1,4 @@
-//! Native data for tests/fixtures/crossfile/ (Rust mirror of the Zig fixture
-//! `tests/tsx/crossfile/data.zig`).
+//! Native data for tests/fixtures/crossfile/.
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub enum Kind {

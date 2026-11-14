@@ -1,10 +1,8 @@
-//! Text builders of `src/ui.zig`: `heading`, `title`, `paragraph`, `link`,
-//! `rich_text` (WP-2.3).
+//! Text builders: `heading`, `title`, `paragraph`, `link`, `rich_text`.
 //!
-//! The single-line `text` builder is in the parent module (`ui.zig:998-1006`);
-//! these wrap it with the antd heading / body styles. Zig's comptime `textFmt`
-//! has no Rust counterpart — call sites use `format!` and pass the resulting
-//! string, as `pdf_preview` does.
+//! The single-line `text` builder is in the parent module; these wrap it with
+//! the antd heading / body styles. There is no formatting builder — call
+//! sites use `format!` and pass the resulting string, as `pdf_preview` does.
 #![forbid(unsafe_code)]
 
 use crate::Str;
@@ -40,7 +38,7 @@ pub fn heading(value: impl Into<Str>, options: HeadingOptions) -> Node {
     )
 }
 
-/// `ui::title`: the Zig alias of [`heading`] (a level-1 heading by default).
+/// `ui::title`: an alias of [`heading`] (a level-1 heading by default).
 pub fn title(value: impl Into<Str>, options: HeadingOptions) -> Node {
     heading(value, options)
 }
@@ -85,7 +83,7 @@ pub fn rich_text(options: RichTextOptions) -> Node {
             width: options.width,
             height: options.height,
             shrink: 0.0,
-            // Zig: a rich text block spans the full parent width unless an
+            // A rich text block spans the full parent width unless an
             // explicit width is given.
             width_percent: if options.width.is_none() {
                 Some(100.0)
@@ -112,7 +110,7 @@ mod tests {
     }
 
     #[test]
-    fn heading_levels_map_to_the_zig_sizes() {
+    fn heading_levels_map_to_the_antd_sizes() {
         let expected: [(u8, f32); 6] = [
             (1, 30.0),
             (2, 24.0),

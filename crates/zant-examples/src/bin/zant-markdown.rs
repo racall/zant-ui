@@ -1,5 +1,4 @@
-//! `zant-markdown`: port of the Zig `zant-markdown` example,
-//! `examples/markdown.zig` (WP-3.11). The application lives in
+//! `zant-markdown`: the Markdown example. The application lives in
 //! [`zant_examples::markdown_app`] so the headless smoke test can build the
 //! same tree the window paints. `ZANT_DARK=1` for dark.
 

@@ -1,10 +1,9 @@
-//! `local_bench.tsx` written by hand in Rust (`examples/tsx/local_manual.zig`
-//! ported): the control group of the `local-mount` / `local-click` scenarios.
+//! `local_bench.tsx` written by hand in Rust: the control group of the
+//! `local-mount` / `local-click` scenarios.
 //!
 //! Each `<Counter>` child owns a `ui::local_state`, exactly like the TSX page's
-//! per-instance `useState`. Zig passed the child's arena struct as the action
-//! context; Rust actions run against the app root, so the closure captures the
-//! local-state `Rc` and ignores the root state.
+//! per-instance `useState`. Actions run against the app root, so the closure
+//! captures the local-state `Rc` and ignores the root state.
 #![forbid(unsafe_code)]
 
 use std::cell::RefCell;
@@ -43,7 +42,7 @@ fn counter_row(id: u32, odd: bool) -> ui::Node {
     })
 }
 
-/// Zig `local_manual.LocalBench`.
+/// The local-state page: the mounted counter ids.
 pub struct LocalBench {
     ids: Vec<u32>,
     next: u32,
@@ -64,7 +63,6 @@ impl LocalBench {
 }
 
 impl App for LocalBench {
-    /// Zig `LocalBench.render`.
     fn render(&mut self) -> ui::Node {
         let mut children = Vec::with_capacity(self.ids.len() + 1);
         children.push(ui::button(ButtonOptions {

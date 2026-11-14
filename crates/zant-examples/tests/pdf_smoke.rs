@@ -1,4 +1,4 @@
-//! Headless smoke test for the `zant-pdf` binary (WP-3.11): the reader app
+//! Headless smoke test for the `zant-pdf` binary: the reader app
 //! opens the committed `tests/fixtures/widgets.pdf` through the same
 //! [`Viewer`] / `pdf::view` path the window uses, builds the toolbar + viewport
 //! tree and paints it on a raster canvas.
@@ -81,7 +81,7 @@ fn pdf_opens_the_default_fixture_and_builds_the_reader() {
     }
     assert!(
         runtime.find_key("pdf-tools").is_some(),
-        "annotation tool switch (a segmented control, like Zig)"
+        "annotation tool switch (a segmented control)"
     );
     let texts: Vec<&str> = runtime
         .tree
@@ -110,7 +110,7 @@ fn pdf_demo_annotations_add_the_sample_layer() {
     let _guard = lock();
     let viewer = Viewer::new();
     viewer.open(&fixture()).expect("the fixture opens");
-    // Zig `demoAnnotations` adds to the first page with at least 400 glyphs.
+    // `demo_annotations` adds to the first page with at least 400 glyphs.
     let document = viewer.document().expect("open document");
     let annotated_page = (0..document.page_count()).find(|&page| {
         document

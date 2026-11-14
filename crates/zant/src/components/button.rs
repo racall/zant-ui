@@ -1,4 +1,4 @@
-//! Port of `src/components/button.zig` — WP-1.3: antd button paint / measure.
+//! The antd button: paint and measure.
 //!
 //! Measures and paints the label (optionally with a leading icon), the antd
 //! variant fills and borders, the keyboard focus ring and the click wave. The

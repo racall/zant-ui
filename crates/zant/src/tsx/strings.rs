@@ -1,21 +1,20 @@
-//! JavaScript string methods for generated TSX code (`src/tsx_strings.zig`).
+//! JavaScript string methods for generated TSX code.
 //!
 //! TSX strings are [`zant::Str`](crate::Str) values; positions are UTF-16 code
-//! units like in JavaScript, storage is UTF-8. Unlike the Zig version (whose
-//! results belonged to the current UI frame), every function here returns an
+//! units like in JavaScript, storage is UTF-8. Every function here returns an
 //! owned `Str`/`List<Str>`, so generated code may store or clone it freely.
 //!
-//! Semantics kept 1:1 with the Zig port: `slice` / `substring` / `charAt` /
+//! Semantics: `slice` / `substring` / `charAt` /
 //! `at` round a boundary inside a surrogate pair down, `padStart` / `padEnd`
 //! count UTF-16 units, `replace` implements JS's `$&` / `` $` `` / `$'` / `$$`
 //! substitution tokens, `split("")` splits by code point, and invalid ranges
-//! panic like the Zig `@panic` calls.
+//! panic.
 
 use crate::Str;
 use crate::core::unicode::{self, decode_at};
 use crate::tsx::{List, utf16_length};
 
-/// Allocates a copy of `s` as a `Str` (Zig's frame copy).
+/// Allocates a copy of `s` as a `Str`.
 fn copy(s: &str) -> Str {
     Str::copy(s)
 }
@@ -129,8 +128,7 @@ fn ascii_case(s: &str, upper: bool) -> Str {
     Str::copy(&String::from_utf8(bytes).expect("ASCII case mapping keeps UTF-8"))
 }
 
-/// `String.prototype.toLowerCase`: ASCII only, other UTF-8 bytes unchanged
-/// (like the Zig port).
+/// `String.prototype.toLowerCase`: ASCII only, other UTF-8 bytes unchanged.
 pub fn to_lower_case(s: &str) -> Str {
     ascii_case(s, false)
 }
@@ -224,7 +222,7 @@ pub fn pad_end(s: &str, target: f64, fill: &str) -> Str {
 }
 
 /// `String.prototype.repeat`: a truncated count; invalid JS RangeError counts
-/// panic (like the Zig runtime).
+/// panic.
 pub fn repeat(s: &str, count: f64) -> Str {
     let n = if count.is_nan() { 0.0 } else { count.trunc() };
     if n < 0.0 || !n.is_finite() {
@@ -234,7 +232,7 @@ pub fn repeat(s: &str, count: f64) -> Str {
         return copy("");
     }
     let times = checked_length(n);
-    let _ = multiply(s.len(), times); // out-of-range check, like Zig
+    let _ = multiply(s.len(), times); // out-of-range check
     Str::from(s.repeat(times))
 }
 

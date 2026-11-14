@@ -1,8 +1,6 @@
 //! Expressions of the TSX subset: precedence climbing for binary operators,
 //! arrow functions and generic calls found by backtracking (`Parser::save`),
 //! template literals, object literals and the JSX entry point.
-//!
-//! Direct translation of `tools/tsx/expr_parser.zig`.
 
 use crate::ast::{
     As, Assign, Binary, Call, Cond, Expr, ExprData, Function, Index, Member, Name, Param, Property,
@@ -654,7 +652,6 @@ mod tests {
         std::str::from_utf8(value).expect("text is UTF-8")
     }
 
-    // Ported from `tools/tsx/parser_test.zig`, "comparison is not a type argument list".
     #[test]
     fn comparison_is_not_a_type_argument_list() {
         let m = parse_ok("function f() { return a < b; }");
@@ -665,8 +662,6 @@ mod tests {
         }
     }
 
-    // Ported from `tools/tsx/parser_test.zig`,
-    // "typed arrows report errors inside their parameters".
     #[test]
     fn typed_arrows_report_errors_inside_their_parameters() {
         expect_syntax_error(
@@ -681,8 +676,6 @@ mod tests {
         );
     }
 
-    // Ported from `tools/tsx/parser_test.zig`,
-    // "phase 2 expressions: literals with spread, indexing, ?., !, as".
     #[test]
     fn phase_2_expressions_literals_with_spread_indexing_optional_chain_non_null_as() {
         let m = parse_ok(
@@ -766,8 +759,6 @@ function f() {
         assert_eq!(arrow.params.len(), 2);
     }
 
-    // Ported from `tools/tsx/parser_test.zig`,
-    // "a parenthesized expression is not taken for an arrow".
     #[test]
     fn a_parenthesized_expression_is_not_taken_for_an_arrow() {
         let m = parse_ok("function f() { return x ? (a) : b; }");
@@ -779,8 +770,6 @@ function f() {
         assert!(matches!(&c.then.data, ExprData::Ident(_)));
     }
 
-    // Ported from `tools/tsx/parser_test.zig`,
-    // "`>` joins `>=` only as an operator".
     #[test]
     fn greater_than_joins_into_greater_or_equal_only_as_an_operator() {
         let m = parse_ok("function f() { return a >= 10 && b > 2; }");

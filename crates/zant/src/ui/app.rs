@@ -1,9 +1,7 @@
 //! Application entry point: the `App` trait, `RunOptions` and `run()`.
 //!
-//! Port of `src/launch.zig` plus the `Config` of `src/ui_runtime.zig:25-48`.
-//! Zig detected the optional hooks (`theme`, `onKey`, `onStart`, …) with
-//! `@hasDecl` on the state type; Rust's `App` trait replaces that with default
-//! methods (plan.md §4).
+//! The optional hooks (`theme`, `on_key`, `on_start`, …) are default methods
+//! of the `App` trait, so an app only implements the ones it needs.
 //!
 //! ```ignore
 //! struct Counter { count: u32 }
@@ -34,11 +32,11 @@ use crate::theme::tokens::Theme;
 
 use super::element::Node;
 
-/// What `launch.zig`'s `Options` carried: the window title, its platform
-/// options and the initial theme.
+/// Launch options: the window title, its platform options and the initial
+/// theme.
 #[derive(Clone, Debug)]
 pub struct RunOptions {
-    /// Window title (Zig `[:0]const u8 = "Zant UI"`).
+    /// Window title (`"Zant UI"` by default).
     pub title: String,
     /// Platform window options passed to `Window::create`.
     pub window: WindowOptions,
@@ -69,9 +67,9 @@ impl RunOptions {
 
 /// The application: state plus a `render` function and optional hooks.
 ///
-/// Every hook has the same default as Zig's missing declaration: no dark-mode
-/// theme provider, no key shortcut handler, the window may close, nothing runs
-/// on start / wake / exit.
+/// Every hook has a no-op default: no dark-mode theme provider, no key
+/// shortcut handler, the window may close, nothing runs on start / wake /
+/// exit.
 pub trait App: std::any::Any {
     /// Builds the declarative tree of this frame. Called before every rebuild;
     /// it must return a container (`column` / `row` / `card`).
@@ -104,7 +102,7 @@ pub trait App: std::any::Any {
     }
 
     /// Asked when the user quits the app (⌘Q, Dock menu); defaults to
-    /// `on_close_request` (Zig `Config.quit_fn` defaults to `close_fn`).
+    /// `on_close_request`.
     fn on_quit_request(&mut self) -> bool {
         self.on_close_request()
     }
@@ -132,9 +130,8 @@ pub trait App: std::any::Any {
 /// Runs the app: creates the window, dispatches events, rebuilds and paints
 /// until the native event loop ends.
 ///
-/// Port of `launch.zig:run` + `ui_runtime.Runtime.run`: window creation, the
-/// `ZANT_*` debug environment, `on_start`, an optional snapshot and the frame
-/// loop all live here.
+/// Window creation, the `ZANT_*` debug environment, `on_start`, an optional
+/// snapshot and the frame loop all live here.
 pub fn run(app: impl App, options: RunOptions) -> Result<(), Error> {
     if !crate::platform::platform::SUPPORTED {
         return Err(Error::Message(String::from("unsupported platform")));
@@ -167,9 +164,9 @@ pub fn run(app: impl App, options: RunOptions) -> Result<(), Error> {
     if env_flag("ZANT_FRAME_STATS") {
         core.borrow_mut().enable_frame_stats();
     }
-    // Zig `launch.run`: the main window for `zant.desktop.mainWindow` /
-    // `openWindow`, the window registry (`invalidateAll`) and the app hooks
-    // (`onAppEvent` / `onExit`) installed before the event loop starts.
+    // The main window for `zant::desktop` (`main_window` / `open_window`),
+    // the window registry (invalidate-all) and the app hooks (app events /
+    // exit) are installed before the event loop starts.
     desktop::set_main_runtime(Some(Rc::clone(&core)));
     runtime_window::register(&core);
     desktop::install_app_hooks(core.borrow().shared_app());
@@ -177,7 +174,7 @@ pub fn run(app: impl App, options: RunOptions) -> Result<(), Error> {
     // (`openWindow`, `setTray`, …)
     let app = core.borrow().shared_app();
     app.borrow_mut().on_start();
-    // Zig `ZANT_SNAPSHOT`: the native side takes the screenshot after a few
+    // `ZANT_SNAPSHOT`: the native side takes the screenshot after a few
     // frames and `ZANT_SNAPSHOT_EXIT` (handled by the platform layer, not by
     // the runtime) makes it quit afterwards.
     if let Some(path) = snapshot {
@@ -196,8 +193,7 @@ pub fn run(app: impl App, options: RunOptions) -> Result<(), Error> {
     Ok(())
 }
 
-/// `ZANT_*` switch with Zig's rule: the variable must start with `1`
-/// (`v.len > 0 and v[0] == '1'`).
+/// `ZANT_*` switch: on when the variable is non-empty and starts with `1`.
 pub(crate) fn env_flag(name: &str) -> bool {
     env_flag_value(crate::platform::platform::getenv(name).as_deref())
 }
@@ -226,7 +222,7 @@ mod tests {
     }
 
     #[test]
-    fn app_defaults_match_the_zig_hooks() {
+    fn app_hooks_have_no_op_defaults() {
         struct Bare;
         impl App for Bare {
             fn render(&mut self) -> Node {
@@ -260,7 +256,7 @@ mod tests {
     }
 
     #[test]
-    fn run_options_defaults_match_launch_zig() {
+    fn run_options_have_the_expected_defaults() {
         let options = RunOptions::default();
         assert_eq!(options.title, "Zant UI");
         assert_eq!(options.window.width, 560.0);
@@ -271,7 +267,7 @@ mod tests {
     }
 
     #[test]
-    fn run_matches_the_frozen_api_contract() {
+    fn run_has_the_documented_signature() {
         // `pub fn run(app: impl App, opts: RunOptions) -> Result<(), Error>`
         fn check<F>(_: F)
         where

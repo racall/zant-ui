@@ -1,6 +1,5 @@
-//! Port of `src/ui_runtime.zig:2585-2664` (`FrameStats`) and the
-//! `ZANT_LAYOUT_FILE` writer (`writeLayoutFile`) plus the `ZANT_*` debug
-//! switches.
+//! Frame statistics (`FrameStats`), the `ZANT_LAYOUT_FILE` writer and the
+//! `ZANT_*` debug switches.
 //!
 //! Frame timing: prints one `[frames]` line per second (frames drawn, slowest
 //! frame and its phases, longest gap between frames, resize latency) and one
@@ -12,7 +11,7 @@
 use crate::core::tree::Tree;
 use crate::platform::platform;
 
-/// Phases timed inside one frame (Zig `FrameStats.Phase`).
+/// Phases timed inside one frame.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Phase {
     Rebuild,
@@ -30,10 +29,10 @@ impl Phase {
     }
 }
 
-/// Zig `FrameStats`: frame timing for `ZANT_FRAME_STATS`.
+/// Frame timing for `ZANT_FRAME_STATS`.
 ///
-/// `label` is `""` for the main window (`[frames]`); later windows would use
-/// `":2"` (`[frames:2]`) once WP-2.8 ports multi-window support.
+/// `label` is `""` for the main window (`[frames]`); later windows use
+/// `":2"` (`[frames:2]`), `":3"`, …
 #[derive(Clone, Debug, Default)]
 pub struct FrameStats {
     /// "" for the main window ("[frames]"), ":2", ":3"… for windows opened later.
@@ -54,7 +53,7 @@ pub struct FrameStats {
 impl FrameStats {
     /// Statistics of a window opened after the main one: the main window
     /// enabled the counters, this one only needs its `ZANT_FRAME_STATS` label
-    /// (`":2"`, `":3"`, …; Zig `Runtime.openWindow`).
+    /// (`":2"`, `":3"`, …).
     pub fn for_window(label: &'static str) -> FrameStats {
         FrameStats {
             label,
@@ -148,7 +147,7 @@ impl FrameStats {
     }
 }
 
-/// Zig `writeLayoutFile`: the contents written for `ZANT_LAYOUT_FILE`, one
+/// The contents written for `ZANT_LAYOUT_FILE`, one
 /// line per keyed in-flow node: `key\tx\ty\twidth\theight` with one decimal
 /// (logical px).
 pub fn layout_file_contents(tree: &Tree) -> String {
@@ -169,8 +168,8 @@ pub fn layout_file_contents(tree: &Tree) -> String {
     out
 }
 
-/// Zig `writeLayoutFile`: dumps the boxes of all keyed nodes (UI automation).
-/// Write errors are ignored like Zig's `catch {}`.
+/// Dumps the boxes of all keyed nodes (UI automation).
+/// Write errors are ignored.
 pub fn write_layout_file(tree: &Tree, path: &str) {
     let contents = layout_file_contents(tree);
     let _ = crate::platform::dialog::write_file(path, contents.as_bytes());
@@ -185,7 +184,7 @@ mod tests {
     use crate::theme::tokens::ant_light;
 
     #[test]
-    fn frame_stats_start_at_the_zig_defaults() {
+    fn frame_stats_start_zeroed_and_unlabelled() {
         let stats = FrameStats::default();
         assert_eq!(stats.label, "");
         assert_eq!(stats.window_start, 0);
@@ -215,7 +214,7 @@ mod tests {
     }
 
     /// The `ZANT_LAYOUT_FILE` writer: one tab-separated line per keyed in-flow
-    /// node, with Zig's `{d:.1}` precision.
+    /// node, with one decimal of precision.
     #[test]
     fn layout_file_writes_keyed_in_flow_nodes() {
         let mut tree = Tree::init(ant_light());

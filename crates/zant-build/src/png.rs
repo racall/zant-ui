@@ -1,13 +1,12 @@
-//! PNG decode / area-average resize / Windows `.ico` builder, ported from
-//! `crates/zant-cli/src/png.rs` (the Rust port of `src/core/png.zig`).
+//! PNG decode / area-average resize / Windows `.ico` builder, the same code
+//! as `crates/zant-cli/src/png.rs`.
 //!
-//! `zant-build` owns the `.ico` for the application executable (Zig's
-//! `addWindowsIcon`, which ran the `zant-icon` tool); `zant-cli` cannot be a
+//! `zant-build` owns the `.ico` for the application executable; `zant-cli` cannot be a
 //! dependency because it depends on this crate. The resize algorithm is kept
 //! byte-for-byte identical to the CLI's so the executable's icon matches what
 //! `zant package` produces elsewhere.
 
-/// Errors of `src/core/png.zig`: not a PNG, an unsupported PNG (bit depth /
+/// PNG errors: not a PNG, an unsupported PNG (bit depth /
 /// interlacing) or corrupt data.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Error {
@@ -264,8 +263,7 @@ mod tests {
         }
     }
 
-    // Ported from `crates/zant-cli/src/png.rs` (same expectations as
-    // `src/core/png.zig`'s tests).
+    // Same expectations as the tests of `crates/zant-cli/src/png.rs`.
 
     #[test]
     fn png_round_trip_resize_and_ico() {

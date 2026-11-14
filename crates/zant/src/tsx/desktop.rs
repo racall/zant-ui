@@ -1,5 +1,5 @@
 //! Desktop hooks of TSX apps: the tray (`useTray`) and global hotkeys
-//! (`useHotkey`), port of `src/tsx_desktop.zig`.
+//! (`useHotkey`).
 //!
 //! Both are applied while rendering, only when something changed, and their
 //! callbacks run from app events (`tsx::app::Shell` forwards them here through
@@ -12,8 +12,7 @@
 //! let ok = self._hotkey1.update("ctrl+cmd+v", action);
 //! ```
 //!
-//! Zig's `Tray` / `Hotkey` were plain values with a manual `deinit`; here the
-//! applied tray lives in a thread-local (one tray per app) and a `Hotkey`
+//! The applied tray lives in a thread-local (one tray per app) and a `Hotkey`
 //! shares its registration through an `Rc` that unregisters on drop (the
 //! component's `local_state` slot going away is the unmount).
 
@@ -25,7 +24,7 @@ use crate::desktop;
 use crate::ui::{Action, ActionCx, HotkeyAction, TextAction};
 
 // Tests drive TSX apps headless: they must not add a tray icon or take global
-// hotkeys on the machine running them (Zig: `const system = !is_test`).
+// hotkeys on the machine running them.
 thread_local! {
     static SYSTEM: Cell<bool> = const { Cell::new(!cfg!(test)) };
 }
@@ -206,7 +205,7 @@ fn same(last: &Applied, options: &TrayOptions) -> bool {
 }
 
 thread_local! {
-    /// The app's tray (Zig `tsx_desktop.tray`).
+    /// The app's tray.
     static TRAY: RefCell<Tray> = RefCell::new(Tray::default());
 }
 
@@ -227,8 +226,9 @@ pub fn tray_click(cx: &mut ActionCx<'_>) {
 
 // ---------------------------------------------------------------- shortcuts
 
-/// `HotkeyInput`'s shortcut type (the temporary duplicate of
-/// `desktop.Shortcut` in `components/hotkey_input.rs`, see status.md 待决问题 5).
+/// `HotkeyInput`'s shortcut type (a duplicate of `desktop::Shortcut` that
+/// lives in `components/hotkey_input.rs`).
+// TODO: merge the two `Shortcut` types into `desktop::Shortcut`.
 pub type Shortcut = crate::components::hotkey_input::Shortcut;
 
 /// The control-side shortcut of a `desktop.Shortcut`.

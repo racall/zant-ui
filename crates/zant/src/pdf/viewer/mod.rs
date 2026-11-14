@@ -1,4 +1,4 @@
-//! Port of `src/pdf/viewer.zig` — WP-3.9: the PDF viewer UI (`zant.pdf.view`).
+//! The PDF viewer UI (`zant.pdf.view`).
 //!
 //! Continuous vertical scrolling, zoom (fit width / fit page / manual,
 //! ⌘/Ctrl + wheel or pinch anchored at the pointer), text selection (drag,
@@ -19,25 +19,23 @@
 //! zant::pdf::view(&viewer, zant::pdf::ViewOptions::default())
 //! ```
 //!
-//! Ownership: the Zig `Viewer` is a plain struct the app owns; in Rust it is a
-//! cheap handle over `Rc<RefCell<Inner>>`, because every toolbar button and
-//! pointer-area callback is a `'static` closure (`ui::Action`) that must
-//! mutate the viewer. Methods take `&self` and borrow the inner state, so the
-//! call sites stay close to Zig (`viewer.open(..)`, `viewer.page_count()`).
+//! Ownership: [`Viewer`] is a cheap handle over `Rc<RefCell<Inner>>`, because
+//! every toolbar button and pointer-area callback is a `'static` closure
+//! (`ui::Action`) that must mutate the viewer. Methods take `&self` and borrow
+//! the inner state (`viewer.open(..)`, `viewer.page_count()`).
 //!
-//! The submodules split the Zig file by concern: `layout` (page tops, scroll,
+//! The submodules split the viewer by concern: `layout` (page tops, scroll,
 //! navigation, toolbar), `zoom`, `select` (pointer input, text selection,
 //! selection menu), `search`, `annotate` (annotation API, layers, tool switch)
 //! and `cache` (page layers from the render worker's tile cache); this file
 //! holds the shared state, the lifecycle and the keyboard shortcuts.
 //!
-//! Deviations from Zig (see the WP-3.9 report in docs/rust-port/status.md):
-//! `on_change` / `on_annotation` fire from an effect after the next build
-//! instead of synchronously inside the mutation (the Rust `Action` contract
-//! needs an `ActionCx`, which only the runtime or a dispatch handler has);
-//! the annotation tool switch uses icon buttons because `ui::segmented`
-//! (WP-2.5) is not merged in this base; `selected_text` / `search_results`
-//! return owned data instead of borrowed slices.
+//! Callbacks: `on_change` / `on_annotation` run inside the event that caused
+//! the change ([`Viewer::flush_callbacks`]), so the rebuild that follows
+//! already sees what they did to the app state. A change made through the API
+//! outside an event (no `ActionCx` at hand) is reported by the next build
+//! (see `cache.rs`). The annotation tool switch is a `ui::segmented` control.
+//! `selected_text` / `search_results` return owned data.
 
 pub mod annotate;
 pub mod cache;
@@ -67,7 +65,7 @@ pub const ZOOM_STEPS: [f32; 17] = [
 pub const MIN_ZOOM: f32 = 0.25;
 pub const MAX_ZOOM: f32 = 5.0;
 
-/// A page and a glyph index (Zig `Pos`).
+/// A page and a glyph index.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Pos {
     pub page: usize,
@@ -75,7 +73,7 @@ pub struct Pos {
 }
 
 impl Pos {
-    /// Zig `Pos.less`: page first, then glyph index.
+    /// Orders by page first, then glyph index.
     pub fn less(a: Pos, b: Pos) -> bool {
         a.page < b.page || (a.page == b.page && a.index < b.index)
     }
@@ -96,7 +94,7 @@ pub struct Match {
     pub to: usize,
 }
 
-/// Zoom mode (Zig `Fit`).
+/// Zoom mode.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Fit {
     /// Page width fills the viewport.
@@ -133,7 +131,7 @@ pub struct Labels {
 }
 
 impl Labels {
-    /// Chinese labels (Zig `Labels.zh`).
+    /// Chinese labels.
     pub const ZH: Labels = Labels {
         search: Str::Static("搜索"),
         no_results: Str::Static("无结果"),
@@ -183,7 +181,7 @@ impl Default for Labels {
     }
 }
 
-/// `zant.pdf.view` options (Zig `ViewOptions`).
+/// `zant.pdf.view` options.
 #[derive(Clone)]
 pub struct ViewOptions {
     /// Prefix of node keys (several viewers in one window need different keys).
@@ -228,7 +226,7 @@ impl Default for ViewOptions {
     }
 }
 
-/// What a drag on the page does (Zig `Tool`).
+/// What a drag on the page does.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Tool {
     /// Select text (and click annotations to select them).
@@ -266,8 +264,7 @@ pub(crate) enum OpenErrorKind {
     PasswordRequired,
 }
 
-/// Errors of [`Viewer::save_annotated`] (Zig `error.NoDocument` /
-/// `error.SaveFailed`).
+/// Errors of [`Viewer::save_annotated`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum SaveError {
     #[error("no open PDF document")]
@@ -276,7 +273,7 @@ pub enum SaveError {
     SaveFailed,
 }
 
-/// How a selection drag extends (Zig `DragMode`).
+/// How a selection drag extends.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) enum DragMode {
     #[default]
@@ -285,7 +282,7 @@ pub(crate) enum DragMode {
     Line,
 }
 
-/// Pointer hover state (Zig `hover: enum { none, text, link }`).
+/// Pointer hover state.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) enum Hover {
     #[default]
@@ -294,18 +291,17 @@ pub(crate) enum Hover {
     Link,
 }
 
-/// An in-progress scrollbar drag (Zig `bar_drag`).
+/// An in-progress scrollbar drag.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct BarDrag {
     pub start: f32,
     pub scroll: f32,
-    /// Kept for parity with the Zig struct (the drag uses the parameter).
+    /// Which bar is dragged (the drag handler gets it as a parameter).
     #[allow(dead_code)]
     pub horizontal: bool,
 }
 
-/// The page point under a viewport point kept fixed across a zoom change
-/// (Zig `Viewer.Anchor`).
+/// The page point under a viewport point kept fixed across a zoom change.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Anchor {
     pub page: usize,
@@ -315,7 +311,7 @@ pub(crate) struct Anchor {
     pub vy: f32,
 }
 
-/// Page and page point under a viewport point (Zig `Viewer.PagePoint`).
+/// Page and page point under a viewport point.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct PagePoint {
     pub page: usize,
@@ -323,11 +319,11 @@ pub(crate) struct PagePoint {
     pub y: f32,
 }
 
-/// The state of one viewer (Zig `Viewer`'s fields).
+/// The state of one viewer.
 ///
 /// Split from the [`Viewer`] handle so callbacks can borrow it mutably; the
 /// submodules of this directory implement its behaviour (zoom, layout,
-/// selection, search, annotations) exactly like the Zig functions.
+/// selection, search, annotations).
 pub(crate) struct Inner {
     pub doc: Option<Arc<Document>>,
     pub renderer: Option<Renderer>,
@@ -389,10 +385,11 @@ pub(crate) struct Inner {
     pub padding: f32,
     pub page_gap: f32,
 
-    /// The next build fires `options.on_change` (Zig called it synchronously;
-    /// see the module docs).
+    /// `options.on_change` is due: the event that set it runs the callback, or
+    /// the next build when the change came through the API (see the module
+    /// docs).
     pub pending_change: bool,
-    /// The next build fires `options.on_annotation`.
+    /// `options.on_annotation` is due (like `pending_change`).
     pub pending_annotation: bool,
 }
 
@@ -447,20 +444,39 @@ impl Inner {
         }
     }
 
-    /// Zig `Viewer.changed`: `on_change` changed. Deferred to the next build.
+    /// Marks `on_change` as due. The callback needs the viewer unborrowed, so
+    /// the entry point that caused the mutation runs it right after
+    /// ([`Viewer::flush_callbacks`]).
     pub(crate) fn changed(&mut self) {
         self.pending_change = true;
     }
 
-    /// Zig `Viewer.annotationChanged`: `on_annotation` changed.
+    /// Marks `on_annotation` as due (see [`Inner::changed`]).
     pub(crate) fn annotation_changed(&mut self) {
         self.pending_annotation = true;
     }
 
-    /// Zig `Viewer.onResize`: the rebuild that follows reads the new size.
+    /// Takes the callbacks that are due and clears the flags.
+    pub(crate) fn take_callbacks(&mut self) -> (Option<Action>, Option<Action>) {
+        let change = if self.pending_change {
+            self.options.on_change.clone()
+        } else {
+            None
+        };
+        let annotation = if self.pending_annotation {
+            self.options.on_annotation.clone()
+        } else {
+            None
+        };
+        self.pending_change = false;
+        self.pending_annotation = false;
+        (change, annotation)
+    }
+
+    /// Viewport resize: the rebuild that follows reads the new size.
     pub(crate) fn on_resize(&mut self) {}
 
-    /// Keyboard shortcut of the focused viewport (Zig `Viewer.onKey`).
+    /// Keyboard shortcut of the focused viewport.
     pub(crate) fn on_key(&mut self, k: KeyEvent) -> bool {
         let primary = keys::primary(k.modifiers);
         if primary {
@@ -582,7 +598,7 @@ impl Default for Viewer {
 }
 
 impl Viewer {
-    /// An empty viewer (Zig `Viewer.init`).
+    /// An empty viewer.
     pub fn new() -> Viewer {
         Viewer {
             inner: Rc::new(RefCell::new(Inner::new())),
@@ -618,7 +634,6 @@ impl Viewer {
         };
         let doc = Arc::new(doc);
         let mut inner = self.borrow_mut();
-        // Zig: `Renderer.create(gpa, doc) catch null`.
         inner.renderer = Some(Renderer::create(Arc::clone(&doc), crate::ui::post_wake));
         inner.doc = Some(doc);
         inner.path.clear();
@@ -628,8 +643,7 @@ impl Viewer {
         Ok(())
     }
 
-    /// Closes the open document, its render worker and the viewer state
-    /// (Zig `Viewer.close`).
+    /// Closes the open document, its render worker and the viewer state.
     pub fn close(&self) {
         let mut inner = self.borrow_mut();
         inner.renderer = None;
@@ -648,7 +662,7 @@ impl Viewer {
         inner.ink_points.clear();
     }
 
-    /// The open document (Zig `Viewer.document`).
+    /// The open document.
     pub fn document(&self) -> Option<Arc<Document>> {
         self.borrow().doc.clone()
     }
@@ -677,11 +691,28 @@ impl Viewer {
                 }
             }
         }
+        self.flush_callbacks(cx);
         changed
     }
 
     /// Runs one viewer key event; returns whether it was consumed.
-    pub(crate) fn key(&self, event: KeyEvent) -> bool {
-        self.borrow_mut().on_key(event)
+    pub(crate) fn key(&self, cx: &mut crate::ui::actions::ActionCx<'_>, event: KeyEvent) -> bool {
+        let consumed = self.borrow_mut().on_key(event);
+        self.flush_callbacks(cx);
+        consumed
+    }
+
+    /// Runs `on_change` / `on_annotation` when the event that just ran changed
+    /// the viewer, inside that same event: the rebuild that follows the event
+    /// already sees whatever the callbacks did to the app state. The viewer is
+    /// not borrowed while they run, so they may call back into it.
+    pub(crate) fn flush_callbacks(&self, cx: &mut crate::ui::actions::ActionCx<'_>) {
+        let (change, annotation) = self.borrow_mut().take_callbacks();
+        if let Some(callback) = change {
+            callback.call(cx);
+        }
+        if let Some(callback) = annotation {
+            callback.call(cx);
+        }
     }
 }

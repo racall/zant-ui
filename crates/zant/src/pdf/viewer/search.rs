@@ -1,4 +1,4 @@
-//! Search of the PDF viewer — `src/pdf/viewer.zig`'s search section (WP-3.9).
+//! Search of the PDF viewer.
 //!
 //! Results arrive incrementally: [`Inner::continue_search`] scans pages for at
 //! most ~6 ms per build so a large document never blocks the UI, and the first

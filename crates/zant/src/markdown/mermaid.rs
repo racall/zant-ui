@@ -1,5 +1,3 @@
-//! Port of `src/markdown/mermaid.zig` — WP-3.4.
-//!
 //! Native Mermaid renderer for the diagram types AI answers and notes use
 //! most: `flowchart`/`graph`, `sequenceDiagram` and `pie`. Produces a
 //! [`vector::Drawing`]; unsupported diagrams return `None` and are shown as code.
@@ -9,8 +7,9 @@ use crate::core::hash::Wyhash;
 use crate::core::vector::{self, Command, Drawing, Path, Point, Rect, Text};
 use crate::renderer::text::Family;
 
-/// Theme colours supplied by the markdown renderer (see `markdown::render::diagram`
-/// in the Zig tree: text / node fill / node border / edge / label background / muted).
+/// Theme colours supplied by the markdown renderer (see
+/// `markdown::render::diagram`: text / node fill / node border / edge / label
+/// background / muted).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Colors {
     pub text: u32,
@@ -21,13 +20,25 @@ pub struct Colors {
     pub muted: u32,
 }
 
-/// Zig's `Options` has defaults for `font_size` (14) and `max_width` (640) but
-/// `colors` is mandatory, so there is no `Default` impl; construct it explicitly.
+/// `colors` is mandatory, so there is no `Default` impl: start from
+/// [`Options::new`].
 #[derive(Clone, Copy, Debug)]
 pub struct Options {
     pub font_size: f32,
     pub colors: Colors,
     pub max_width: f32,
+}
+
+impl Options {
+    /// The default options with `colors`: 14 px text, diagrams wider than
+    /// 640 px shrink to fit.
+    pub fn new(colors: Colors) -> Options {
+        Options {
+            font_size: 14.0,
+            colors,
+            max_width: 640.0,
+        }
+    }
 }
 
 const PALETTE: [u32; 10] = [
@@ -85,9 +96,8 @@ pub fn render(source: &str, options: Options) -> Option<Drawing> {
     }
     let mut hasher = Wyhash::init(0x6d6d64);
     hasher.update(source.as_bytes());
-    // Zig hashed `std.mem.asBytes(&options)` (native struct bytes, little-endian
-    // on both supported platforms): font_size, then the six colours in
-    // declaration order, then max_width.
+    // The options are hashed as their little-endian bytes: font_size, then
+    // the six colours in declaration order, then max_width.
     hasher.update(&options.font_size.to_le_bytes());
     for color in colors_in_memory_order(options.colors) {
         hasher.update(&color.to_le_bytes());
@@ -167,7 +177,6 @@ impl Canvas {
         }));
     }
 
-    // Zig's `Canvas.line` signature is kept 1:1 on purpose.
     #[allow(clippy::too_many_arguments)]
     fn line(&mut self, x0: f32, y0: f32, x1: f32, y1: f32, color: u32, width: f32, dashed: bool) {
         if !dashed {
@@ -1364,10 +1373,17 @@ mod tests {
 
     fn test_options(max_width: f32) -> Options {
         Options {
-            font_size: 14.0,
-            colors: test_colors(),
             max_width,
+            ..Options::new(test_colors())
         }
+    }
+
+    #[test]
+    fn options_new_uses_the_default_size_and_width() {
+        let options = Options::new(test_colors());
+        assert_eq!(options.font_size, 14.0);
+        assert_eq!(options.max_width, 640.0);
+        assert_eq!(options.colors.text, 0xff000000);
     }
 
     #[test]
@@ -1423,11 +1439,11 @@ mod tests {
         assert_eq!(detect(src), Some(Kind::Sequence));
     }
 
-    /// A single node pins the Zig layout constants: `8` margin, `fs * 2.6`
+    /// A single node pins the layout constants: `8` margin, `fs * 2.6`
     /// box height, `advance + 28` box width (min `56`), radius `3`, and the
     /// diagram is anchored entirely above the baseline.
     #[test]
-    fn flowchart_layout_matches_the_zig_constants() {
+    fn flowchart_single_node_layout_constants() {
         let options = test_options(640.0);
         let drawing = render("flowchart TD\n  A[Start]", options).expect("flowchart");
         let fs = options.font_size;

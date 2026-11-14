@@ -1,5 +1,5 @@
-//! `ui::focus` / `ui::scrollIntoView` / `ui::scrollToEnd` — the imperative
-//! command queue of `src/ui.zig:279-377` (WP-2.4).
+//! `ui::focus` / `ui::scroll_into_view` / `ui::scroll_to_end` — the imperative
+//! command queue.
 //!
 //! Commands are queued while an action or a build runs; the runtime drains
 //! them after the next layout, when the nodes they name exist and have
@@ -17,30 +17,30 @@
 //! }
 //! ```
 //!
-//! Ported literally: a fixed capacity of 8 commands (`MAX_COMMANDS`), a
+//! The queue has a fixed capacity of 8 commands (`MAX_COMMANDS`), a
 //! 96-byte key buffer (`Command::key_buf`), an owner window pointer, and the
 //! age / requeue rule.
 //!
-//! **Owner safety:** the owner is the runtime's own pointer, exactly like
-//! Zig's `?*const anyopaque`. The `ui` layer only stores and compares it — it
+//! **Owner safety:** the owner is the runtime's own pointer, kept as an
+//! opaque address. The `ui` layer only stores and compares it — it
 //! is never dereferenced, so the runtime may pass any stable per-window
 //! address (`Rc::as_ptr`, a boxed runtime, …) for the lifetime of a frame.
 #![forbid(unsafe_code)]
 
 use std::cell::RefCell;
 
-/// Zig `max_commands`: capacity of the command queue. Commands queued when it
+/// Capacity of the command queue. Commands queued when it
 /// is full are dropped.
 pub const MAX_COMMANDS: usize = 8;
 
-/// Zig `Command.key_buf` length: keys longer than this are dropped.
+/// Length of `Command::key_buf`: keys longer than this are dropped.
 const KEY_BUF_LEN: usize = 96;
 
-/// Zig `requeueCommand`: an unowned command is dropped after this many frames
+/// An unowned command is dropped after this many frames
 /// of waiting for a window that has its key.
 const MAX_COMMAND_AGE: u8 = 3;
 
-/// Zig `CommandKind`.
+/// What a queued command asks the runtime to do.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CommandKind {
     Focus,
@@ -58,9 +58,9 @@ pub enum CommandKind {
 #[derive(Clone, Copy)]
 pub struct Command {
     pub kind: CommandKind,
-    /// The key copied into a fixed buffer (Zig `key_buf`).
+    /// The key copied into a fixed buffer.
     key_buf: [u8; KEY_BUF_LEN],
-    /// Length of the key in `key_buf` (Zig `key_len: u8`).
+    /// Length of the key in `key_buf`.
     key_len: u8,
     /// The window (runtime) it is for: the one that was handling an event or
     /// building when it was queued; `None` = any window that has the key.
@@ -72,7 +72,7 @@ pub struct Command {
 }
 
 impl Command {
-    /// The node key, as a `&str` (Zig `Command.key`).
+    /// The node key, as a `&str`.
     pub fn key(&self) -> &str {
         // Keys only enter through `&str` arguments, so the bytes are valid
         // UTF-8; the copy is byte-exact.
@@ -95,7 +95,7 @@ impl Command {
 
 struct CommandQueue {
     commands: Vec<Command>,
-    /// Zig `command_owner`: the runtime handling an event / building a frame.
+    /// The runtime handling an event / building a frame.
     owner: Option<*const ()>,
 }
 
@@ -109,7 +109,7 @@ impl CommandQueue {
 }
 
 thread_local! {
-    /// Per-thread command queue (Zig's `threadlocal var command_queue`).
+    /// Per-thread command queue (commands are only queued on the UI thread).
     static QUEUE: RefCell<CommandQueue> = RefCell::new(CommandQueue::new());
 }
 
@@ -173,9 +173,6 @@ pub fn window_close() {
 }
 
 /// Moves all queued commands out of the queue (runtime).
-///
-/// Zig copies them into a caller-provided `[max_commands]Command` buffer
-/// because it has no allocator here; Rust returns an owned `Vec`.
 pub fn take_commands() -> Vec<Command> {
     QUEUE.with(|queue| std::mem::take(&mut queue.borrow_mut().commands))
 }
@@ -186,8 +183,8 @@ pub fn take_commands_for(owner: *const ()) -> Vec<Command> {
     QUEUE.with(|queue| {
         let mut queue = queue.borrow_mut();
         let mut taken = Vec::new();
-        // Zig keeps the other windows' commands in place and compacts the
-        // array; `retain` preserves the same relative order.
+        // The other windows' commands stay queued; `retain` preserves their
+        // relative order.
         queue.commands.retain(|command| {
             let mine = command.owner.is_none() || command.owner == Some(owner);
             if mine {
@@ -306,7 +303,7 @@ mod tests {
         assert_eq!(queued.len(), 1, "only the 96-byte key fits");
         assert_eq!(queued[0].key(), longest);
 
-        // multibyte keys are measured in bytes, like Zig
+        // multibyte keys are measured in bytes
         let multibyte = "é".repeat(KEY_BUF_LEN / 2);
         assert_eq!(multibyte.len(), KEY_BUF_LEN);
         focus(&multibyte);

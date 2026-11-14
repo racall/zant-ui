@@ -1,6 +1,6 @@
 // Zant components written in TSX and compiled to Rust at build time
-// (`docs/tsx.md`). Run it with `cargo run -p zant-tsx-gallery` (WP-5.10b port
-// of `examples/tsx/gallery.tsx`; same component tree, keys and UI text).
+// (`docs/tsx.md`). Run it with `cargo run -p zant-tsx-gallery`. One page
+// with the components a TSX app uses most.
 import { useState, useTheme } from "zant";
 import type { usize } from "zant";
 
@@ -28,7 +28,7 @@ export default function Gallery() {
     <View flex={1}>
       <View key="page" padding={24} gap={16} overflow="scroll" height="100%" alignItems="flex-start">
         <Heading level={2}>TSX component gallery</Heading>
-        <Paragraph>Every component on this page is written in TSX and compiled to native Zig.</Paragraph>
+        <Paragraph>Every component on this page is written in TSX and compiled to native Rust.</Paragraph>
         <Row gap={16} alignItems="flex-start">
           <Card key="inputs" title="Inputs" width={420} gap={12}>
             <Input key="name" value={name} placeholder="Your name" onChange={setName} />
@@ -134,7 +134,7 @@ export default function Gallery() {
             // types an element for an `Option<Node>` prop as a `Node` and
             // emits `Some(..)` only for a null-union (reported as a `zant-tsx`
             // bug; `open` is always true in this `open && (…Modal)` branch, so
-            // the tree is the Zig example's).
+            // the tree is the same).
             open ? (
               <Row gap={8} justifyContent="flex-end">
                 <Button key="cancel" onClick={() => setOpen(false)}>

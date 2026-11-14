@@ -1,4 +1,4 @@
-//! Port of `src/theme/default.zig`: the default theme handed to the runtime.
+//! The default theme handed to the runtime.
 #![forbid(unsafe_code)]
 
 use crate::theme::tokens;

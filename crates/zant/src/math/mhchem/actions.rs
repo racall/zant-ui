@@ -1,7 +1,5 @@
 //! Actions: per-machine `actions` first, then `mhchemParser.actions`
 //! (`run_action`).
-//!
-//! Port of `src/math/mhchem.zig` (Parser.runAction).
 
 use super::chars::{decode, is_all_digits, is_js_space, truthy};
 use super::enums::{A, Act, ActionOption};
@@ -11,8 +9,7 @@ use super::outputs::{
 use super::types::{Buffer, Item, ItemTag, Items, Mv, Ret, Sm, p1_item, void_item};
 use super::{MhchemError, app, braced, cat, concat_array, go, mstr};
 
-/// `{ type_: option, p1: m }` item tag argument of `insert` / `insert+p1`
-/// (Zig `action.option.item`).
+/// `{ type_: option, p1: m }` item tag argument of `insert` / `insert+p1`.
 fn option_item(action: A) -> Result<ItemTag, MhchemError> {
     match action.option {
         ActionOption::Item(tag) => Ok(tag),

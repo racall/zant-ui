@@ -1,21 +1,19 @@
-//! WP-5.5 golden tests: components, state, hooks, stores and array methods.
+//! Golden tests: components, state, hooks, stores and array methods.
 //!
-//! The JSX / event emitters are WP-5.4's modules and have not landed in this
-//! worktree (`crates/zant-tsx/src/codegen/jsx.rs` / `events.rs`). These tests
-//! inject a small **test-only** stand-in through
-//! `generate::generate_with(.., install_extra)` that
+//! Most tests run the real generator. Where a test isolates the component
+//! layer from the JSX / event emitters (`codegen/jsx.rs` / `events.rs`), it
+//! installs a small **test-only** stand-in ([`install_stubs`]) that
 //!
 //! - emits `ui::text("stub", …)` for every element (so the module parses and
 //!   the render statements around it are generated), and
-//! - registers inline event arrows / setters the way `events.zig` does, so the
-//!   handler methods of `codegen.zig` are exercised.
+//! - registers inline event arrows / setters the way `events.rs` does, so the
+//!   handler methods of the component are exercised.
 //!
-//! Everything this work package owns — the struct, `impl Default`, the setter
+//! Everything the component layer emits — the struct, `impl Default`, the setter
 //! and handler methods, `impl ui::App`, `build` + `ui::local_state`, memo /
 //! effect / ref / store lowering and the array adapters — is real generated
-//! code. The expected handler bodies follow the design-doc snippet of
-//! `docs/rust-port/tsx-codegen.md` §5/§6; the render body itself is covered by
-//! WP-5.4's own golden tests once its emitter lands.
+//! code. The render body itself is covered by the JSX tests
+//! (`tests/codegen_jsx.rs`).
 
 use zant_tsx::ast;
 use zant_tsx::codegen::{self, components, generate, scope};
@@ -57,7 +55,7 @@ fn stub_jsx(
             _ => None,
         };
         let Some(kind) = kind else {
-            // props are lowered by WP-5.4's `jsx.rs`; emitting their values
+            // props are lowered by `jsx.rs`; emitting their values
             // here keeps the expression codegen (reads, clones, array calls)
             // under test.
             let _ = codegen::expr::emit(g, _c, &value, None, false)?;
@@ -82,7 +80,7 @@ fn stub_jsx(
     ))
 }
 
-/// `events.zig`'s `registerArrow` / setter reuse, reduced to what the stub
+/// `events.rs`'s arrow registration / setter reuse, reduced to what the stub
 /// emitter needs to exercise the component methods.
 fn register_handler(
     g: &mut codegen::Generator<'_>,
@@ -127,8 +125,8 @@ fn register_handler(
     }
 }
 
-/// `events.emitSetter` for the stub harness (design-doc §5: the setter adapter
-/// becomes a private method).
+/// `events::emit_setter` for the stub harness (the setter adapter becomes a
+/// private method).
 fn stub_setter(g: &mut codegen::Generator<'_>, m: &codegen::Method) -> codegen::Result<String> {
     let state = g.states[m.setter.expect("setter")].clone();
     let field = scope::state_field(g, state.name.as_bytes())?;
@@ -162,7 +160,7 @@ fn install_stubs(g: &mut codegen::Generator<'_>) {
 }
 
 fn generated(src: &str) -> generate::GeneratedFile {
-    // The real JSX / event emitters are wired since WP-5.4 landed; no stub.
+    // The real JSX / event emitters: no stub.
     let module = parse_module(src);
     match generate::generate("src/App.tsx", &module, &generate::Options::default()) {
         Ok(file) => file,
@@ -208,7 +206,7 @@ fn default_fields(source: &str, name: &str) -> Vec<String> {
         .collect()
 }
 
-// ── the counter golden (docs/rust-port/tsx-codegen.md §5.1 / §6) ──────
+// ── the counter golden ────────────────────────────────────────────────
 
 const COUNTER: &str = r#"
 import { useState, View, Text, Button, Input } from "zant";
@@ -229,7 +227,7 @@ export default function Counter() {
 "#;
 
 #[test]
-fn counter_matches_the_design_doc_snippet() {
+fn counter_lowers_to_the_reviewed_component_shape() {
     let file = generated(COUNTER);
     let source = &file.source;
     assert!(
@@ -376,11 +374,11 @@ fn array_map_filter_reduce_lower_to_iterator_adapters() {
     assert!(source.contains("let _items:"), "{source}");
 }
 
-// ── custom hooks (already expanded by WP-4.3) and child local state ───
+// ── custom hooks (already expanded by `hooks::expand`) and child state ─
 
 #[test]
 fn a_custom_hook_expanded_into_usestate_lowers_like_state() {
-    // WP-4.3 expands `useCounter` in place; the expansion is plain
+    // `hooks::expand` inlines `useCounter` in place; the expansion is plain
     // `useState` + a method, which is what this test feeds the generator.
     let file = generated(
         r#"
@@ -548,7 +546,7 @@ fn interface_and_enum_declarations_are_emitted() {
     assert!(source.contains("pub done: bool,"), "{source}");
 }
 
-// ── store diagnostics (ported from `tools/tsx/codegen/stores_test.zig`) ──
+// ── store diagnostics ────────────────────────────────────────────────
 
 fn diagnostic(src: &str) -> String {
     let module = parse_module(src);

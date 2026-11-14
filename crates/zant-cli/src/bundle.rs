@@ -1,8 +1,7 @@
-//! Port of the packaging half of `tools/zant/main.zig`: compile, the macOS
-//! `.app` bundle (icon, Info.plist, codesign), the Windows program folder and
-//! the entity the package scripts receive. Artifacts come from
-//! `target/{debug,release}/<name>` and outputs go under `target/` (Zig:
-//! `zig-out/`).
+//! Packaging: compile, the macOS `.app` bundle (icon, Info.plist, codesign),
+//! the Windows program folder and the entity the package scripts receive.
+//! Artifacts come from `target/{debug,release}/<name>` and outputs go under
+//! `target/`.
 
 use crate::generate::{self, PlistExtras};
 use crate::png;
@@ -224,8 +223,8 @@ fn write_mac_icon(root: &str, app_path: &str) -> std::io::Result<bool> {
 }
 
 /// Windows: a folder with the exe, pdfium.dll and the MSVC runtime, ready to
-/// zip or run anywhere on Windows 10+. (The Rust build links the Skia bridge
-/// statically, so `zant_skia.dll` is gone; see plan.md M6/WP-6.2.)
+/// zip or run anywhere on Windows 10+. (The Skia bridge is linked statically,
+/// so there is no Skia DLL to copy.)
 pub fn package_windows(root: &str, cfg: &crate::app_config::AppConfig) -> std::io::Result<String> {
     for bad in ['/', '\\', ':', '*', '?', '"', '<', '>', '|'] {
         if cfg.title.contains(bad) {

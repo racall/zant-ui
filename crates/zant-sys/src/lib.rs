@@ -25,9 +25,8 @@ pub mod static_data {
 
 /// One-time Skia initialisation, plus the embedded data on Windows.
 ///
-/// Zig calls `zant_skia_init()` from the renderer wrapper
-/// (`src/renderer/renderer.zig`); the Rust safe layer (`zant::renderer`) calls
-/// this instead so the Windows static data is always installed first.
+/// The safe layer (`zant::renderer`) calls this instead of
+/// `zant_skia_init()` so the Windows static data is always installed first.
 ///
 /// Guarded by a [`Once`]: every text layout / renderer call runs this first,
 /// and the cargo test harness runs tests on many threads. `zant_skia_init()`

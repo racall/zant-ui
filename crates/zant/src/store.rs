@@ -1,28 +1,26 @@
-//! Port of `src/store.zig` — WP-2.8 (drawn early: it is self-contained).
-//!
 //! A tiny Zustand-style store for UI state.
 //!
 //! - `get()` returns a mutable reference to the current state.
 //! - `update(|state| ..)` or `set(next)` notify subscribers.
 //! - `notify()` notifies after direct mutation through `get()`.
 //!
-//! The store is intended for the UI thread. It is deliberately not thread-safe
-//! (like the Zig one): it holds an `Rc` of listeners and is `!Send`.
+//! The store is intended for the UI thread. It is deliberately not thread-safe:
+//! it holds an `Rc` of listeners and is `!Send`.
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
 type Listener = Box<dyn FnMut()>;
 
-/// A tiny Zustand-style store for UI state (`Store(T)` in Zig).
+/// A tiny Zustand-style store for UI state.
 pub struct Store<T> {
     state: T,
     listeners: Vec<Listener>,
 }
 
 impl<T> Store<T> {
-    /// Creates a store. Zig returned an allocated `*Store(T)`; Rust callers use
-    /// `Rc<RefCell<Store<T>>>` where shared mutation is needed.
+    /// Creates a store. Callers use `Rc<RefCell<Store<T>>>` ([`SharedStore`])
+    /// where shared mutation is needed.
     pub fn new(initial: T) -> Store<T> {
         Store {
             state: initial,
@@ -44,7 +42,7 @@ impl<T> Store<T> {
     }
 
     /// Mutates the state through `update` and notifies subscribers
-    /// (Zustand's `set(partial)`; Zig's `update(.{ ... })` took a struct literal).
+    /// (Zustand's `set(partial)`).
     pub fn update(&mut self, update: impl FnOnce(&mut T)) {
         update(&mut self.state);
         self.notify();
@@ -64,7 +62,7 @@ impl<T> Store<T> {
 /// Shared store handle: `Rc<RefCell<Store<T>>>`.
 pub type SharedStore<T> = Rc<RefCell<Store<T>>>;
 
-/// `store::create` in Zig: a new shared store.
+/// Creates a new shared store.
 pub fn create<T>(initial: T) -> SharedStore<T> {
     Rc::new(RefCell::new(Store::new(initial)))
 }

@@ -1,4 +1,3 @@
-//! Port of `src/math/parser.zig` — WP-3.5.
 //! TeX math parser (KaTeX-compatible subset) producing a `Node` tree.
 //!
 //! Structural errors (unbalanced braces, missing arguments, unknown
@@ -6,22 +5,15 @@
 //! in the error colour like KaTeX with `throwOnError: false`. Unknown control
 //! sequences are kept as `.unknown` nodes and coloured individually.
 //!
-//! Port notes: the Zig arena and slices become owned `Vec<Node>` / `String`,
-//! and `*const Node` becomes `Box<Node>`. `zant::Str` (WP-1.2) is not in the
-//! crate yet, so every text field is a `String`; layout only reads `&str`, so
-//! switching to `zant::Str` later is a mechanical edit. `Error =
-//! error{OutOfMemory, ParseError}` becomes `Result<_, ParseError>` (allocation
-//! failure aborts in Rust). The parser works on bytes like the Zig original
-//! and keeps `i` on UTF-8 boundaries for slicing; the one place where Zig
-//! advances a single byte into a multi-byte character (`\` followed by a
-//! non-ASCII char, which would produce invalid UTF-8) advances one code point
-//! instead.
+//! The tree owns its data (`Vec<Node>` / `String` / `Box<Node>`). The parser
+//! works on bytes and keeps `i` on UTF-8 boundaries for slicing: a `\`
+//! followed by a non-ASCII character advances one whole code point.
 
 use crate::math::{fonts, mhchem, symbols};
 
 pub use crate::math::symbols::Class;
 
-/// Structural parse error (Zig's `error.ParseError`).
+/// Structural parse error.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ParseError;
 
@@ -342,8 +334,7 @@ impl<'a> Parser<'a> {
             return "";
         }
         if !self.src.as_bytes()[self.i].is_ascii_alphabetic() {
-            // Zig advances one byte; advance one code point so the slice stays
-            // valid UTF-8.
+            // advance one code point so the slice stays valid UTF-8
             self.i += self.next_char_len();
             return self.slice(start, self.i);
         }
@@ -557,7 +548,7 @@ impl<'a> Parser<'a> {
         while self.i < self.src.len() {
             let c = self.src.as_bytes()[self.i];
             if c == b'\\' {
-                // Zig: `i += 1; continue;` = skip the escaped byte too.
+                // skip the escaped byte too
                 self.i += 2;
                 continue;
             }
@@ -1918,7 +1909,8 @@ mod tests {
         assert_eq!(parse_color("red"), Some(0xffdf0030));
         assert_eq!(parse_color("nope"), None);
     }
-    /// Every formula of `examples/math.zig` parses (the parser smoke corpus).
+    /// Every formula of the `zant-math` example parses (the parser smoke
+    /// corpus).
     #[test]
     fn example_formulas_parse() {
         let formulas: [&str; 18] = [

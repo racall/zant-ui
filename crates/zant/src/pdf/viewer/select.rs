@@ -1,5 +1,5 @@
-//! Text selection and pointer handling of the PDF viewer — the selection
-//! section of `src/pdf/viewer.zig` plus its `onPointer` state machine (WP-3.9).
+//! Text selection and pointer handling of the PDF viewer: the selection API
+//! and the pointer state machine.
 //!
 //! Glyph geometry and the EmbedPDF hit-testing / word / line algorithms live
 //! in `pdf::text`; this module maps viewport points to glyph positions, keeps
@@ -214,7 +214,7 @@ impl Inner {
         })
     }
 
-    /// Zig `Viewer.onPointer`: the drag / scroll / hover state machine.
+    /// The drag / scroll / hover state machine.
     ///
     /// Returns whether the UI must rebuild, plus (for an activated external
     /// link) the callback and URL — the caller runs it after releasing the
@@ -250,7 +250,6 @@ impl Inner {
                 if self.tool == Tool::Ink || self.tool == Tool::Note {
                     return (false, None);
                 }
-                // Zig checks annotations and links in two identical branches.
                 let next = if self.tool == Tool::Select
                     && (self.annotation_at(info.x, info.y).is_some()
                         || self.link_at(info.x, info.y).is_some())
@@ -443,7 +442,7 @@ impl Inner {
         }
     }
 
-    /// Zig `activateLink`: internal links scroll, external ones go to the app
+    /// Activates a link: internal links scroll, external ones go to the app
     /// (or the browser).
     fn activate_link(
         &mut self,
@@ -544,7 +543,10 @@ pub(crate) fn selection_menu(
             size: ButtonSize::Small,
             font_size: Some(13.0),
             focusable: false,
-            on_click: Some(Action::new(move |_| callback(&v))),
+            on_click: Some(Action::new(move |cx| {
+                callback(&v);
+                v.flush_callbacks(cx);
+            })),
             ..Default::default()
         })
     };

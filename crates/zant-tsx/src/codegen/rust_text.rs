@@ -1,9 +1,8 @@
 //! Rust identifiers, string literals, operator precedence, format text, CSS
 //! color literals and the small source scanner used for label / usage
-//! counting. Translation of `tools/tsx/codegen/zig_text.zig`; the Zig
-//! `@"ident"` spelling becomes a `_`-suffixed identifier (Rust raw identifiers
-//! are legal, but the usage scanner and golden output stay simpler without
-//! `r#`). Strings keep Zig's escaping rules with Rust syntax.
+//! counting. A TSX name that collides with a Rust keyword becomes a
+//! `_`-suffixed identifier (Rust raw identifiers are legal, but the usage
+//! scanner and golden output stay simpler without `r#`).
 
 use crate::ast;
 
@@ -12,7 +11,7 @@ use super::types::{self, Type, Value};
 use super::{Generator, Result, fail};
 
 /// Rust binding strength, from a conditional expression to a primary value.
-/// `|` = 5 and assignment = 0 as frozen in `docs/rust-port/tsx-codegen.md` §4.
+/// `|` = 5 and assignment = 0.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(u8)]
 pub enum Precedence {
@@ -137,7 +136,7 @@ pub fn id_at(g: &mut Generator<'_>, name: &[u8], loc: ast::Loc) -> Result<String
 }
 
 /// A Rust string literal from TSX bytes. Returns `None` when the bytes are
-/// not UTF-8 (Zig's WTF-8 lone surrogates have no Rust `str` representation).
+/// not UTF-8 (WTF-8 lone surrogates have no Rust `str` representation).
 pub fn quote(s: &[u8]) -> Option<String> {
     let text = std::str::from_utf8(s).ok()?;
     let mut out = String::with_capacity(text.len() + 2);
@@ -204,7 +203,7 @@ pub fn enum_variant(member: &[u8]) -> Option<String> {
 }
 
 /// Convert CSS RGB/RGBA literals into ARGB, or type-check numeric color
-/// expressions (Zig `zig_text.color`).
+/// expressions.
 pub fn color(g: &mut Generator<'_>, c: &mut scope::Context, e: &ast::Expr) -> Result<String> {
     if let ast::ExprData::Cond(cond) = &e.data {
         return Ok(format!(
@@ -270,9 +269,9 @@ impl Format {
                 self.pattern.push(*byte);
             }
         }
-        // Staged port fix (M7.1): a literal after/before a value means the
-        // pattern is no longer just `{}`; without this the literal text was
-        // dropped (`"a" + x` and `${x} MB` lost their text).
+        // A literal after/before a value means the pattern is no longer just
+        // `{}`; without this the literal text would be dropped (`"a" + x` and
+        // `${x} MB` would lose their text).
         self.only_string = false;
     }
 
@@ -372,7 +371,6 @@ impl Format {
         if log {
             // the runtime logs a typed value (`log(&[Any])`) and adds the
             // newline; the trailing `\n` of the console.log call is dropped
-            // (Zig passed the pattern to `std.debug.print`)
             let pattern = pattern.strip_suffix('\n').unwrap_or(pattern);
             let quoted = quote_at(g, pattern.as_bytes(), loc)?;
             let value = if self.args.is_empty() {
@@ -387,7 +385,7 @@ impl Format {
 }
 
 /// Whether `body` contains a `break`/`continue` to `label` outside string
-/// literals and comments (Zig `loops.labelPrefix` scans tokens the same way).
+/// literals and comments.
 pub fn uses_label(body: &str, label: &str) -> bool {
     let bytes = body.as_bytes();
     let needle = format!("'{label}");
@@ -471,8 +469,8 @@ fn skip_quote(bytes: &[u8], mut index: usize) -> usize {
 }
 
 /// Count plain identifiers in generated Rust, skipping string and char
-/// literals, comments, labels and field names after `.` (Zig `scope.finish`
-/// tokenizes output the same way to decide which locals are unused).
+/// literals, comments, labels and field names after `.` (`scope::finish`
+/// uses the counts to decide which locals are unused).
 pub fn count_identifiers(body: &str) -> std::collections::HashMap<String, usize> {
     let bytes = body.as_bytes();
     let mut counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();

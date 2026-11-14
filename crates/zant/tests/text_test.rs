@@ -1,4 +1,4 @@
-//! Port of `tests/text_test.zig` — CJK / mixed shaping, wrapping, caret
+//! CJK / mixed shaping, wrapping, caret
 //! indexing and the relayout-vs-fresh-layout comparison.
 
 use zant::renderer::text::{self, TextLayout};

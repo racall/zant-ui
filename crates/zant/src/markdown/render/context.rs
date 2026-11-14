@@ -1,8 +1,5 @@
-//! Port of `src/markdown/render/context.zig` — WP-3.3.
-//!
-//! Per-render state passed down the block tree. Zig carried an arena for
-//! callback contexts and embed allocations; `Rc` closures own their contexts
-//! in Rust, so `Ctx` only carries the options and the current style.
+//! Per-render state passed down the block tree. `Rc` closures own their
+//! callback contexts, so `Ctx` only carries the options and the current style.
 
 use std::rc::Rc;
 
@@ -54,8 +51,8 @@ impl Ctx {
     }
 }
 
-/// Zig `actions.Link.action`: rich-text link activation forwards to the app
-/// (link safety) or opens the URL directly.
+/// Rich-text link activation: forwards to the app (link safety) or opens the
+/// URL directly.
 pub fn link_action(forward: Option<TextAction>) -> TextAction {
     TextAction::new(move |cx, url| match &forward {
         Some(action) => action.call(cx, url),

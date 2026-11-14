@@ -1,4 +1,4 @@
-//! Shared logic for the prebuilt native library (WP-6.6, plan.md §5).
+//! Shared logic for the prebuilt native library.
 //!
 //! `build.rs` normally compiles the native C / C++ / Objective-C layer
 //! (`crates/zant-sys/native/skia/*.cpp`, `native/platform/*`, …) on
@@ -336,7 +336,7 @@ impl Metadata {
 
     pub fn encode(&self) -> String {
         format!(
-            "# Built by crates/zant-sys/build.rs (WP-6.6); see crates/zant-sys/prebuilt/README.md.\n\
+            "# Built by crates/zant-sys/build.rs; see crates/zant-sys/prebuilt/README.md.\n\
              format={}\n\
              platform={}\n\
              source_hash={}\n\

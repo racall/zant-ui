@@ -65,8 +65,8 @@ sk_sp<SkUnicode> g_unicode;
 /* Paragraph building goes through this process-wide font collection / Unicode
    object and Skia's internal caches, which are not safe against concurrent
    shaping. The UI renders on one thread in an app, so this lock is
-   uncontended there; the cargo test harness runs tests on several threads
-   (Zig's runner is serial), and without it Windows aborts with
+   uncontended there; the cargo test harness runs tests on several threads,
+   and without it Windows aborts with
    STATUS_HEAP_CORRUPTION / access violations in the math and ui tests (macOS
    only survived on allocator luck). */
 std::mutex g_text_mutex;

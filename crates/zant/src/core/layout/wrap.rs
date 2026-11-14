@@ -1,4 +1,4 @@
-//! Port of `src/core/layout.zig` — WP-1.3: wrapping row layout (`wrap`).
+//! Wrapping row layout (`wrap`).
 #![forbid(unsafe_code)]
 
 use crate::core::layout::Nodes;
@@ -16,8 +16,8 @@ struct WrapLine {
     end: usize,
 }
 
-/// Port of `layoutRowWrap`: rows wrap into lines, each justified on its own.
-#[allow(clippy::too_many_arguments)] // mirrors the Zig signature
+/// Lays out a wrapping row: rows wrap into lines, each justified on its own.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn layout_row_wrap(
     nodes: &mut Nodes<'_>,
     id: NodeId,

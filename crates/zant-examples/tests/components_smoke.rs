@@ -13,9 +13,9 @@ use zant_examples::components_app::{ComponentsApp, run_options};
 const WIDTH: f32 = 1100.0;
 const HEIGHT: f32 = 820.0;
 
-/// The layout keys of every section of `examples/components.zig` (the
-/// `ZANT_LAYOUT_FILE` keys of the Zig run; WP-3.11 adds the real `pdf-2002`
-/// viewer, whose toolbar keys the separate PDF test checks).
+/// The layout keys of every section of the components example (its
+/// `ZANT_LAYOUT_FILE` keys), including the real `pdf-2002` viewer, whose
+/// toolbar keys the separate PDF test checks.
 const KEYS: [&str; 46] = [
     "page",
     "last-event",
@@ -266,7 +266,7 @@ fn components_pdf_viewer_opens_the_fixture_and_logs_changes() {
     ] {
         assert!(
             runtime.find_key(key).is_some(),
-            "the PDF viewer builds {key:?} (WP-3.9 viewer, real document)"
+            "the PDF viewer builds {key:?} (real document)"
         );
     }
     // the open document renders its first page layer into the widget

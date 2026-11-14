@@ -1,6 +1,6 @@
 // 300 rows, each a <Counter> with its own useState (ui.localState): the
-// benchmark of child component state (`zig build bench-tsx`), against the
-// hand-written local_manual.zig.
+// benchmark of child component state (`zant-tsx-frame-bench`), against a
+// hand-written control.
 import { useState, useTheme, View, Row, Text, Button } from "zant";
 import type { u32 } from "zant";
 

@@ -1,5 +1,3 @@
-//! Port of `src/markdown/scan.zig` — WP-3.2.
-//!
 //! Line- and character-level recognizers shared by the block parser, the
 //! streaming healer and the editor commands.
 
@@ -18,7 +16,7 @@ pub fn is_ascii_punct(c: u8) -> bool {
 }
 
 /// UTF-8 sequence length implied by a leading byte, `None` when the byte is
-/// not a valid leading byte (Zig `std.unicode.utf8ByteSequenceLength`).
+/// not a valid leading byte.
 pub fn utf8_seq_len(byte: u8) -> Option<usize> {
     match byte {
         0x00..=0x7F => Some(1),
@@ -29,7 +27,7 @@ pub fn utf8_seq_len(byte: u8) -> Option<usize> {
     }
 }
 
-/// `std.unicode.utf8ByteSequenceLength(c) catch 1`.
+/// UTF-8 sequence length implied by a leading byte, 1 for an invalid one.
 pub fn utf8_byte_sequence_length_or_1(byte: u8) -> usize {
     utf8_seq_len(byte).unwrap_or(1)
 }
@@ -62,7 +60,7 @@ pub fn cp_at(text: &str, index: usize) -> u32 {
     decode_exact(&bytes[index..index + len]).unwrap_or(0xFFFD)
 }
 
-/// Zig `std.unicode.utf8Decode`: the whole slice must be exactly one codepoint.
+/// Decodes a slice that must be exactly one codepoint.
 fn decode_exact(bytes: &[u8]) -> Option<u32> {
     let s = std::str::from_utf8(bytes).ok()?;
     let mut chars = s.chars();
@@ -113,7 +111,7 @@ pub fn is_word_cp(cp: u32) -> bool {
 
 // ── lines ───────────────────────────────────────────────────────────────
 
-/// `str::trim_matches` for the space / tab set Zig trims with `" \t"`.
+/// Trims spaces and tabs from both ends.
 pub fn trim_space_tab(text: &str) -> &str {
     text.trim_matches([' ', '\t'])
 }

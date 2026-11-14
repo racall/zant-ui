@@ -1,8 +1,7 @@
 //! Import clauses, including React's ignored default / namespace bindings.
 //!
-//! Direct translation of `tools/tsx/import_parser.zig`. `assets.isAsset`
-//! (from `tools/tsx/assets.zig`) is inlined here as [`is_asset`]: the Rust
-//! `assets` module belongs to a later WP.
+//! [`is_asset`] is a byte-slice copy of [`crate::assets::is_asset`], so the
+//! parser does not depend on the asset collection module.
 
 use crate::ast::{Import, ImportName, Name};
 use crate::lexer::{self, Kind};
@@ -137,7 +136,7 @@ fn is_asset(source: &[u8]) -> bool {
     if ext.is_empty() {
         return false;
     }
-    for code in [&b".tsx"[..], b".ts", b".zig", b".rs", b".jsx", b".js"] {
+    for code in [&b".tsx"[..], b".ts", b".rs", b".jsx", b".js"] {
         if ext == code {
             return false;
         }
@@ -172,8 +171,6 @@ mod tests {
         std::str::from_utf8(value).expect("text is UTF-8")
     }
 
-    // Ported from `tools/tsx/parser_test.zig`,
-    // "React default, namespace and mixed imports retain their bindings".
     #[test]
     fn react_default_namespace_and_mixed_imports_retain_their_bindings() {
         let m = parse_ok(
@@ -233,8 +230,7 @@ function App() { return <React.Fragment><Text/></React.Fragment>; }"#,
         assert_eq!("", text(&jsx.name));
     }
 
-    // Ported from `tools/tsx/assets.zig`, "asset imports by extension"; the
-    // helper is inlined in this module for now.
+    // Asset imports are recognised by extension.
     #[test]
     fn is_asset_by_extension() {
         use super::is_asset;
@@ -242,7 +238,7 @@ function App() { return <React.Fragment><Text/></React.Fragment>; }"#,
         assert!(is_asset(b"./data/words.txt"));
         assert!(!is_asset(b"./components/Row"));
         assert!(!is_asset(b"./Row.tsx"));
-        assert!(!is_asset(b"./sync.zig"));
+        assert!(!is_asset(b"./sync.rs"));
         assert!(!is_asset(b"zant"));
         assert!(!is_asset(b"./.hidden"));
     }

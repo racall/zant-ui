@@ -1,5 +1,4 @@
-//! Does a function body mention one of these names? Translation of
-//! `tools/tsx/codegen/free_names.zig`.
+//! Does a function body mention one of these names?
 //!
 //! Used to find component functions (`const copy = () => …`) that read render
 //! locals: those are emitted like inline arrows where they are passed

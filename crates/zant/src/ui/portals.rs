@@ -1,11 +1,10 @@
-//! `ui::portal` — the React portal builder of `src/ui.zig:160-176` (WP-2.4).
+//! `ui::portal` — the React portal builder.
 //!
 //! The node is moved out of the current position into the build context's
 //! portal queue; the runtime appends the queued nodes to the window root
-//! (Zig `takePortals`, ported as [`super::context::take_portals`] in WP-1.2).
+//! ([`super::context::take_portals`]).
 //! The returned placeholder keeps the position in the app's layout: an empty
-//! container with `width = 0`, `height = 0`, `shrink = 0` (the Zig code builds
-//! the same zero-size box).
+//! container with `width = 0`, `height = 0`, `shrink = 0`.
 #![forbid(unsafe_code)]
 
 use crate::core::node::{FlexStyle, NodeKind};

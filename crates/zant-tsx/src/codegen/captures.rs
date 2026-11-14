@@ -1,5 +1,4 @@
-//! Event arrows capture render locals by value. Translation of
-//! `tools/tsx/codegen/captures.zig` for Rust closures: a handler that reads
+//! Event arrows capture render locals by value: a handler that reads
 //! render locals keeps them in a small `_CaptureN` struct built at render time;
 //! the action closure calls the handler method with `&mut self` plus that
 //! struct (`ui::action(move |s: &mut App| App::_on_click1(s, &cap))`).
@@ -8,22 +7,21 @@
 //! arrow where it is passed, and a call to one from such a handler gets its own
 //! copy ([`nested`]).
 //!
-//! # Deviation from the Zig original
+//! # Limitations
 //!
-//! Zig's `scope.Context.capture_source` is a pointer to the enclosing context,
-//! so a capture re-reads *that* context (its bindings, their types and its
-//! narrowing facts). The Rust port of `scope.zig` (WP-5.3) keeps only the
-//! visible names there. This module therefore snapshots the enclosing context's
-//! typed bindings in [`captures::prepare`] and keeps them in
-//! `Generator::capture_scope` while the method is emitted. Consequences:
+//! `scope::Context::capture_source` keeps only the visible names of the
+//! enclosing context, not a reference to the context itself. This module
+//! therefore snapshots the enclosing context's typed bindings in
+//! [`captures::prepare`] and keeps them in `Generator::capture_scope` while the
+//! method is emitted. Consequences:
 //!
 //! - narrowing facts are not carried into captures (a narrowed optional is
 //!   captured with its declared type);
 //! - an arrow nested inside another arrow can't re-read the outer arrow's
-//!   captures (the Zig recursion at the top of `captures.read`).
+//!   captures.
 //!
-//! Both are reported for the lead; fixing them needs a small extension of
-//! `scope.CaptureSource` (a WP-5.3 file).
+//! TODO: lift both by extending `scope::CaptureSource` to carry the enclosing
+//! context's types and narrowing facts.
 
 use crate::ast;
 use crate::codegen::{self, Method};
@@ -73,7 +71,7 @@ fn snapshot(c: &scope::Context) -> Vec<ScopeEntry> {
                 None => ScopeEntry {
                     name: binding.name.clone(),
                     ty: binding.ty,
-                    code: binding.zig.clone(),
+                    code: binding.rust.clone(),
                 },
             }
         })
@@ -160,8 +158,7 @@ pub fn declarations(g: &mut Generator<'_>) -> Result<String> {
 }
 
 /// The capture struct instance of a handler: `_Capture1 { name: self.name, … }`
-/// (the Zig `tsx.capture(Capture{ … })`, without the `self` pointer: the
-/// closure passes `&mut self` to the method).
+/// (it holds no `self` pointer: the closure passes `&mut self` to the method).
 pub fn value(g: &mut Generator<'_>, m: &Method) -> Result<String> {
     let name = m.capture_name.as_deref().unwrap_or("_Capture").to_owned();
     let mut fields = String::new();

@@ -1,6 +1,5 @@
 //! `useRef`, `useMemo` and `useEffect` (`docs/tsx.md`, "第三阶段").
-//! Translation of `tools/tsx/codegen/hooks.zig`, adapted to Rust's plain state
-//! fields:
+//! They compile to plain state fields:
 //!
 //! - `const r = useRef(0)`: a field read and written directly (`self.r`); a
 //!   write reads the live value, no setter and no handler snapshot.
@@ -159,7 +158,8 @@ pub fn ref_read(
     }
     let state = g.states[index].clone();
     let field = scope::state_field(g, state.name.as_bytes())?;
-    // non-`Copy` values are cloned at every read (`tsx-codegen.md` §3)
+    // non-`Copy` values are cloned at every read (a read never moves out
+    // of the state field)
     Ok(Some(Value {
         ty: state.ty,
         code: format!("self.{field}.clone()"),
@@ -747,7 +747,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn extra_hooks_are_the_three_zig_hooks() {
+    fn extra_hooks_are_use_ref_use_memo_and_use_effect() {
         assert!(extra_hook("useRef"));
         assert!(extra_hook("useMemo"));
         assert!(extra_hook("useEffect"));

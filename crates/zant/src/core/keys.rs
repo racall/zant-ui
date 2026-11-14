@@ -1,5 +1,3 @@
-//! Port of `src/core/keys.zig` — WP-1.1d.
-//!
 //! Platform-aware keyboard shortcuts. Apps describe a shortcut once and get the
 //! platform's modifier and label:
 //!
@@ -14,9 +12,7 @@
 //! letters, digits, punctuation, `enter`, `esc`, `tab`, `space`, `backspace`,
 //! `delete`, `home`, `end`, `left`, `right`, `up`, `down`, `f1`..`f12`.
 //!
-//! Zig computes labels at comptime; the Rust port computes the same strings at
-//! runtime (there is no comptime string concatenation), with the same
-//! per-platform tables and order.
+//! Labels are computed at runtime from per-platform tables.
 
 use crate::core::events::Modifiers;
 
@@ -27,7 +23,7 @@ pub fn primary(m: Modifiers) -> bool {
     if IS_MACOS { m.meta } else { m.control }
 }
 
-/// `mac` on macOS, `other` elsewhere (Zig: `pick`).
+/// `mac` on macOS, `other` elsewhere.
 pub fn pick<T>(mac: T, other: T) -> T {
     if IS_MACOS { mac } else { other }
 }

@@ -1,6 +1,5 @@
 //! App-level events: tray clicks and menu items, global hotkeys, Dock clicks,
-//! clipboard changes and the exit notification (port of `src/desktop.zig`'s
-//! `AppEvent`, `appCallback`, `setAppEventHandler` and `setExitHandler`).
+//! clipboard changes and the exit notification.
 //!
 //! The native side delivers these through one C callback
 //! (`zant_app_set_handler`). `platform` owns the safe trampoline; this module
@@ -12,7 +11,7 @@ use crate::platform::platform;
 use crate::platform::platform::app_event_type;
 use crate::runtime::window::SharedApp;
 
-/// One app-level event (Zig `desktop.AppEvent`).
+/// One app-level event.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AppEvent {
     /// Windows: left click on the tray icon (the menu opens on right click).
@@ -28,7 +27,7 @@ pub enum AppEvent {
     Clipboard,
 }
 
-/// The event id clamped like Zig's `@intCast(@max(raw.id, 0))`.
+/// The event id, with negative native ids clamped to zero.
 fn event_id(event: &platform::AppEvent) -> u32 {
     u32::try_from(event.id.max(0)).unwrap_or(0)
 }
@@ -47,7 +46,7 @@ pub(crate) fn translate(event: &platform::AppEvent) -> Option<AppEvent> {
 }
 
 /// Routes the native app events to the application hooks (installed by
-/// `ui::app::run`; Zig `desktop.setAppEventHandler` + `setExitHandler`).
+/// `ui::app::run`).
 pub(crate) struct DesktopAppHandler {
     app: SharedApp,
 }
@@ -97,7 +96,7 @@ mod tests {
     }
 
     #[test]
-    fn native_event_types_map_to_the_zig_app_events() {
+    fn native_event_types_map_to_app_events() {
         assert_eq!(
             translate(&raw(app_event_type::TRAY_CLICK, 0)),
             Some(AppEvent::TrayClick)
@@ -120,7 +119,7 @@ mod tests {
         );
         assert_eq!(translate(&raw(app_event_type::EXIT, 0)), None);
         assert_eq!(translate(&raw(99, 0)), None);
-        // Zig clamps ids to zero (`@max(raw.id, 0)`)
+        // negative ids are clamped to zero
         assert_eq!(
             translate(&raw(app_event_type::TRAY_MENU, -4)),
             Some(AppEvent::TrayMenu(0))

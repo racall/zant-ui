@@ -7,8 +7,8 @@ declare namespace JSX {
   interface ElementChildrenAttribute { children: {}; }
 }
 
-// Native Zig exports are checked by zant-tsx; the editor treats them as any.
-declare module "*.zig";
+// Native Rust exports are checked by zant-tsx; the editor treats them as any.
+declare module "*.rs";
 // Assets (`import icon from "./icon.png"`): their bytes, embedded at compile time.
 declare module "*.png" { const bytes: Uint8Array; export default bytes; }
 declare module "*.jpg" { const bytes: Uint8Array; export default bytes; }
@@ -21,7 +21,7 @@ declare module "*.txt" { const bytes: Uint8Array; export default bytes; }
 declare module "*.bin" { const bytes: Uint8Array; export default bytes; }
 
 declare module "zant" {
-// Handwritten runtime declarations included by dts.zig inside module "zant".
+// Handwritten runtime declarations included by zant-tsx-dts inside module "zant".
   export type u8 = number;
   export type u16 = number;
   export type u32 = number;
@@ -115,7 +115,7 @@ declare module "zant" {
   }
   export function createWindow(component: () => JSX.Element, options: WindowOptions): WindowHandle;
 
-  // Desktop functions (src/tsx_platform.zig); the setters run in handlers and effects.
+  // Desktop functions (crates/zant/src/tsx/platform.rs); the setters run in handlers and effects.
   export const clipboard: {
     text(): string;
     setText(text: string): boolean;

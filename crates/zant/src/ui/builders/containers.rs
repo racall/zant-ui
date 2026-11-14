@@ -1,10 +1,8 @@
-//! Container builders of `src/ui.zig`: `space`, `divider`, `tag`, `card`
-//! (WP-2.3).
+//! Container builders: `space`, `divider`, `tag`, `card`.
 //!
-//! These compose the WP-1.2 container / text / button builders and only add
-//! antd defaults (gaps, paddings, token colours, radii), exactly like the Zig
-//! bodies they are ported from. `alert` / `avatar` / `progress` live in the
-//! sibling `feedback` module.
+//! These compose the basic container / text / button builders and only add
+//! antd defaults (gaps, paddings, token colours, radii). `alert` / `avatar` /
+//! `progress` live in the sibling `feedback` module.
 #![forbid(unsafe_code)]
 
 use crate::core::node::{FlexStyle, NodeKind, Visual};

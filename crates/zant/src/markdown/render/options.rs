@@ -1,13 +1,8 @@
-//! Port of `src/markdown/render/options.zig` — WP-3.3.
-//!
 //! Rendering options (Streamdown's component props).
 //!
-//! Rust ownership replaces the Zig arena / raw-pointer contexts:
-//! `ImageLoader` and `BlockRenderer` become `Rc<dyn Fn>` (conventions.md:
-//! `*anyopaque` + function pointer → `Rc<dyn Fn>`), so `Options` is fully
+//! `ImageLoader` and `BlockRenderer` are `Rc<dyn Fn>`, so `Options` is fully
 //! self-contained and `'static` (needed by the memoised block builders).
-//! `BlockInfo` owns its strings (`Str`) instead of borrowing the frame arena;
-//! the Zig `arena` field is gone (callbacks capture `Rc` contexts instead).
+//! `BlockInfo` owns its strings (`Str`); callbacks capture `Rc` contexts.
 
 use std::rc::Rc;
 
@@ -19,10 +14,8 @@ use crate::markdown::theme as theme_mod;
 use crate::ui::actions::TextAction;
 use crate::ui::element::Node;
 
-// `markdown::safety::Policy` (WP-3.2) keeps borrowed slices and has no
-// `Clone`; `Options` is cloned for every memoised block, so the renderer adds
-// the impl here. (Note for the lead: deriving `Clone` in `safety.rs` would be
-// the cleaner home once this lands.)
+// `markdown::safety::Policy` keeps borrowed slices and has no `Clone`;
+// `Options` is cloned for every memoised block, so the renderer adds the impl.
 impl<'a> Clone for safety::Policy<'a> {
     fn clone(&self) -> Self {
         safety::Policy {
@@ -41,8 +34,7 @@ impl<'a> Clone for safety::Policy<'a> {
 /// cheap (a cache lookup): start a download on a worker thread and call
 /// `ui::post_wake()` when it is decoded; the next render shows it.
 ///
-/// The options hash uses the closure's `Rc` address (Zig hashed the loader's
-/// `ctx` / `func` pointers): create the loader **once** (keep the `Rc` in the
+/// The options hash uses the closure's `Rc` address: create the loader **once** (keep the `Rc` in the
 /// app state) and clone it per frame, otherwise every frame looks like a
 /// changed loader and every block rebuilds.
 pub type ImageLoader = Rc<dyn Fn(&str) -> Option<Image>>;
@@ -221,7 +213,7 @@ impl Default for Labels {
 }
 
 impl Labels {
-    /// Zig `Labels.zh`.
+    /// Chinese labels.
     pub fn zh() -> Labels {
         Labels {
             copy: "复制".into(),
@@ -349,9 +341,9 @@ fn hash_labels(h: &mut Wyhash, labels: &Labels) {
 
 impl Options {
     /// Field-by-field hash: covers every option (policy, all labels) and never
-    /// reads struct padding. Zig hashed raw callback / loader pointers;
-    /// `Rc` addresses stand in for them (deviation: `TextAction` is opaque
-    /// outside `ui::actions`, so `on_link` hashes by presence only).
+    /// reads struct padding. Callbacks and loaders hash by their `Rc`
+    /// address (`TextAction` is opaque outside `ui::actions`, so `on_link`
+    /// hashes by presence only).
     pub fn hash(&self) -> u64 {
         let mut h = Wyhash::init(0x6f707473);
         self.theme.hash_into(&mut h);
@@ -402,7 +394,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn defaults_match_the_zig_struct() {
+    fn default_option_values() {
         let options = Options::default();
         assert_eq!(options.theme, theme_mod::light());
         assert_eq!(options.font_size, 16.0);

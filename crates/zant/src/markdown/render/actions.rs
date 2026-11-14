@@ -1,10 +1,7 @@
-//! Port of `src/markdown/render/actions.zig` — WP-3.3.
-//!
 //! Callback contexts for interactive pieces (copy, download, links).
 //!
-//! Zig allocated the contexts from the render arena so they outlive frames
-//! while memoised block UI is reused; the Rust closures capture owned values,
-//! which gives the same lifetime.
+//! The closures capture owned values, so the contexts outlive frames while
+//! memoised block UI is reused.
 
 use crate::platform::dialog;
 use crate::platform::platform;

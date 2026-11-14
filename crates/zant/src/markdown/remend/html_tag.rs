@@ -1,5 +1,5 @@
-//! Port of `src/markdown/remend/html_tag.zig` (remend `html-tag-handler.ts`):
-//! strips an HTML tag that has not received its closing `>` yet.
+//! remend `html-tag-handler.ts`: strips an HTML tag that has not received its
+//! closing `>` yet.
 
 use super::context::Context;
 

@@ -1,7 +1,7 @@
-//! Declaration nodes: `ui::Node` / `ui::Element` (port of `src/ui.zig:14-87`).
+//! Declaration nodes: `ui::Node` / `ui::Element`.
 //!
 //! A node owns its data in an `Rc<Element>`: cheap to clone for `styled()` and
-//! `with_key()`, no frame arena and no lifetimes (plan §4). Every `ui::*`
+//! `with_key()`, no frame arena and no lifetimes. Every `ui::*`
 //! builder returns a fresh `Element`, so no two nodes share mutable state.
 #![forbid(unsafe_code)]
 
@@ -21,8 +21,7 @@ use super::actions::{
     Action, BoolAction, IndexAction, InputKeyAction, KeyAction, RangeAction, TextAction,
 };
 
-/// A declarative node: `Rc<Element>` so cloning is cheap (Zig `*const Element`
-/// pointing into the frame arena; the arena is gone in Rust).
+/// A declarative node: `Rc<Element>` so cloning is cheap.
 #[derive(Clone)]
 pub struct Node(Rc<Element>);
 
@@ -37,7 +36,7 @@ impl PartialEq for Node {
 
 impl Eq for Node {}
 
-/// A node that is a `MemoBuild` subtree (`ui::memo`, WP-2.4).
+/// A node that is a `MemoBuild` subtree (`ui::memo`).
 #[derive(Clone)]
 pub struct MemoBuild(Rc<dyn Fn() -> Node>);
 
@@ -55,10 +54,8 @@ impl MemoBuild {
 
 /// Everything a declared node carries into the retained tree.
 ///
-/// Field names and order match the Zig `Element` (`src/ui.zig:18-87`) so the
-/// two can be reviewed side by side. Rust ownership changes a few types:
-/// `[]const u8` → [`Str`], slices → `Vec`, `?*anyopaque` image handle →
-/// `Option<Rc<Image>>`, `?*const vector.Drawing` → `Option<DrawingRef>`.
+/// The element owns its data: text is a [`Str`], children a `Vec`, the image
+/// handle an `Option<Rc<Image>>` and the drawing an `Option<DrawingRef>`.
 #[derive(Clone)]
 pub struct Element {
     pub kind: NodeKind,
@@ -114,7 +111,7 @@ pub struct Element {
     /// reconciler keeps that subtree without calling `memo_build`.
     pub memo_hash: Option<u64>,
     pub memo_build: Option<MemoBuild>,
-    /// Enter / exit and layout transitions (`ui::styled(.., .{ .motion = .. })`).
+    /// Enter / exit and layout transitions (`Style::motion` via `ui::styled`).
     pub motion: MotionStyle,
     /// Pointer area handler (`ui::pointer_area`).
     pub pointer: Option<PointerArea>,
@@ -126,18 +123,17 @@ pub struct Element {
     pub on_resize: Option<Action>,
     /// Container hover look (`BoxOptions::hover_*`).
     pub hover_visual: Option<HoverVisual>,
-    /// Image already decoded in memory (`ui::image(.{ .image = .. })`); the
-    /// node keeps it alive, so `ui::image` can return a node that outlives the
-    /// caller's `Image` (Zig kept a retained raw handle + id).
+    /// Image already decoded in memory (`ImageOptions::image`); the node
+    /// keeps it alive, so `ui::image` can return a node that outlives the
+    /// caller's `Image`.
     pub image_handle: Option<Rc<Image>>,
     pub image_id: u64,
 }
 
 impl Default for Element {
-    /// The field defaults of the Zig `Element` struct. Hand-written because
-    /// several are non-zero (`enabled`, `focus_ring`, `icon_size`,
-    /// `button_size`, `toggle_kind`, `image_fit`, `rich_line_height`);
-    /// `kind` has no Zig default and starts as `NodeKind::Root`.
+    /// The field defaults. Hand-written because several are non-zero
+    /// (`enabled`, `focus_ring`, `icon_size`, `button_size`, `toggle_kind`,
+    /// `image_fit`, `rich_line_height`); `kind` starts as `NodeKind::Root`.
     fn default() -> Self {
         Element {
             kind: NodeKind::Root,
@@ -197,7 +193,7 @@ impl Default for Element {
 }
 
 impl Node {
-    /// Wraps a freshly built element (Zig `make`).
+    /// Wraps a freshly built element.
     pub fn new(element: Element) -> Node {
         Node(Rc::new(element))
     }
@@ -220,8 +216,8 @@ impl Node {
 }
 
 impl Default for Node {
-    /// An empty `Root` element; lets option structs derive `Default` (the Zig
-    /// `Node` has no default, but nothing paints a lone root node).
+    /// An empty `Root` element; lets option structs derive `Default` (nothing
+    /// paints a lone root node).
     fn default() -> Self {
         Node::new(Element::default())
     }
@@ -310,7 +306,7 @@ mod tests {
     }
 
     #[test]
-    fn element_defaults_match_the_zig_struct() {
+    fn element_has_the_expected_defaults() {
         let element = Element::default();
         assert_eq!(element.kind, NodeKind::Root);
         assert!(element.enabled);

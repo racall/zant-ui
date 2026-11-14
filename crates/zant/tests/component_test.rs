@@ -1,6 +1,4 @@
-//! Port of `tests/component_test.zig` — input/caret internals and paint-only
-//! text updates. The gallery-app case needs `zant::app::App` (WP-2.9) and is
-//! listed as not ported yet in the WP-2.10 report.
+//! Input / caret internals and paint-only text updates.
 
 use zant::components::input;
 use zant::core::geometry::Size;

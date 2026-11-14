@@ -1,16 +1,14 @@
-//! Index of the `zant` crate sources, replacing the comptime reflection of
-//! `tools/tsx/manifest/reflect.zig`.
+//! Index of the `zant` crate sources.
 //!
-//! The Zig generator saw the `ui.*` namespace through `@typeInfo`; Rust has no
-//! module reflection, so the generator walks `crates/zant/src/**/*.rs` with
-//! `syn`:
+//! Rust has no module reflection, so the generator walks
+//! `crates/zant/src/**/*.rs` with `syn`:
 //!
 //! - `pub fn ... -> Node` builders of `ui/builders/` (name, options type,
 //!   text-argument / instance-id shape);
 //! - `zant::theme::tokens::Theme` for the `useTheme()` props;
 //! - every `pub enum` / `pub struct` and `use` alias, so a field type such as
 //!   `flex::Wrap` can be resolved to the enum whose variants become TSX
-//!   spellings (`reflect.zig:kind` read them through `@typeInfo` instead).
+//!   spellings.
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -22,7 +20,7 @@ use syn::{Item, PathArguments, UseTree};
 pub struct Builder {
     /// Rust function name with the raw-identifier prefix stripped (`switch`).
     pub name: String,
-    /// `r#switch`: the Zig table spelled this builder `ui.@"switch"`.
+    /// `r#switch`: the table spells this builder `ui.@"switch"`.
     pub raw_ident: bool,
     /// The options struct of the last parameter.
     pub options: String,
@@ -202,8 +200,7 @@ impl Index {
             return;
         };
         let Ok(file) = syn::parse_file(&source) else {
-            // Generated / cfg-gated sources may be unparsable; skip like the
-            // Zig tool skipped non-ui modules.
+            // Generated / cfg-gated sources may be unparsable; skip them.
             return;
         };
         let module = module_path_for(path);

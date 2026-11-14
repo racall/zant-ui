@@ -1,9 +1,7 @@
-//! `assets/icons/*.png` as `icon_<name>` byte constants (Zig `addAppIcons`).
+//! `assets/icons/*.png` as `icon_<name>` byte constants.
 //!
-//! The Zig build added one anonymous import per PNG, so app code could write
-//! `@embedFile("icon_tray_dark")`; `-` in the file stem becomes `_`. Rust has
-//! no module-level anonymous imports, so the same mapping is written as a
-//! generated `icons.rs` next to the compiled modules:
+//! Every PNG becomes one constant; `-` in the file stem becomes `_`. The
+//! mapping is written as a generated `icons.rs` next to the compiled modules:
 //!
 //! ```rust,ignore
 //! // src/main.rs (or a native module)
@@ -25,7 +23,7 @@ use std::path::{Path, PathBuf};
 
 use crate::Error;
 
-/// One PNG of `assets/icons/` (Zig's `app_icons` table plus the app's own).
+/// One PNG of `assets/icons/`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Icon {
     /// The Rust identifier (`tray-dark.png` → `icon_tray_dark`).
@@ -43,8 +41,8 @@ impl Icon {
     }
 }
 
-/// Every PNG in `assets/icons/` (`-` → `_`, sorted by identifier), like Zig's
-/// `addAppIcons`. A missing directory means no icons, not an error.
+/// Every PNG in `assets/icons/` (`-` → `_`, sorted by identifier).
+/// A missing directory means no icons, not an error.
 pub fn enumerate(app_root: &Path) -> Result<Vec<Icon>, Error> {
     let directory = app_root.join("assets/icons");
     let entries = match std::fs::read_dir(&directory) {
@@ -148,7 +146,7 @@ fn escape(value: &str) -> String {
 mod tests {
     use super::*;
 
-    // Zig `addAppIcons`: every PNG in `assets/icons` is `icon_<stem>` with
+    // Every PNG in `assets/icons` is `icon_<stem>` with
     // `-` replaced by `_`.
 
     #[test]

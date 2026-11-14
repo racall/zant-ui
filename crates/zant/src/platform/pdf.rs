@@ -1,8 +1,6 @@
-//! Port of `src/platform/pdf.zig` — WP-3.8.
-//!
-//! Path-based helpers used by `ui.pdfPreview` (single page preview): the
+//! Path-based helpers used by `PdfPreview` (single page preview): the
 //! page count, a rendered page as a PNG temp file, and the page text. This
-//! module `unsafe` is allowed by `lib.rs` (plan.md §3 rule 5).
+//! module is one of the FFI wrappers where `lib.rs` allows `unsafe`.
 
 use std::ffi::{CStr, CString};
 
@@ -19,7 +17,7 @@ pub fn page_count(path: &str) -> usize {
 }
 
 /// Renders `page` at `width` × `height` pixels to a cached PNG temp file and
-/// returns its path (a slice into `out`, like the Zig `[]u8` out buffer).
+/// returns its path (a slice into the caller's `out` buffer).
 /// `None` on failure.
 pub fn render_page<'a>(
     path: &str,
@@ -50,7 +48,7 @@ pub fn render_page<'a>(
     c_str_from(out)
 }
 
-/// UTF-8 text of a page (a slice into `out`, like the Zig `[]u8` out buffer).
+/// UTF-8 text of a page (a slice into the caller's `out` buffer).
 /// `None` on failure.
 pub fn page_text<'a>(path: &str, page: usize, out: &'a mut [u8]) -> Option<&'a str> {
     let path = CString::new(path).ok()?;
@@ -65,8 +63,7 @@ pub fn page_text<'a>(path: &str, page: usize, out: &'a mut [u8]) -> Option<&'a s
     c_str_from(out)
 }
 
-/// The NUL-terminated string the backend wrote into `buf`
-/// (`std.mem.sliceTo(buf, 0)` in Zig).
+/// The NUL-terminated string the backend wrote into `buf`.
 fn c_str_from(buf: &[u8]) -> Option<&str> {
     CStr::from_bytes_until_nul(buf).ok()?.to_str().ok()
 }

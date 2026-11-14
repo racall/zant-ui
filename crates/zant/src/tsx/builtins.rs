@@ -1,5 +1,4 @@
-//! JavaScript numeric built-ins for generated TSX code
-//! (port of `src/tsx_builtins.zig`).
+//! JavaScript numeric built-ins for generated TSX code.
 //!
 //! The TSX compiler maps `Math.*`, `Number(...)`, `parseInt`, `parseFloat`,
 //! `String(...)`, `.toString()` and `.toFixed()` onto these helpers so the
@@ -9,7 +8,7 @@
 //!
 //! Numbers are `f64` (TS has one number type); the two integer-preserving
 //! cases keep their Rust integer type: [`unary`] on an integer argument and
-//! [`extrema`] over a slice of integers (like the Zig `anytype` functions).
+//! [`extrema`] over a slice of integers.
 
 use std::cell::Cell;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -22,7 +21,7 @@ use crate::tsx::bigint::BigUint;
 use super::builtins_format::js_float_string;
 pub use super::builtins_format::{to_fixed, to_precision, to_string_radix};
 
-/// Unary `Math` operations (`src/tsx_builtins.zig`'s `Unary`).
+/// Unary `Math` operations.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Unary {
     Floor,
@@ -54,8 +53,8 @@ pub enum Predicate {
 // ------------------------------------------------------------- Math unary
 
 /// One operand of `unary`: `f64` implements every operation, integers only the
-/// integer-preserving ones (Zig rejected the others at compile time; here an
-/// unsupported pair panics, and the codegen never emits it).
+/// integer-preserving ones (an unsupported pair panics, and the codegen never
+/// emits it).
 pub trait UnaryOperand: Copy {
     fn unary(self, op: Unary) -> Self;
 }
@@ -107,7 +106,7 @@ macro_rules! unary_int_signed {
                     match op {
                         Unary::Floor | Unary::Ceil | Unary::Round | Unary::Trunc => self,
                         // Signed minimum overflows, just like other native
-                        // integer arithmetic (Zig `-x`).
+                        // integer arithmetic.
                         Unary::Abs => {
                             if self < 0 { -self } else { self }
                         }
@@ -170,7 +169,7 @@ pub fn hypot(values: &[f64]) -> f64 {
     result
 }
 
-/// The values `Math.min` / `Math.max` accept (Zig's `extrema` over `anytype`).
+/// The values `Math.min` / `Math.max` accept.
 pub trait ExtremaValue: Copy + PartialOrd {
     fn extrema(minimum: bool, values: &[Self]) -> Self;
 }
@@ -206,7 +205,7 @@ macro_rules! extrema_int {
         $(
             impl ExtremaValue for $ty {
                 fn extrema(minimum: bool, values: &[$ty]) -> $ty {
-                    let mut result = values[0]; // Zig indexed values[0] too
+                    let mut result = values[0]; // panics on an empty slice
                     for &x in values {
                         if (minimum && x < result) || (!minimum && x > result) {
                             result = x;
@@ -296,7 +295,7 @@ pub fn predicate<T: NumberPredicate>(kind: Predicate, x: T) -> bool {
 // ------------------------------------------------------------- conversions
 
 /// `Number(...)`: a JS number, or NaN when the value is not a number string
-/// (exact port of the Zig conversion, including the JS radix prefixes).
+/// (including the JS radix prefixes).
 pub trait NumberValue {
     fn to_js_number(self) -> f64;
 }
@@ -423,7 +422,7 @@ pub fn to_radix(x: f64, radix: f64) -> Str {
     to_string_radix(x, radix)
 }
 
-/// JS whitespace (`tsx_builtins.zig`'s `whitespace`).
+/// JS whitespace.
 fn whitespace(cp: char) -> bool {
     matches!(
         cp,
@@ -490,8 +489,7 @@ fn integer(s: &str, radix: u8, full: bool) -> f64 {
     if count == 0 || (full && count != s.len()) {
         return f64::NAN;
     }
-    // Rust's decimal parser rounds correctly to f64 (inf on overflow), like
-    // the Zig 1024-bit accumulation with 53-bit rounding.
+    // Rust's decimal parser rounds correctly to f64 (inf on overflow).
     n.to_decimal().parse::<f64>().unwrap_or(f64::INFINITY)
 }
 
@@ -616,7 +614,7 @@ pub fn performance_now() -> f64 {
 }
 
 thread_local! {
-    /// Process-wide noncryptographic PRNG (Zig used `std.Random.DefaultPrng`).
+    /// Process-wide noncryptographic PRNG.
     static RANDOM_STATE: Cell<u64> = const { Cell::new(0) };
 }
 

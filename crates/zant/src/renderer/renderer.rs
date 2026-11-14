@@ -1,5 +1,3 @@
-//! Port of `src/renderer/renderer.zig` — WP-1.1c.
-//!
 //! A renderer owns the Skia surface (GPU on the native host, CPU raster for
 //! tests and `ZANT_SNAPSHOT`). The window backends create and drive their own
 //! renderer through the platform C ABI, so only the raster path is exposed
@@ -10,7 +8,7 @@ use std::ffi::CStr;
 use crate::renderer::canvas::Canvas;
 use zant_sys::skia as ffi;
 
-/// Errors of renderer creation (Zig: `error.RendererCreationFailed`).
+/// Errors of renderer creation.
 #[derive(Debug, thiserror::Error)]
 pub enum RendererError {
     #[error("renderer creation failed")]
@@ -86,7 +84,7 @@ impl Renderer {
         unsafe { ffi::zant_renderer_end(self.handle) }
     }
 
-    /// Writes the raster surface to `path` as a PNG (Zig: `writePng`).
+    /// Writes the raster surface to `path` as a PNG.
     pub fn write_png(&self, path: &str) -> bool {
         let Ok(path) = std::ffi::CString::new(path) else {
             return false;

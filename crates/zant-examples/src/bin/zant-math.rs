@@ -1,6 +1,6 @@
-//! `zant-math`: port of the Zig `zant-math` example, `examples/math.zig`
-//! (WP-3.11). The application lives in [`zant_examples::math_app`] so the
-//! headless smoke test can build the same tree the window paints.
+//! `zant-math`: the math formula example. The application lives in
+//! [`zant_examples::math_app`] so the headless smoke test can build the same
+//! tree the window paints.
 
 fn main() -> zant::Result<()> {
     zant::ui::run(

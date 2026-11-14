@@ -1,4 +1,4 @@
-//! Port of `src/components/view.zig` — WP-2.5: the general-purpose container.
+//! The general-purpose container.
 //!
 //! It takes every `ui::BoxOptions` field (same names) with RN / block `div`
 //! defaults — a flex column whose children stretch across it and that is not
@@ -6,9 +6,8 @@
 //! (the whole view becomes clickable, controls inside keep their own clicks)
 //! and an inline `style` override applied last.
 //!
-//! Zig copied the fields with `inline for` over the `BoxOptions` field list;
-//! the Rust port assigns them explicitly (plan.md WP-2.5) so a field added to
-//! one struct and not the other is a compile error rather than a silent copy.
+//! The `BoxOptions` fields are assigned explicitly, so a field added to one
+//! struct and not the other is a compile error rather than a silent omission.
 #![forbid(unsafe_code)]
 
 use crate::Str;
@@ -95,7 +94,6 @@ impl Default for ViewOptions {
     fn default() -> Self {
         ViewOptions {
             key: None,
-            // Zig: `.direction = .column`
             direction: flex::Direction::Column,
             flex_direction: None,
             gap: 0.0,
@@ -109,7 +107,7 @@ impl Default for ViewOptions {
             margin: Edges::default(),
             justify: flex::Justify::Start,
             justify_content: None,
-            // Zig: `.align_items = .stretch`
+            // children stretch across the view (block `div` default)
             align_items: flex::Align::Stretch,
             width: None,
             height: None,
@@ -125,7 +123,7 @@ impl Default for ViewOptions {
             max_width: None,
             max_height: None,
             grow: 0.0,
-            // Zig: `.shrink = 0` (RN default)
+            // RN default
             shrink: 0.0,
             basis: None,
             background: None,
@@ -155,7 +153,7 @@ impl Default for ViewOptions {
     }
 }
 
-/// Zig `view`: a `column` / `clickable` plus the shadow / style overrides.
+/// A `column` / `clickable` plus the shadow / style overrides.
 pub fn view(options: ViewOptions) -> Node {
     let node = if options.on_click.is_some() || options.index_action.is_some() {
         clickable(ClickableOptions {
@@ -189,7 +187,7 @@ pub fn view(options: ViewOptions) -> Node {
 
 /// The view's container options. Every `BoxOptions` field exists in
 /// `ViewOptions` under the same name, so the two never drift apart; the
-/// assignment is written out field by field (Zig used `inline for`).
+/// assignment is written out field by field.
 pub fn box_options(options: &ViewOptions) -> BoxOptions {
     BoxOptions {
         key: options.key.clone(),
@@ -205,7 +203,7 @@ pub fn box_options(options: &ViewOptions) -> BoxOptions {
         justify: options.justify,
         justify_content: options.justify_content,
         align_items: options.align_items,
-        // Zig copies the field and then overrides it with `direction`.
+        // `direction` is the fallback when `flex_direction` is unset.
         flex_direction: Some(options.flex_direction.unwrap_or(options.direction)),
         width: options.width,
         height: options.height,
@@ -315,7 +313,7 @@ mod tests {
     }
 
     #[test]
-    fn view_defaults_match_the_zig_struct() {
+    fn view_defaults() {
         let defaults = ViewOptions::default();
         assert!(defaults.key.is_none());
         assert_eq!(defaults.direction, flex::Direction::Column);

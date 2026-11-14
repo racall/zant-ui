@@ -171,4 +171,4 @@ TSX：`clipboard.text()/setText/image/setImage/files/setFiles/changeCount()`。
 - Windows 首次监听网络端口时会弹出防火墙确认；macOS 向 255.255.255.255 广播会被拒绝
   （EADDRNOTAVAIL），请向各网卡的广播地址发送。
 - macOS 的登录项 / 全局快捷键等能力只对打包后的 .app 完整可用；`zant run` 下部分接口返回
-  `Unsupported`（行为与旧 Zig 版一致）。
+  `Unsupported`。

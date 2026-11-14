@@ -1,5 +1,4 @@
-//! Port of `src/markdown/remend/setext_heading.zig` (remend
-//! `setext-heading-handler.ts`): a trailing `-`/`--`/`=`/`==` under a text line
+//! remend `setext-heading-handler.ts`: a trailing `-`/`--`/`=`/`==` under a text line
 //! would turn that line into a heading mid-stream; append a zero-width space to
 //! break the pattern.
 

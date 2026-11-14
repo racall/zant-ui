@@ -1,8 +1,8 @@
 //! Render and handler statements, local mutation, setters, and functional
-//! updates. Translation of `tools/tsx/codegen/stmt.zig`.
+//! updates.
 //!
 //! Declarations are emitted as placeholders and expanded by
-//! [`scope::finish`]; Rust's `let`/`let mut` replace Zig's `const`/`var`.
+//! [`scope::finish`], which picks `let` or `let mut`.
 
 use crate::ast;
 
@@ -91,7 +91,7 @@ pub fn statement(
                 if let Some(hook) = g.extensions.hooks.hook_statement {
                     return hook(g, c, e, top);
                 }
-                return fail(g, e.loc, "hook statements are implemented by WP-5.5");
+                return fail(g, e.loc, "hook statements need the hook support installed");
             }
             expression_statement(g, c, e)
         }
@@ -119,7 +119,11 @@ fn declaration(
         {
             return match g.extensions.hooks.hook_declaration {
                 Some(hook) => hook(g, c, loc, d, top),
-                None => fail(g, loc, "`useMemo` / `useStore` are implemented by WP-5.5"),
+                None => fail(
+                    g,
+                    loc,
+                    "`useMemo` / `useStore` need the hook support installed",
+                ),
             };
         }
         if let ast::ExprData::Call(call) = &e.data
@@ -128,7 +132,7 @@ fn declaration(
         {
             return match g.extensions.hooks.hook_declaration {
                 Some(hook) => hook(g, c, loc, d, top),
-                None => fail(g, loc, "desktop hooks are implemented by WP-5.6"),
+                None => fail(g, loc, "desktop hooks need the application hooks installed"),
             };
         }
         if c.render && top {
@@ -187,7 +191,7 @@ fn return_statement(
     {
         return match g.extensions.hooks.cleanup_return {
             Some(hook) => hook(g, c, x),
-            None => fail(g, loc, "effect cleanups are implemented by WP-5.5"),
+            None => fail(g, loc, "effect cleanups need the hook support installed"),
         };
     }
     if let Some(x) = e {
@@ -313,7 +317,7 @@ pub fn expression_statement(
         }
         let binding_index = scope::local_index(c, name).expect("local binding");
         c.bindings[binding_index].assigned = true;
-        let zig = c.bindings[binding_index].zig.clone();
+        let rust = c.bindings[binding_index].rust.clone();
         let ty = c.bindings[binding_index].ty;
         if let ast::ExprData::Update(update) = &e.data {
             if !ty.numeric() {
@@ -321,7 +325,7 @@ pub fn expression_statement(
             }
             let one = if ty.float() { "1.0" } else { "1" };
             return Ok(format!(
-                "{zig} {} {one};\n",
+                "{rust} {} {one};\n",
                 if update.op == b"++" { "+=" } else { "-=" }
             ));
         }
@@ -331,7 +335,7 @@ pub fn expression_statement(
         };
         if assign.op == b"=" {
             let v = expr::emit(g, c, &assign.value, Some(ty), false)?;
-            return Ok(format!("{zig} = {};\n", v.code));
+            return Ok(format!("{rust} = {};\n", v.code));
         }
         // Reuse the arithmetic checker so integer `/=` and `%=` keep Rust's
         // truncating semantics rather than accidentally emitting JS division.
@@ -346,7 +350,7 @@ pub fn expression_statement(
         };
         let value = expr::binary(g, c, e.loc, &binary, Some(ty), false)?;
         let value = types::coerce(g, value, ty, e.loc)?;
-        return Ok(format!("{zig} = {};\n", value.code));
+        return Ok(format!("{rust} = {};\n", value.code));
     }
     fail(
         g,
@@ -459,7 +463,7 @@ pub fn returns_all(ss: &[Box<ast::Stmt>]) -> bool {
     false
 }
 
-/// The Rust `let _ = x;` counterpart of Zig's `_ = x;`, shared by tests.
+/// `let _ = x;`: marks a binding as used; shared by tests.
 pub fn discard(binding: &str) -> String {
     format!("let _ = {binding};\n")
 }

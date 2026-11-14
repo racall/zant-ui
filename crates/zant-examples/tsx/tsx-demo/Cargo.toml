@@ -1,4 +1,4 @@
-# TSX showcase app (`examples/tsx/app` ported to Rust, WP-5.10).
+# TSX showcase app.
 #
 # The app is a Cargo workspace member: `build.rs` calls
 # `zant_build::try_tsx_app()` (the template's TSX → Rust step) and writes

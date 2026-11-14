@@ -1,5 +1,4 @@
-//! Port of `src/markdown/remend/emphasis.zig` (remend
-//! `emphasis-handlers.ts`): completes `***`, `**`, `__`, `*` and `_` that are
+//! remend `emphasis-handlers.ts`: completes `***`, `**`, `__`, `*` and `_` that are
 //! still open at the end of a streamed text.
 
 use super::context::Context;

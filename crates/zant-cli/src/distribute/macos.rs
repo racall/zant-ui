@@ -1,4 +1,4 @@
-//! Port of the macOS half of `tools/zant/distribute.zig`: `zant build` on a
+//! The macOS half of the release build: `zant build` on a
 //! Mac (Developer ID / DMG / notarization, or Mac App Store).
 
 use super::{

@@ -1,11 +1,8 @@
-//! Port of `src/markdown/render/view.zig` — WP-3.3.
-//!
 //! The Streamdown component: renders Markdown with block-level memoisation.
 //!
-//! Zig kept the view state of a cached block (`view_slot` / `view_arena`) in
-//! the cache `Entry`; the Rust port keeps it in `ui::local_state` keyed by the
-//! block's UI key, and the memo builder closure captures `Rc`s (no arena,
-//! docs/rust-port/api.md §10). The parsed document is cloned only when the
+//! The view state of a cached block lives in `ui::local_state` keyed by the
+//! block's UI key, and the memo builder closure captures `Rc`s. The parsed
+//! document is cloned only when the
 //! block actually changes; unchanged blocks only build a fresh closure around
 //! the same `Rc<Document>` (and the runtime skips even that builder).
 
@@ -82,8 +79,8 @@ impl Default for Props {
     }
 }
 
-/// Per-block view state kept in `ui::local_state` (Zig: `Slot` in the entry's
-/// arena). `hash` is the cache entry hash the stored document belongs to.
+/// Per-block view state kept in `ui::local_state`. `hash` is the cache entry
+/// hash the stored document belongs to.
 #[derive(Default)]
 struct BlockView {
     doc: Option<Rc<ast::Document>>,

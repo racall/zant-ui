@@ -1,6 +1,6 @@
 //! mhchem: chemical equations (`\ce{...}`) and physical units (`\pu{...}`).
 //!
-//! A faithful Rust port of the mhchem parser and texifier shipped with KaTeX
+//! A faithful port of the mhchem parser and texifier shipped with KaTeX
 //! (`katex/contrib/mhchem/mhchem.js`, KaTeX's adaptation of mhchem 3.3.0):
 //!
 //!   mhchem — Copyright (c) 2015-2018 Martin Hensel,
@@ -29,8 +29,6 @@
 //!   * `run_action` = `mhchemParser.actions` + the per-machine
 //!     `actions` (looked up machine first, like upstream).
 //!   * `go` = `mhchemParser.go`, `texify`/`go2` = `texify.go`/`texify._go2`.
-//!
-//! Port of `src/math/mhchem.zig` — WP-3.7.
 
 mod actions;
 mod chars;
@@ -82,9 +80,9 @@ impl std::error::Error for MhchemError {}
 
 /// TeX for `\ce{input}` (`Machine::Ce`) or `\pu{input}` (`Machine::Pu`).
 ///
-/// Rust returns an owned `String`, so output bytes that are not valid UTF-8
-/// (only possible when a byte-level split lands inside a multi-byte character,
-/// in which case the Zig version returns the raw bytes) become `MhchemError`.
+/// The result is an owned `String`, so output bytes that are not valid UTF-8
+/// (only possible when a byte-level split lands inside a multi-byte character)
+/// become `MhchemError`.
 pub fn to_tex(input: &str, machine: Machine) -> Result<String, MhchemError> {
     let parsed = go(Some(input.as_bytes().to_vec()), machine.sm())?;
     let out = texify::texify(&parsed, false)?;

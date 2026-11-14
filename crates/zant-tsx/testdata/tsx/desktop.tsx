@@ -1,7 +1,7 @@
 // Desktop hooks: tray, global hotkey, clipboard changes, Dock reopen.
 import { useState, useTray, useHotkey, useClipboardChange, useReopen, View, Text } from "zant";
 
-// PNG bytes in a real app come from an imported .png or a Zig module
+// PNG bytes in a real app come from an imported .png or a native module
 const icon: Uint8Array = [137, 80, 78, 71];
 
 export default function App() {

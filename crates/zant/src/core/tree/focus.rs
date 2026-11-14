@@ -1,4 +1,4 @@
-//! Port of `src/core/tree.zig` — WP-1.3: focus (focused node, Tab order,
+//! Focus (focused node, Tab order,
 //! focus scopes).
 #![forbid(unsafe_code)]
 

@@ -1,6 +1,6 @@
 // A todo app in TSX, written the React way (immutable state updates).
-// `todos_manual.zig` is the same app written by hand in Zig; `zig build
-// bench-tsx` compares the two. Run it with `zig build run-tsx-todos`.
+// The TSX frame benchmark (`zant-tsx-frame-bench`) compares it with the same
+// app written by hand in Rust. The runnable copy is `../tsx-todos`.
 import { useState, View, Row, Heading, Input, Button, Segmented, Checkbox, IconButton, Text } from "zant";
 import type { u32, usize } from "zant";
 

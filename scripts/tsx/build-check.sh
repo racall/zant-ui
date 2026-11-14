@@ -1,7 +1,7 @@
 #!/bin/sh
-# End-to-end check of `zant_build::tsx_app()` (WP-6.2) on this machine.
+# End-to-end check of `zant_build::tsx_app()` on this machine.
 #
-# Copies the WP-6.2 fixture app (`crates/zant-build/tests/fixtures/tsx-app`, the
+# Copies the fixture app (`crates/zant-build/tests/fixtures/tsx-app`, the
 # same layout as `scaffold/template-ts`) into a temp directory, writes the Cargo
 # package around it (the fixture is not a package of the workspace), builds it —
 # which runs `build.rs` → `zant_build::tsx_app()` → TSX → `$OUT_DIR` — and then

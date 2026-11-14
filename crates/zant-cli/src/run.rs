@@ -1,8 +1,7 @@
-//! Port of the `zant run` / `compile` / `sync` / `package` / `watch` half of
-//! `tools/zant/main.zig`. `--watch` keeps the Zig restart semantics; change
-//! detection uses the workspace's `notify` crate but still goes through
-//! `sources::stamp`, so a regenerated `src/app_config.rs` that ends up
-//! unchanged does not restart the app.
+//! `zant run` / `compile` / `sync` / `package` and `run --watch`. Change
+//! detection for `--watch` uses the workspace's `notify` crate but still goes
+//! through `sources::stamp`, so a regenerated `src/app_config.rs` that ends
+//! up unchanged does not restart the app.
 
 use crate::IS_WINDOWS;
 use crate::generate::{self, Need};

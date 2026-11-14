@@ -1,4 +1,4 @@
-//! Command-line behavior of the Rust `zant`: help / version / usage text and
+//! Command-line behavior of `zant`: help / version / usage text and
 //! an end-to-end `create` → `sync` run against the repository's templates.
 
 use std::path::{Path, PathBuf};
@@ -50,7 +50,7 @@ fn help_lists_every_command_and_version_prints_the_package_version() {
 }
 
 #[test]
-fn no_arguments_prints_the_zig_usage_text() {
+fn no_arguments_prints_the_usage_text() {
     let output = run(&mut zant());
     assert!(output.status.success());
     let text = stderr(&output);
@@ -76,7 +76,7 @@ fn unknown_commands_and_arguments_are_rejected() {
     let output = run(zant().args(["run", "--nope"]));
     assert!(!output.status.success());
     assert!(stderr(&output).contains("--nope"), "{}", stderr(&output));
-    // `zant build --release` keeps the Zig CLI's hint instead of compiling.
+    // `zant build --release` prints a hint instead of compiling.
     let dir = temp_dir("build-release");
     let output = run(zant().current_dir(&dir).args(["build", "--release"]));
     assert!(!output.status.success());
@@ -101,8 +101,7 @@ fn create_then_sync_writes_the_ts_template_and_generated_config() {
     ]));
     assert!(output.status.success(), "{}", stderr(&output));
     let project = dir.join("demo");
-    // Default language is TS: a Rust Cargo app with TSX sources and Rust
-    // native modules.
+    // A Cargo app with TSX sources and Rust native modules.
     for file in [
         "app.config.json",
         "Cargo.toml",
@@ -122,17 +121,8 @@ fn create_then_sync_writes_the_ts_template_and_generated_config() {
     ] {
         assert!(project.join(file).is_file(), "{file} missing");
     }
-    for file in [
-        "build.zig",
-        "build.zig.zon",
-        "src/main.zig",
-        "native/lib.zig",
-        "native/system.zig",
-    ] {
-        assert!(!project.join(file).exists(), "{file} should not be created");
-    }
     let config = std::fs::read_to_string(project.join("app.config.json")).expect("config");
-    // Same text `zant create` wrote before (window defaults included).
+    // The config text `zant create` writes (window defaults included).
     assert!(config.contains("\"title\": \"Demo App\""), "{config}");
     assert!(
         config.contains("\"bundle_id\": \"com.acme.demo\""),
@@ -180,8 +170,8 @@ fn create_then_sync_writes_the_ts_template_and_generated_config() {
     assert_eq!(before, after);
 }
 
-/// A minimal plain-Rust application project: cargo build / run must work now
-/// (only the TSX pipeline waits for `zant_build::tsx_app()`).
+/// A minimal plain-Rust application project (no TSX, no build script):
+/// `zant compile` / `zant run` must build and run it with cargo.
 fn write_plain_app(dir: &Path) -> PathBuf {
     let project = dir.join("plain");
     std::fs::create_dir_all(project.join("src")).expect("src dir");

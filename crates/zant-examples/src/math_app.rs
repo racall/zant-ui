@@ -1,11 +1,10 @@
-//! `zant-math`: port of `examples/math.zig` (WP-3.11).
+//! `zant-math`: the math gallery.
 //!
-//! The math gallery: a title line and 18 display formulas laid out with the
-//! KaTeX engine (`math::layout::layout`) and drawn as retained vectors, in a
-//! vertically scrolling column. The display wrapper is the framework's
-//! [`zant::math::block`] (the `math/mod.zig: block` UI layer, moved in by
-//! WP-M3): `display = true`, 1em vertical margin split in half, centred
-//! full-width row.
+//! A title line and 18 display formulas laid out with the KaTeX engine
+//! (`math::layout::layout`) and drawn as retained vectors, in a vertically
+//! scrolling column. The display wrapper is the framework's
+//! [`zant::math::block`]: `display = true`, 1em vertical margin split in half,
+//! centred full-width row.
 #![forbid(unsafe_code)]
 
 use zant::layout::flex;
@@ -14,8 +13,8 @@ use zant::math::layout::Options as LayoutOptions;
 use zant::platform::platform::WindowOptions;
 use zant::ui::{self, BoxOptions, RunOptions, TextOptions};
 
-/// `examples/math.zig: formulas` verbatim (18 formulas, including `\ce` /
-/// `\pu`, arrays, xarrows and `\colorbox`).
+/// The 18 formulas shown, including `\ce` / `\pu`, arrays, xarrows and
+/// `\colorbox`.
 pub const FORMULAS: [&str; 18] = [
     "x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}",
     "\\sum_{k=1}^{n} k^2 = \\frac{n(n+1)(2n+1)}{6}",
@@ -37,11 +36,11 @@ pub const FORMULAS: [&str; 18] = [
     "\\ce{SO4^2- + Ba^2+ -> BaSO4 v} \\quad \\ce{[Cu(NH3)4]^2+} \\quad \\ce{CuSO4*5H2O} \\quad \\ce{^{227}_{90}Th} \\quad \\ce{Fe^{III}} \\quad \\pu{123 kJ mol-1} \\quad \\pu{1.2e3 kg m/s^2}",
 ];
 
-/// Zig `State` (`{ dummy: u8 = 0 }`).
+/// The math gallery application (stateless).
 pub struct MathApp;
 
 impl MathApp {
-    /// Zig `render`.
+    /// The window tree: the title and one row per formula.
     fn build(&mut self) -> ui::Node {
         let mut rows: Vec<ui::Node> = Vec::with_capacity(FORMULAS.len() + 1);
         rows.push(ui::text(
@@ -87,8 +86,7 @@ impl ui::App for MathApp {
     }
 }
 
-/// Zig `launch.run(.., .{ .title = "Zant Math", .window = .{ .width = 980,
-/// .height = 1100 } })`.
+/// Window title and size (980×1100) of the example.
 pub fn run_options() -> RunOptions {
     RunOptions {
         title: String::from("Zant Math"),

@@ -1,18 +1,17 @@
-//! WP-5.8: native module specs (`native/<name>.ts`) compiled to Rust traits.
+//! Native module specs (`native/<name>.ts`) compiled to Rust traits.
 //!
-//! Ports `tools/tsx/native_test.zig` (its first test keeps the spec-side
-//! assertions; the app-side ones belong to WP-5.6's imports), adds the golden
-//! `native/spec.rs` fixture — asserted byte-for-byte and `include!`d, so the
-//! generated trait and types are compiled and type-checked by rustc — and a
-//! registry round-trip with the generated `NAME` key.
+//! Covers the spec side (the app-side imports are tested with the application
+//! layer), the golden `native/spec.rs` fixture — asserted byte-for-byte and
+//! `include!`d, so the generated trait and types are compiled and type-checked
+//! by rustc — and a registry round-trip with the generated `NAME` key.
 
 use zant_tsx::ast;
 use zant_tsx::error::Diag;
 use zant_tsx::native_specs::{self, Imported, Spec};
 use zant_tsx::parser::Parser;
 
-/// `native/clips.ts`: the Zig test's spec plus the constructs the Rust trait
-/// must map (optional args, `T | null`, named aliases, a shared type).
+/// `native/clips.ts`: a spec with the constructs the Rust trait must map
+/// (optional args, `T | null`, named aliases, a shared type).
 const CLIPS: &str = r#"import type { i64, u32 } from "zant";
 import type { Kind } from "./kinds";
 export interface ListEntry {
@@ -89,16 +88,14 @@ fn error(clips_src: &str) -> Diag {
     diag.expect("a rejected spec without a diagnostic")
 }
 
-// Zig `native_test.zig` test "a spec compiles to its types and a conformance
-// check", adapted: the `check(comptime Impl)` becomes the `ClipsSpec` trait.
+// A spec compiles to its types and a conformance check: the `ClipsSpec` trait.
 #[test]
 fn a_spec_compiles_to_its_types_and_a_trait() {
     let clips = parse(CLIPS);
     let kinds = parse(KINDS);
     let specs = project(&clips, &kinds);
     let spec = generate(&clips, &specs);
-    // the shared enum lives in the other spec's module (`const _spec_kinds =
-    // @import("_spec_kinds.zig")` in Zig)
+    // the shared enum lives in the other spec's module
     assert!(
         spec.contains("pub kind: super::kinds::Kind"),
         "the imported type is spelled through the spec module: {spec}"
@@ -112,7 +109,7 @@ fn a_spec_compiles_to_its_types_and_a_trait() {
         "{spec}"
     );
     assert!(spec.contains("fn copy(row: i64) -> CopyResult;"), "{spec}");
-    // `void` returns no value: `fn () void` in the Zig check
+    // `void` returns no value
     assert!(spec.contains("fn clear();"), "{spec}");
     // an optional argument is `Option<T>`
     assert!(
@@ -131,7 +128,7 @@ fn a_spec_compiles_to_its_types_and_a_trait() {
     // the generated module parses as Rust
     syn::parse_file(&spec).unwrap_or_else(|error| panic!("{error}\n{spec}"));
     // the application reaches the same types through the spec module, and the
-    // `.tsx` call becomes a trait call (WP-5.6 emits these): no second struct
+    // `.tsx` call becomes a trait call: no second struct
     assert!(
         spec.contains("pub type Entries = tsx::List<ListEntry>;"),
         "{spec}"
@@ -140,9 +137,9 @@ fn a_spec_compiles_to_its_types_and_a_trait() {
     assert!(kinds.contains("pub enum Kind"), "{kinds}");
 }
 
-// Zig `native_test.zig` test "the entry checks every native module and the
-// spec root lists them", adapted: a spec without declared functions (a shared
-// types file) has no trait to implement, so no empty conformance check.
+// The spec root lists every native module; a spec without declared functions
+// (a shared types file) has no trait to implement, so no empty conformance
+// check.
 #[test]
 fn the_spec_root_lists_every_spec() {
     let clips = parse(CLIPS);
@@ -180,10 +177,9 @@ fn the_spec_root_lists_every_spec() {
     );
 }
 
-// Zig `native_test.zig` test "spec errors point at the spec", adapted: the
-// app-side import errors (missing export / missing spec) are produced here by
-// the helpers WP-5.6 calls, the `declare function` outside a spec stays in
-// WP-5.5's module validation.
+// The app-side import errors (missing export / missing spec) are produced here
+// by the helpers the application layer calls; the `declare function` outside a
+// spec stays in the module validation of the component layer.
 #[test]
 fn spec_errors_point_at_the_spec() {
     // a function with a body belongs in the implementation
@@ -322,7 +318,7 @@ fn module_names_and_trait_names_are_derived_from_the_spec_file() {
     assert_eq!("type_", native_specs::module_ident("type"));
     assert_eq!("ClipsSpec", native_specs::trait_name("clips"));
     assert_eq!("FileSystemSpec", native_specs::trait_name("file_system"));
-    // the paths generated call sites and the app's impl use (WP-5.6)
+    // the paths generated call sites and the app's impl use
     assert_eq!(
         "crate::native::spec::clips",
         native_specs::app_spec_path("clips")

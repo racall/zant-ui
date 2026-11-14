@@ -1,12 +1,11 @@
 //! Interned compound types: arrays, optionals, unions / string-literal enums
-//! and interface structs. Translation of `tools/tsx/codegen/model.zig`.
+//! and interface structs.
 //!
-//! Zig interns each compound as a tag above [`types::Type`]'s primitives; Rust
-//! uses [`types::Type::Compound`], an index into [`Generator::compounds`].
-//! Interface declarations are emitted as
+//! A compound is a [`types::Type::Compound`], an index into
+//! [`Generator::compounds`]. Interface declarations are emitted as
 //! `#[derive(Clone, PartialEq, Default)] pub struct` and string-literal unions
-//! as `#[derive(Clone, Copy, Default, PartialEq, Eq)] pub enum` with the
-//! `as_str()` accessor frozen in `docs/rust-port/tsx-codegen.md` §2.
+//! as `#[derive(Clone, Copy, Default, PartialEq, Eq)] pub enum` with an
+//! `as_str()` accessor.
 
 use crate::ast;
 use crate::tags;
@@ -108,7 +107,7 @@ impl Default for Info {
 }
 
 /// The info of a compound type, cloned so callers may keep mutating the
-/// generator (Zig returns a stable pointer).
+/// generator.
 pub fn info(g: &Generator<'_>, ty: Type) -> Option<Info> {
     match ty {
         Type::Compound(index) => g.compounds.get(index as usize).cloned(),
@@ -248,7 +247,7 @@ pub fn enum_type(g: &Generator<'_>, ty: Type) -> bool {
 }
 
 /// Resolve nullable unions, immutable arrays, nested objects, and literal
-/// enums (Zig `model.resolve`).
+/// enums.
 pub fn resolve(
     g: &mut Generator<'_>,
     reference: &ast::TypeRef,
@@ -545,7 +544,7 @@ fn enumeration(g: &mut Generator<'_>, members: &[Vec<u8>], name: Option<&[u8]>) 
 }
 
 /// Lazily resolve named declarations, permitting references to later
-/// declarations (Zig `model.named`).
+/// declarations.
 pub fn named(g: &mut Generator<'_>, name: &[u8]) -> Result<Option<Type>> {
     if g.type_scope {
         return match g.extensions.hooks.imported_type {
@@ -565,7 +564,7 @@ pub fn named(g: &mut Generator<'_>, name: &[u8]) -> Result<Option<Type>> {
     {
         return Ok(Some(ty));
     }
-    if let Some(hook) = g.extensions.hooks.zig_type
+    if let Some(hook) = g.extensions.hooks.rust_type
         && let Some(ty) = hook(g, &String::from_utf8_lossy(name))?
     {
         return Ok(Some(ty));
@@ -700,9 +699,8 @@ pub fn edit_distance(a: &[u8], b: &[u8]) -> usize {
 }
 
 /// `(id: number) => void` as a callback type (interned by signature): the
-/// default `Rc<dyn Fn(..)>` mapping of `docs/rust-port/tsx-codegen.md` §2.
-/// WP-5.5 maps UI event signatures to `ui::Action` through
-/// [`Generator::extensions`].
+/// `Rc<dyn Fn(..)>` by default. The component layer maps UI event signatures
+/// to `ui::Action` through [`Generator::extensions`].
 pub fn callback_type(g: &mut Generator<'_>, loc: ast::Loc, f: &ast::FuncType) -> Result<Type> {
     if let Some(hook) = g.extensions.hooks.callback_type {
         return hook(g, loc, f);
@@ -710,8 +708,8 @@ pub fn callback_type(g: &mut Generator<'_>, loc: ast::Loc, f: &ast::FuncType) ->
     default_callback_type(g, loc, f)
 }
 
-/// The generic closure shape; used when WP-5.5 has not installed its
-/// action-aware mapping.
+/// The generic closure shape; used when no action-aware mapping is
+/// installed.
 pub fn default_callback_type(
     g: &mut Generator<'_>,
     loc: ast::Loc,
@@ -758,8 +756,7 @@ pub fn default_callback_type(
 }
 
 /// The declarations of every compound type that declares one, in interning
-/// order (Zig `globals.declarations`). The WP-5.5 entry point prepends these
-/// to the generated module.
+/// order. The entry point prepends these to the generated module.
 pub fn declarations(g: &Generator<'_>) -> String {
     let mut out = String::new();
     for entry in &g.compounds {

@@ -1,6 +1,5 @@
-//! Port of `tests/mhchem_render_test.zig` — every mhchem fixture output parses
-//! and lays out without unknown commands or parse errors (the TeX layout
-//! engine covers what mhchem emits).
+//! Every mhchem fixture output parses and lays out without unknown commands
+//! or parse errors (the TeX layout engine covers what mhchem emits).
 
 use serde::Deserialize;
 

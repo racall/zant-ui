@@ -1,6 +1,5 @@
-//! Port of the config-generation half of `tools/zant/main.zig`: `app_config.rs`
-//! / `Info.plist` / `app.entitlements` writers, the macOS section completion
-//! and the XML / JSON escaping helpers.
+//! Config generation: `app_config.rs` / `Info.plist` / `app.entitlements`
+//! writers, the macOS section completion and the XML / JSON escaping helpers.
 
 use crate::app_config::{self, AppConfig};
 use crate::{escape_json, fail, ok, read_text, write_file};
@@ -378,7 +377,7 @@ mod tests {
     }
 
     #[test]
-    fn info_plist_and_entitlements_match_the_zig_generator() {
+    fn info_plist_and_entitlements_have_the_expected_text() {
         let cfg = parse(
             "{\"title\": \"A&B\", \"bundle_id\": \"io.x.app\", \"version\": \"1.2.3\",
               \"sandbox\": true,

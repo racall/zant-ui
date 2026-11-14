@@ -4,9 +4,9 @@
 //! import trayIcon from "../assets/tray.png";   // Uint8Array, embedded at compile time
 //! ```
 //!
-//! Translation of `tools/tsx/assets.zig`. A relative import with an extension
-//! other than `.tsx` / `.ts` / `.rs` / `.jsx` / `.js` names a file whose bytes
-//! are embedded (`include_bytes!`). The compiler copies it next to the
+//! A relative import with an extension other than `.tsx` / `.ts` / `.rs` /
+//! `.jsx` / `.js` names a file whose bytes are embedded (`include_bytes!`). The
+//! compiler copies it next to the
 //! generated Rust as `_assets/<hash>-<name>` (the generated module's
 //! `include_bytes!` is resolved relative to the generated file) and lists it in
 //! the build's dep file, so editing the asset rebuilds.
@@ -23,8 +23,8 @@
 use crate::codegen::app_state;
 use crate::codegen::rust_imports;
 
-/// Whether an import names an asset (Zig `assets.isAsset`): a relative import
-/// with an extension that is not code.
+/// Whether an import names an asset: a relative import with an extension that
+/// is not code.
 pub fn is_asset(source: &str) -> bool {
     let relative = source.starts_with("./") || source.starts_with("../");
     if !relative {
@@ -34,12 +34,12 @@ pub fn is_asset(source: &str) -> bool {
     let Some(index) = base.rfind('.') else {
         return false;
     };
-    // `.hidden` has no extension (Zig `std.fs.path.extension`)
+    // `.hidden` has no extension
     if index == 0 {
         return false;
     }
     let extension = &base[index..];
-    ![".tsx", ".ts", ".zig", ".rs", ".jsx", ".js"]
+    ![".tsx", ".ts", ".rs", ".jsx", ".js"]
         .iter()
         .any(|code| extension.eq_ignore_ascii_case(code))
 }
@@ -76,8 +76,8 @@ fn join(directory: &str, source: &str) -> String {
     }
 }
 
-/// Resolves `.` / `..` components textually (Zig `std.fs.path.resolvePosix`
-/// with one relative component): `src/../assets/x.png` → `assets/x.png`.
+/// Resolves `.` / `..` components textually: `src/../assets/x.png` →
+/// `assets/x.png`.
 pub fn normalize(path: &str) -> String {
     let mut parts: Vec<&str> = Vec::new();
     for part in path.split('/') {
@@ -108,7 +108,7 @@ pub struct Asset {
 }
 
 /// The asset imports of one module: emits the file-level `const`s and records
-/// the copies (Zig `globals.assets`).
+/// the copies.
 pub fn process(
     g: &mut crate::codegen::Generator<'_>,
     module: &crate::ast::Module,
@@ -208,15 +208,13 @@ fn escape(value: &str) -> String {
 mod tests {
     use super::*;
 
-    // Ported from `tools/tsx/assets.zig`.
-
     #[test]
     fn asset_imports_by_extension() {
         assert!(is_asset("../assets/tray.png"));
         assert!(is_asset("./data/words.txt"));
         assert!(!is_asset("./components/Row"));
         assert!(!is_asset("./Row.tsx"));
-        assert!(!is_asset("./sync.zig"));
+        assert!(!is_asset("./sync.rs"));
         assert!(!is_asset("./format.rs"));
         assert!(!is_asset("zant"));
         assert!(!is_asset("./.hidden"));

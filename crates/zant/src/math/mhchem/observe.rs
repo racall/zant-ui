@@ -1,5 +1,5 @@
 //! `mhchemParser.patterns.findObserveGroups` and the small anchored regexps
-//! it uses. Port of `src/math/mhchem.zig` (findObserveGroups section).
+//! it uses.
 
 use super::MhchemError;
 use super::chars::{any_at, char_at, is_alpha, lower_at};

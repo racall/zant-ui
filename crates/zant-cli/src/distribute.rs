@@ -1,4 +1,4 @@
-//! Port of `tools/zant/distribute.zig`: `zant build [配置文件]`, the release
+//! `zant build [配置文件]`, the release
 //! build. zant reads the build settings (build.config.json by default, see
 //! docs/build.md), asks in a terminal for what is missing (and offers to save
 //! the answers), compiles, builds and signs the app, then hands the platform
@@ -681,7 +681,7 @@ mod tests {
     }
 
     #[test]
-    fn base64_matches_the_zig_decoder() {
+    fn base64_decodes_padded_input_and_skips_line_breaks() {
         assert_eq!(base64_decode("aGVsbG8=").unwrap(), b"hello");
         assert_eq!(base64_decode("aGVs\nbG8=").unwrap(), b"hello");
         assert_eq!(base64_decode("YQ==").unwrap(), b"a");

@@ -7,16 +7,12 @@
 //! ```
 //!
 //! Run by the build (`zant_build::tsx_app` / `zant-tsx-tags`); errors print as
-//! `file:line:col: error: …` and exit with status 1, like the Zig compiler
-//! (`tools/tsx/main.zig`).
+//! `file:line:col: error: …` and exit with status 1.
 //!
-//! Ported flags: `--out`, `--main`, `--src`, `--native`, `--dep`,
-//! `--app-config`. Zig's `--os` (which platform's `app_config.zig` to write) is
-//! gone: the generated entry carries a `zant::tsx::app::Config` literal, so no
-//! platform-specific config file is generated. `--help` / `-h` is new (the Zig
-//! CLI prints its usage for any unknown argument and exits 2); the Zig
-//! `--dump-ast` switch from the M4 acceptance list does not exist on either
-//! side (`dump::dump_program` is a library helper), so it is not invented here.
+//! Flags: `--out`, `--main`, `--src`, `--native`, `--dep`, `--app-config`,
+//! `--help` / `-h`. The generated entry carries a `zant::tsx::app::Config`
+//! literal, so no platform-specific config file is generated. AST dumps are a
+//! library helper (`dump::dump_program`), not a CLI switch.
 
 use std::process::ExitCode;
 
@@ -72,8 +68,8 @@ fn single_file(input: &str, output: &str) -> ExitCode {
 /// `--out <dir> [flags] files…`: compile TSX and copy Rust into one output
 /// directory; `--src` adds every `.tsx` / `.rs` under a directory; `--main App`
 /// also writes the app's entry `main.rs`; `--native` adds the `native/*.ts`
-/// specs (WP-5.8); imported assets are copied to `_assets/` and listed in the
-/// `--dep` file.
+/// specs; imported assets are copied to `_assets/` and listed in the `--dep`
+/// file.
 fn project(out_dir: &str, rest: &[String]) -> ExitCode {
     let mut paths: Vec<String> = Vec::new();
     let mut main_entry: Option<String> = None;
@@ -175,8 +171,7 @@ fn project(out_dir: &str, rest: &[String]) -> ExitCode {
         entry: None,
         assets: compiled.assets,
         dep_file: dep_source,
-        // `native/*.ts` specs (WP-5.8): one combined `spec.rs` in the output
-        // directory, like the Zig compiler's `spec.zig`.
+        // `native/*.ts` specs: one combined `spec.rs` in the output directory.
         spec_root: compiled.spec_root,
     };
     for (index, file) in files.iter().enumerate() {

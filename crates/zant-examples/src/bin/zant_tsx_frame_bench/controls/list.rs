@@ -1,6 +1,5 @@
-//! The 10 000-row list of `list_bench.tsx` written by hand in Rust
-//! (`examples/tsx/list_manual.zig` ported): the control group of the
-//! `list-scroll` / `list-click` scenarios.
+//! The 10 000-row list of `list_bench.tsx` written by hand in Rust: the
+//! control group of the `list-scroll` / `list-click` scenarios.
 #![forbid(unsafe_code)]
 
 use std::cell::RefCell;
@@ -17,9 +16,8 @@ pub struct Row {
     pub title: Str,
 }
 
-/// Zig `list_manual.ListBench`. Zig indexed `self.rows` directly; Rust builds
-/// the rows from a shared `Rc` so the virtual list's item closure does not
-/// borrow the app state (the Zig control kept a raw `self` pointer there).
+/// The list page state. The rows are a shared `Rc` so the virtual list's
+/// item closure does not borrow the app state.
 pub struct ListBench {
     rows: Rc<Vec<Row>>,
     picked: u32,
@@ -66,7 +64,6 @@ impl ListBench {
 }
 
 impl App for ListBench {
-    /// Zig `ListBench.render`.
     fn render(&mut self) -> ui::Node {
         let rows = Rc::clone(&self.rows);
         let list_rows = Rc::clone(&rows);

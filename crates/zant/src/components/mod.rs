@@ -1,4 +1,4 @@
-//! Port of `src/components/` — WP-2.x.
+//! The built-in components.
 
 pub mod button;
 pub mod hotkey_input;

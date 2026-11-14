@@ -56,7 +56,7 @@ jobs:
       - name: cargo test
         run: cargo test --workspace
 
-      # The generated TSX tag table and zant.d.ts are checked in (WP-5.2). They
+      # The generated TSX tag table and zant.d.ts are checked in. They
       # are produced from the `#[derive(TsxProps)]` metadata of the `zant` crate,
       # not from a hand-maintained list, so a new option struct or builder must
       # come with a regenerated table:

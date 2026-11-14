@@ -1,9 +1,6 @@
-//! Port of `src/markdown/render/blocks.zig` — WP-3.3.
-//!
 //! Block-level components (Streamdown `lib/components.tsx`).
 //!
-//! Zig allocated every temporary slice in the render arena (`ctx.arena`);
-//! the Rust builders own their `Vec`/`String`/`Rc` data, so the functions are
+//! The builders own their `Vec`/`String`/`Rc` data, so the functions are
 //! infallible and just return the node.
 
 use std::rc::Rc;
@@ -544,6 +541,7 @@ fn render_image(ctx: &Ctx, image: &ast::Image) -> ui::Node {
         padding: Edges::all(16.0),
         gap: 4.0,
         background: Some(theme.muted),
+        radius: 8.0,
         align_items: flex::Align::Center,
         children: lines,
         ..Default::default()

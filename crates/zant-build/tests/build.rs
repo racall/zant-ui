@@ -11,7 +11,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use zant_build::{BuildReport, Error};
 
-/// The WP-6.2 fixture app.
+/// The fixture app.
 fn fixture_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tsx-app")
 }
@@ -393,7 +393,7 @@ fn a_project_without_the_generated_config_warns_about_zant_sync() {
     let _ = std::fs::remove_dir_all(&out);
 }
 
-// ── native module specs (WP-5.8) ───────────────────────────────────────
+// ── native module specs ────────────────────────────────────────────────
 
 /// The fixture app plus one `native/*.ts` spec, in a temp directory.
 fn app_with_native_spec(prefix: &str) -> PathBuf {

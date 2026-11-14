@@ -1,8 +1,7 @@
-//! Port of `tests/db_test.zig` — WP-3.10.
+//! `zant::db`: the key/value store, object collections and `#[derive(Table)]`.
 //!
-//! The Zig tests used `std.testing.allocator` and fixed `/tmp` paths. Rust owns
-//! its values, so the allocator arguments are gone, and every test that needs a
-//! database file uses its own temporary directory instead of a shared path.
+//! Every test that needs a database file uses its own temporary directory
+//! instead of a shared path.
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -69,8 +68,7 @@ struct ClipV2 {
     pinned: bool,
 }
 
-/// No `#[table(name = ..)]`: the Rust type name is the table name, like Zig's
-/// `@typeName(T)` fallback.
+/// No `#[table(name = ..)]`: the Rust type name is the table name.
 #[derive(Table)]
 struct Message {
     id: i64,
@@ -239,12 +237,11 @@ fn store_collection_sql_keywords_as_names() {
     assert_eq!(2, rows[0].order);
 }
 
-/// Extra (not in `tests/db_test.zig`): `#[derive(Table)]` must emit exactly the
-/// SQL text `src/db/sqlite.zig` built at comptime, otherwise existing database
-/// files would drift.
+/// `#[derive(Table)]` must emit exactly this SQL text: it is stable so
+/// existing databases keep opening.
 #[test]
-fn generated_sql_matches_zig() {
-    // Zig: `Table(User)` with `table_name = "users"`.
+fn generated_sql_text_is_stable() {
+    // `User` has `#[table(name = "users")]`.
     assert_eq!("users", User::TABLE_NAME);
     assert_eq!("\"users\"", User::TABLE_NAME_SQL);
     assert_eq!(User::COLUMNS, ["id", "name", "age", "active"].as_slice());
@@ -273,20 +270,16 @@ fn generated_sql_matches_zig() {
     assert_eq!("DELETE FROM \"users\" WHERE id = ?", User::DELETE_SQL);
     assert_eq!("DELETE FROM \"users\"", User::DELETE_ALL_SQL);
 
-    // Fallback when the model has no `#[table(name = ..)]`.
-    //
-    // N.B. Zig's fallback is `@typeName(T)`, which for a file-scope struct is
-    // the module root name plus the type name (`"db_test.Message"` for the
-    // original `tests/db_test.zig`), while Rust uses the struct name only.
+    // Fallback when the model has no `#[table(name = ..)]`: the struct name.
     // Models whose existing table files matter should spell the name out with
-    // `#[table(name = "..")]`; see the WP-3.10 report (registered question).
+    // `#[table(name = "..")]`.
     assert_eq!("Message", Message::TABLE_NAME);
     assert_eq!(
         "CREATE TABLE IF NOT EXISTS \"Message\" (\"id\" INTEGER PRIMARY KEY AUTOINCREMENT, \"from\" TEXT NOT NULL, \"order\" INTEGER NOT NULL)",
         Message::CREATE_TABLE_SQL
     );
 
-    // Zig `addedColumn`: optional fields stay nullable, non-optional ones get a
+    // `added_column`: optional fields stay nullable, non-optional ones get a
     // default (`0`, `''`, or the enum field's default tag / first tag).
     assert_eq!(
         Some("TEXT NOT NULL DEFAULT 'image'".to_string()),
@@ -306,8 +299,7 @@ fn generated_sql_matches_zig() {
     assert_eq!(None, ClipV1::added_column(0));
 }
 
-/// Extra (not in `tests/db_test.zig`): Zig's optional model fields read SQL
-/// NULL as `null`; the Rust port must do the same in both directions.
+/// Optional model fields read SQL NULL as `None` and write `None` as NULL.
 #[test]
 fn table_optional_fields_round_trip() {
     let dir = TempDir::new("optional");

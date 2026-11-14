@@ -1,5 +1,5 @@
-//! Port of `src/markdown/remend/strikethrough.zig` (remend
-//! `strikethrough-handler.ts`).
+//! remend `strikethrough-handler.ts`: completes `~~` that is still open at
+//! the end of a streamed text.
 
 use super::context::Context;
 use super::patterns as p;

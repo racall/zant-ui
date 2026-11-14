@@ -1,6 +1,5 @@
-//! A native module for tests/fixtures/rust_types/ (Rust mirror of the Zig
-//! fixture `tests/tsx/zig_types/devices.zig`): Rust types and functions used
-//! from TSX.
+//! A native module for tests/fixtures/rust_types/: Rust types and functions
+//! used from TSX.
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub enum Kind {

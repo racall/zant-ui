@@ -1,7 +1,6 @@
-//! Port of the `zant update` half of `tools/zant/main.zig`: a source checkout
-//! pulls (fast-forward only), fetches the pinned dependencies again, checks
-//! the Rust toolchain and rebuilds the CLI; an installed release runs the
-//! install script of the latest release again.
+//! `zant update`: a source checkout pulls (fast-forward only), fetches the
+//! pinned dependencies again, checks the Rust toolchain and rebuilds the CLI;
+//! an installed release runs the install script of the latest release again.
 
 use crate::{COLOR_CYAN, COLOR_RESET, IS_WINDOWS, dim_line, fail, ok, path_exists, read_file};
 use crate::{read_text, run_capture, run_inherit, run_ok, step, write_file};
@@ -238,8 +237,8 @@ fn rustc_version() -> String {
         .to_string()
 }
 
-/// True when `have` ("1.94.1") is at least `needed` ("1.94"). `rust-version`
-/// is a minimum, unlike the exact Zig version match it replaces.
+/// True when `have` ("1.94.1") is at least `needed` ("1.94"): `rust-version`
+/// is a minimum, not an exact match.
 fn version_at_least(have: &str, needed: &str) -> bool {
     fn parse(text: &str) -> Option<(u64, u64, u64)> {
         let mut parts = text.split('.');
@@ -257,8 +256,8 @@ fn version_at_least(have: &str, needed: &str) -> bool {
     }
 }
 
-/// The string value of `field = "value"` in a TOML file (the port of
-/// `zonString`, which read build.zig.zon before the Rust port).
+/// The string value of the first `field = "value"` in a TOML file (a plain
+/// text scan, enough for the workspace `rust-version`).
 pub fn toml_string<'a>(text: &'a str, field: &str) -> Option<&'a str> {
     let at = text.find(field)?;
     let open = text[at..].find('"')? + at;
@@ -271,7 +270,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn zon_string_field() {
+    fn toml_string_field() {
         assert_eq!(
             toml_string(
                 "[workspace.package]\nrust-version = \"1.94\"\n",
@@ -281,12 +280,12 @@ mod tests {
         );
         assert_eq!(
             toml_string(
-                ".{ .name = .x, .minimum_zig_version = \"0.17.1\", }",
-                ".minimum_zig_version"
+                "[package]\nname = \"demo\"\nedition = \"2024\"\n",
+                "edition"
             ),
-            Some("0.17.1")
+            Some("2024")
         );
-        assert_eq!(toml_string(".{}", ".minimum_zig_version"), None);
+        assert_eq!(toml_string("[package]\n", "rust-version"), None);
     }
 
     #[test]

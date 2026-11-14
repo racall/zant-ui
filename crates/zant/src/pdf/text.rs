@@ -1,5 +1,3 @@
-//! Port of `src/pdf/text.zig` — WP-3.8.
-//!
 //! Page text geometry: glyph runs, hit testing, selection rectangles, word /
 //! line expansion, text extraction and search.
 //!
@@ -9,7 +7,7 @@
 //! `PDFEngine::OnMultipleClick`, BSD-3-Clause). Coordinates are points of the
 //! displayed page (top-left origin, y down).
 //!
-//! Zig `u21` codepoints become `u32`: the native stream may carry surrogate
+//! Codepoints are `u32`: the native stream may carry surrogate
 //! values (0 for the second half of a UTF-16 pair), which `char` cannot hold.
 
 use crate::pdf::native;
@@ -40,7 +38,7 @@ impl Rect {
         x >= self.x && x <= self.right() && y >= self.y && y <= self.bottom()
     }
 
-    /// Smallest rectangle containing both (Zig: `Rect.unite(a, b)`).
+    /// Smallest rectangle containing both.
     pub fn unite(self, b: Rect) -> Rect {
         let left = self.x.min(b.x);
         let top = self.y.min(b.y);
@@ -75,7 +73,7 @@ pub enum GlyphKind {
     Empty = 2,
 }
 
-/// One glyph of a page (Zig `box` is a keyword in Rust, hence `r#box`).
+/// One glyph of a page (`box` is a keyword, hence `r#box`).
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Glyph {
     /// Loose box (line height): highlight rectangles.

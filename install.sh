@@ -4,14 +4,14 @@
 #   curl -fsSL https://raw.githubusercontent.com/racall/zant-ui/main/install.sh | bash
 #
 # 1. Rust: installs rustup into ~/.cargo when it is missing and makes sure the
-#    Rust toolchain Zant UI pins (zant-ui/rust-toolchain.toml) is installed.
-#    No Zig download any more; `cargo` builds the apps.
+#    Rust toolchain Zant UI pins (zant-ui/rust-toolchain.toml) is installed;
+#    `cargo` builds the apps.
 # 2. Checks the Mac (Apple silicon, macOS 13+, Xcode command line tools,
 #    which apps need to link against the macOS SDK).
 # 3. Downloads the release archive (zant, the Rust workspace with the native
 #    sources and the prebuilt Skia; nothing is compiled) into $ZANT_HOME and
 #    links `zant` into $ZANT_BIN_DIR, adding that to PATH.
-#    WP-6.6: the archive also contains a prebuilt native library
+#    The archive also contains a prebuilt native library
 #    (zant-ui/third_party/zant-native-prebuilt/, made by
 #    scripts/release/prebuilt.sh). Apps built from this install link it
 #    instead of compiling C++/ObjC — the Xcode command line tools stay

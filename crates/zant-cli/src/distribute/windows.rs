@@ -1,4 +1,4 @@
-//! Port of the Windows half of `tools/zant/distribute.zig`: `zant build` on
+//! The Windows half of the release build: `zant build` on
 //! Windows (installer / MSIX / zip, optional signtool signing).
 
 use super::{Ctx, Windows, expand_path, file_exists, file_or_base64, in_project, save};

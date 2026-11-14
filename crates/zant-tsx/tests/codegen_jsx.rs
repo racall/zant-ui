@@ -1,18 +1,13 @@
-//! WP-5.4 JSX code generation tests.
+//! JSX code generation tests (`jsx.rs`, `jsx_values.rs`, `jsx_children.rs`,
+//! `rich_text.rs`, `list.rs`, `events.rs`).
 //!
-//! The six Zig files of this work package (`jsx.zig`, `jsx_values.zig`,
-//! `jsx_children.zig`, `rich_text.zig`, `list.zig`, `events.zig`) carry **no**
-//! `test "…"` blocks (checked with `grep -c '^test '`: 0 each), so there are no
-//! same-name Zig tests to port. Instead these tests compile small TSX
-//! components end to end (lexer → parser → `events::scan` → `jsx::emit` →
-//! `scope::finish`), assert hand-reviewed Rust snippets, and require every
-//! generated module to pass `syn::parse_file` (the `zant-tsx` output
-//! validation of docs/rust-port/tsx-codegen.md §1).
+//! These tests compile small TSX components end to end (lexer → parser →
+//! `events::scan` → `jsx::emit` → `scope::finish`), assert hand-reviewed Rust
+//! snippets, and require every generated module to pass `syn::parse_file`.
 //!
-//! The component layer (WP-5.5) is not part of this work package: the harness
-//! installs the component state and scans the render expression itself, which
-//! is exactly what the WP-5.5 entry point will do before calling the
-//! `hooks.emit_jsx` hook.
+//! The component layer is not under test here: the harness installs the
+//! component state and scans the render expression itself, which is what the
+//! component entry point does before calling the `hooks.emit_jsx` hook.
 
 use zant_tsx::ast;
 use zant_tsx::codegen::types::Type;
@@ -109,7 +104,7 @@ fn render_jsx(module: &ast::Module) -> (ast::Jsx, ast::Loc) {
 }
 
 /// The generated module for one component: state first, then JSX scanning and
-/// emission with the same order the WP-5.5 entry point uses.
+/// emission with the same order the component entry point uses.
 fn compile(
     src: &str,
     setup: impl FnOnce(&mut Generator<'_>) -> codegen::Result<()>,
@@ -124,9 +119,9 @@ fn compile(
         g.resolving = vec![false; module.types.len()];
         g.react_imports = module.imports.clone();
         (|| -> codegen::Result<Generated> {
-            // The hooks the WP-5.5 entry point installs (docs/rust-port/tsx-codegen.md §1).
+            // The hooks the component entry point installs.
             g.extensions.hooks.emit_jsx = Some(jsx::emit);
-            // WP-5.4 event hooks: `event_value` emits a handler whose capture
+            // Event hooks: `event_value` emits a handler whose capture
             // struct is known before it is used, so the method pass can run.
             g.extensions.hooks.scan_body = Some(events::scan_body);
             g.extensions.hooks.scan_expr = Some(events::scan_expr);
@@ -151,8 +146,8 @@ fn compile(
             };
             let value = jsx::emit(&mut g, &mut c, element)?;
             let render = scope::finish(&mut g, &c, value.code)?;
-            // Arrow handler bodies are emitted by WP-5.5's method pass; the
-            // setter adapters are part of events.zig and generated here.
+            // Arrow handler bodies are emitted by the component layer's method
+            // pass; the setter adapters are part of `events.rs` and generated here.
             let mut methods = String::new();
             let registered = g.methods.clone();
             for method in &registered {
@@ -814,7 +809,7 @@ fn a_component_function_handler_keeps_its_method_reference() {
             initial: String::new(),
             kind: StateKind::State,
         });
-        // WP-5.5 collects component functions; the harness registers one so the
+        // The component layer collects component functions; the harness registers one so the
         // source-method branch is exercised.
         let function = ast::Function {
             loc: 0,

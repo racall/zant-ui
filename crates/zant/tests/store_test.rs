@@ -1,4 +1,4 @@
-//! Port of `tests/store_test.zig` — the Zustand-style `zant.store.Store`.
+//! The Zustand-style `zant::store::Store`.
 
 use std::cell::Cell;
 use std::rc::Rc;

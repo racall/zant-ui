@@ -1,9 +1,8 @@
 //! Function scopes, Rust name clashes, unused-value discards, and handler
-//! state snapshots. Translation of `tools/tsx/codegen/scope.zig`.
+//! state snapshots.
 //!
-//! Zig keeps `*Binding` pointers into an arena; Rust keeps bindings in a
-//! `Vec<Binding>` and refers to them by index. Declaration placeholders are
-//! expanded by [`finish`] exactly like the Zig original: the control-byte
+//! Bindings live in a `Vec<Binding>` and are referred to by index.
+//! Declaration placeholders are expanded by [`finish`]: the control-byte
 //! markers are replaced after the body has been generated.
 
 use crate::ast;
@@ -21,8 +20,8 @@ pub const DISCARD_END: char = '\u{4}';
 #[derive(Clone, Debug, Default)]
 pub struct Binding {
     pub name: String,
-    /// The Rust identifier (`zig` in the Zig original).
-    pub zig: String,
+    /// The Rust identifier.
+    pub rust: String,
     pub ty: Type,
     pub mutable: bool,
     pub assigned: bool,
@@ -43,7 +42,7 @@ pub struct Snapshot {
     pub binding: usize,
 }
 
-/// A function scope (Zig `scope.Context`).
+/// A function scope.
 #[derive(Clone, Debug)]
 pub struct Context {
     pub render: bool,
@@ -58,16 +57,16 @@ pub struct Context {
     pub continue_label: Option<String>,
     pub return_values: Option<Vec<ReturnValue>>,
     /// A callback's source context: the visible local names of the enclosing
-    /// function (Zig keeps a `*Context`).
+    /// function.
     pub capture_source: Option<std::rc::Rc<CaptureSource>>,
     pub capture_method: Option<usize>,
     pub snapshots: Vec<Snapshot>,
-    /// Inside an effect with a cleanup / inside a cleanup (`hooks.zig`).
+    /// Inside an effect with a cleanup / inside a cleanup (`hooks`).
     pub effect_field: Option<String>,
     pub cleanup: bool,
-    /// A plain top-level function (`functions.zig`): no component, no `self`.
+    /// A plain top-level function (`functions`): no component, no `self`.
     pub no_self: bool,
-    /// Optionals proven non-null here (`narrowing.zig`).
+    /// Optionals proven non-null here (`narrowing`).
     pub narrowed: Vec<narrowing::Narrow>,
     /// The runtime context parameter available in this handler (see
     /// [`super::action_cx`]): a local must not shadow it.
@@ -152,11 +151,11 @@ pub fn bind(
         candidate = format!("{}_{}", lossy(n), suffix).into_bytes();
         suffix += 1;
     }
-    let zig = rust_text::id_at(g, &candidate, 0)?;
+    let rust = rust_text::id_at(g, &candidate, 0)?;
     let serial = c.bindings.len();
     c.bindings.push(Binding {
         name: lossy(n),
-        zig,
+        rust,
         ty: t,
         mutable,
         assigned: false,
@@ -177,18 +176,17 @@ pub fn name_taken(g: &Generator<'_>, c: &Context, n: &[u8]) -> bool {
         return true;
     }
     for binding in &c.bindings {
-        if binding.zig.as_bytes() == n {
+        if binding.rust.as_bytes() == n {
             return true;
         }
-        if rust_text::id(n).is_some_and(|id| binding.zig == id) {
+        if rust_text::id(n).is_some_and(|id| binding.rust == id) {
             return true;
         }
     }
     false
 }
 
-/// Resolve declaration placeholders and insert only the required discards
-/// (Zig `scope.finish`).
+/// Resolve declaration placeholders and insert only the required discards.
 pub fn finish(g: &mut Generator<'_>, c: &Context, body: String) -> Result<String> {
     let mut result = body;
     for binding in c.bindings.iter().rev() {
@@ -199,9 +197,9 @@ pub fn finish(g: &mut Generator<'_>, c: &Context, body: String) -> Result<String
         let kind = if binding.assigned { "let mut" } else { "let" };
         let ty = binding.ty.rust(g);
         let declaration = format!(
-            "{kind} {zig}: {ty} = {init};\n{DISCARD_START}{}{DISCARD_END}",
+            "{kind} {rust}: {ty} = {init};\n{DISCARD_START}{}{DISCARD_END}",
             binding.serial,
-            zig = binding.zig
+            rust = binding.rust
         );
         result = result.replace(&marker, &declaration);
     }
@@ -221,9 +219,9 @@ pub fn finish(g: &mut Generator<'_>, c: &Context, body: String) -> Result<String
         if binding.init.is_none() {
             continue;
         }
-        let count = counts.get(&binding.zig).copied().unwrap_or(0);
+        let count = counts.get(&binding.rust).copied().unwrap_or(0);
         let discard = if count == 1 {
-            format!("let _ = {};\n", binding.zig)
+            format!("let _ = {};\n", binding.rust)
         } else {
             String::new()
         };
@@ -235,13 +233,13 @@ pub fn finish(g: &mut Generator<'_>, c: &Context, body: String) -> Result<String
     let mut prefix = String::new();
     for index in &c.params {
         let binding = &c.bindings[*index];
-        if counts.get(&binding.zig).copied().unwrap_or(0) == 0 {
-            prefix.push_str(&format!("let _ = {};\n", binding.zig));
+        if counts.get(&binding.rust).copied().unwrap_or(0) == 0 {
+            prefix.push_str(&format!("let _ = {};\n", binding.rust));
         }
     }
     for snapshot in &c.snapshots {
         let binding = &c.bindings[snapshot.binding];
-        if counts.get(&binding.zig).copied().unwrap_or(0) == 0 {
+        if counts.get(&binding.rust).copied().unwrap_or(0) == 0 {
             continue;
         }
         let state = g.states[snapshot.state].clone();
@@ -253,7 +251,7 @@ pub fn finish(g: &mut Generator<'_>, c: &Context, body: String) -> Result<String
         };
         prefix.push_str(&format!(
             "let {}: {} = {init};\n",
-            binding.zig,
+            binding.rust,
             state.ty.rust(g)
         ));
     }
@@ -350,25 +348,25 @@ pub fn module_names(g: &mut Generator<'_>) -> Result<()> {
 }
 
 /// Rust module paths (`ui::`, `tsx::`) live in a different namespace than
-/// methods and functions, so user methods cannot shadow them: the Zig
-/// tokenizer-based rename is a no-op here. Kept for the entry point's shape.
+/// methods and functions, so user methods cannot shadow them and nothing has
+/// to be renamed. Kept for the entry point's shape.
 pub fn rename_modules(_g: &mut Generator<'_>, raw: String) -> Result<String> {
     Ok(raw)
 }
 
-/// The `self.` field of a state or hidden list state (Zig `scope.stateField`).
+/// The `self.` field of a state or hidden list state.
 pub fn state_field(g: &mut Generator<'_>, name: &[u8]) -> Result<String> {
     rust_text::id_at(g, name, 0)
 }
 
-/// Handlers read method-entry snapshots (Zig `scope.read`).
+/// Handlers read method-entry snapshots.
 pub fn read(g: &mut Generator<'_>, c: &mut Context, n: &[u8], loc: ast::Loc) -> Result<Value> {
     if let Some(value) = narrowing::find(c, n) {
         return Ok(value);
     }
     if let Some(binding) = local(c, n) {
         let ty = binding.ty;
-        let code = binding.zig.clone();
+        let code = binding.rust.clone();
         return Ok(owned_read(g, ty, code));
     }
     let name = lossy(n);
@@ -394,7 +392,7 @@ pub fn read(g: &mut Generator<'_>, c: &mut Context, n: &[u8], loc: ast::Loc) -> 
         if state.kind == super::StateKind::Ref {
             return match g.extensions.hooks.bare_ref {
                 Some(hook) => hook(g, index, loc),
-                None => fail(g, loc, "`useRef` reads need the hook support (WP-5.5)"),
+                None => fail(g, loc, "`useRef` reads need the hook support installed"),
             };
         }
         let field = state_field(g, state.name.as_bytes())?;
@@ -415,7 +413,7 @@ pub fn read(g: &mut Generator<'_>, c: &mut Context, n: &[u8], loc: ast::Loc) -> 
                 return Ok(owned_read(
                     g,
                     state.ty,
-                    c.bindings[snapshot.binding].zig.clone(),
+                    c.bindings[snapshot.binding].rust.clone(),
                 ));
             }
         }
@@ -424,7 +422,7 @@ pub fn read(g: &mut Generator<'_>, c: &mut Context, n: &[u8], loc: ast::Loc) -> 
             state: index,
             binding,
         });
-        return Ok(owned_read(g, state.ty, c.bindings[binding].zig.clone()));
+        return Ok(owned_read(g, state.ty, c.bindings[binding].rust.clone()));
     }
     if let Some(constant) = g
         .constants
@@ -493,11 +491,11 @@ mod tests {
             let mut c = Context::default();
             let first = bind(g, &mut c, b"x", Type::F64, false).unwrap();
             let second = bind(g, &mut c, b"x", Type::F64, false).unwrap();
-            assert_eq!("x", c.bindings[first].zig);
-            assert_eq!("x_2", c.bindings[second].zig);
+            assert_eq!("x", c.bindings[first].rust);
+            assert_eq!("x_2", c.bindings[second].rust);
             // reserved names and import module names are never reused
             let third = bind(g, &mut c, b"self", Type::F64, false).unwrap();
-            assert_eq!("self_2", c.bindings[third].zig);
+            assert_eq!("self_2", c.bindings[third].rust);
         });
     }
 

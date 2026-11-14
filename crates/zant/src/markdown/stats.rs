@@ -1,5 +1,3 @@
-//! Port of `src/markdown/stats.zig` — WP-3.2.
-//!
 //! Document statistics and outline.
 
 use crate::markdown::ast;

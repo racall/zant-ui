@@ -1,10 +1,10 @@
 //! String calls use typed runtime helpers, preserving receiver / argument
-//! evaluation order. Translation of `tools/tsx/codegen/string_methods.zig`.
+//! evaluation order.
 //!
-//! The helpers are `zant::tsx::strings` (WP-5.7, JS code-point semantics); the
+//! The helpers are `zant::tsx::strings` (JS code-point semantics); the
 //! generated call names are the snake_case Rust spellings of the JS methods
-//! ([`rust_name`]). String results are `zant::Str` (runtime values are copied,
-//! `docs/rust-port/tsx-codegen.md` §2).
+//! ([`rust_name`]). String results are `zant::Str` (runtime values are
+//! copied).
 
 use crate::ast;
 use crate::string_method_names;
@@ -44,7 +44,7 @@ const fn method(min: usize, max: usize, result: ResultKind) -> Method {
     }
 }
 
-/// Every supported method (Zig `methods`, same order and arities).
+/// Every supported method with its arity.
 fn lookup(name: &str) -> Option<Method> {
     let entry = match name {
         "includes" => method(1, 1, ResultKind::Boolean),
@@ -120,7 +120,7 @@ fn lookup(name: &str) -> Option<Method> {
 }
 
 /// The Rust helper name of a JS string method (`startsWith` →
-/// `starts_with`), the contract with WP-5.7's `zant::tsx::strings`.
+/// `starts_with`), the contract with `zant::tsx::strings`.
 pub fn rust_name(name: &str) -> String {
     match name {
         "toLowerCase" => return "to_lower_case".to_owned(),
@@ -221,8 +221,7 @@ pub fn emit(
         ResultKind::OptionalNumber => model::optional(g, Type::F64)?,
     };
     let helper = rust_name(&name);
-    // Rust labeled blocks take a tick and `break 'label value` (Zig writes
-    // `label: { … break :label value; }`).
+    // a labeled block: `'label: { … break 'label value; }`
     let code = format!(
         "'{label}: {{\n{}\nbreak '{label} tsx::strings::{helper}({});\n}}",
         setup.join("\n"),
@@ -240,8 +239,7 @@ pub fn emit(
 mod tests {
     use super::*;
 
-    // Zig `string_methods.zig` has no `test` block; the helper-name contract
-    // with WP-5.7's `zant::tsx::strings` is pinned here.
+    // The helper-name contract with `zant::tsx::strings` is pinned here.
     #[test]
     fn helper_names_are_snake_case() {
         assert_eq!("starts_with", rust_name("startsWith"));
@@ -253,7 +251,7 @@ mod tests {
     }
 
     #[test]
-    fn arities_match_the_zig_table() {
+    fn arities_match_the_method_table() {
         assert_eq!(1, lookup("includes").expect("includes").min);
         assert_eq!(2, lookup("replace").expect("replace").max);
         assert!(lookup("padStart").expect("padStart").numeric);

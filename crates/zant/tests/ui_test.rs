@@ -1,4 +1,4 @@
-//! Port of `tests/ui_test.zig` — the declarative runtime: build, input
+//! The declarative runtime: build, input
 //! editing, actions, select popup, password masking, `styled` overrides and
 //! `:focus-visible` focus rings.
 
@@ -193,8 +193,8 @@ fn declarative_runtime_renders_edits_input_and_invokes_actions() {
     assert_eq!(data.selected, 2);
     assert!(runtime.tree.nodes.len() >= 6);
 
-    // the Zig test wrote a screenshot; keep the same smoke check without
-    // polluting the repository
+    // screenshot smoke check, written to the temp dir so the repository
+    // stays clean
     let png = std::env::temp_dir().join("zant-test-ui-runtime.png");
     assert!(renderer.write_png(png.to_string_lossy().as_ref()));
     let _ = std::fs::remove_file(&png);

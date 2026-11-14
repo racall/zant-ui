@@ -1,6 +1,4 @@
-//! Regression tests for the four `zant-tsx` code generation bugs fixed in
-//! `WP-TSX-BUGS` (see `docs/rust-port/status.md`, 「WP-5.10b 提出」 /
-//! 「WP-5.10c 提出」):
+//! Regression tests for four `zant-tsx` code generation bugs:
 //!
 //! 1. a child component's callback prop runs synchronously inside the handler
 //!    (it used to be queued through `ui::effect`, which `ui::begin_frame`

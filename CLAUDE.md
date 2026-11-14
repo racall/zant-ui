@@ -44,7 +44,7 @@
   （KaTeX 算法，mhchem 为 KaTeX contrib/mhchem 的逐字节对齐移植）。详见 `docs/markdown.md`；
   示例 `zant-markdown` / `zant-math` / `zant-md-stream`（流式帧率基准，可读真实 SSE）。
 - 性能基准：`zant-bench`（打开长对话、流式、打字、光标、悬停、缩放、滚动；`ZANT_BENCH_LIST=1`
-  用虚拟列表；`scripts/parity/bench.sh` 对照记录基线）。优化前先建基线（Release），两边平台对比。
+  用虚拟列表；`scripts/bench.sh` 对照记录基线）。优化前先建基线（Release），两边平台对比。
 - 桌面集成：`zant::desktop`（`docs/desktop.md`）：多窗口 / `.panel` 快捷面板、托盘与状态栏、全局快捷键、
   剪贴板监听与图片、单实例、深色模式；TSX hooks `useTray` / `useHotkey` / `useClipboardChange` /
   `useReopen` / `useWake` / `useAppExit` / `createWindow`。
@@ -60,7 +60,6 @@
   `docs/development.md`「Windows 测试机」。
 - 平台差异不写进组件和应用：快捷键用 `keys::label` / `keyLabel`，自绘标题栏用 `ui::titlebar_insets()`，
   浮层跟随控件用 `ui::key_bounds()`，数据目录用 `zant::core::paths`（见 `AGENTS.md`「跨平台规范」）。
-- 迁移文档：`docs/rust-port/`（`plan.md`、`api.md`、`status.md`、`conventions.md`、`tsx-codegen.md`）。
 
 ## 改动原则
 

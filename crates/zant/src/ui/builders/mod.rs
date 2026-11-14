@@ -1,16 +1,13 @@
-//! The `ui::*` builders of `src/ui.zig`.
+//! The `ui::*` builders.
 //!
-//! WP-1.2 ported the contract and the `column` / `row` / `text` / `button`
-//! builders; WP-2.3 added every remaining builder of `ui.zig` except `memo`
-//! (WP-2.4) and the composite components of `components/` (WP-2.5). Every
-//! builder creates a fresh `Element` and wraps it in an `Rc`: Zig's `make()`
-//! deep-copied into the frame arena, which Rust does not need because nodes
-//! own their data.
+//! Every builder creates a fresh `Element` and wraps it in an `Rc`; nodes own
+//! their data, so nothing is copied into a per-frame arena. `memo` lives in
+//! `ui::memo` and the composite components in `components/`.
 //!
-//! Layout: this file keeps the Zig helpers (`make` → `Node::new`,
-//! `layoutFrom`, `visualFrom`, `hoverFrom`, `textStyle`) and the four WP-1.2
-//! builders; the rest live in the submodules below, grouped like the Zig
-//! sections they come from (each file is kept under ~500 lines).
+//! Layout: this file keeps the shared helpers (`layout_from`, `visual_from`,
+//! `hover_from`, `text_style`) and the `column` / `row` / `text` / `button`
+//! builders; the rest live in the submodules below, grouped by purpose (each
+//! file is kept under ~500 lines).
 #![forbid(unsafe_code)]
 
 use crate::Str;
@@ -40,7 +37,7 @@ pub use media::{icon, icon_button, image, vector};
 pub use pdf_preview::pdf_preview;
 pub use typography::{heading, link, paragraph, rich_text, title};
 
-/// Zig `layoutFrom`: the `BoxOptions` half of a container's `FlexStyle`.
+/// The `BoxOptions` half of a container's `FlexStyle`.
 fn layout_from(box_options: &BoxOptions, direction: flex::Direction) -> FlexStyle {
     FlexStyle {
         direction: box_options.flex_direction.unwrap_or(direction),
@@ -72,12 +69,12 @@ fn layout_from(box_options: &BoxOptions, direction: flex::Direction) -> FlexStyl
         shrink: box_options.shrink,
         basis: box_options.basis,
         scroll: box_options.scroll,
-        // `anchor` is not part of `BoxOptions` (Zig keeps the struct default).
+        // `anchor` is not part of `BoxOptions` (it keeps the struct default).
         anchor: None,
     }
 }
 
-/// Zig `visualFrom`: the painted half of a container's look.
+/// The painted half of a container's look.
 fn visual_from(box_options: &BoxOptions) -> Visual {
     Visual {
         background: box_options.background,
@@ -95,7 +92,7 @@ fn visual_from(box_options: &BoxOptions) -> Visual {
     }
 }
 
-/// Zig `hoverFrom`: a hover look only when one of the colours is set.
+/// A hover look only when one of the colours is set.
 fn hover_from(box_options: &BoxOptions) -> Option<HoverVisual> {
     if box_options.hover_background.is_none() && box_options.hover_border_color.is_none() {
         return None;
@@ -106,14 +103,13 @@ fn hover_from(box_options: &BoxOptions) -> Option<HoverVisual> {
     })
 }
 
-/// Zig `textStyle`.
+/// The text style of a `text` node: the options plus the given defaults.
 fn text_style(options: &TextOptions, default_color: u32, wrap_default: bool) -> text::Style {
     text::Style {
         font_size: options.size,
         weight: options.weight,
         color: options.color.unwrap_or(default_color),
         text_align: options.text_align,
-        // Zig: `if (options.wrap) true else wrap_default`
         wrap: options.wrap || wrap_default,
         line_height: options.line_height,
         max_lines: options.max_lines,
@@ -173,7 +169,7 @@ pub fn text(value: impl Into<Str>, options: TextOptions) -> Node {
     })
 }
 
-/// `ui::button`: the antd button shell (the component paints it, WP-1.3).
+/// `ui::button`: the antd button shell (the component paints it).
 pub fn button(options: ButtonOptions) -> Node {
     let height = match options.size {
         crate::core::node::ButtonSize::Small => 24.0,
@@ -220,10 +216,6 @@ pub fn button(options: ButtonOptions) -> Node {
     })
 }
 
-// ── option structs of the builders owned by WP-2.1 … WP-2.5 ─────────────────
-// WP-1.2 declares their types only (see the module docs); the builders land in
-// those work packages.
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -234,7 +226,7 @@ mod tests {
     use crate::ui::context::set_build_theme;
 
     #[test]
-    fn column_builds_a_container_with_zig_defaults() {
+    fn column_builds_a_container_with_default_layout() {
         let node = column(BoxOptions::default());
         let element = node.element();
         assert_eq!(element.kind, NodeKind::Container);

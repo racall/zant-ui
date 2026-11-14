@@ -1,5 +1,3 @@
-//! Port of `src/math/layout.zig` — WP-3.6.
-//!
 //! TeX box layout, ported from KaTeX's HTML builder (`buildHTML.js`,
 //! `functions/{supsub,genfrac,sqrt,op,delimsizing,accent,…}.js`,
 //! `environments/array.js`) and its font metrics (`fontMetrics.js`).
@@ -7,18 +5,9 @@
 //! Every box is measured in pixels with its origin on the baseline at the
 //! left edge; y grows downwards. Glyphs are drawn with STIX Two Math.
 //!
-//! Port notes: the Zig arena disappears (`Vec` / `String` instead), so the
-//! `!Box` returns become plain `Box` returns. `*const Node` becomes `&Node`,
-//! the `Box` command slices are owned `Vec<Command>`, and `std.fmt.allocPrint`
-//! / `arena.dupe` become `format!` / `.to_vec()`. Zig's module-level
-//! `math/mod.zig` `Options` + `layout` / `layoutOnce` / `errorDrawing` /
-//! `collapseWhitespace` entry points also live here because `math/mod.rs` is
-//! outside this work package; the layout engine's own `Options` is
-//! [`EngineOptions`] to keep both names.
-//!
-//! The `ui`-dependent half of `math/mod.zig` (`block`, `inlineDrawing`,
-//! `inlineText`, `render`) is not ported here: it needs `ui::vector` nodes and
-//! the frame allocator (WP-2.10 / the `ui` owner).
+//! The public entry point ([`Options`] + [`layout`]) lives at the end of this
+//! file; the engine's own options are [`EngineOptions`]. The `ui` wrappers
+//! (`math::block`, `math::render`) are in `math/block.rs`.
 
 use crate::core::hash::{HashValue, Wyhash};
 pub use crate::core::vector::Drawing;
@@ -55,7 +44,7 @@ impl Style {
         cramped: false,
     };
 
-    /// A non-cramped style of the given size (Zig: `.{ .size = .script }`).
+    /// A non-cramped style of the given size.
     pub const fn new(size: Size) -> Style {
         Style {
             size,
@@ -134,8 +123,7 @@ fn smaller(s: Size) -> Size {
 #[derive(Clone, Copy, Debug)]
 enum Metric {
     XHeight,
-    /// Kept from KaTeX's sigma table like the Zig port even though the layout
-    /// never reads it.
+    /// Kept from KaTeX's sigma table even though the layout never reads it.
     #[allow(dead_code)]
     Quad,
     Num1,
@@ -162,7 +150,7 @@ enum Metric {
 }
 
 impl Metric {
-    /// The text / script / scriptscript value of the sigma (Zig `sigmas`).
+    /// The text / script / scriptscript value of the sigma.
     fn sigmas(self) -> [f32; 3] {
         match self {
             Metric::XHeight => [0.431, 0.431, 0.431],
@@ -293,7 +281,7 @@ impl Default for Box {
     }
 }
 
-/// The layout engine's options (Zig: `layout.zig`'s `Options`).
+/// The layout engine's options.
 #[derive(Clone, Copy, Debug)]
 pub struct EngineOptions {
     /// Pixel size of 1em in text style.
@@ -408,7 +396,7 @@ impl Engine {
         }));
     }
 
-    /// Zig keeps this primitive even though no layout path fills a polygon.
+    /// Kept as a drawing primitive even though no layout path fills a polygon.
     #[allow(dead_code)]
     fn fill(&self, points: &[Point], out: &mut Vec<Command>) {
         out.push(Command::Path(vector::Path {
@@ -1916,7 +1904,7 @@ fn accent_glyph(name: &str) -> &'static str {
     }
 }
 
-// ── public entry point (Zig: `math/mod.zig`) ─────────────────────────────
+// ── public entry point ───────────────────────────────────────────────────
 
 #[derive(Clone, Copy, Debug)]
 pub struct Options {
@@ -1949,7 +1937,7 @@ impl Default for Options {
 
 impl HashValue for Options {
     fn hash_value(&self, h: &mut Wyhash) {
-        // Zig `hashValue` hashes struct fields in declaration order.
+        // the fields in declaration order
         self.size.hash_value(h);
         self.scale.hash_value(h);
         self.color.hash_value(h);
@@ -2055,7 +2043,7 @@ fn collapse_whitespace(source: &str) -> String {
         out.push(c);
     }
     // Only ASCII spaces were inserted at character boundaries, so this is
-    // still valid UTF-8 (the Zig original built the same byte string).
+    // still valid UTF-8.
     String::from_utf8(out).expect("collapse_whitespace keeps UTF-8 valid")
 }
 
@@ -2063,7 +2051,6 @@ fn collapse_whitespace(source: &str) -> String {
 mod tests {
     use super::*;
 
-    /// Zig `math/mod.zig`: `test "error source collapses line breaks"`.
     #[test]
     fn error_source_collapses_line_breaks() {
         assert_eq!(

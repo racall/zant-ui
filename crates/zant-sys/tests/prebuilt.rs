@@ -1,4 +1,4 @@
-//! Tests for the prebuilt-native logic shared with `build.rs` (WP-6.6).
+//! Tests for the prebuilt-native logic shared with `build.rs`.
 //!
 //! `build.rs` itself cannot have `#[test]`s, so the hash, the metadata format
 //! and the source-list plumbing live in `prebuilt.rs` and are tested here

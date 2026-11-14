@@ -1,5 +1,3 @@
-//! Port of `src/markdown/parser/inline.zig` — WP-3.2.
-//!
 //! Inline Markdown parser: emphasis, code spans, math, links, images,
 //! autolinks, footnote references, inline HTML and character references.
 //!
@@ -36,16 +34,15 @@ pub struct Context<'a> {
     pub latex_delimiters: bool,
 }
 
-/// The parser's span builder. Zig keeps slices into the source document and
-/// merges adjacent runs by pointer adjacency; the Rust port owns the final
-/// strings but tracks the source offset of the last pushed run so the same
-/// runs are merged.
+/// The parser's span builder. It owns the final strings and tracks the source
+/// offset of the last pushed run, so runs that are adjacent in the source are
+/// merged.
 struct Builder<'a, 'r> {
     ctx: &'a mut Context<'r>,
     source: &'a str,
     out: Vec<Span>,
     /// Source byte range of the last span when its text is a sub-slice of
-    /// `source` (used for Zig's `last.text.ptr + last.text.len == text.ptr`).
+    /// `source` (used to detect a run that continues right after it).
     last_source: Option<(usize, usize)>,
 }
 
@@ -150,7 +147,7 @@ fn run_length(text: &str, i: usize, c: u8) -> usize {
     n
 }
 
-/// Zig `std.mem.indexOfScalarPos`: first `needle` at or after `from`.
+/// First `needle` at or after `from`.
 fn index_of_scalar_pos(text: &str, from: usize, needle: u8) -> Option<usize> {
     if from >= text.len() {
         return None;
@@ -161,7 +158,7 @@ fn index_of_scalar_pos(text: &str, from: usize, needle: u8) -> Option<usize> {
         .map(|p| p + from)
 }
 
-/// Zig `std.mem.indexOfPos(u8, text, from, needle)`.
+/// First occurrence of `needle` at or after `from`.
 fn index_of_pos(text: &str, from: usize, needle: &str) -> Option<usize> {
     let from = from.min(text.len());
     let hay = &text.as_bytes()[from..];
@@ -1095,7 +1092,7 @@ fn collapse_newlines(text: &str) -> Cow<'_, str> {
 
 /// `[text](url)`, `[text][ref]`, `[ref][]`, `[ref]`, `[^note]`, images.
 /// Returns the index after the construct, or `None` when it is not a link.
-#[allow(clippy::too_many_arguments)] // same parameter list as inline.zig
+#[allow(clippy::too_many_arguments)]
 fn parse_link_like(
     b: &mut Builder<'_, '_>,
     text: &str,

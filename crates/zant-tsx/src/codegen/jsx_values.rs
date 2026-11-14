@@ -1,14 +1,11 @@
 //! Node and literal-list props, recursive item schemas, and required-field
-//! checks. Translation of `tools/tsx/codegen/jsx_values.zig`, together with
-//! the ordered option-field merging of `jsx_fields.zig` and the `Edges`
-//! lowering of `jsx_edges.zig`.
+//! checks, together with the ordered option-field merging and the `Edges`
+//! lowering.
 //!
-//! Zig emits an anonymous struct literal (`.{ .field = value, }`); Rust needs
-//! the concrete options struct, so [`Fields::emit`] spells
+//! Options are concrete structs: [`Fields::emit`] spells
 //! `ui::XOptions { field: value, ..Default::default() }`. Children become the
-//! `nodes!` macro instead of the Zig slice concatenation helpers, and optional
-//! Rust fields are wrapped in `Some(..)` by the caller (the tag table does not
-//! carry optionality; see `jsx.rs`).
+//! `nodes!` macro, and optional fields are wrapped in `Some(..)` by the caller
+//! (the tag table does not carry optionality; see `jsx.rs`).
 
 use crate::ast;
 use crate::tags::{self, Kind, Prop, Sides, Tag};
@@ -31,12 +28,12 @@ pub fn inset(code: &str) -> String {
 pub struct Edge {
     pub code: String,
     /// The original source expression, for the "all sides share one value"
-    /// test (`ui.inset`). Compared by address, like the Zig pointer.
+    /// test (`ui.inset`). Compared by address.
     pub source: usize,
 }
 
 /// One option field: a plain value, an `Edges` pattern, or a nested options
-/// struct (Zig `jsx_fields.Fields.Entry`).
+/// struct.
 #[derive(Clone, Debug, Default)]
 pub struct Entry {
     pub field: String,
@@ -45,8 +42,8 @@ pub struct Entry {
     pub nested: Option<Box<Fields>>,
 }
 
-/// Ordered option fields (Zig `jsx_fields.Fields`). Later writes replace
-/// earlier ones; edges merge per side in attribute order.
+/// Ordered option fields. Later writes replace earlier ones; edges merge per
+/// side in attribute order.
 #[derive(Clone, Debug, Default)]
 pub struct Fields {
     pub list: Vec<Entry>,
@@ -302,8 +299,8 @@ fn edge_sides(name: &[u8]) -> Option<Sides> {
     Some(sides)
 }
 
-/// The address of an AST expression: Zig compares `*const ast.Expr` pointers
-/// when deciding whether all edges share one source value.
+/// The address of an AST expression, compared when deciding whether all
+/// edges share one source value.
 pub fn expression_address(e: &ast::Expr) -> usize {
     std::ptr::from_ref(e) as usize
 }

@@ -1,12 +1,10 @@
 //! State-machine table types: the action enum, its options, `Task` and
 //! `Transition`, plus the const constructors used to declare the tables.
-//!
-//! Port of `src/math/mhchem.zig` (Act / Option / A / Task / Transition).
 
 use super::patterns::Pat;
 use super::types::ItemTag;
 
-/// `mhchemParser.actions` + per-machine action names (the Zig enum member is
+/// `mhchemParser.actions` + per-machine action names (the upstream name is
 /// noted in the trailing comment).
 #[derive(Clone, Copy)]
 pub enum Act {

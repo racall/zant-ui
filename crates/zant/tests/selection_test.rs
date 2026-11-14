@@ -1,4 +1,4 @@
-//! Port of `tests/selection_test.zig` — text selection in rendered Markdown:
+//! Text selection in rendered Markdown:
 //! drag across blocks, word / block clicks, copied text (formulas as LaTeX,
 //! markers, gutters and controls left out) plus the LaTeX delimiter and
 //! streaming-formula parser cases.

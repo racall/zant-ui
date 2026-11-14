@@ -1,8 +1,6 @@
 //! JSX elements, attributes and children. Tags are read with the lexer's
 //! JSX tag mode (so `>` never merges into `>=`), text with its raw mode, and
 //! `{expressions}` with the normal expression parser.
-//!
-//! Direct translation of `tools/tsx/jsx_parser.zig`.
 
 use crate::ast::{Attr, Child, Jsx, JsxText, Name};
 use crate::expr_parser;
@@ -261,8 +259,6 @@ mod tests {
         std::str::from_utf8(value).expect("text is UTF-8")
     }
 
-    // Ported from `tools/tsx/parser_test.zig`,
-    // "text errors point at the text, not its indentation".
     #[test]
     fn text_errors_point_at_the_text_not_its_indentation() {
         let src = "function A() { return <View>\n    hello\n  </View>; }";
@@ -285,7 +281,6 @@ mod tests {
         assert_eq!("hello", &src[child.loc as usize..child.loc as usize + 5]);
     }
 
-    // Ported from `tools/tsx/parser_test.zig`, "`>` and `}` in JSX text name the fix".
     #[test]
     fn gt_and_brace_in_jsx_text_name_the_fix() {
         expect_syntax_error(
@@ -300,8 +295,6 @@ mod tests {
         );
     }
 
-    // Ported from `tools/tsx/jsx_entities_test.zig`,
-    // "attribute strings use the same entity decoder as JSX text".
     #[test]
     fn attribute_strings_use_the_same_entity_decoder_as_jsx_text() {
         let m = parse_ok(

@@ -2,7 +2,7 @@
 //
 // Each module holds one spec's types (and, when it declares functions, the
 // trait `native/<name>.rs` implements);
-// see docs/rust-port/tsx-native.md (WP-5.8).
+// see docs/tsx-native.md.
 
 /// The spec `native/clips.ts`: `native/clips.rs` implements the trait below.
 #[allow(dead_code)]

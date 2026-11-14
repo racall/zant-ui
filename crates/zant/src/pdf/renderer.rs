@@ -1,5 +1,3 @@
-//! Port of `src/pdf/renderer.zig` — WP-3.8.
-//!
 //! Background page rendering with a tile cache (EmbedPDF's render plugin
 //! and tiling layer: a low-resolution base image per page, sharp tiles for
 //! the visible area at the current zoom).
@@ -10,12 +8,8 @@
 //! by later builds are dropped (scrolled away), and the cache evicts the
 //! least recently used tiles over its memory budget.
 //!
-//! Deviation from Zig: `ui.postWake` belongs to WP-2.4 and does not exist yet,
-//! so the renderer takes a wake callback at creation (`create(doc, wake)`).
-//! The viewer (WP-3.9) passes `|| crate::ui::post_wake()` once that lands; the
-//! tests pass a channel sender. Everything else is the Zig shape: `Key`,
-//! `create`, `begin_frame`, `tile`, `any_page_image`, `page_height_for`, and
-//! `Drop` instead of `destroy`.
+//! The renderer takes its wake callback at creation (`create(doc, wake)`):
+//! the viewer passes `crate::ui::post_wake`, the tests a channel sender.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
@@ -27,7 +21,7 @@ use crate::pdf::document::Document;
 pub const TILE_SIZE: u32 = 1024;
 /// Width in device pixels of the base image of a page.
 pub const BASE_WIDTH: u32 = 360;
-/// Tile cache memory budget (Zig: `budget = 384 * 1024 * 1024`).
+/// Tile cache memory budget.
 const BUDGET: usize = 384 * 1024 * 1024;
 
 /// Cache key: a tile of a page at a zoom level.
@@ -66,7 +60,6 @@ impl Default for State {
             stop: false,
             entries: HashMap::new(),
             queue: Vec::new(),
-            // Zig: `frame: u64 = 1`, `budget: usize = 384 * 1024 * 1024`.
             frame: 1,
             bytes: 0,
             budget: BUDGET,
@@ -77,7 +70,7 @@ impl Default for State {
 /// Parts shared with the worker thread.
 struct Shared {
     doc: Arc<Document>,
-    /// Called from the worker after a tile is stored (Zig: `ui.postWake`).
+    /// Called from the worker after a tile is stored.
     wake: Box<dyn Fn() + Send + Sync>,
     state: Mutex<State>,
     cond: Condvar,
@@ -91,7 +84,7 @@ fn lock(shared: &Shared) -> MutexGuard<'_, State> {
 }
 
 /// Background renderer of one document. Dropping it stops and joins the
-/// worker and frees the cached images (Zig: `destroy`).
+/// worker and frees the cached images.
 pub struct Renderer {
     shared: Arc<Shared>,
     thread: Option<std::thread::JoinHandle<()>>,
@@ -108,8 +101,8 @@ impl Renderer {
             cond: Condvar::new(),
         });
         let worker_shared = Arc::clone(&shared);
-        // Zig: `std.Thread.spawn(...) catch null` — without a worker nothing
-        // renders, but the cache stays usable.
+        // A failed spawn is tolerated: without a worker nothing renders, but
+        // the cache stays usable.
         let thread = std::thread::Builder::new()
             .spawn(move || worker(&worker_shared))
             .ok();

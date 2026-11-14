@@ -1,9 +1,9 @@
 //! Imports between files of one TSX project (`import { TodoRow, type Todo }
-//! from "./TodoRow"`). Translation of `tools/tsx/codegen/imports.zig`.
+//! from "./TodoRow"`).
 //!
 //! A project compiles one Rust module per file into one output directory, and
 //! the generated entry declares every module at the crate root, so an import
-//! becomes a Rust path instead of Zig's `@import` alias:
+//! becomes a Rust path:
 //!
 //! ```ignore
 //! import { Row, type Todo } from "./components/Row";
@@ -15,8 +15,8 @@
 //!
 //! Imported names resolve against the declaring file's declarations; the
 //! `named` / `external_name` hooks installed by `generate::install` let the
-//! type machinery of WP-5.3 resolve `Todo` to `crate::row::Todo` without
-//! redeclaring it here.
+//! type machinery resolve `Todo` to `crate::row::Todo` without redeclaring it
+//! here.
 
 use crate::ast;
 
@@ -33,9 +33,8 @@ use super::types::{self, Type};
 use super::windows;
 use super::{Generator, Result, fail};
 
-/// A parsed file of the project, named by its file stem (`TodoRow`) — the Zig
-/// `imports.NamedModule`, here the parsed modules live in
-/// [`app_state::ProjectData`].
+/// A parsed file of the project, named by its file stem (`TodoRow`); the
+/// parsed modules live in [`app_state::ProjectData`].
 pub use super::app_state::ModuleFile as NamedModule;
 
 /// The declarations of another file and the Rust path it is imported under;
@@ -113,7 +112,7 @@ pub fn process(g: &mut Generator<'_>, module: &ast::Module) -> Result<()> {
     let project = app_state::project();
     for import in &module.imports {
         let source = String::from_utf8_lossy(&import.source).into_owned();
-        // native module specs (WP-5.8): the trait lives in the generated
+        // native module specs: the trait lives in the generated
         // `native/spec.rs`, the app implements it in `native/<name>.rs`.
         if source.starts_with("native/") {
             process_native(g, import, &source)?;
@@ -128,13 +127,6 @@ pub fn process(g: &mut Generator<'_>, module: &ast::Module) -> Result<()> {
         if source.ends_with(".rs") {
             rust_imports::process(g, import, &source)?;
             continue;
-        }
-        if source.ends_with(".zig") {
-            return fail(
-                g,
-                import.source_loc,
-                "Zig files are no longer imported; port the module to Rust (`import { f } from \"./format.rs\"`)",
-            );
         }
         let Some(project) = project.as_deref() else {
             return fail(
@@ -198,7 +190,7 @@ pub fn process(g: &mut Generator<'_>, module: &ast::Module) -> Result<()> {
     Ok(())
 }
 
-/// `import { list, type Clip } from "native/clips"` (WP-5.8): types resolve to
+/// `import { list, type Clip } from "native/clips"`: types resolve to
 /// the generated `crate::native::spec::<name>` modules, functions to the trait
 /// implemented by `crate::native::<name>::Native`.
 fn process_native(g: &mut Generator<'_>, import: &ast::Import, source: &str) -> Result<()> {
@@ -313,7 +305,7 @@ fn import_constant(
     let ty = match constant.ty.as_ref() {
         Some(reference) => in_scope(g, scope, |g| types::type_ref(g, reference, false))?,
         // an unannotated literal constant (`export const rowPrefix = "#"`)
-        // takes the literal's type, like the Zig compiler's inference
+        // takes the literal's type
         None => match &constant.value.data {
             ast::ExprData::String(_) => Type::String,
             ast::ExprData::Number(_) => Type::F64,
@@ -512,12 +504,12 @@ fn resolve(g: &mut Generator<'_>, scope: usize, name: &str) -> Result<Option<Typ
                 let imported = String::from_utf8_lossy(&n.imported.name).into_owned();
                 return rust_imports::named_in(g, &source, &imported);
             }
-            // Staged port fix (M7.1): a native spec type (`import type { Kind }
-            // from "native/clips"`) used inside this file's own type
-            // declarations (an interface field). `process_native` registers the
-            // import for plain annotations; a declaration resolved here runs in
-            // `in_scope`, where `model::named` goes through this function and
-            // the import has to be resolved from the spec itself.
+            // A native spec type (`import type { Kind } from "native/clips"`)
+            // used inside this file's own type declarations (an interface
+            // field). `process_native` registers the import for plain
+            // annotations; a declaration resolved here runs in `in_scope`,
+            // where `model::named` goes through this function and the import
+            // has to be resolved from the spec itself.
             if let Some(spec_name) = source.strip_prefix("native/") {
                 let Some(project) = app_state::project() else {
                     return Ok(None);
@@ -547,9 +539,9 @@ fn resolve(g: &mut Generator<'_>, scope: usize, name: &str) -> Result<Option<Typ
                 );
                 return resolve(g, spec_scope, &imported);
             }
-            // Staged port fix (M7.1): inside a native spec, a relative import
-            // names another spec's type (`import type { Kind } from "./clips"`),
-            // which the generated `native/spec.rs` spells `super::clips::Kind`.
+            // Inside a native spec, a relative import names another spec's
+            // type (`import type { Kind } from "./clips"`), which the generated
+            // `native/spec.rs` spells `super::clips::Kind`.
             if native && is_relative(&source) {
                 let Some(project) = app_state::project() else {
                     return Ok(None);
@@ -632,8 +624,7 @@ pub fn external_name(g: &mut Generator<'_>, name: &str) -> Result<Option<String>
     )))
 }
 
-/// Runs `f` with the generator's type scope set to the project scope `index`
-/// (Zig `g.type_scope = scope`).
+/// Runs `f` with the generator's type scope set to the project scope `index`.
 pub fn in_scope<R>(
     g: &mut Generator<'_>,
     index: usize,

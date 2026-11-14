@@ -1,10 +1,10 @@
-// `examples/tsx/list_bench.tsx` with the 10 000 rows built by a same-file
-// function instead of injected through `tsx.State`, for the TSX frame
-// benchmark (`zant-tsx-frame-bench`, WP-5.10c).
+// `tsx/corpus/list_bench.tsx` with the 10 000 rows built by a same-file
+// function instead of injected by the driver, for the TSX frame
+// benchmark (`zant-tsx-frame-bench`).
 //
-// The Zig benchmark filled the root component's `rows` state from the driver
-// (`app.rows.set(tsx_rows)`); Rust codegen keeps a root component's fields
-// private, so the page builds the identical 10 000 `Row title` rows itself.
+// A benchmark driver cannot fill the root component's `rows` state from
+// outside: codegen keeps a root component's fields
+// private, so the page builds the 10 000 `Row title` rows itself.
 // `useMemo` runs `makeRows` once, on the untimed warm-up frame of the harness,
 // so the per-frame cost is the real list rendering. Everything else below is
 // `list_bench.tsx` verbatim: same `<List>` JSX, keys, `renderItem`,
@@ -12,8 +12,8 @@
 //
 // (A prop-taking `ListView` component was tried first and hit a `zant-tsx`
 // codegen bug: a non-root component rendering `<List>` moves `self` into the
-// item closure while `self._listN` is borrowed — reported in
-// docs/rust-port/status.md WP-5.10c. The root form compiles.)
+// item closure while `self._listN` is borrowed. The root form
+// compiles.)
 import { useMemo, useState, useTheme, List, View, Row, Text, Button } from "zant";
 import type { u32 } from "zant";
 

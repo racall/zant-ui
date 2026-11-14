@@ -1,5 +1,3 @@
-//! Port of `src/markdown/cache.zig` — WP-3.2.
-//!
 //! Streamdown's processing pipeline with block-level memoisation:
 //!
 //! ```text
@@ -12,9 +10,8 @@
 //! response streams in, only the last block or two are parsed again per tick.
 //! The cache is owned by the caller (no global state).
 //!
-//! The Zig `Entry` also carries view-only scratch (`view_slot`, `view_arena`);
-//! the Rust view keeps that state itself, so `Entry` only holds the parsed
-//! block and its identity here.
+//! The view keeps its per-block state itself, so `Entry` only holds the
+//! parsed block and its identity.
 
 use std::borrow::Cow;
 

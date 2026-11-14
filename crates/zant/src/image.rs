@@ -1,5 +1,3 @@
-//! Port of `src/image.zig` — WP-1.1c.
-//!
 //! Decoded images held in memory, for `ui::image`. Use it for pixels that do
 //! not come from a file: rendered PDF pages, downloaded or decoded images,
 //! `data:` URIs, thumbnails.
@@ -8,7 +6,7 @@
 //! `Image` to the UI thread and call `ui::post_wake`). Nodes showing the image
 //! keep their own reference, so dropping one may happen while it is shown.
 //!
-//! This is one of the few modules allowed to use `unsafe` (plan.md §3 rule 5):
+//! This is one of the few modules allowed to use `unsafe`:
 //! `Image` is a reference-counted Skia image and `Send + Sync` because the
 //! native layer creates it thread-safely (see `skia_bridge.h`).
 
@@ -19,7 +17,7 @@ use zant_sys::skia as ffi;
 
 static NEXT_ID: AtomicU64 = AtomicU64::new(1);
 
-/// Errors of `Image::encode_png` (Zig: `error.EncodeFailed`).
+/// Errors of `Image::encode_png`.
 #[derive(Debug, thiserror::Error)]
 pub enum ImageError {
     #[error("PNG encoding failed")]
@@ -125,9 +123,8 @@ impl Image {
     /// Draws the image into `rect`, clipped to `radius`; `fit` is the
     /// `ImageFit` discriminant (cover = 0, contain = 1, fill = 2).
     ///
-    /// Port of `components/image.zig:paint`'s native call
-    /// (`zant_canvas_draw_image_rect`), which WP-2.2 needs from
-    /// `components::image` where `unsafe` is not allowed (plan.md §3 rule 5).
+    /// Wraps the native `zant_canvas_draw_image_rect` for `components::image`,
+    /// where `unsafe` is not allowed.
     pub fn draw_rect(
         &self,
         canvas: crate::renderer::canvas::Canvas,
@@ -253,8 +250,7 @@ impl Drop for Image {
     }
 }
 
-/// Standard-alphabet base64 decoder (no crate dependency, like Zig's
-/// `std.base64.standard.Decoder`). Accepts padding; returns `None` on invalid
+/// Standard-alphabet base64 decoder (no crate dependency). Accepts padding; returns `None` on invalid
 /// input or length.
 fn base64_decode(input: &str) -> Option<Vec<u8>> {
     let bytes = input.as_bytes();
@@ -317,8 +313,8 @@ fn base64_decode(input: &str) -> Option<Vec<u8>> {
     Some(out)
 }
 
-/// Writes an image's PNG bytes to `path` (helper the Zig side built with
-/// `zant_write_file`; kept here so snapshot/debug code has one entry point).
+/// Writes an image's PNG bytes to `path` through the native `zant_write_file`
+/// (kept here so snapshot/debug code has one entry point).
 pub fn write_png(path: &str, bytes: &[u8]) -> bool {
     let Ok(path) = CString::new(path) else {
         return false;

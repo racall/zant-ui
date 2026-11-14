@@ -1,19 +1,18 @@
-//! TSX source → generated Rust, and project-level compilation. Translation of
-//! `tools/tsx/compile.zig` (the Zig re-parse/format step is replaced by the
-//! `syn` + `prettyplease` validation inside [`crate::codegen::generate`]).
+//! TSX source → generated Rust, and project-level compilation. The generated
+//! text is validated and formatted with `syn` + `prettyplease` inside
+//! [`crate::codegen::generate`].
 //!
 //! - [`compile`] compiles one `.tsx` file (no project imports).
 //! - [`compile_project`] compiles the files of a project: relative imports
 //!   resolve between them, one Rust module is generated per `.tsx` file and
 //!   hand-written `.rs` files are parsed for their public signatures.
 //! - [`compile_project_root`] is the build integration used by
-//!   `zant_build::tsx_app` (WP-6.2): it reads `<root>/src/**`, the `native/`
+//!   `zant_build::tsx_app`: it reads `<root>/src/**`, the `native/`
 //!   specs and `<root>/app.config.json`, and returns the generated modules,
 //!   assets and the app entry.
 //!
-//! Diagnostics keep the Zig shape: a byte offset into the source plus a
-//! message, rendered by [`crate::error::render_diag`] as
-//! `path:line:col: error: msg` with a caret.
+//! A diagnostic is a byte offset into the source plus a message, rendered by
+//! [`crate::error::render_diag`] as `path:line:col: error: msg` with a caret.
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -27,13 +26,13 @@ use crate::parser::Parser;
 
 pub use crate::error::Diag;
 
-/// One input file of a compilation (Zig `compile.File`).
+/// One input file of a compilation.
 #[derive(Clone, Debug)]
 pub struct SourceFile {
     /// Path as given on the command line (diagnostics use it).
     pub path: String,
     pub src: String,
-    /// A native module spec (`native/<name>.ts`, compiled by WP-5.8).
+    /// A native module spec (`native/<name>.ts`, compiled by `native_specs`).
     pub native: bool,
 }
 
@@ -95,7 +94,7 @@ impl SourceFile {
     }
 }
 
-/// A problem in one input file (Zig `compile.ProjectResult.err`).
+/// A problem in one input file.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProjectError {
     pub file: usize,
@@ -116,14 +115,14 @@ impl std::error::Error for ProjectError {}
 pub struct GeneratedProject {
     pub outputs: Vec<String>,
     pub assets: Vec<crate::assets::Asset>,
-    /// The combined `native/spec.rs` (WP-5.8): one `pub mod` per
+    /// The combined `native/spec.rs`: one `pub mod` per
     /// `native/*.ts` spec, or `None` when the project has no native specs.
     /// The build writes it next to the app's `native/` modules; its module
     /// path is `crate::native::spec::<name>`.
     pub spec_root: Option<String>,
 }
 
-/// Parse, expand custom hooks and generate one file (Zig `compile.compile`).
+/// Parse, expand custom hooks and generate one file.
 pub fn compile(src: &str, source_name: &str) -> Result<String, Diag> {
     let module = parse_module(src)?;
     let mut units = [Unit {
@@ -170,14 +169,14 @@ pub fn compile(src: &str, source_name: &str) -> Result<String, Diag> {
     }
 }
 
-/// Compile the files of a project (Zig `compile.compileProject`).
+/// Compile the files of a project.
 pub fn compile_project(files: &[SourceFile]) -> Result<GeneratedProject, ProjectError> {
     compile_project_with(files, None)
 }
 
 /// [`compile_project`] with one extra hook-installation step per module, run
-/// after `generate::install` (the WP-5.4 JSX / event modules are not in this
-/// worktree; the end-to-end tests inject their stubs through this).
+/// after `generate::install` (the end-to-end tests inject their stubs through
+/// this).
 pub fn compile_project_with(
     files: &[SourceFile],
     install_extra: Option<fn(&mut codegen::Generator<'_>)>,
@@ -330,7 +329,7 @@ pub fn compile_project_with(
             }
         }
     }
-    // The combined `native/spec.rs` root of the project's specs (WP-5.8). The
+    // The combined `native/spec.rs` root of the project's specs. The
     // per-spec outputs above stay available, but the app consumes this one
     // file as the `native::spec` module.
     let specs: Vec<crate::native_specs::Spec<'_>> = project
@@ -391,10 +390,10 @@ fn parse_module(src: &str) -> Result<ast::Module, Diag> {
     }
 }
 
-// ── the project-root build integration (WP-6.2) ──────────────────────
+// ── the project-root build integration ───────────────────────────────
 
-/// The app configuration from `app.config.json` (`tools/zant/app_config.zig`'s
-/// `AppConfig`, the subset generated Rust needs).
+/// The app configuration from `app.config.json` (the subset generated Rust
+/// needs).
 #[derive(Clone, Debug)]
 pub struct ConfigSpec {
     pub title: String,
@@ -414,7 +413,7 @@ impl Default for ConfigSpec {
     }
 }
 
-/// The window defaults of `tools/zant/app_config.zig`.
+/// The window section of `app.config.json`, with its defaults.
 #[derive(Clone, Debug)]
 pub struct WindowConfig {
     pub style: String,
@@ -449,7 +448,7 @@ impl Default for WindowConfig {
 }
 
 /// Reads `app.config.json` (the fields generated Rust uses; malformed values
-/// are an error, unknown fields are ignored like the Zig parser does).
+/// are an error, unknown fields are ignored).
 pub fn read_config(path: &str) -> Result<ConfigSpec, String> {
     let text = std::fs::read_to_string(path).map_err(|error| error.to_string())?;
     let value: serde_json::Value =
@@ -566,7 +565,7 @@ pub fn compile_project_root(options: &ProjectOptions) -> Result<BuildOutput, Bui
 }
 
 /// [`compile_project_root`] with the test-only hook installation of
-/// [`compile_project_with`] (the JSX emitters are WP-5.4's modules).
+/// [`compile_project_with`].
 pub fn compile_project_root_with(
     options: &ProjectOptions,
     install_extra: Option<fn(&mut codegen::Generator<'_>)>,
@@ -649,10 +648,10 @@ pub struct BuildOutput {
     /// Asset imports: copy each `from` to `<out>/<key>`.
     pub assets: Vec<crate::assets::Asset>,
     pub dep_file: Option<String>,
-    /// The combined `native/spec.rs` of the project's `native/*.ts` specs
-    /// (WP-5.8). Written as `spec.rs` in the output directory, like the Zig
-    /// compiler's `spec.zig`; the app's `native/lib.rs` consumes the file that
-    /// `zant-build` writes into its `native/` directory instead.
+    /// The combined `native/spec.rs` of the project's `native/*.ts` specs.
+    /// Written as `spec.rs` in the output directory; the app's `native/lib.rs`
+    /// consumes the file that `zant-build` writes into its `native/` directory
+    /// instead.
     pub spec_root: Option<String>,
 }
 

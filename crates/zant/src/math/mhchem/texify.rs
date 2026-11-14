@@ -1,6 +1,4 @@
 //! `texify.go` / `texify._go2`: turn the parser output into TeX.
-//!
-//! Port of `src/math/mhchem.zig` (Parser.texify / inner / go2).
 
 use super::chars::{eql, is_sign, opt_eql, replace_first};
 use super::types::{Item, Items, Str};

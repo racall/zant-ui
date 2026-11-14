@@ -1,15 +1,11 @@
-//! Port of `src/core/icons.zig` — WP-2.3a.
-//!
 //! Zant icon set: line icons on a 24×24 grid with a uniform stroke (in the
 //! spirit of Lucide), drawn as vector paths so every icon shares the same
 //! optical size and weight at any scale.
 //!
-//! The geometry is a 1:1 port of the Zig `trace` function: same coordinates,
-//! same segment counts (arcs are 32 steps / 33 points, circles 32 points,
-//! rounded-rectangle corners 7 points per corner in 15° steps).
+//! Segment counts are fixed: arcs are 32 steps / 33 points, circles 32 points,
+//! rounded-rectangle corners 7 points per corner in 15° steps.
 //!
-//! Zig's `Sink` (`ctx: *anyopaque` + fn pointers) becomes a trait; `Pen` stays
-//! internal. `paint` routes through [`Canvas`] (the base's safe wrapper) so no
+//! [`Sink`] is the output trait; `Pen` stays internal. `paint` routes through [`Canvas`] (the base's safe wrapper) so no
 //! `unsafe` is needed in `core/`.
 
 use crate::core::geometry::Rect;
@@ -17,11 +13,11 @@ use crate::core::hash::Wyhash;
 use crate::core::vector::{Command, Drawing, Path, Point, Rect as DrawingRect};
 use crate::renderer::canvas::Canvas;
 
-/// Zig `std.math.rad_per_deg` (the value is the true π/180 rounded to `f32`,
-/// identical to `f32::to_radians(1.0)`).
+/// Radians per degree (the true π/180 rounded to `f32`, identical to
+/// `f32::to_radians(1.0)`).
 const RAD_PER_DEG: f32 = 0.017_453_292_f32;
 
-/// The icon set. Declaration order is the Zig order and is stable: it is the
+/// The icon set. Declaration order is stable: it is the
 /// order of [`Icon::ALL`] and the discriminant hashed by [`drawing`].
 #[repr(u32)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -107,7 +103,7 @@ pub enum Icon {
 }
 
 impl Icon {
-    /// Replaces Zig `std.enums.values(Icon)`: every variant, in declaration
+    /// Every variant, in declaration
     /// order (the order is part of the public contract — see the enum docs).
     pub const ALL: [Icon; 69] = [
         Icon::None,
@@ -182,13 +178,13 @@ impl Icon {
     ];
 }
 
-/// Receives one stroked polyline in 24×24 icon space (Zig `icons.Sink`).
+/// Receives one stroked polyline in 24×24 icon space.
 pub trait Sink {
     fn stroke(&mut self, points: &[Point], closed: bool);
     fn dot(&mut self, x: f32, y: f32, r: f32);
 }
 
-/// Sugar over [`Sink`] used by [`trace`] (Zig `Pen`).
+/// Sugar over [`Sink`] used by [`trace`].
 struct Pen<'a> {
     sink: &'a mut dyn Sink,
 }
@@ -707,7 +703,7 @@ pub fn default_stroke(size: f32) -> f32 {
 
 // ── immediate painting (buttons) ──────────────────────────────────────────
 
-/// [`Sink`] that strokes directly on a [`Canvas`] (Zig `PaintCtx`).
+/// [`Sink`] that strokes directly on a [`Canvas`].
 struct CanvasSink {
     canvas: Canvas,
     /// Top-left of the icon box, in canvas space.
@@ -720,7 +716,7 @@ struct CanvasSink {
 
 impl Sink for CanvasSink {
     fn stroke(&mut self, points: &[Point], closed: bool) {
-        // Zig clamped to its 256-float stack buffer (128 points).
+        // At most 128 points per polyline are painted.
         let count = points.len().min(128);
         let translated: Vec<Point> = points[..count]
             .iter()
@@ -770,7 +766,7 @@ pub fn paint(
 
 // ── retained drawings (ui.icon) ───────────────────────────────────────────
 
-/// [`Sink`] that collects [`vector::Command`]s (Zig `BuildCtx`).
+/// [`Sink`] that collects [`vector::Command`]s.
 struct BuildSink {
     commands: Vec<Command>,
     scale: f32,
@@ -819,12 +815,9 @@ pub fn drawing(icon: Icon, size: f32, color: u32, stroke: Option<f32>) -> Drawin
     trace(icon, &mut sink);
     let BuildSink { commands, .. } = sink;
 
-    // Zig: Wyhash seed 0x69636f6e over `std.mem.asBytes(&icon)`, `size`,
-    // `color` and the stroke width. Zig's plain enum has tag type `u8`
-    // (`@sizeOf(Icon) == 1`), so the exact Zig byte stream is 1 byte of
-    // discriminant; the Rust port hashes the discriminant as a `u32`
-    // (`#[repr(u32)]`). This is an internal cache key, not a cross-language
-    // value, so only stability matters.
+    // Wyhash (seed 0x69636f6e) over the discriminant as a `u32`
+    // (`#[repr(u32)]`), `size`, `color` and the stroke width. This is an
+    // internal cache key, so only stability matters.
     let mut hasher = Wyhash::init(0x6963_6f6e);
     hasher.update(&(icon as u32).to_le_bytes());
     hasher.update(&size.to_le_bytes());

@@ -1,4 +1,4 @@
-//! Port of `src/motion/easing.zig`: Ant Design motion curves evaluated with
+//! Ant Design motion curves evaluated with
 //! the same cubic-bezier solver browsers use (WebKit `UnitBezier`).
 #![forbid(unsafe_code)]
 
@@ -22,7 +22,7 @@ pub enum Easing {
 }
 
 impl Easing {
-    /// Port of `std.enums.values(Easing)`.
+    /// Every easing, in declaration order.
     pub const ALL: [Easing; 10] = [
         Easing::Linear,
         Easing::Ease,

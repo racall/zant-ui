@@ -1,5 +1,5 @@
-//! Port of `src/components/window_controls.zig` — WP-2.5: the Windows caption
-//! buttons (minimize, maximize / restore, close) for app-drawn title bars.
+//! The Windows caption buttons (minimize, maximize / restore, close) for
+//! app-drawn title bars.
 //!
 //! The runtime adds them in the top-right corner on Windows for
 //! `WindowStyle::HiddenTitlebar`, so apps only keep the space free
@@ -10,11 +10,11 @@
 //! button. The maximize button reports itself to the window (key
 //! [`CAPTION_MAXIMIZE_KEY`]) so Windows 11 shows its snap layouts flyout.
 //!
-//! Runtime integration points (WP-1.4, not in this module):
+//! Runtime integration points (not in this module):
 //! - `Runtime::build_tree` appends `window_controls(WindowControlsOptions {
 //!   height: caption_height, maximized: platform::is_maximized(window),
 //!   active: self.active, on_minimize / on_maximize / on_close })` when the
-//!   window is Windows + hidden title bar (Zig `drawsCaptionButtons`).
+//!   window is Windows + hidden title bar.
 //! - `Runtime::titlebar_hit` maps the node keyed [`CAPTION_MAXIMIZE_KEY`] to
 //!   `platform::hit::MAXIMIZE` so the native snap-layouts hit test works.
 #![forbid(unsafe_code)]
@@ -30,8 +30,7 @@ use crate::ui::element::Node;
 use crate::ui::options::{BoxOptions, ButtonOptions};
 use crate::ui::styled::{Style, styled};
 
-/// Key of the maximize button; the runtime's title-bar hit test looks it up
-/// (Zig `caption_maximize_key`).
+/// Key of the maximize button; the runtime's title-bar hit test looks it up.
 pub const CAPTION_MAXIMIZE_KEY: &str = "zant-caption-max";
 
 /// Options of [`window_controls`] (`WindowControlsOptions`).
@@ -60,7 +59,7 @@ impl Default for WindowControlsOptions {
     }
 }
 
-/// Zig `captionButton`: one square caption button filling the title bar.
+/// One square caption button filling the title bar.
 fn caption_button(
     key: &str,
     icon: Icon,
@@ -90,7 +89,7 @@ fn caption_button(
     )
 }
 
-/// Zig `windowControls`: minimize / maximize / close in the top-right corner.
+/// Minimize / maximize / close in the top-right corner.
 pub fn window_controls(options: WindowControlsOptions) -> Node {
     let theme = current_theme();
     let color = if options.active {
@@ -167,7 +166,7 @@ mod tests {
     }
 
     #[test]
-    fn window_controls_defaults_match_the_zig_struct() {
+    fn window_controls_defaults() {
         let defaults = WindowControlsOptions::default();
         assert_eq!(defaults.height, 32.0);
         assert!(!defaults.maximized);

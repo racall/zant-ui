@@ -1,4 +1,4 @@
-//! Port of `src/theme/tokens.zig`: Ant Design 5 design tokens (light / dark)
+//! Ant Design 5 design tokens (light / dark)
 //! and the ARGB colour helpers used across the framework.
 #![forbid(unsafe_code)]
 

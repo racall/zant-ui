@@ -1,11 +1,9 @@
 //! Flatten fragments and preserve conditional-child evaluation with hidden
-//! bindings. Translation of `tools/tsx/codegen/jsx_children.zig`.
+//! bindings.
 //!
-//! Rust has the `nodes!` macro, which accepts a node, an optional node or a
-//! node list, so the Zig slice concatenation (`tsx.concat`) disappears: a
-//! child list is simply `nodes![…]`. Conditions are still hoisted into hidden
-//! `boolean` locals so each branch is evaluated once, exactly like the Zig
-//! `_condition` bindings.
+//! The `nodes!` macro accepts a node, an optional node or a node list, so a
+//! child list is simply `nodes![…]`. Conditions are hoisted into hidden
+//! `boolean` locals (`_condition`) so each branch is evaluated once.
 
 use crate::ast;
 
@@ -39,9 +37,9 @@ impl ChildList {
         ty: Type,
     ) -> Result<(usize, String)> {
         let index = scope::bind(g, c, name, ty, false)?;
-        let zig = c.bindings[index].zig.clone();
+        let rust = c.bindings[index].rust.clone();
         c.bindings[index].name.clear();
-        Ok((index, zig))
+        Ok((index, rust))
     }
 
     pub fn append(
@@ -76,7 +74,7 @@ impl ChildList {
             return self.append(g, c, &element.children, guard);
         }
         // nested component tags must route through the component-aware
-        // dispatcher (Zig `jsx.zig:251` emits components inside `emit`)
+        // dispatcher
         let value = super::generate::emit_jsx(g, c, element)?;
         self.node(g, c, value, guard, element.loc)
     }
@@ -160,7 +158,7 @@ impl ChildList {
         guard: Option<&str>,
     ) -> Result<String> {
         let value = expr::condition(g, c, e)?;
-        let (index, zig) = self.hidden(g, c, b"_condition", Type::Boolean)?;
+        let (index, rust) = self.hidden(g, c, b"_condition", Type::Boolean)?;
         let init = match guard {
             Some(parent) => {
                 expr::infix(
@@ -182,7 +180,7 @@ impl ChildList {
             serial,
             scope::PLACEHOLDER_END
         ));
-        Ok(zig)
+        Ok(rust)
     }
 
     pub fn expression(

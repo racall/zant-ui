@@ -1,10 +1,7 @@
 //! Array operations lower to Rust iterator adapters over `tsx::List<T>`.
-//! Translation of `tools/tsx/codegen/array_methods.zig`, adapted to Rust:
-//! where the Zig original opens a labeled value block around an explicit
-//! `for` loop (Zig has no closures), the Rust port emits closures inside
-//! `.map` / `.filter_map` / `.any` / `.all` / `.fold`, and the write-on-copy
-//! list (`Rc<Vec<T>>`) is rebuilt with `tsx::List::from_vec`
-//! (`docs/rust-port/tsx-codegen.md` §5/§7/§8).
+//! Callbacks are emitted as closures inside `.map` / `.filter_map` / `.any` /
+//! `.all` / `.fold`, and the write-on-copy list (`Rc<Vec<T>>`) is rebuilt with
+//! `tsx::List::from_vec`.
 
 use crate::ast;
 
@@ -89,7 +86,7 @@ pub fn emit(
     if c.constant {
         return fail(g, loc, "array methods cannot run in a top-level constant");
     }
-    // Evaluate the receiver once, in source order (`_items` in the Zig code).
+    // Evaluate the receiver once, in source order (the `_items` temporary).
     let source = aggregate::temporary(g, c, b"_items")?;
     let setup = format!("let {source}: {} = {};", value.ty.rust(g), value.code);
     let (ty, code) = match kind {
@@ -189,7 +186,7 @@ fn loop_method(
     let result = parameter_name(function, 0);
     let initial_ty = initial.as_ref().map(|value| value.ty);
     // The arrow's parameter order: `(item[, index])` or, for `reduce`,
-    // `(accumulator, item[, index])` (Zig's `values` / `reduce_values`).
+    // `(accumulator, item[, index])`.
     let typed = |index: Option<Type>| -> Vec<Type> {
         let mut arguments = Vec::new();
         if reduce {
@@ -452,9 +449,9 @@ fn concat(
 mod tests {
     use super::*;
 
-    // Zig `array_methods.zig` has no `test` block; the method table is pinned.
+    // The method table is pinned.
     #[test]
-    fn the_zig_method_table_is_complete() {
+    fn the_method_table_is_complete() {
         for name in [
             "map",
             "filter",

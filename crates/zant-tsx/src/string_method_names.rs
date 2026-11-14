@@ -1,5 +1,5 @@
 //! Shared diagnostic vocabulary for string lowering and rejected regex
-//! arguments (Zig `tools/tsx/string_method_names.zig`).
+//! arguments.
 //!
 //! `expr_parser` reports `"a".replace(/re/, ..)` as an unsupported regex
 //! overload naming the methods it does accept; the code generator reuses the
@@ -12,10 +12,10 @@ pub const SUPPORTED: &str = "includes, startsWith, endsWith, indexOf, lastIndexO
 mod tests {
     use super::*;
 
-    /// The diagnostic text is user visible and must stay byte-identical to the
-    /// Zig compiler's `string_method_names.supported`.
+    /// The diagnostic text is user visible: the list is pinned method by
+    /// method.
     #[test]
-    fn supported_is_the_zig_method_list() {
+    fn supported_lists_every_string_method_in_order() {
         assert_eq!(
             vec![
                 "includes",

@@ -1,10 +1,8 @@
-//! Port of `src/core/text_select.zig` — WP-1.3: text selection across the text
+//! Text selection across the text
 //! nodes of a `selectable` container: document-order collection, hit testing
 //! (nearest text when the pointer is between nodes), word expansion and the
-//! copied text.
-//!
-//! Zig allocates the collected ids / copied text with an allocator argument;
-//! the port returns owned `Vec` / `String` values.
+//! copied text. Collected ids and copied text are returned as owned `Vec` /
+//! `String` values.
 #![forbid(unsafe_code)]
 
 use crate::core::node::{NodeData, NodeId, RetainedNode};
@@ -358,7 +356,7 @@ mod tests {
         assert_eq!(word_at(tree.get(nodes[0]), 1), [0, 5], "Hello");
         assert_eq!(word_at(tree.get(nodes[0]), 7), [6, 11], "world");
         let len = text_len(tree.get(nodes[0]));
-        // past the end: the word ending there (Zig `wordAt` clamps the offset)
+        // past the end: the word ending there (`word_at` clamps the offset)
         assert_eq!(word_at(tree.get(nodes[0]), len), [6, 11]);
     }
 

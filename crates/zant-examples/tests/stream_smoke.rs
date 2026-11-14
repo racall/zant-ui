@@ -1,4 +1,4 @@
-//! Headless smoke test for the `zant-md-stream` binary (WP-3.11): the chat
+//! Headless smoke test for the `zant-md-stream` binary: the chat
 //! (history messages + streaming reply) is built through [`Runtime`] on a
 //! raster canvas and the streaming path is driven by appending to the shared
 //! buffer exactly like the worker thread does.

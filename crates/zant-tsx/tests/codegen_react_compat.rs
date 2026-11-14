@@ -1,12 +1,10 @@
-//! React compatibility codegen (WP-COVERAGE, ported from
-//! `tools/tsx/codegen/react_compat_test.zig`): `import NS from "react"`,
+//! React compatibility codegen: `import NS from "react"`,
 //! `import * as NS from "react"` and named React imports must lower exactly
 //! like their `"zant"` counterparts (same generated Rust), fragments/root
 //! shorthands emit one native root, and the import diagnostics stay the same.
 //!
-//! The Zig test compares against Zig output (`_Local = struct`, `[]const
-//! ui.Node`); the Rust assertions use the frozen Rust shapes
-//! (`ui::local_state::<`, `tsx::List<ui::Node>`, `zant::Str`).
+//! The assertions use the generated Rust shapes (`ui::local_state::<`,
+//! `tsx::List<ui::Node>`, `zant::Str`).
 
 use zant_tsx::compile;
 

@@ -1,12 +1,9 @@
-//! Port of `src/core/events.zig` — WP-1.1d.
-//!
 //! Platform-independent input events: the runtime translates the raw
 //! `platform::Event` handed to `HostHandler::event` into these values.
 //!
-//! Deviation from Zig: `text_input` and `composition` own a `String` because the
-//! native event only lends its UTF-8 bytes for the duration of the callback
-//! (Zig borrowed them into a `[]const u8`). The runtime processes the event
-//! synchronously, so the allocation is short-lived.
+//! `text_input` and `composition` own a `String` because the native event only
+//! lends its UTF-8 bytes for the duration of the callback. The runtime
+//! processes the event synchronously, so the allocation is short-lived.
 
 use crate::core::keys;
 use crate::platform::platform;
@@ -138,7 +135,7 @@ pub fn modifiers_from_platform(mods: i32) -> Modifiers {
     }
 }
 
-/// Maps a `ZANT_KEY_*` / character code to a [`Key`] (Zig: `keyFromPlatform`).
+/// Maps a `ZANT_KEY_*` / character code to a [`Key`].
 pub fn key_from_platform(code: i32) -> Key {
     key_from_code(code)
 }

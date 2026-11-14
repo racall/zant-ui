@@ -1,23 +1,21 @@
-//! `ui::memo` — the memoized-subtree builder of `src/ui.zig:1521-1546`
-//! (WP-2.4).
+//! `ui::memo` — the memoized-subtree builder.
 //!
 //! `memo` returns a container placeholder carrying `Element::memo_hash` and
 //! `Element::memo_build`; it does **not** run the builder. The reconciler
-//! (WP-1.4, `runtime/reconcile.rs`) compares the hash with the mounted node's
+//! (`runtime/reconcile.rs`) compares the hash with the mounted node's
 //! `memo_hash`:
 //!
 //! - equal → keep the mounted subtree and `local_state::Store::touch` the ids
 //!   its memo build recorded last time (so skipped components keep their
 //!   state);
-//! - different / first mount → run the closure (Cargo: the Rust `MemoBuild`
-//!   capture replaces Zig's `ctx` + `fn` pointer pair), reconcile its result
+//! - different / first mount → run the closure (a `MemoBuild`, which
+//!   captures its own context), reconcile its result
 //!   while `Store::record`/`end_record` records the local-state ids it asked
 //!   for, and store the new hash.
 //!
 //! This module is the builder side only: the helpers below
 //! ([`memo_hash`], [`memo_build`], [`resolve_memo`]) are what the runtime
-//! uses, because `Element` is in another WP's file and the runtime should not
-//! reimplement the Zig `resolveMemo` rule.
+//! uses, so the runtime does not reimplement the memo expansion rule.
 #![forbid(unsafe_code)]
 
 use crate::core::node::NodeKind;
@@ -26,8 +24,8 @@ use super::element::{Element, MemoBuild, Node, with_key};
 use super::options::MemoOptions;
 
 impl From<u64> for MemoOptions {
-    /// `ui::memo(hash, build)` call shape (hash-only memo); the Zig signature
-    /// always takes the full `MemoOptions`.
+    /// `ui::memo(hash, build)` call shape (hash-only memo), a shorthand for
+    /// the full `MemoOptions`.
     fn from(hash: u64) -> MemoOptions {
         MemoOptions { key: None, hash }
     }
@@ -38,10 +36,10 @@ impl From<u64> for MemoOptions {
 /// text shaping, callbacks) is kept untouched.
 ///
 /// `build` must return a container (`column` / `row`); every callback context
-/// inside the subtree must outlive the frame. Rust captures give the closure
-/// its context, which replaces Zig's `ctx` + `comptime build` pair.
+/// inside the subtree must outlive the frame. The closure captures whatever
+/// context it needs.
 ///
-/// Accepts the frozen option-struct shape and the hash-only shorthand:
+/// Accepts the option-struct shape and the hash-only shorthand:
 ///
 /// ```ignore
 /// ui::memo(ui::MemoOptions { key: Some("answer".into()), hash: 7 }, || render_answer(&cache));
@@ -72,9 +70,9 @@ pub fn memo_build(node: &Node) -> Option<MemoBuild> {
     node.element().memo_build.clone()
 }
 
-/// Expands a `ui::memo` placeholder into its built subtree (Zig
-/// `resolveMemo`): runs the builder and keeps the memo node's key on the
-/// built root when the root is not keyed itself.
+/// Expands a `ui::memo` placeholder into its built subtree: runs the builder
+/// and keeps the memo node's key on the built root when the root is not keyed
+/// itself.
 pub fn resolve_memo(memo_spec: Node) -> Node {
     let Some(build) = memo_build(&memo_spec) else {
         return memo_spec;
@@ -128,7 +126,7 @@ mod tests {
             element.children.is_empty(),
             "the placeholder has no children; the reconciler expands it"
         );
-        assert_eq!(element.layout.shrink, 1.0, "the Zig struct default");
+        assert_eq!(element.layout.shrink, 1.0, "the struct default");
     }
 
     #[test]

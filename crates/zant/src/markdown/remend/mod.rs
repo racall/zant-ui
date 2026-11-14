@@ -1,6 +1,4 @@
-//! Port of `src/markdown/remend/mod.zig` (WP-3.1).
-//!
-//! Rust port of Streamdown's `remend`: heals incomplete Markdown at the end of
+//! Streamdown's `remend`: heals incomplete Markdown at the end of
 //! a streamed text so partial syntax renders as its finished form
 //! (`**bo` → `**bo**`, `[link](htt` → `[link](streamdown:incomplete-link)`).
 //!
@@ -92,7 +90,7 @@ enum Step {
     InlineKatex,
 }
 
-/// Built-ins in priority order (`std.enums.values(Step)` order of the Zig port).
+/// Built-ins in priority order (the declaration order of [`Step`]).
 const STEPS: [Step; 14] = [
     Step::SingleTilde,
     Step::ComparisonOperators,
@@ -239,8 +237,7 @@ pub fn remend(text: &str, options: &Options) -> String {
     strip_single_trailing_space(&result).to_owned()
 }
 
-/// Convenience wrapper corresponding to Zig's `remendAlloc`; the allocator
-/// parameter disappears because `remend` already returns an owned `String`.
+/// Alias of [`remend`], which already returns an owned `String`.
 pub fn remend_alloc(text: &str, options: &Options) -> String {
     remend(text, options)
 }

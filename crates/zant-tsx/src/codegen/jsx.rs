@@ -1,24 +1,21 @@
 //! JSX builders, ordered prop merging, text content, fragments, and optional
-//! children. Translation of `tools/tsx/codegen/jsx.zig` plus the JSX-relevant
-//! parts of `jsx_fields.zig` (`jsx_values`), `jsx_edges.zig` (`jsx_values`),
-//! `spread.zig`, `widgets.zig` and `nesting.zig`.
+//! children, together with spread attributes, stateful widgets and the
+//! nesting rules. Option fields and edges are in [`super::jsx_values`].
 //!
-//! Generated Rust differs from the Zig output where Rust's type system needs
-//! it:
+//! Shape of the generated code:
 //!
 //! - options are concrete structs: `ui::button(ui::ButtonOptions { …,
-//!   ..Default::default() })` instead of Zig's anonymous `.{ … }` literals;
-//! - builders use Rust paths (`ui::rich_text`, `ui::switch`) instead of the
-//!   Zig spellings of the generated tag table (`ui.richText`, `ui.@"switch"`);
+//!   ..Default::default() })`;
+//! - builders use Rust paths (`ui::rich_text`, `ui::switch`), derived from the
+//!   spellings of the generated tag table (`ui.richText`);
 //! - optional option fields are wrapped in `Some(..)` (the tag table carries
 //!   prop kinds, not field optionality — see [`optional_field`]);
-//! - children are the `nodes!` macro instead of `tsx.nodes` / `tsx.concat`;
-//! - enum props name the Rust enum (`ui::ButtonType::Primary`) because Zig
-//!   literals are contextually typed.
+//! - children are the `nodes!` macro;
+//! - enum props name the Rust enum (`ui::ButtonType::Primary`).
 //!
-//! The component layer (`components.zig`, WP-5.5) must dispatch component
-//! tags before calling [`emit`]; this module only knows `ui::*` tags, `<List>`
-//! and stateful widgets.
+//! Component tags are dispatched by [`super::components`] before the `ui::*`
+//! lowering (see [`emit`]); the rest of this module only knows `ui::*` tags,
+//! `<List>` and stateful widgets.
 
 use crate::ast;
 use crate::tags::{self, Content, Kind, Prop, Tag};
@@ -204,8 +201,8 @@ pub fn enum_value(
 }
 
 /// The Rust enum type of an enumeration prop. The generated tag table stores
-/// value spellings, not their Rust type (Zig literals were contextually
-/// typed); this is the one place that names the enum.
+/// value spellings, not their Rust type; this is the one place that names
+/// the enum.
 fn enum_type_path(owner: &str, field: &str) -> Option<&'static str> {
     if owner.starts_with("ui.") && field == "kind" {
         return Some("ui::MenuItemKind");
@@ -611,10 +608,10 @@ fn float_literal(n: f32) -> String {
 
 /// Lower container children or joined text according to the tag table content contract.
 ///
-/// Child components are dispatched first, exactly like the Zig `jsx.emit`:
-/// container children (`jsx_children`) and rich-text/list item builders call
-/// this function directly instead of the `emit_jsx` extension wrapper, so the
-/// component check must live here too.
+/// Child components are dispatched first: container children
+/// (`jsx_children`) and rich-text/list item builders call this function
+/// directly instead of the `emit_jsx` extension wrapper, so the component
+/// check must live here too.
 pub fn emit(g: &mut Generator<'_>, c: &mut scope::Context, jsx: &ast::Jsx) -> Result<Value> {
     let name = String::from_utf8_lossy(&jsx.name);
     if !name.is_empty()
@@ -636,8 +633,7 @@ fn emit_named(
 ) -> Result<Value> {
     if name.is_empty() {
         // A node-valued fragment needs a native root; container children are
-        // flattened by ChildList. `ui::view` is the Rust equivalent of the
-        // Zig root used here.
+        // flattened by ChildList.
         return emit_named(g, c, jsx, b"View");
     }
     if name == b"List" {
@@ -1163,7 +1159,7 @@ fn markdown_children(
     Ok(())
 }
 
-// ── spread attributes (`spread.zig`) ─────────────────────────────────
+// ── spread attributes ────────────────────────────────────────────────
 
 /// Whether `attrs` has a spread.
 pub(crate) fn spread_any(attrs: &[ast::Attr]) -> bool {
@@ -1356,7 +1352,7 @@ fn is_path(e: &ast::Expr) -> bool {
     }
 }
 
-// ── nesting rules (`nesting.zig`) ────────────────────────────────────
+// ── nesting rules ────────────────────────────────────────────────────
 
 /// The phrase used in errors for what `tag` holds.
 fn holds(tag: &Tag) -> &'static str {
@@ -1540,7 +1536,7 @@ mod tests {
             );
             assert!(
                 !builder.contains('.') && !builder.contains('@'),
-                "tag {} builder {builder} keeps a Zig spelling",
+                "tag {} builder {builder} is not a Rust builder path",
                 tag.name
             );
             let options = options_path(tag).expect("options path");

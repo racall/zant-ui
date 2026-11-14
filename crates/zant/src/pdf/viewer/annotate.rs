@@ -1,8 +1,7 @@
-//! Annotations of the PDF viewer — the annotation section of
-//! `src/pdf/viewer.zig` (WP-3.9).
+//! Annotations of the PDF viewer.
 //!
 //! The lists, undo / redo history, hit testing and the annotated export live
-//! in `pdf::annotations` (WP-3.8); this module is the viewer side: turning a
+//! in `pdf::annotations`; this module is the viewer side: turning a
 //! text selection or an ink drag into an annotation, selecting / editing /
 //! removing one, marshalling the list for `save_annotated`, and drawing the
 //! annotation layers (markup boxes, squiggles, ink strokes, note icons, the
@@ -28,7 +27,7 @@ use crate::ui::{self, Style, styled};
 use super::{Inner, SaveError, Tool, ViewOptions, Viewer};
 
 impl Inner {
-    /// Zig `Viewer.setTool`: switches the pointer tool (clears the selection).
+    /// Switches the pointer tool (clears the selection).
     pub(crate) fn set_tool(&mut self, tool: Tool) {
         self.tool = tool;
         self.clear_selection();
@@ -200,7 +199,7 @@ impl Inner {
         None
     }
 
-    /// Finishes the ink stroke being drawn (Zig `finishInk`).
+    /// Finishes the ink stroke being drawn.
     pub(crate) fn finish_ink(&mut self) {
         if self.ink_points.is_empty() {
             self.ink_points.clear();
@@ -358,7 +357,7 @@ fn markup_box(r: Rect, z: f32, color: u32, radius: f32) -> Node {
     )
 }
 
-/// Zig `squiggle`: a zigzag polyline under the text baseline.
+/// A zigzag polyline under the text baseline.
 fn squiggle(r: Rect, z: f32, color: u32) -> Node {
     let w = r.width * z;
     let amp = (r.height * z * 0.05).max(1.0);
@@ -395,7 +394,7 @@ fn squiggle(r: Rect, z: f32, color: u32) -> Node {
     )
 }
 
-/// Zig `inkNode`: freehand strokes as one vector path per stroke.
+/// Freehand strokes as one vector path per stroke.
 pub(crate) fn ink_node(
     strokes: &[Vec<Point>],
     color: u32,
@@ -443,11 +442,11 @@ pub(crate) fn ink_node(
     )
 }
 
-// `annotations::colors` names (Zig `annots.colors`).
+// Named like the `annotations::colors` constants.
 const BLUE: u32 = 0xff16_77ff;
 
 impl Viewer {
-    /// Default colour of an annotation kind (Zig `Viewer.defaultColor`).
+    /// Default colour of an annotation kind.
     pub fn default_color(kind: Kind) -> u32 {
         match kind {
             Kind::Highlight => annotations::colors::YELLOW,
@@ -478,6 +477,11 @@ impl Viewer {
         self.borrow_mut().tool_color = color;
     }
 
+    /// Colour new annotations of the current tool get (`None`: the default).
+    pub fn tool_color(&self) -> Option<u32> {
+        self.borrow().tool_color
+    }
+
     /// The selected annotation.
     pub fn selected_annotation(&self) -> Option<Annotation> {
         self.borrow().selected_annotation().cloned()
@@ -499,7 +503,7 @@ impl Viewer {
     }
 
     /// The annotation list (write access, e.g. `annotations_mut().load(list)`
-    /// to restore a saved list; Zig exposed the field directly).
+    /// to restore a saved list).
     pub fn annotations_mut(&self) -> std::cell::RefMut<'_, annotations::Store> {
         std::cell::RefMut::map(self.borrow_mut(), |inner| &mut inner.annotations)
     }
@@ -537,7 +541,7 @@ impl Viewer {
     }
 }
 
-/// Annotation tool switch of the toolbar (Zig `toolSwitch`): a segmented
+/// Annotation tool switch of the toolbar: a segmented
 /// control with the select / highlight / underline / pen / note tools, then
 /// undo and redo.
 pub(crate) fn tool_switch(inner: &Inner, viewer: &Viewer, options: &ViewOptions) -> Node {
@@ -585,8 +589,9 @@ pub(crate) fn tool_switch(inner: &Inner, viewer: &Viewer, options: &ViewOptions)
             },
         ],
         selected,
-        on_change: Some(IndexAction::new(move |_, index| {
-            tb_tool(&segmented_viewer, index)
+        on_change: Some(IndexAction::new(move |cx, index| {
+            tb_tool(&segmented_viewer, index);
+            segmented_viewer.flush_callbacks(cx);
         })),
         height: 24.0,
         font_size: 12.0,
@@ -599,7 +604,10 @@ pub(crate) fn tool_switch(inner: &Inner, viewer: &Viewer, options: &ViewOptions)
         size: 16.0,
         r#box: 28.0,
         disabled: !inner.annotations.can_undo(),
-        on_click: Some(Action::new(move |_| tb_undo(&undo_viewer))),
+        on_click: Some(Action::new(move |cx| {
+            tb_undo(&undo_viewer);
+            undo_viewer.flush_callbacks(cx);
+        })),
         ..Default::default()
     }));
     let redo_viewer = viewer.clone();
@@ -609,7 +617,10 @@ pub(crate) fn tool_switch(inner: &Inner, viewer: &Viewer, options: &ViewOptions)
         size: 16.0,
         r#box: 28.0,
         disabled: !inner.annotations.can_redo(),
-        on_click: Some(Action::new(move |_| tb_redo(&redo_viewer))),
+        on_click: Some(Action::new(move |cx| {
+            tb_redo(&redo_viewer);
+            redo_viewer.flush_callbacks(cx);
+        })),
         ..Default::default()
     }));
     row(BoxOptions {

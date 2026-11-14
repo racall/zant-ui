@@ -7,10 +7,9 @@
 //! const hint = keyLabel("mod+f");        // "⌘F" / "Ctrl+F"
 //! ```
 //!
-//! Translation of `tools/tsx/codegen/zant_api.zig`. One table maps each TSX
-//! function to its wrapper in `zant::tsx::platform` (`tsx::platform::*`).
-//! Functions that change something (the clipboard, a window, the app) run in
-//! handlers and effects, not while rendering.
+//! One table maps each TSX function to its wrapper in `zant::tsx::platform`
+//! (`tsx::platform::*`). Functions that change something (the clipboard, a
+//! window, the app) run in handlers and effects, not while rendering.
 
 use crate::ast;
 
@@ -413,7 +412,7 @@ fn emit_call(
         let ty = kind_type(g, *kind)?;
         let value = expr::emit(g, c, argument, Some(ty), false)?;
         let code = types::coerce(g, value, ty, argument.loc)?.code;
-        // the runtime's platform functions take `&str` (Zig took `[]const u8`)
+        // the runtime's platform functions take `&str`
         arguments.push(if *kind == Kind::String {
             format!("({code}).as_str()")
         } else {
@@ -447,7 +446,7 @@ fn kind_type(g: &mut Generator<'_>, kind: Kind) -> Result<Type> {
                 return fail(
                     g,
                     0,
-                    "`Image` needs the JSX hooks (WP-5.4); `assetImage` returns one",
+                    "`Image` needs the JSX hooks installed; `assetImage` returns one",
                 );
             }
         },

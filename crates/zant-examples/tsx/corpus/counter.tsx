@@ -1,5 +1,5 @@
-// A TSX component compiled to Zig at build time (docs/tsx.md).
-// Run it with `zig build run-tsx`.
+// A TSX component compiled to Rust at build time (docs/tsx.md).
+// The runnable copy is `../tsx-counter` (`cargo run -p zant-tsx-counter`).
 import { useState, View, Row, Text, Button, Input, Switch, Checkbox } from "zant";
 import type { u32 } from "zant";
 

@@ -1,5 +1,4 @@
-//! Child components (`docs/tsx.md`, "子组件"). Translation of
-//! `tools/tsx/codegen/components.zig`.
+//! Child components (`docs/tsx.md`, "子组件").
 //!
 //! Each non-default top-level function becomes a struct with a `build` function:
 //!
@@ -46,7 +45,7 @@ pub struct Component {
     pub destructure_defaults: Vec<Option<Box<ast::Expr>>>,
     /// Imported from another file: `builder` is already Rust code.
     pub external: bool,
-    /// Keeps local state (`stateful.zig`): the builder takes an instance id.
+    /// Keeps local state (see `stateful`): the builder takes an instance id.
     pub stateful: bool,
 }
 
@@ -139,9 +138,8 @@ pub fn callback_type(g: &mut Generator<'_>, loc: ast::Loc, f: &ast::FuncType) ->
     let rust = match action_kind(&params) {
         Some(kind) if !matches!(kind, tags::Kind::ShortcutAction) => action_type(kind).to_owned(),
         // Not a ui event: the callback runs from a handler with the runtime
-        // context, which is how it reaches the root state (Zig's
-        // `tsx.Callback` carries the `self` pointer; Rust cannot capture
-        // `&mut App`, so it takes the `ActionCx` the handler runs in).
+        // context, which is how it reaches the root state (a closure cannot
+        // capture `&mut App`, so it takes the `ActionCx` the handler runs in).
         _ => format!(
             "std::rc::Rc<dyn Fn({})>",
             std::iter::once("&mut ui::ActionCx<'_>".to_owned())
@@ -406,9 +404,9 @@ pub fn try_call(
     for (arg, ty) in call.args.iter().zip(&entry.params) {
         args.push(expr::emit(g, c, arg, Some(*ty), false)?.code);
     }
-    // The callback runs synchronously, like the Zig `{callee}.func(ctx, …)`:
-    // the runtime `ActionCx` of this handler is passed straight through (the
-    // handler takes it because it calls a callback prop — see `action_cx`).
+    // The callback runs synchronously: the runtime `ActionCx` of this
+    // handler is passed straight through (the handler takes it because it
+    // calls a callback prop — see `action_cx`).
     let Some(cx) = c.cx_var.clone() else {
         return fail(
             g,
@@ -601,8 +599,8 @@ pub fn scan(g: &mut Generator<'_>, j: &ast::Jsx, component: &Component) -> Resul
 fn scan_expr_via(g: &mut Generator<'_>, e: &ast::Expr) -> Result<()> {
     match g.extensions.hooks.scan_expr {
         Some(hook) => hook(g, e),
-        // `events.zig` scans nested handlers (WP-5.4); the hook is absent until
-        // that module lands.
+        // `events::scan_expr` scans nested handlers; without the hook
+        // installed there is nothing to scan.
         None => Ok(()),
     }
 }
@@ -780,7 +778,7 @@ pub fn emit_call(
         None => "Default::default()".to_owned(),
     };
     let value = if component.props.is_some() {
-        // omitted props keep their struct defaults (Zig `.{}` defaults)
+        // omitted props keep their struct defaults (`Default::default()`)
         let all_given = fields(g, component)
             .iter()
             .all(|field| given.iter().any(|name| name == &field.name));

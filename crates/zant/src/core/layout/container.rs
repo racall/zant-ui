@@ -1,10 +1,10 @@
-//! Port of `src/core/layout.zig` — WP-1.3: the retained-tree layout pass.
+//! The retained-tree layout pass.
 //!
 //! `layout_tree` is the entry point the `Tree` calls with a viewport; it lays
 //! the root out at the viewport size and clears the dirty flags. The recursive
-//! helpers take `&mut [RetainedNode]` plus a `NodeId` (plan.md §4): a Zig
-//! `*Node` pointer is replaced by the node's index, so no `&mut RetainedNode`
-//! is ever held across a recursive call — every write re-borrows the slot.
+//! helpers take `&mut [RetainedNode]` plus a `NodeId`: nodes are addressed by
+//! index, so no `&mut RetainedNode` is ever held across a recursive call —
+//! every write re-borrows the slot.
 #![forbid(unsafe_code)]
 
 use crate::core::geometry::Size;
@@ -45,7 +45,7 @@ fn layout_tree_in(nodes: &mut Nodes<'_>, root_id: NodeId, viewport: Size, theme:
 }
 
 /// Lays out one node at (x, y) and returns the size it ended up with.
-#[allow(clippy::too_many_arguments)] // mirrors the Zig signature
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn layout_node(
     nodes: &mut Nodes<'_>,
     id: NodeId,
@@ -194,7 +194,7 @@ pub(crate) fn layout_node(
     nodes[id].bounds.size()
 }
 
-/// Lays out the children of a container. Port of `layoutContainer`.
+/// Lays out the children of a container.
 fn layout_container(
     nodes: &mut Nodes<'_>,
     id: NodeId,
@@ -411,7 +411,7 @@ fn layout_container(
     }
 }
 
-/// Stable insertion sort of the child ids by `order` (Zig `orderIds`).
+/// Stable insertion sort of the child ids by `order`.
 fn order_ids(nodes: &Nodes<'_>, ids: &mut [NodeId]) {
     // insertion sort, stable, in place (most containers leave `order` at 0)
     if ids.iter().all(|id| nodes[*id].style.order == 0) {

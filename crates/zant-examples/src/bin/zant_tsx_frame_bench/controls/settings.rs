@@ -1,9 +1,7 @@
 //! `settings.tsx` written by hand in Rust: the control group of the
-//! `settings-click` scenario. The Zig `bench-tsx` had no settings control (it
-//! only measured the TSX page), but plan.md §5 M5 requires the TSX/manual ratio
-//! for every reported scenario, so the hand-written control is added here.
+//! `settings-click` scenario.
 //!
-//! Same tree as `examples/tsx/settings.tsx`: one scroll view, five sections of
+//! Same tree as `tsx/corpus/settings.tsx`: one scroll view, five sections of
 //! eight rows, each row a label/subtitle column plus an independent
 //! `ui::switch`, and the `Settings · N changes` title. The TSX page spells the
 //! 40 rows out; this control builds them from the same label table (the nodes
@@ -84,7 +82,7 @@ const SECTIONS: &[(&str, &[&str])] = &[
     ),
 ];
 
-/// Zig `Settings` of `examples/tsx/settings.tsx`.
+/// The settings page state.
 pub struct Settings {
     changes: u32,
     /// One independent `useState(false)` per switch.
@@ -155,7 +153,6 @@ impl Settings {
 }
 
 impl App for Settings {
-    /// Zig `Settings.render` of `settings.tsx`.
     fn render(&mut self) -> ui::Node {
         let mut children = Vec::with_capacity(SECTIONS.len() + 1);
         children.push(ui::text(

@@ -1,7 +1,4 @@
-//! Port of `tests/flex_test.zig` — 24 retained-tree layout cases.
-//!
-//! Same names and assertions as the Zig file; `Tree::get_mut` replaces Zig's
-//! `tree.get(id)` on a `*Node`.
+//! 24 retained-tree layout cases.
 
 use zant::core::geometry::{Edges, Size};
 use zant::core::node::{ButtonSize, ButtonType, FlexStyle, NodeData, NodeId, RichSpan};

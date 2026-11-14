@@ -1,27 +1,15 @@
-//! `zant-demo`: port of the Zig `zant-demo` example, `examples/declarative.zig`
-//! (the `zant-demo` executable target of `build.zig`).
+//! `zant-demo`: the declarative API demo.
 //!
-//! The demo is the declarative M1 proof: a settings form (input, checkbox,
-//! switch, radio group, select, buttons inside a card), a preview card with
-//! tabs and an alert, an image and a tooltip — the same window title and size,
-//! the same state and callbacks and the same rendered tree as the Zig version.
+//! A settings form (input, checkbox, switch, radio group, select, buttons
+//! inside a card), a preview card with tabs and an alert, an image and a
+//! tooltip.
 //!
-//! Deviations from the Zig source (see the WP-1.5 report):
-//!
-//! * The Rust runtime does not load `ui.image` sources given as file paths yet
-//!   (`runtime/patch.rs` records the path but never calls
-//!   `components::image::load`; that wiring is still missing after WP-2.2), so
-//!   this demo decodes the same asset on the first rebuild with the ported
-//!   `zant::image::Image` and passes `ImageOptions::image`, which the builder
-//!   documents as the in-memory alternative to `src`. The loaded bytes and the
-//!   `zant_canvas_draw_image_rect` paint call are the same ones the Zig app
-//!   uses, so the rendered pixels match. Like the Zig demo, the asset is
-//!   resolved relative to the working directory.
-//! * Zig keeps the name in a 96-byte buffer and truncates raw bytes; the port
-//!   keeps the same `[u8; 96]` buffer (non-UTF-8 leftovers render through
-//!   `String::from_utf8_lossy`, Rust needs valid UTF-8 text).
-//! * `ui.textFmt(...)` has no Rust counterpart (see `ui/builders/typography.rs`);
-//!   the call site formats with `format!` and passes the string.
+//! * The image is decoded by the app on the first rebuild
+//!   (`zant::image::Image`) and passed as `ImageOptions::image`, the in-memory
+//!   alternative to `src`. The asset is resolved relative to the working
+//!   directory.
+//! * The name lives in a 96-byte buffer and is truncated by raw bytes; a cut
+//!   multi-byte character renders through `String::from_utf8_lossy`.
 #![forbid(unsafe_code)]
 
 use std::borrow::Cow;
@@ -43,12 +31,12 @@ use zant::ui::{
 
 const PLANS: [&str; 3] = ["Starter", "Pro", "Enterprise"];
 const THEMES: [&str; 3] = ["Light", "System", "Dark"];
-/// Zig `ImageOptions.src` of the demo's image.
+/// Path of the demo's image, relative to the working directory.
 const IMAGE_SRC: &str = "crates/zant-examples/assets/zant.png";
-/// Zig `State.name_buf` length.
+/// Capacity of the name buffer in bytes.
 const NAME_CAPACITY: usize = 96;
 
-/// Zig `State`: the whole application state of the demo.
+/// The whole application state of the demo.
 struct State {
     name_buf: [u8; NAME_CAPACITY],
     name_len: usize,
@@ -64,7 +52,6 @@ struct State {
 }
 
 impl State {
-    /// Zig `State.init`.
     fn init() -> State {
         let mut state = State {
             name_buf: [0; NAME_CAPACITY],
@@ -82,7 +69,7 @@ impl State {
         state
     }
 
-    /// Zig `State.name`.
+    /// The name as text (lossy when the truncation cut a character).
     fn name(&self) -> Cow<'_, str> {
         String::from_utf8_lossy(&self.name_buf[..self.name_len])
     }
@@ -93,44 +80,36 @@ impl State {
         self.name_len = length;
     }
 
-    /// Zig `State.onName`: truncate to the buffer (raw bytes, like Zig).
+    /// Input callback: truncates to the buffer (raw bytes).
     fn on_name(&mut self, value: &str) {
         self.set_name(value);
     }
 
-    /// Zig `State.setNotifications`.
     fn set_notifications(&mut self, checked: bool) {
         self.notifications = checked;
     }
 
-    /// Zig `State.setBeta`.
     fn set_beta(&mut self, checked: bool) {
         self.beta = checked;
     }
 
-    /// Zig `State.setTheme`.
     fn set_theme(&mut self, index: usize) {
         self.theme_choice = index;
     }
 
-    /// Zig `State.setPlan`.
     fn set_plan(&mut self, index: usize) {
         self.plan = index;
     }
 
-    /// Zig `State.setTab`.
     fn set_tab(&mut self, index: usize) {
         self.tab = index;
     }
 
-    /// Zig `State.save`.
     fn save(&mut self) {
         self.saved += 1;
     }
 
-    /// The demo image, decoded on the first rebuild (Zig `components/image.zig`
-    /// loaded it during reconcile; the Rust runtime's file loader is not wired
-    /// yet, see the module docs).
+    /// The demo image, decoded on the first rebuild (see the module docs).
     fn image(&mut self) -> Option<Rc<Image>> {
         if !self.image_loaded {
             self.image_loaded = true;
@@ -139,7 +118,7 @@ impl State {
         self.image.clone()
     }
 
-    /// Zig `State.render`.
+    /// The whole window tree.
     fn render(&mut self) -> ui::Node {
         let plan_options: Vec<Str> = PLANS.iter().map(|plan| Str::from(*plan)).collect();
         let theme_options: Vec<RadioOption> = THEMES
@@ -439,7 +418,7 @@ impl State {
                     },
                 ),
                 ui::text(
-                    "Declarative native components powered by Zig + Skia",
+                    "Declarative native components powered by Rust + Skia",
                     TextOptions {
                         size: 14.0,
                         color: Some(0xa6000000),
@@ -464,7 +443,7 @@ impl ui::App for State {
     }
 }
 
-/// Zig `Runtime.Config` of the demo.
+/// Window title, size and theme of the demo.
 fn run_options() -> RunOptions {
     RunOptions {
         title: String::from("Zant UI — Declarative macOS"),
@@ -477,9 +456,8 @@ fn run_options() -> RunOptions {
     }
 }
 
-/// Decodes the demo image from its working-directory-relative path, like the
-/// Zig demo (`zant_image_load_file`). The parity capture runs from the
-/// repository root, so the relative path resolves there for both binaries.
+/// Decodes the demo image from its working-directory-relative path (run the
+/// demo from the repository root so it resolves).
 fn load_image(src: &str) -> Option<Image> {
     let bytes = std::fs::read(src).ok()?;
     Image::from_encoded(&bytes)
@@ -500,10 +478,9 @@ mod tests {
     const WIDTH: f32 = 900.0;
     const HEIGHT: f32 = 700.0;
 
-    /// The keyed in-flow boxes the Zig `zant-demo` writes to
-    /// `ZANT_LAYOUT_FILE` at every window size (anchored to the top-left, so
-    /// the keys are the stable part of the comparison).
-    const ZIG_KEYS: [&str; 8] = [
+    /// The keyed in-flow boxes `zant-demo` writes to `ZANT_LAYOUT_FILE` at
+    /// every window size (anchored to the top-left, so the keys are stable).
+    const LAYOUT_KEYS: [&str; 8] = [
         "theme",
         "theme-0",
         "theme-1",
@@ -591,7 +568,7 @@ mod tests {
     }
 
     #[test]
-    fn demo_has_the_zig_layout_keys_and_fixed_boxes() {
+    fn demo_has_the_layout_keys_and_fixed_boxes() {
         let (runtime, _renderer) = demo();
         let mut keys = Vec::new();
         for node in &runtime.tree.nodes {
@@ -602,13 +579,13 @@ mod tests {
                 keys.push(key.to_string());
             }
         }
-        assert_eq!(keys, ZIG_KEYS, "same keyed boxes as the Zig layout dump");
+        assert_eq!(keys, LAYOUT_KEYS, "the keyed boxes of the layout dump");
 
         // card 486 + padding 20 → the radio group starts at 32 + 20 and spans
-        // the card's content width (Zig dump: theme 52 319 446 24).
+        // the card's content width (layout dump: theme 52 319 446 24).
         let theme = bounds(&runtime, "theme");
         assert_eq!((theme.x, theme.width, theme.height), (52.0, 446.0, 24.0));
-        // preview card starts at 32 + 486 + 18 and is 326 wide (Zig dump:
+        // preview card starts at 32 + 486 + 18 and is 326 wide (layout dump:
         // preview-tabs 556 168 286 377).
         let tabs = bounds(&runtime, "preview-tabs");
         assert_eq!((tabs.x, tabs.width), (556.0, 286.0));
@@ -646,7 +623,7 @@ mod tests {
     }
 
     #[test]
-    fn demo_toggle_callbacks_are_declared_like_the_zig_tree() {
+    fn demo_toggle_callbacks_are_declared() {
         let (runtime, _renderer) = demo();
         let mut checkbox = 0;
         let mut switch = 0;

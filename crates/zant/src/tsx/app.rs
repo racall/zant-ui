@@ -1,14 +1,13 @@
-//! The entry of a TS + TSX app (`src/tsx_app.zig`): the root component, the
+//! The entry of a TS + TSX app: the root component, the
 //! runtime shell around it and the theme rules.
 //!
-//! The Zig compiler made the generated root struct the runtime's state and put
-//! a `Shell(Root)` around it for the hooks (`onWake` fires the timers, app
-//! events reach the tray / hotkeys, the theme follows the system unless
-//! `ZANT_THEME` is set). Rust keeps the same shape with the `ui::App` trait
-//! (docs/rust-port/tsx-codegen.md §6.1/§6.3):
+//! The generated root struct is the runtime's state and a [`Shell`] around it
+//! runs the hooks (`on_wake` fires the timers, app events reach the tray /
+//! hotkeys, the theme follows the system unless `ZANT_THEME` is set). The
+//! root implements the `ui::App` trait:
 //!
 //! ```ignore
-//! // generated src/app.rs (WP-5.6)
+//! // generated src/app.rs
 //! pub struct App { count: u32 }
 //! impl Default for App { fn default() -> Self { App { count: 0 } } }
 //! impl zant::ui::App for App {
@@ -29,8 +28,7 @@
 //! `useKeyDown` gets the DOM-like [`KeyEvent`]: generated `on_key` converts the
 //! runtime event first (`let e = tsx::app::key_event(event);`).
 //!
-//! `ZANT_THEME=light|dark` fixes the theme (screenshots, tests), like the Zig
-//! `forcedTheme`.
+//! `ZANT_THEME=light|dark` fixes the theme (screenshots, tests).
 
 use std::any::Any;
 use std::cell::RefCell;
@@ -131,7 +129,7 @@ fn forced_theme() -> Option<Theme> {
 }
 
 /// The runtime's view of a TSX app: the generated root component implements
-/// [`crate::ui::App`] (docs/rust-port/tsx-codegen.md §6.1/§6.3); this shell
+/// [`crate::ui::App`]; this shell
 /// forwards its hooks and runs what has to happen around them:
 ///
 /// - `ui::App::on_wake` fires the due timers with the root state as the
@@ -139,8 +137,8 @@ fn forced_theme() -> Option<Theme> {
 ///   before the app's own wake hook runs;
 /// - `ui::App::on_app_event` dispatches tray clicks / menu items and global
 ///   hotkeys to `tsx::desktop` (their actions also get the root state), then
-///   calls the app's handler and asks every window to rebuild (Zig's `Shell`
-///   returned true unconditionally);
+///   calls the app's handler and asks every window to rebuild
+///   (it returns true unconditionally);
 /// - `ui::App::on_start` installs the clipboard watcher when
 ///   [`Config::watch_clipboard`] is set;
 /// - the theme follows the system light / dark mode unless `ZANT_THEME` fixes
@@ -168,8 +166,8 @@ impl<A: crate::ui::App> Shell<A> {
         self
     }
 
-    /// Watches the clipboard while the app runs (`useClipboardChange`; Zig's
-    /// `Shell.onStart` installed it when the hook was declared).
+    /// Watches the clipboard while the app runs (`useClipboardChange`;
+    /// installed on start when the hook is declared).
     pub fn with_clipboard_watch(mut self, watch: bool) -> Shell<A> {
         self.watch_clipboard = watch;
         self
@@ -229,7 +227,7 @@ impl<A: crate::ui::App> crate::ui::App for Shell<A> {
     }
 
     /// Runs the due timers with the root state as the callback context, then
-    /// the app's `useWake` hook (Zig `Shell.onWake`).
+    /// the app's `useWake` hook.
     fn on_wake(&mut self) {
         self.with_action_cx(|cx| {
             timers::fire_due(cx);
@@ -238,11 +236,10 @@ impl<A: crate::ui::App> crate::ui::App for Shell<A> {
     }
 
     /// Tray / hotkey events go to the hooks first, then the app's handler;
-    /// every window rebuilds afterwards (Zig returned true unconditionally).
+    /// every window rebuilds afterwards (always returns true).
     ///
-    /// A Dock / reopen event also shows the main window, which Zig's shell did
-    /// when the app had no `useReopen` hook (here the app's handler runs too;
-    /// the two do not conflict).
+    /// A Dock / reopen event also shows the main window; the app's `useReopen`
+    /// handler, if any, runs too (the two do not conflict).
     fn on_app_event(&mut self, event: &AppEvent) -> bool {
         self.with_action_cx(|cx| {
             super::desktop::handle_app_event(cx, event);
@@ -261,8 +258,8 @@ impl<A: crate::ui::App> crate::ui::App for Shell<A> {
     }
 }
 
-/// The app configuration of a generated TSX entry (`app_config` in Zig,
-/// generated from `app.config.json` by `zant sync` / WP-6.2).
+/// The app configuration of a generated TSX entry (generated from
+/// `app.config.json` by `zant sync`).
 #[derive(Clone, Debug)]
 pub struct Config {
     pub title: String,
@@ -287,7 +284,7 @@ impl Default for Config {
     }
 }
 
-/// Runs the app until its last window closes (Zig `zant.tsx.app.run`).
+/// Runs the app until its last window closes.
 pub fn run<A: crate::ui::App + Default>(config: Config) -> crate::Result<()> {
     // already running (maybe hidden in the tray): it comes forward instead
     if config.single_instance && !desktop::single_instance(&config.bundle_id) {
@@ -429,7 +426,7 @@ mod tests {
         assert!(shell.on_app_event(&AppEvent::Clipboard));
         assert_eq!(shell.root().clipped, 1);
         // tray / hotkey events have no app state of their own but still
-        // rebuild (Zig returned true)
+        // rebuild
         assert!(shell.on_app_event(&AppEvent::TrayClick));
         assert!(shell.on_app_event(&AppEvent::Hotkey(9)));
         assert!(shell.on_close_request());
@@ -441,7 +438,7 @@ mod tests {
     }
 
     #[test]
-    fn config_defaults_match_the_zig_entry() {
+    fn config_defaults_are_pinned() {
         let config = Config::default();
         assert_eq!(config.title, "Zant UI");
         assert_eq!(config.window.width, 560.0);

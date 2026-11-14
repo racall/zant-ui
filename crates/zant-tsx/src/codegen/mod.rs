@@ -1,35 +1,32 @@
-//! Rust code generation core (WP-5.3), a translation of
-//! `tools/tsx/codegen/codegen.zig`'s shared state: the [`Generator`], its
-//! diagnostic helper and the extension points that the JSX, component/state
-//! and application WPs fill in.
+//! Rust code generation core: the shared state of the code generator (the
+//! [`Generator`]), its diagnostic helper and the extension points through
+//! which the JSX, component/state and application modules plug in.
 //!
-//! The entry point `generate` (module validation, component collection and
-//! emission) belongs to WP-5.5, which adds its module next to this one and
-//! calls [`Generator::new`]. The code generator emits Rust with these
-//! conventions:
+//! The entry point is [`generate`] (module validation, component collection
+//! and emission), which builds the generator with [`Generator::new`]. The
+//! emitted Rust follows these conventions:
 //!
 //! - `string` is `zant::Str`, `T[]` is `tsx::List<T>`, `T | null` is
-//!   `Option<T>`, `ui::Node` is `ui::Node` (`docs/rust-port/tsx-codegen.md` §2).
-//! - Every read of a non-`Copy` value appends `.clone()` (§3); the generated
-//!   file header allows `clippy::redundant_clone`.
-//! - `ui::`/`tsx::`/`zant::Str` paths need a preamble owned by WP-5.6:
-//!   `use zant::ui; use zant::tsx;` (`docs/rust-port/tsx-codegen.md` §1).
-//! - Locals are declared with explicit types; unused ones get `let _ = x;`
-//!   in place of Zig's `_ = x;`.
+//!   `Option<T>`, `ui::Node` is `ui::Node`.
+//! - Every read of a non-`Copy` value appends `.clone()`; the generated file
+//!   header allows `clippy::redundant_clone`.
+//! - `ui::`/`tsx::`/`zant::Str` paths rely on the file preamble
+//!   `use zant::ui; use zant::tsx;`.
+//! - Locals are declared with explicit types; unused ones get `let _ = x;`.
 //!
-//! # Deviations from the Zig codegen (reported, not silent)
+//! # Lowering choices
 //!
-//! - `@"keyword"` identifiers become `keyword_` instead of Rust raw
-//!   identifiers, which keeps the usage scanner and golden output simple.
-//! - `switch` stays a labeled `if`/`else` chain (the Zig lowering): case tests
-//!   are arbitrary expressions with side effects, so a Rust `match` cannot
-//!   represent their evaluation order. Fallthrough is still a diagnostic.
+//! - Identifiers that collide with Rust keywords become `keyword_` instead of
+//!   raw identifiers, which keeps the usage scanner and golden output simple.
+//! - `switch` is a labeled `if`/`else` chain: case tests are arbitrary
+//!   expressions with side effects, so a Rust `match` cannot represent their
+//!   evaluation order. Fallthrough is a diagnostic.
 //! - A C-style `for` becomes `loop { update; if !(cond) { break; } body }`
 //!   (update at the top after the first iteration) so `continue` still runs
 //!   the update; `for…of` uses `for x in items.iter().cloned()`.
-//! - Zig's `_ = x;` discards become `let _ = x;`; state fields are plain Rust
-//!   fields (no `tsx.State` wrapper), and `scope.rename_modules` is a no-op
-//!   because Rust module paths live in another namespace.
+//! - State fields are plain Rust fields (no wrapper type), and
+//!   `scope::rename_modules` is a no-op because Rust module paths live in
+//!   another namespace.
 //! - `interface` structs derive `Clone`/`PartialEq`/`Default`; structs with
 //!   `Rc<dyn Fn>` callback fields derive `Clone` only and get a hand-written
 //!   `Default` (no-op closure), since `Rc<dyn Fn>` is neither `Default` nor
@@ -37,38 +34,38 @@
 //! - String literals remain `"...".into()`; where a generic `PartialEq`
 //!   context would make that ambiguous (string comparison, `switch` case
 //!   tests) the literal is spelled `zant::Str::Static("...")`.
-//! - Zig's `@tagName`/`@as`/`orelse` become `.as_str()`, typed literals and
-//!   `Option` combinators (`unwrap`, `unwrap_or_else`, `map`).
+//! - Enum names, numeric casts and `??` become `.as_str()`, typed literals
+//!   and `Option` combinators (`unwrap`, `unwrap_or_else`, `map`).
 //!
-//! # Extension points for WP-5.4 – WP-5.6
+//! # Extension points
 //!
-//! Zig's modules call each other directly; Rust's borrow rules are simpler if
-//! the not-yet-ported pieces are function pointers on
-//! [`Generator::extensions`]. The owning WP installs them once before
+//! The modules of the code generator depend on each other cyclically; the
+//! borrow rules are simpler when the cross-module calls are function pointers
+//! on [`Generator::extensions`]. [`generate`] installs them once before
 //! generation:
 //!
-//! | Zig module | Hook field | Shape |
+//! | Module | Hook field | Shape |
 //! |---|---|---|
-//! | `jsx.zig` | `hooks.emit_jsx` | `fn(&mut Generator, &mut Context, &ast::Jsx) -> Result<Value>` |
-//!
-//! WP-5.4's `jsx::emit` handles `ui::*` tags, `<List>` and stateful widgets
-//! only. Component tags are dispatched by `components.zig` (WP-5.5), so WP-5.5
-//! installs its own `emit_jsx` wrapper that checks components first and then
-//! calls `jsx::emit`; its scan pass dispatches component tags before calling
-//! `events::scan_jsx`.
-//! | `captures.zig` | `hooks.captures_read` | `fn(&mut Generator, &mut Context, &str) -> Result<Option<Value>>` |
-//! | `components.zig` (`readProp`) | `hooks.components_read_prop` | `fn(&mut Generator, &str) -> Result<Option<Value>>` |
-//! | `components.zig` (`callbackType`) | `hooks.callback_type` | `fn(&mut Generator, Loc, &ast::FuncType) -> Result<Type>` |
-//! | `hooks.zig` | `hooks.ref_read` / `ref_write` / `bare_ref` / `hook_statement` / `hook_declaration` / `cleanup_return` | see [`Hooks`] |
-//! | `events.zig` | `hooks.method_param` | `fn(&mut Generator, &Method, usize, &ast::Param) -> Result<Type>` |
-//! | `events.zig` (`scanBody` / `emitSetter` / `forwardArrow` / `parameterType`) | `hooks.scan_body` / `emit_setter` / `forward_arrow` / `parameter_type` | see [`Hooks`] |
-//! | `captures.zig` (`nested`) | `hooks.nested` | `fn(..) -> Result<NestedCall>` |
-//! | `array_methods.zig` | `extensions.array_methods` | `fn(&mut Generator, &mut Context, Loc, &ast::Call, Option<Type>) -> Result<Value>` |
-//! | `components/stores/windows.zig` (`tryCall`) | `extensions.call_before_functions: Vec<TryCall>` | tried in registration order |
-//! | `zant_api/timers.zig` (`tryCall`) | `extensions.call_before_builtins: Vec<TryCall>` | tried in registration order |
-//! | `imports.zig` / `zig_types.zig` | `hooks.imported_type` / `hooks.zig_type` / `hooks.external_name` | see [`Hooks`] |
-//! | `app_hooks.zig` / `jsx.zig` (`imageType`) | `hooks.key_event_type` / `hooks.image_type` | `fn(&mut Generator) -> Result<Type>` |
+//! | `jsx` | `hooks.emit_jsx` | `fn(&mut Generator, &mut Context, &ast::Jsx) -> Result<Value>` |
+//! | `captures` | `hooks.captures_read` | `fn(&mut Generator, &mut Context, &str) -> Result<Option<Value>>` |
+//! | `components` (`read_prop`) | `hooks.components_read_prop` | `fn(&mut Generator, &str) -> Result<Option<Value>>` |
+//! | `components` (`callback_type`) | `hooks.callback_type` | `fn(&mut Generator, Loc, &ast::FuncType) -> Result<Type>` |
+//! | `hooks` | `hooks.ref_read` / `ref_write` / `bare_ref` / `hook_statement` / `hook_declaration` / `cleanup_return` | see [`Hooks`] |
+//! | `events` | `hooks.method_param` | `fn(&mut Generator, &Method, usize, &ast::Param) -> Result<Type>` |
+//! | `events` (`scan_body` / `emit_setter` / `forward_arrow` / `parameter_type`) | `hooks.scan_body` / `emit_setter` / `forward_arrow` / `parameter_type` | see [`Hooks`] |
+//! | `captures` (`nested`) | `hooks.nested` | `fn(..) -> Result<NestedCall>` |
+//! | `array_methods` | `extensions.array_methods` | `fn(&mut Generator, &mut Context, Loc, &ast::Call, Option<Type>) -> Result<Value>` |
+//! | `components` / `stores` / `windows` (`try_call`) | `extensions.call_before_functions: Vec<TryCall>` | tried in registration order |
+//! | `zant_api` (`try_call`) | `extensions.call_before_builtins: Vec<TryCall>` | tried in registration order |
+//! | `imports` / `rust_imports` | `hooks.imported_type` / `hooks.rust_type` / `hooks.external_name` | see [`Hooks`] |
+//! | `app_hooks` / `jsx` (`image_type`) | `hooks.key_event_type` / `hooks.image_type` | `fn(&mut Generator) -> Result<Type>` |
 //! | hook predicates | `extensions.extra_hook` / `is_app_hook` / `is_desktop_hook` / `component_shadow` | `fn(..) -> bool` |
+//!
+//! `jsx::emit` handles `ui::*` tags, `<List>` and stateful widgets only.
+//! Component tags are dispatched by `components`, so the installed `emit_jsx`
+//! is a wrapper that checks components first and then calls `jsx::emit`; the
+//! scan pass likewise dispatches component tags before calling
+//! `events::scan_jsx`.
 
 pub mod action_cx;
 pub mod aggregate;
@@ -113,8 +110,7 @@ use crate::ast;
 
 pub type Diag = crate::error::Diag;
 
-/// A code generation failure (Zig `error{Tsx, OutOfMemory}`; allocation
-/// failures are not recoverable in Rust). The message lives in [`Diag`].
+/// A code generation failure. The message lives in [`Diag`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum Error {
     #[error("tsx code generation error")]
@@ -123,7 +119,7 @@ pub enum Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-/// The first diagnostic of this compilation (Zig `core.fail`).
+/// Record the first diagnostic of this compilation and fail.
 pub fn fail<T>(g: &mut Generator<'_>, loc: ast::Loc, msg: impl Into<String>) -> Result<T> {
     if g.diag.is_none() {
         *g.diag = Some(Diag {
@@ -134,8 +130,7 @@ pub fn fail<T>(g: &mut Generator<'_>, loc: ast::Loc, msg: impl Into<String>) -> 
     Err(Error::Tsx)
 }
 
-/// Add schema context to the first diagnostic without moving its caret
-/// (Zig `core.contextualize`).
+/// Add schema context to the first diagnostic without moving its caret.
 pub fn contextualize(g: &mut Generator<'_>, prefix: &str) -> Result<()> {
     let Some(diagnostic) = g.diag.as_ref() else {
         return Err(Error::Tsx);
@@ -147,14 +142,14 @@ pub fn contextualize(g: &mut Generator<'_>, prefix: &str) -> Result<()> {
     Ok(())
 }
 
-/// A top-level `const` that is not a component (Zig `Generator.constants`).
+/// A top-level `const` that is not a component.
 #[derive(Clone, Debug)]
 pub struct Constant {
     pub name: String,
     pub value: types::Value,
 }
 
-/// `interface` / `type` alias already resolved (Zig `Generator.type_aliases`).
+/// `interface` / `type` alias already resolved.
 #[derive(Clone, Debug)]
 pub struct TypeAlias {
     pub name: String,
@@ -163,12 +158,12 @@ pub struct TypeAlias {
 
 /// A resolved structured type, keyed by the AST detail of its `TypeRef`.
 ///
-/// Zig compares the `*const ast.TypeDetail` pointers. Rust's AST owns its
-/// nodes and the code generator clones functions (`functions::signature`,
+/// The key is the detail value, not its address: the AST owns its nodes and
+/// the code generator clones functions (`functions::signature`,
 /// `expr::call_value`, `components::collect`), which allocates fresh detail
-/// boxes with the same source location; an address cache then either misses
-/// (duplicate anonymous structs with different `Type`s) or, worse, hits a
-/// recycled address (a wrong type). The detail value itself is the stable key.
+/// boxes with the same source location; an address cache would then either
+/// miss (duplicate anonymous structs with different `Type`s) or, worse, hit a
+/// recycled address (a wrong type).
 #[derive(Clone, Debug)]
 pub struct ResolvedType {
     pub detail: ast::TypeDetail,
@@ -183,7 +178,7 @@ pub enum StateKind {
     Ref,
 }
 
-/// A `useState` field of the component being generated (Zig `core.State`).
+/// A `useState` field of the component being generated.
 #[derive(Clone, Debug)]
 pub struct State {
     pub name: String,
@@ -195,8 +190,7 @@ pub struct State {
 }
 
 /// A typed binding of the enclosing render, kept while a captured handler
-/// method is emitted (`captures.zig`; Rust replacement for the Zig pointer to
-/// the enclosing `Context`).
+/// method is emitted (see `captures`); a snapshot of the enclosing `Context`.
 #[derive(Clone, Debug)]
 pub struct ScopeEntry {
     pub name: String,
@@ -204,9 +198,8 @@ pub struct ScopeEntry {
     pub code: String,
 }
 
-/// An arrow function registered as a method (Zig `events.Method`). WP-5.5
-/// adds the capture and hook bookkeeping; WP-5.3 only reads `name`, `func`,
-/// `ret`, `user` and `inline_only`.
+/// A render local captured by a handler method: its name, the field that
+/// carries it, its type and the expression it is read from.
 #[derive(Clone, Debug, Default)]
 pub struct Capture {
     pub name: String,
@@ -215,7 +208,7 @@ pub struct Capture {
     pub source: String,
 }
 
-/// An arrow function registered as a method (Zig `events.Method`).
+/// An arrow function registered as a method.
 #[derive(Clone, Debug)]
 pub struct Method {
     pub name: String,
@@ -259,8 +252,8 @@ impl Default for Method {
     }
 }
 
-/// `tags::Kind` lives in [`crate::tags`]; re-exported under a short name so the
-/// struct above reads like the Zig original.
+/// `tags::Kind` lives in [`crate::tags`]; re-exported under a short name for
+/// the signatures in this module.
 pub mod tags_kind {
     pub use crate::tags::Kind;
 }
@@ -272,10 +265,10 @@ pub struct NestedCall {
     pub target: String,
 }
 
-// ── extension points (WP-5.4 – WP-5.6) ────────────────────────────────
+// ── extension points ──────────────────────────────────────────────────
 
 /// `components::try_call`, `imports::try_call`, `stores::try_call`,
-/// `windows::try_call` (Zig `expr.callValue`'s first dispatch chain).
+/// `windows::try_call` (the first dispatch chain of `expr::call_value`).
 pub type TryCall = fn(
     &mut Generator<'_>,
     &mut scope::Context,
@@ -283,7 +276,7 @@ pub type TryCall = fn(
     &ast::Call,
 ) -> Result<Option<types::Value>>;
 
-/// `jsx::emit` (WP-5.4).
+/// `jsx::emit`.
 pub type EmitJsx = fn(&mut Generator<'_>, &mut scope::Context, &ast::Jsx) -> Result<types::Value>;
 
 /// `captures::read` / `zant_api::read` / `components::read_prop`.
@@ -341,10 +334,10 @@ pub type ParameterType =
     fn(&mut Generator<'_>, &ast::Param, Option<tags_kind::Kind>) -> Result<types::Type>;
 
 /// `components::callback_type` (the default [`model`] implementation returns
-/// `Rc<dyn Fn(..)>`; WP-5.5 maps UI event signatures to `ui::Action`).
+/// `Rc<dyn Fn(..)>`; `components` maps UI event signatures to `ui::Action`).
 pub type CallbackType = fn(&mut Generator<'_>, ast::Loc, &ast::FuncType) -> Result<types::Type>;
 
-/// `imports::named` / `zig_types::named` / `imports::external_name`.
+/// `imports::named` / `rust_imports::named` / `imports::external_name`.
 pub type NamedType = fn(&mut Generator<'_>, &str) -> Result<Option<types::Type>>;
 pub type ExternalName = fn(&mut Generator<'_>, &str) -> Result<Option<String>>;
 
@@ -357,22 +350,20 @@ pub type ArrayMethod = fn(
     Option<types::Type>,
 ) -> Result<types::Value>;
 
-/// `imports::process` (WP-5.6): resolves relative imports and fills
-/// `Generator::header`.
+/// `imports::process`: resolves relative imports.
 pub type ProcessImports = fn(&mut Generator<'_>, &ast::Module) -> Result<()>;
 
-/// `windows::collect` (WP-5.6): the `createWindow` declarations of the file.
+/// `windows::collect`: the `createWindow` declarations of the file.
 pub type CollectWindows = fn(&mut Generator<'_>, &ast::Module) -> Result<String>;
 
-/// `app_hooks::lifecycle` (WP-5.6): the `impl ui::App` lifecycle methods.
+/// `app_hooks::lifecycle`: the `impl ui::App` lifecycle methods.
 pub type AppLifecycle = fn(&mut Generator<'_>) -> Result<String>;
 
-/// `windows.isCreate` (WP-5.6): a constant built by `createWindow`.
+/// `windows::is_create`: a constant built by `createWindow`.
 pub type IsWindowConst = fn(&ast::Expr) -> bool;
 
-/// Hook points owned by later work packages. Everything here has a
-/// default that reports which WP implements it, so WP-5.3's core compiles and
-/// is testable on its own.
+/// Hook points filled in by the other code generation modules. Everything
+/// here has an inert default, so the core is testable on its own.
 #[derive(Clone)]
 pub struct Extensions {
     /// `hooks::extra_hook` (custom hooks from `hooks/`).
@@ -381,15 +372,15 @@ pub struct Extensions {
     pub is_app_hook: fn(&str) -> bool,
     /// `desktop_hooks::is_hook`.
     pub is_desktop_hook: fn(&str) -> bool,
-    /// Whether a child component's prop shadows a global (`components.zig`).
+    /// Whether a child component's prop shadows a global (`components`).
     pub component_shadow: fn(&Generator<'_>, &str) -> bool,
-    /// `imports::process` (WP-5.6).
+    /// `imports::process`.
     pub process_imports: Option<ProcessImports>,
-    /// `windows::collect` (WP-5.6).
+    /// `windows::collect`.
     pub collect_windows: Option<CollectWindows>,
-    /// `app_hooks::lifecycle` (WP-5.6).
+    /// `app_hooks::lifecycle`.
     pub app_lifecycle: Option<AppLifecycle>,
-    /// `windows.isCreate` (WP-5.6).
+    /// `windows::is_create`.
     pub is_window_const: Option<IsWindowConst>,
     pub call_before_functions: Vec<TryCall>,
     pub call_before_builtins: Vec<TryCall>,
@@ -416,7 +407,7 @@ impl Default for Extensions {
     }
 }
 
-/// Optional hooks; `None` means the owning work package has not landed yet.
+/// Optional hooks; `None` until the owning module installs it.
 #[derive(Clone, Default)]
 pub struct Hooks {
     pub emit_jsx: Option<EmitJsx>,
@@ -430,27 +421,27 @@ pub struct Hooks {
     pub hook_declaration: Option<HookDeclaration>,
     pub cleanup_return: Option<CleanupReturn>,
     pub method_param: Option<MethodParam>,
-    /// Handler scanning of a render body / event arrow (`events.zig`, WP-5.4).
+    /// Handler scanning of a render body / event arrow (`events`).
     pub scan_body: Option<ScanBody>,
-    /// Handler scanning of a single expression (`events.zig`, WP-5.4).
+    /// Handler scanning of a single expression (`events`).
     pub scan_expr: Option<ScanExpr>,
-    /// Setter adapter methods (`events.emitSetter`, WP-5.4).
+    /// Setter adapter methods (`events::emit_setter`).
     pub emit_setter: Option<EmitSetter>,
-    /// `fn` handlers wrapped as arrows (`events.forwardArrow`, WP-5.4).
+    /// `fn` handlers wrapped as arrows (`events::forward_arrow`).
     pub forward_arrow: Option<ForwardArrow>,
-    /// An event / callback parameter's type (`events.parameterType`, WP-5.4).
+    /// An event / callback parameter's type (`events::parameter_type`).
     pub parameter_type: Option<ParameterType>,
     pub nested: Option<Nested>,
     pub key_event_type: Option<TypeHook>,
     pub image_type: Option<TypeHook>,
     pub callback_type: Option<CallbackType>,
     pub imported_type: Option<NamedType>,
-    pub zig_type: Option<NamedType>,
+    pub rust_type: Option<NamedType>,
     pub external_name: Option<ExternalName>,
 }
 
 /// State shared by the whole module: type declarations, constants and import
-/// aliases, plus per-component state (Zig `core.Generator`).
+/// aliases, plus per-component state.
 pub struct Generator<'a> {
     pub diag: &'a mut Option<Diag>,
     pub name: String,
@@ -469,22 +460,22 @@ pub struct Generator<'a> {
     pub resolving: Vec<bool>,
     pub resolved_types: Vec<ResolvedType>,
     pub constants: Vec<Constant>,
-    /// Plain functions of this file and imported ones (`functions.zig`).
+    /// Plain functions of this file and imported ones (`functions`).
     pub functions: Vec<functions::Function>,
-    /// Handler expressions registered before emission (`events.zig`).
+    /// Handler expressions registered before emission (`events`).
     pub events: Vec<events::Event>,
-    /// `<List>` elements of the component being generated (`list.zig`).
+    /// `<List>` elements of the component being generated (`list`).
     pub lists: Vec<list::ListInfo>,
-    /// Key-less instance ids handed out to stateful child tags (`widgets.zig`).
+    /// Key-less instance ids handed out to stateful child tags (`stateful`).
     pub child_sites: usize,
     /// How many scrolling containers enclose the element being generated.
     pub scroll_depth: usize,
     /// How many loops enclose the element being generated (keys, callbacks).
     pub loop_depth: usize,
-    /// `const _X = @import("X.zig");` lines of the file header (WP-5.6).
+    /// Extra lines of the file header.
     pub header: String,
-    /// Child components of the module, and the one being generated (WP-5.5
-    /// `components.zig`; `None` while generating the root component).
+    /// Child components of the module, and the one being generated
+    /// (`components`; `None` while generating the root component).
     pub components: Vec<components::Component>,
     pub current_component: Option<usize>,
     /// Inline arrows passed to a child component's callback props.
@@ -494,17 +485,17 @@ pub struct Generator<'a> {
     pub hook_fields: Vec<hooks::Field>,
     pub effects: Vec<hooks::Effect>,
     pub cleanups: Vec<hooks::Cleanup>,
-    /// Stores declared in or imported into this file (`stores.zig`).
+    /// Stores declared in or imported into this file (`stores`).
     pub stores: Vec<stores::Store>,
     /// The enclosing render's typed bindings while a captured method is
-    /// emitted (`captures.zig`).
+    /// emitted (`captures`).
     pub capture_scope: Option<Vec<ScopeEntry>>,
-    /// Generating a child component: its state lives outside `self` (WP-5.5).
+    /// Generating a child component: its state lives outside `self`.
     pub child_component: bool,
-    /// Whether imported type declarations are being resolved (WP-5.6).
+    /// Whether imported type declarations are being resolved.
     pub type_scope: bool,
-    /// Names of stores, windows and child components (WP-5.5/5.6): they shadow
-    /// locals like the module-level declarations of `scope.globalName`.
+    /// Names of stores, windows and child components: they shadow locals
+    /// like the module-level declarations of `scope::global_name`.
     pub extra_globals: Vec<String>,
     /// A local `Weak<RefCell<Component>>` that generated actions must capture
     /// instead of `self._state`: `<List>` row closures cannot borrow `self`
@@ -562,8 +553,7 @@ impl<'a> Generator<'a> {
     }
 }
 
-/// `useState`, a custom hook, a store hook or an app / desktop hook
-/// (Zig `core.hookName`).
+/// `useState`, a custom hook, a store hook or an app / desktop hook.
 pub fn hook_name(g: &Generator<'_>, n: &str) -> bool {
     if n == "useState" || (g.extensions.extra_hook)(n) || n == "useStore" {
         return true;
@@ -574,7 +564,7 @@ pub fn hook_name(g: &Generator<'_>, n: &str) -> bool {
     g.hook_names.iter().any(|name| name == n)
 }
 
-/// Whether this expression is a hook call (Zig `core.hook`).
+/// Whether this expression is a hook call.
 pub fn hook(g: &Generator<'_>, e: &ast::Expr) -> bool {
     match &e.data {
         ast::ExprData::Call(call) => match &call.callee.data {
@@ -586,9 +576,9 @@ pub fn hook(g: &Generator<'_>, e: &ast::Expr) -> bool {
 }
 
 /// Validate generated Rust with `syn::parse_file` and format it with
-/// `prettyplease` (`docs/rust-port/tsx-codegen.md` §1). A parse failure panics
-/// with the generated source, exactly like the Zig compiler's `std.zig.Ast`
-/// re-parse. The WP-5.5 entry point calls this once on the complete module.
+/// `prettyplease`. A parse failure panics with the generated source: it is a
+/// compiler bug, never a user error. [`generate`] calls this once on the
+/// complete module.
 ///
 /// The caller supplies the whole file, including the `// @generated` marker
 /// and the `#![allow(..)]` header; only the body is generated here.

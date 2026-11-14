@@ -1,4 +1,4 @@
-//! Port of `src/components/hotkey_input.zig` — WP-2.5: the shortcut recorder.
+//! The shortcut recorder.
 //!
 //! A settings field for a global hotkey: shows the current combination as key
 //! caps; click it, press a new combination, done. Recording state lives in the
@@ -20,13 +20,13 @@
 //! Esc cancels, Backspace / Delete clears. Unregister the app's own hotkey in
 //! `on_start`: a registered hotkey never reaches the window.
 //!
-//! **Temporary placement (reported):** Zig declares `Shortcut` in
-//! `src/desktop.zig` (`zant.desktop.Shortcut`), which is WP-2.8. The recorder
-//! only needs `fromKeyEvent` / `isValid` / `eql` / `label`, so this module
-//! carries that subset (same normalisation and labels) until the `desktop`
-//! module lands; WP-2.8 should move the type to `crate::desktop` and have this
-//! module import / re-export it. `format` / `parse` are not needed by the
-//! recorder and are left to WP-2.8.
+//! The recorder only needs `from_key_event` / `is_valid` / `eql` / `label`,
+//! so this module carries its own [`Shortcut`] with that subset (same
+//! normalisation and labels as `crate::desktop::Shortcut`, which adds
+//! `format` / `parse`).
+//!
+//! TODO: use `crate::desktop::Shortcut` here and re-export it instead of
+//! keeping two `Shortcut` types.
 #![forbid(unsafe_code)]
 
 use std::rc::Rc;
@@ -46,8 +46,8 @@ use crate::ui::element::Node;
 use crate::ui::options::{BoxOptions, IconButtonOptions, PointerAreaOptions, TextOptions};
 use crate::ui::styled::inset_xy;
 
-/// A key combination, e.g. ⌥⌘V / Ctrl+Alt+V (Zig `desktop.Shortcut`; see the
-/// module note about the temporary placement).
+/// A key combination, e.g. ⌥⌘V / Ctrl+Alt+V (see the module note about
+/// `crate::desktop::Shortcut`).
 #[derive(Clone, Copy, Debug)]
 pub struct Shortcut {
     pub key: Key,
@@ -78,7 +78,7 @@ impl Shortcut {
         }
     }
 
-    /// Zig `Shortcut.eql`: compares the normalised key and the four
+    /// Compares the normalised key and the four
     /// modifiers (`caps_lock` is ignored).
     pub fn eql(&self, other: &Shortcut) -> bool {
         normalized(self.key) == normalized(other.key)
@@ -124,7 +124,7 @@ impl Shortcut {
     }
 }
 
-/// Zig `normalized`: uppercase letters become lowercase.
+/// Uppercase letters become lowercase.
 fn normalized(key: Key) -> Key {
     match key {
         Key::Character(c) if c.is_ascii_uppercase() => Key::Character(c.to_ascii_lowercase()),
@@ -132,7 +132,7 @@ fn normalized(key: Key) -> Key {
     }
 }
 
-/// Zig `writeKeyName`.
+/// The display name of a key.
 fn key_name(key: Key) -> String {
     match key {
         Key::Character(' ') => "Space".to_owned(),
@@ -145,7 +145,7 @@ fn key_name(key: Key) -> String {
         Key::Right => "→".to_owned(),
         Key::Up => "↑".to_owned(),
         Key::Down => "↓".to_owned(),
-        // Zig `@tagName`: the declaration names of the remaining union tags.
+        // The remaining keys use their lowercase snake_case names.
         Key::Home => "home".to_owned(),
         Key::End => "end".to_owned(),
         Key::Backspace => "backspace".to_owned(),
@@ -155,7 +155,7 @@ fn key_name(key: Key) -> String {
     }
 }
 
-/// Zig `platformKey(key) != null`: whether the native hotkey API supports it.
+/// Whether the native hotkey API supports the key.
 fn platform_key_supported(key: Key) -> bool {
     match key {
         Key::Character(c) => {
@@ -174,8 +174,7 @@ fn platform_key_supported(key: Key) -> bool {
     }
 }
 
-/// `ui.hotkeyAction`: receives the recorded [`Shortcut`] (port of Zig
-/// `HotkeyAction`, `Rc<dyn Fn>` instead of the `*anyopaque` + fn trampoline).
+/// Receives the recorded [`Shortcut`].
 #[derive(Clone)]
 pub struct HotkeyAction(Rc<HotkeyActionFn>);
 
@@ -233,7 +232,7 @@ impl Default for HotkeyInputOptions {
     }
 }
 
-/// Zig `keyCap`: one small key-cap pill.
+/// One small key-cap pill.
 fn key_cap(label: &str, theme: &crate::theme::tokens::Theme) -> Node {
     row(BoxOptions {
         padding: inset_xy(6.0, 1.0),
@@ -254,7 +253,7 @@ fn key_cap(label: &str, theme: &crate::theme::tokens::Theme) -> Node {
     })
 }
 
-/// Zig `hotkeyInput`: the shortcut recorder field.
+/// The shortcut recorder field.
 pub fn hotkey_input(o: HotkeyInputOptions) -> Node {
     let theme = current_theme();
     let mut children: Vec<Node> = Vec::new();
@@ -317,8 +316,7 @@ pub fn hotkey_input(o: HotkeyInputOptions) -> Node {
         }));
     }
 
-    // Zig `Handler` (a per-frame heap value holding a copy of the options);
-    // Rust closures capture the same callbacks.
+    // The pointer / key closures each capture their own clones of the callbacks.
     let focus_key = o.key.clone();
     let pointer_on_start = o.on_start.clone();
     let recording = o.recording;
@@ -550,7 +548,7 @@ mod tests {
     }
 
     #[test]
-    fn shortcut_key_names_match_the_zig_writer() {
+    fn shortcut_labels_use_the_key_display_names() {
         assert_eq!(
             Shortcut {
                 key: Key::Character(' '),
@@ -594,7 +592,7 @@ mod tests {
     }
 
     #[test]
-    fn hotkey_input_defaults_match_the_zig_struct() {
+    fn hotkey_input_option_defaults() {
         let defaults = HotkeyInputOptions::default();
         assert_eq!(defaults.key.as_str(), "hotkey-input");
         assert!(defaults.value.is_none());
@@ -825,7 +823,7 @@ mod tests {
         assert!(on_key.call(&mut cx, key_event(Key::Backspace, Modifiers::default())));
         assert!(on_key.call(&mut cx, key_event(Key::Delete, Modifiers::default())));
         assert_eq!(clears.get(), 2);
-        // Ctrl+Esc falls through to the recorder (Zig behaviour)
+        // Ctrl+Esc falls through to the recorder
         assert!(on_key.call(
             &mut cx,
             key_event(Key::Escape, modifiers(true, false, false, false))

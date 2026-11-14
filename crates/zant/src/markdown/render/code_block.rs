@@ -1,5 +1,3 @@
-//! Port of `src/markdown/render/code_block.zig` — WP-3.3.
-//!
 //! Code block (Streamdown `code-block/*`): header with the language and
 //! copy/download controls, highlighted body with optional line numbers,
 //! scrolling past `code_max_height`.

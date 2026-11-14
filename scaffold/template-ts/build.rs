@@ -13,9 +13,6 @@
 //! `include!` accepts it; the lint allowances the generated code needs are at
 //! the top of `src/main.rs`.
 //!
-//! (`zant-build` is the WP-6.2 interface of the Rust port; this template's
-//! build script is complete against it and only needs that crate.)
-//!
 //! `RUSTC_VERSION` is the Rust compiler version shown by the template's
 //! example native module (`native/system.rs`, `native/system.ts`).
 

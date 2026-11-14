@@ -1,5 +1,4 @@
-//! String-method codegen (WP-COVERAGE, ported from
-//! `tools/tsx/codegen/strings_test.zig`):
+//! String-method codegen:
 //!
 //! - the diagnostics that stop unsupported calls before invalid Rust is
 //!   emitted (unknown names, arity, argument types, optional receivers,
@@ -7,9 +6,8 @@
 //! - the source-evaluation-order contract of [`tsx::strings`] helper
 //!   temporaries (receiver and arguments run exactly once, left to right).
 //!
-//! The Zig test also covers a regex argument (`"a".replace(/a/, "b")`); the
-//! TSX parser does not accept regex literals, so that case becomes a parse
-//! diagnostic instead and is not listed here.
+//! A regex argument (`"a".replace(/a/, "b")`) is not listed here: the TSX
+//! parser does not accept regex literals, so that case is a parse diagnostic.
 
 use zant_tsx::compile;
 

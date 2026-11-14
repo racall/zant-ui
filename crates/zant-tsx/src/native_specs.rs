@@ -1,8 +1,7 @@
-//! Native module specs: `native/<name>.ts` compiled to a Rust trait (WP-5.8).
+//! Native module specs: `native/<name>.ts` compiled to a Rust trait.
 //!
-//! Translation of `tools/tsx/codegen/native_specs.zig` plus the conformance
-//! check of `src/tsx_native.zig`. A spec declares the data types and functions
-//! `native/<name>.rs` gives the app, like a React Native TurboModule spec:
+//! A spec declares the data types and functions `native/<name>.rs` gives the
+//! app, like a React Native TurboModule spec:
 //!
 //! ```ts
 //! import type { i64 } from "zant";
@@ -35,24 +34,23 @@
 //!
 //! The app writes `native/clips.rs` as `impl crate::native::spec::clips::ClipSpec
 //! for Native`, and a missing or mistyped function is a rustc error at the
-//! `impl` — the compile-time check that `src/tsx_native.zig` performed with
-//! `@hasDecl` / `@TypeOf` in Zig. The generated entry performs the optional
-//! registry registration (`zant::tsx::native::register_named(NAME, Native)`);
-//! generated call sites (`<Native as ClipsSpec>::entries(..)`, WP-5.6) bypass
-//! the registry. See `docs/rust-port/tsx-native.md`.
+//! `impl`: the trait is the compile-time conformance check. The generated
+//! entry performs the optional registry registration
+//! (`zant::tsx::native::register_named(NAME, Native)`); generated call sites
+//! (`<Native as ClipsSpec>::entries(..)`) bypass the registry. See
+//! `docs/tsx-native.md`.
 //!
-//! WG-5.6 calls: [`module_name`] to recognise `import … from "native/<name>"`,
-//! [`spec_for`] / [`find`] to resolve it, [`import`] to classify an imported
-//! name (and to get the Zig `native/<name>.ts` diagnostics), and
-//! [`spec_root`] to emit the generated `native/spec.rs`. Type resolution of a
-//! spec type inside app code stays in WP-5.6's scope machinery
-//! (`imports.zig`'s `throughImport`); this module supplies the declarations.
+//! The application code generator calls: [`module_name`] to recognise
+//! `import … from "native/<name>"`, [`spec_for`] / [`find`] to resolve it,
+//! [`import`] to classify an imported name (and to get the `native/<name>.ts`
+//! diagnostics), and [`spec_root`] to emit the generated `native/spec.rs`. Type
+//! resolution of a spec type inside app code stays in the import scope
+//! machinery (`codegen::imports`); this module supplies the declarations.
 //!
-//! Deviations from the Zig module (reported, not silent): the spec's types and
-//! functions are emitted as a trait (`ClipsSpec`) instead of a separate
-//! `check(comptime Impl)`, the impl file is `.rs`, and `native/spec.rs` is a
-//! single generated file with a Rust module per spec instead of a `spec.zig`
-//! root listing `_spec_<name>.zig` files.
+//! A spec's types and functions are emitted together as one trait
+//! (`ClipsSpec`) so rustc checks the implementation, and `native/spec.rs` is a
+//! single generated file with a Rust module per spec so the app declares one
+//! module.
 
 use crate::ast;
 use crate::error::Diag;
@@ -61,8 +59,7 @@ use crate::codegen::{
     self, Generator, Result, TypeAlias, fail, functions, model, rust_text, types,
 };
 
-/// A parsed spec `native/<name>.ts` of the project (the `native` entries of
-/// the Zig compiler's `imports.NamedModule` list).
+/// A parsed spec `native/<name>.ts` of the project.
 #[derive(Clone, Copy, Debug)]
 pub struct Spec<'a> {
     pub name: &'a str,
@@ -78,13 +75,13 @@ pub fn module_name(source: &str) -> Option<&str> {
     Some(name)
 }
 
-/// `./components/kinds` / `./kinds.ts` -> `kinds` (Zig `std.fs.path.stem`).
+/// `./components/kinds` / `./kinds.ts` -> `kinds`.
 fn file_stem(source: &str) -> &str {
     let base = source.rsplit(['/', '\\']).next().unwrap_or(source);
     base.strip_suffix(".ts").unwrap_or(base)
 }
 
-/// The spec `name` of the project (Zig `native_specs.find`).
+/// The spec `name` of the project.
 pub fn find<'a>(specs: &'a [Spec<'a>], name: &str) -> Option<&'a Spec<'a>> {
     specs.iter().find(|spec| spec.name == name)
 }
@@ -105,7 +102,7 @@ pub fn spec_for<'a>(
     })
 }
 
-/// Whether `name` is a type the spec exports (Zig `exportedType`).
+/// The type `name` the spec exports, if any.
 pub fn exported_type<'a>(module: &'a ast::Module, name: &[u8]) -> Option<&'a ast::TypeDecl> {
     module
         .types
@@ -113,7 +110,7 @@ pub fn exported_type<'a>(module: &'a ast::Module, name: &[u8]) -> Option<&'a ast
         .find(|decl| decl.exported && decl.name.name == name)
 }
 
-/// The spec's `export declare function` `name` (Zig `declared`).
+/// The spec's `export declare function` `name`.
 pub fn declared<'a>(module: &'a ast::Module, name: &[u8]) -> Option<&'a ast::Function> {
     module
         .declared
@@ -131,7 +128,7 @@ pub enum Imported<'a> {
     Function(&'a ast::Function),
 }
 
-/// Classifies one imported name; `Err` is the Zig diagnostic for a name the
+/// Classifies one imported name; `Err` is the diagnostic for a name the
 /// spec does not export or for a function imported as a type (or vice versa).
 pub fn import<'a>(
     spec: &Spec<'a>,
@@ -187,7 +184,7 @@ pub fn app_trait_path(spec_name: &str) -> String {
 }
 
 /// The app's implementation path of a spec: `crate::native::clips::Native`
-/// (the `native/<name>.rs` module, WP-5.6 emits it for call sites).
+/// (the `native/<name>.rs` module; call sites name it).
 pub fn app_impl_path(spec_name: &str) -> String {
     format!("crate::native::{}::Native", module_ident(spec_name))
 }
@@ -203,8 +200,8 @@ pub fn app_type_path(spec_name: &str, type_name: &str) -> String {
 }
 
 /// A spec has types and declared functions only; the implementation is Rust.
-/// (Zig `native_specs.validate`.) Object and string-union types must be
-/// named so both sides can refer to them.
+/// Object and string-union types must be named so both sides can refer to
+/// them.
 pub fn validate(g: &mut Generator<'_>, module: &ast::Module, name: &str) -> Result<()> {
     if let Some(top) = module.functions.first() {
         return fail(
@@ -276,7 +273,7 @@ pub fn validate(g: &mut Generator<'_>, module: &ast::Module, name: &str) -> Resu
     Ok(())
 }
 
-/// `ty` names its object and string-union types (Zig `requireNamed`).
+/// `ty` names its object and string-union types.
 fn require_named(g: &mut Generator<'_>, ty: &ast::TypeRef) -> Result<()> {
     let Some(detail) = ty.detail.as_deref() else {
         return Ok(());
@@ -446,7 +443,7 @@ pub fn has_functions(module: &ast::Module) -> bool {
 }
 
 /// The generated `native/spec.rs`: a fixed header and one module per spec in
-/// name order (the file is deterministic, like the Zig `spec.zig` root).
+/// name order (the file is deterministic).
 pub fn spec_root(specs: &[Spec<'_>], diag: &mut Option<Diag>) -> Result<String> {
     *diag = None;
     let mut sorted: Vec<&Spec<'_>> = specs.iter().collect();
@@ -465,7 +462,7 @@ pub fn spec_root(specs: &[Spec<'_>], diag: &mut Option<Diag>) -> Result<String> 
          //\n\
          // Each module holds one spec's types (and, when it declares functions, the\n\
          // trait `native/<name>.rs` implements);\n\
-         // see docs/rust-port/tsx-native.md (WP-5.8).\n\n",
+         // see docs/tsx-native.md.\n\n",
     );
     for spec in sorted {
         out.push_str(&generate(spec.module, spec.name, specs, diag)?);
@@ -555,9 +552,9 @@ fn prepare_imports(
         }
         if source == "zant" || source == "react" {
             for imported in &import.names {
-                // Staged port fix (M7.1): an in-memory image handle. Zig specs
-                // imported `Image` from "zant"; Rust maps it to the JSX hooks'
-                // `Rc<zant::image::Image>` (the type `<Image image>` takes).
+                // An in-memory image handle: a spec imports `Image` from
+                // "zant", which maps to the JSX hooks' `Rc<zant::image::Image>`
+                // (the type `<Image image>` takes).
                 if imported.imported.name == b"Image" {
                     let local = rust_text::id_at(g, &imported.local.name, imported.local.loc)?;
                     let ty = model::add(

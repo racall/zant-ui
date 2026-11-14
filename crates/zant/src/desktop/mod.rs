@@ -3,7 +3,7 @@
 //! status bar item (macOS menu bar), system-wide hotkeys, hiding to the tray,
 //! quitting, launch at login and noticing clipboard changes.
 //!
-//! Port of `src/desktop.zig` — WP-2.8. The app calls these from its hooks:
+//! The app calls these from its hooks:
 //!
 //! - [`App::on_start`](crate::ui::app::App::on_start): open a panel with
 //!   [`open_window`], add the tray icon with [`set_tray`], register hotkeys,
@@ -83,11 +83,10 @@ pub use window::{
 };
 
 /// The window options of `open_window` (re-exported so apps do not import the
-/// platform layer; Zig used `platform.WindowOptions` directly).
+/// platform layer).
 pub use crate::platform::platform::{WindowOptions, WindowStyle};
 
-/// Installs the app-event handler of `ui::app::run` (internal: Zig
-/// `desktop.setAppEventHandler` + `setExitHandler`).
+/// Installs the app-event and exit handlers of `ui::app::run` (internal).
 pub(crate) fn install_app_hooks(app: crate::runtime::window::SharedApp) {
     app_event::install(app);
 }

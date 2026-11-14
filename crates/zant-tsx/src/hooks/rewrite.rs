@@ -3,13 +3,11 @@
 //! inlined into a component (`expand.rs`), and how names a hook returned
 //! are replaced in the rest of the component.
 //!
-//! Direct translation of `tools/tsx/hooks/rewrite.zig`. Zig's
-//! `error{OutOfMemory, Hook}` is [`Failure`] (allocation failures are not
-//! errors in Rust); the arena is gone, so copies own their nodes.
+//! The only error is [`Failure`]; copies own their nodes.
 
 use crate::ast::{self, Loc};
 
-/// Why inlining failed (Zig `error.Hook` plus the recorded `Failure`).
+/// Why inlining failed, and where.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Failure {
     pub loc: Loc,
@@ -41,7 +39,7 @@ pub enum Kind {
 }
 
 /// How a name the copied code reads without declaring it is resolved in the
-/// copy (Zig `Free`'s `ctx` + function pointer; Rust takes a trait object).
+/// copy (callers pass a trait object).
 pub trait Free {
     fn resolve(&mut self, name: &[u8], loc: Loc, kind: Kind) -> Result<Vec<u8>, Failure>;
 }

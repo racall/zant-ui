@@ -1,8 +1,7 @@
-//! The hand-held Streamdown cache of `examples/tsx/bench_markdown.zig`: the
-//! control group of the `markdown-stream` scenario. The TSX side goes through
-//! the generated `<Markdown>` component (`ui::markdown` with its own cache);
-//! this side keeps the cache in the app like the Zig `Manual` struct did. The
-//! source assignment is outside the timed render on both sides.
+//! A hand-held Streamdown cache: the control group of the `markdown-stream`
+//! scenario. The TSX side goes through the generated `<Markdown>` component
+//! (`ui::markdown` with its own cache); this side keeps the cache in the app.
+//! The source assignment is outside the timed render on both sides.
 #![forbid(unsafe_code)]
 
 use zant::markdown;
@@ -15,8 +14,7 @@ pub struct Manual {
     pub source: String,
     cache: Cache,
     /// `md-<id in hex>`, the key prefix the TSX `<Markdown>` facade uses
-    /// (`ui::markdown` formats `md-{instance id:x}`); the Zig control hard-coded
-    /// the same value.
+    /// (`ui::markdown` formats `md-{instance id:x}`).
     key_prefix: zant::Str,
 }
 
@@ -32,7 +30,6 @@ impl Manual {
 }
 
 impl App for Manual {
-    /// Zig `bench_markdown.Manual.render`.
     fn render(&mut self) -> ui::Node {
         markdown::streamdown(
             &mut self.cache,

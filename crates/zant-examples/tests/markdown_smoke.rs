@@ -1,4 +1,4 @@
-//! Headless smoke test for the `zant-markdown` binary (WP-3.11): the same
+//! Headless smoke test for the `zant-markdown` binary: the same
 //! state / tree the window paints is built through [`Runtime`] on a raster
 //! canvas, twice (the second frame exercises the cached block path).
 

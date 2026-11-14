@@ -167,7 +167,6 @@ zant build --yes      # CI：不提问，密钥从环境变量读取
 | Flex 布局与 CSS 对照 | [docs/flex.md](docs/flex.md) |
 | 动效 | [docs/motion.md](docs/motion.md) |
 | 架构 / 开发与测试 | [docs/architecture.md](docs/architecture.md)、[docs/development.md](docs/development.md) |
-| Rust 迁移（计划、契约、进度） | [docs/rust-port/](docs/rust-port/) |
 
 ## 功能一览
 
@@ -319,8 +318,7 @@ let drawing = zant::math::layout::layout(
 );
 ```
 
-公式块的 UI 包装（`math::block`）当前由 `zant-math` 示例内部实现（偏差记录见
-`docs/rust-port/status.md`）。
+块级公式的 UI 包装是 `zant::math::block(source, options)`（居中的整行公式节点），`zant-math` 示例用的就是它。
 
 预览默认可拖选复制；渲染选项的 `block_renderers` 按围栏语言渲染自定义块，`image_loader` 加载远程图片，
 `ParseOptions.latex_delimiters` 支持模型常用的 `\( \)` / `\[ \]`；公式支持 `\ce{…}` / `\pu{…}`。
@@ -412,8 +410,6 @@ ln -sfn "$PWD/target/debug/zant" ~/.local/bin/zant     # macOS
 zant update               # 源码版：拉取新代码（工作区干净时）、检查依赖并重新编译 CLI
 ```
 
-Zig → Rust 迁移的历史记录与验证数字见 [`docs/rust-port/status.md`](docs/rust-port/status.md)。
-
 ## 架构
 
 - 工作区是 Cargo workspace：`zant-sys`（原生 FFI / Skia 桥）、`zant`（框架）、`zant-macros`（`derive(TsxProps)` / `derive(Table)`）、`zant-tsx`（TSX → Rust 编译器）、`zant-build`（应用 `build.rs` 辅助）、`zant-cli`（`zant` 命令）、`zant-examples`（示例程序）。
@@ -455,8 +451,8 @@ crates/zant-build/          应用 build.rs 的辅助（TSX 编译、图标、Wi
 crates/zant-cli/            `zant` 命令：create / run / compile / package / build / sync / update
 crates/zant-examples/       示例：demo、gallery、components、markdown、stream、math、pdf
 scaffold/template-ts/       生成项目的模板（Cargo.toml + build.rs + src/App.tsx + native/）
-scripts/                    Skia 依赖、cargo 包装、parity 对照、发布打包、Windows 测试机脚本
-docs/                       中文文档、截图与 showcase.md；Rust 迁移在 rust-port/
+scripts/                    Skia 依赖、cargo 包装、帧基准闸门、发布打包、Windows 测试机脚本
+docs/                       中文文档、截图与 showcase.md
 third_party/                Skia 预编译依赖（不提交到 Git）
 ```
 

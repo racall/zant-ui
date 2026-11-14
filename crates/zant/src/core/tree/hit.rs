@@ -1,4 +1,4 @@
-//! Port of `src/core/tree.zig` — WP-1.3: hit testing (innermost interactive
+//! Hit testing (innermost interactive
 //! node, hover boxes and wheel targets).
 #![forbid(unsafe_code)]
 

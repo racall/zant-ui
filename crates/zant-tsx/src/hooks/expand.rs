@@ -18,10 +18,9 @@
 //! hook's file imports are imported where it is inlined (`resolve.rs`).
 //! Hooks may call hooks; a call anywhere but the top level is an error.
 //!
-//! Direct translation of `tools/tsx/hooks/expand.zig`. Rust has no arena:
-//! the component and the hooks are cloned out of the units, and the side
-//! effects `resolve.rs` used to write into its units (added imports, names
-//! a file must export) are collected and applied after each component.
+//! The component and the hooks are cloned out of the units, and the side
+//! effects of `resolve.rs` on the units (added imports, names a file must
+//! export) are collected and applied after each component.
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};

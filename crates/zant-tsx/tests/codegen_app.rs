@@ -1,21 +1,20 @@
-//! WP-5.6 end-to-end tests: the application layer of the TSX → Rust compiler
+//! End-to-end tests: the application layer of the TSX → Rust compiler
 //! (imports, windows, desktop hooks, app hooks, `zant` API, assets, entry,
 //! project compilation) and the compiler CLI's project pipeline.
 //!
-//! The JSX / event emitters are WP-5.4's modules and have not landed in this
-//! worktree (`crates/zant-tsx/src/codegen/jsx.rs` / `events.rs`). Like WP-5.5's
-//! tests, these tests inject a small **test-only** stand-in through
-//! `generate::generate_with(.., install_extra)`:
+//! To isolate the application layer from the JSX / event emitters
+//! (`codegen/jsx.rs` / `events.rs`), these tests inject a small **test-only**
+//! stand-in through `compile::compile_project_with(.., install_stubs)`:
 //!
 //! - it emits `ui::text("stub", …)` for every element, so a module's render
 //!   body generates and the app-level lowering around it is exercised, and
-//! - it registers inline event arrows / setters the way `events.zig` does.
+//! - it registers inline event arrows / setters the way `events.rs` does.
 //!
-//! Everything this work package owns — project imports and their Rust paths,
+//! Everything the application layer emits — project imports and their Rust paths,
 //! `createWindow` handles, tray / hotkey lowering, app hooks as `impl ui::App`
 //! methods, `zant` platform calls, asset `include_bytes!` constants and the
 //! generated entry — is real generated code. The render bodies themselves are
-//! covered by WP-5.4's own golden tests once its emitter lands.
+//! covered by the JSX tests (`tests/codegen_jsx.rs`) and the goldens.
 
 use zant_tsx::ast;
 use zant_tsx::codegen::{self, scope};
@@ -48,8 +47,8 @@ fn stub_jsx(
             _ => None,
         };
         let Some(kind) = kind else {
-            // callback props (`onPick`, `onSelect`, …) are WP-5.4's prop
-            // lowering; don't try to evaluate their arrow functions here
+            // callback props (`onPick`, `onSelect`, …) are the real emitter's
+            // prop lowering; don't try to evaluate their arrow functions here
             if text(&attr.name.name).starts_with("on") {
                 continue;
             }
@@ -171,13 +170,13 @@ fn contains(source: &str, expected: &str) {
 }
 
 /// Compiles `src` (with a `~` marking the expected diagnostic byte) and
-/// asserts the diagnostic message and position, like the Zig error tests.
+/// asserts the diagnostic message and position.
 #[track_caller]
 fn expect_diagnostic(marked: &str, message: &str) {
     let at = marked.find('~').expect("`~` marker");
     let src = format!("{}{}", &marked[..at], &marked[at + 1..]);
     // the JSX stub lets the render body generate, so diagnostics in handler
-    // bodies (which WP-5.4's `scan_body` emits) are reached too
+    // bodies (which `scan_body` emits) are reached too
     let files = [SourceFile::tsx("error.tsx", &src)];
     let diag = match compile::compile_project_with(&files, Some(install_stubs)) {
         Ok(_) => panic!("expected TSX error containing: {message}\nsource: {src}"),
@@ -674,7 +673,7 @@ fn an_asset_import_embeds_the_bytes() {
          export default function App() { return <Image image={assetImage(logo)} />; }\n",
     )];
     let project = compile::compile_project_with(&files, Some(install_stubs));
-    // `assetImage` needs WP-5.4's `Image` type; only the constant is checked here
+    // `assetImage` needs the real emitter's `Image` type; only the constant is checked here
     match project {
         Ok(project) => {
             contains(&project.outputs[0], "const logo: &'static [u8]");
@@ -719,7 +718,7 @@ fn asset_imports_are_listed_in_the_dep_file() {
     assert!(dep.contains("logo.png\n"), "{dep}");
 }
 
-// ── hand-written Rust files (`zig_imports` → `rust_imports`) ─────────
+// ── hand-written Rust files (`rust_imports`) ─────────────────────────
 
 const RUST_SOURCE: &str = "\
 // Keep this file byte for byte.
@@ -871,8 +870,7 @@ fn project_rejects_invalid_rust_sources() {
 
 #[test]
 fn native_module_specs_compile_to_the_generated_spec_module() {
-    // WP-5.8 is wired: a spec compiles to `native/spec.rs` instead of failing
-    // with the old "implemented by WP-5.8" diagnostic.
+    // a spec compiles to `native/spec.rs`
     let files = [
         SourceFile::tsx(
             "src/App.tsx",
@@ -963,11 +961,11 @@ fn the_entry_carries_app_config_json() {
 
 // ── the repository corpus ────────────────────────────────────────────
 
-/// Files of the repository corpus that still need a module this worktree does
-/// not have (WP-5.4 JSX renderers, WP-5.8 native specs, timers/defaults).
-/// Reported, not silently skipped.
+/// Files of the repository corpus that the stub emitter of this suite cannot
+/// compile (they need the real JSX / event emitters and are covered by
+/// `tests/golden.rs`). Counted, not silently skipped.
 const KNOWN_MISSING: &[&str] = &[
-    // WP-5.4: JSX prop lowering / event parameter inference / children
+    // JSX prop lowering / event parameter inference / children
     "arrays",
     "children",
     "components",
@@ -989,17 +987,16 @@ const KNOWN_MISSING: &[&str] = &[
     "theme",
     "todos",
     "widgets",
-    // WP-5.3 bug found by this WP: `testdata/strings.tsx` lowers a string
-    // method to `label: { … }.clone()` (a labeled block as a method receiver,
-    // which is not valid Rust); reported, not fixed here (5.3 owns
-    // `string_methods.rs` / `aggregate.rs`).
+    // TODO: on this path `testdata/strings.tsx` lowers a string method to
+    // `label: { … }.clone()` (a labeled block as a method receiver, which is
+    // not valid Rust); see `string_methods.rs` / `aggregate.rs`.
     "strings",
-    // `setTimeout` / timer codegen (`codegen/timers.zig`) has no owner yet
+    // `setTimeout` / timer lowering lives in the real event emitter
     "timers",
     // `platform.tsx` lowers a JSX `padding={{ left, right }}` object prop in
-    // its render body; that is the real WP-5.4 JSX emitter's job (the golden
+    // its render body; that is the real JSX emitter's job (the golden
     // `testdata/platform.rs` compiles against `zant`), and this stub path
-    // reports `object literal needs a type annotation`. Not this WP's module.
+    // reports `object literal needs a type annotation`.
     "platform",
 ];
 
@@ -1129,7 +1126,7 @@ fn the_application_layer_matches_its_golden_snapshots() {
     snapshot("desktop", &generated(DESKTOP));
 }
 
-// ── the project-root build integration (WP-6.2) ──────────────────────
+// ── the project-root build integration ───────────────────────────────
 
 #[test]
 fn compile_project_root_writes_modules_entry_assets_and_the_dep_file() {

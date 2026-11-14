@@ -1,7 +1,5 @@
 //! `stateMachines.ce` transition table (the main parser), kept one entry per
 //! line so it can be diffed against upstream; see `tables.rs` for the others.
-//!
-//! Port of `src/math/mhchem.zig` (state machine tables).
 
 use super::enums::{Act, Transition, act, task, tr, with_bool, with_int, with_item, with_str};
 use super::patterns::Pat;

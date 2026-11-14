@@ -1,12 +1,10 @@
-//! Port of `src/markdown/remend/patterns.zig` (remend `patterns.ts` plus the
-//! character helpers of `utils.ts`).
+//! remend `patterns.ts` plus the character helpers of `utils.ts`.
 //!
 //! The original uses end-anchored regular expressions; each `TrailingPattern`
 //! below reproduces one of them with an explicit leftmost-match search.
 //!
-//! The Zig module reuses the code-point helpers of `src/markdown/scan.zig`
-//! (WP-3.2). They are reproduced here so this module does not depend on a
-//! module that is ported separately; the logic is identical.
+//! The code-point helpers duplicate the ones in `markdown::scan` so that
+//! `remend` stays self-contained; the logic is identical.
 
 #[derive(Clone, Copy)]
 pub enum Body {

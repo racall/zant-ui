@@ -1,12 +1,11 @@
-//! `zant-tsx-frame-bench`: the TSX frame benchmark (WP-5.10c) — plan.md §5 M5
-//! acceptance, "`bench-tsx` 中 TSX 生成代码不慢于手写 Rust 对照组 1.2 倍".
+//! `zant-tsx-frame-bench`: the TSX frame benchmark. Generated TSX code must
+//! not be slower than 1.2× the hand-written Rust control.
 //!
-//! Port of the Zig `bench-tsx` (`examples/tsx/bench.zig`): every TSX benchmark
-//! page (`examples/tsx/counter.tsx`, `todos.tsx`, `list_bench.tsx`,
-//! `local_bench.tsx`, `markdown_bench.tsx`, `settings.tsx`) compiled by
-//! `zant-build` in this crate's `build.rs`, timed against a hand-written
-//! `ui::App` control with the same UI tree through the same headless frame
-//! loop. The driver, harness and scenarios live in the bin-local
+//! Every TSX benchmark page (`tsx/corpus/counter.tsx`, `todos.tsx`,
+//! `list_bench.tsx`, `local_bench.tsx`, `markdown_bench.tsx`, `settings.tsx`)
+//! is compiled by `zant-build` in this crate's `build.rs` and timed against a
+//! hand-written `ui::App` control with the same UI tree through the same
+//! headless frame loop. The driver, harness and scenarios live in the bin-local
 //! [`bench`] module; `scripts/tsx/bench-tsx.sh` builds the Release binary, runs
 //! the repeats and prints the comparison table plus the ≤1.2× gate verdict.
 //!

@@ -1,11 +1,10 @@
-//! Launch at login and the system queries of `src/desktop.zig`'s "launch at
-//! login" / "other" sections: the device name, the Downloads folder and the
-//! system dark mode.
+//! Launch at login and the system queries: the device name, the Downloads
+//! folder and the system dark mode.
 #![forbid(unsafe_code)]
 
 use crate::platform::platform;
 
-/// Whether the system starts the app at login (Zig `desktop.LoginItem`).
+/// Whether the system starts the app at login.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LoginItem {
     Off,
@@ -15,7 +14,7 @@ pub enum LoginItem {
     NeedsApproval,
 }
 
-/// Errors of [`set_launch_at_login`] (Zig `error{ Unsupported, Failed }`).
+/// Errors of [`set_launch_at_login`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum LaunchAtLoginError {
     /// macOS: an unpackaged `zant run` build, or macOS before 13.
@@ -44,8 +43,8 @@ fn launch_at_login_result(code: i32) -> Result<(), LaunchAtLoginError> {
     }
 }
 
-/// The Downloads folder unless the platform did not answer (Zig returns null
-/// when the folder is unknown).
+/// The Downloads folder, or `None` when the platform did not answer (the
+/// folder is unknown).
 fn downloads_dir_or_none(dir: String) -> Option<String> {
     (!dir.is_empty()).then_some(dir)
 }
@@ -116,7 +115,7 @@ mod tests {
     }
 
     #[test]
-    fn launch_at_login_set_results_keep_the_zig_errors() {
+    fn launch_at_login_set_results_map_to_errors() {
         assert_eq!(launch_at_login_result(1), Ok(()));
         assert_eq!(
             launch_at_login_result(-1),

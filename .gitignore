@@ -1,32 +1,24 @@
-.zig-cache/
-.zig-global-cache/
-zig-out/
-.scratch/
 .DS_Store
-third_party/skia/
-third_party/skia-headers/
-third_party/*.tar.gz
+.scratch/
 test
 
+# Rust
+target/
+**/*.rs.bk
+.cargo-home
+.worktrees/
+
+# Fetched dependencies: Skia, PDFium, fonts, the prebuilt native library
+/third_party
+
+# Secrets and signing material
 .env
 .env.*
 *.p12
 *.cer
 *.mobileprovision
 *.key
+
+# PDFs used for manual tests; only the fixture is tracked
 *.pdf
 !tests/fixtures/widgets.pdf
-third_party/skia-win/
-third_party/pdfium-win/
-third_party/fonts/
-third_party/*.tgz
-zig-out-*/
-
-# Rust
-target/
-**/*.rs.bk
-.cargo-home/
-.worktrees/
-.cargo-home
-.zig-global-cache
-/third_party

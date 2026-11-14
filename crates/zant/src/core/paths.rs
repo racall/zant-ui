@@ -1,10 +1,8 @@
-//! Port of `src/core/paths.zig` — WP-1.1b.
-//!
 //! Per-user locations for app data, following each platform's convention.
 
 use std::path::PathBuf;
 
-/// The OS conventions encoded by `appDataDir`. Split out (instead of compiling
+/// The OS conventions encoded by `app_data_dir`. Split out (instead of compiling
 /// only the host branch) so tests can exercise every platform on any machine.
 /// Only one variant is constructed on a given host (via `PLATFORM`), so the
 /// others are dead code outside tests.
@@ -62,7 +60,7 @@ fn app_data_dir_with(
     }
 }
 
-/// `std.fs.path.join`: combine components with the native separator, skipping
+/// Combines components with the native separator, skipping
 /// empty components and not duplicating a separator between two components.
 fn join(platform: Platform, parts: &[&str]) -> String {
     let sep = match platform {
@@ -98,7 +96,7 @@ fn join(platform: Platform, parts: &[&str]) -> String {
 
 fn is_sep(platform: Platform, byte: u8) -> bool {
     match platform {
-        // Zig's `std.fs.path.isSep` on Windows accepts both separators.
+        // Windows accepts both separators.
         Platform::Windows => byte == b'/' || byte == b'\\',
         Platform::Macos | Platform::Other => byte == b'/',
     }
@@ -129,8 +127,7 @@ mod tests {
         }
     }
 
-    /// Every `appDataDir` branch, checked on any host (the Windows branch is not
-    /// exercised by the real Windows environment in this WP).
+    /// Every `app_data_dir` branch, checked on any host.
     #[test]
     fn app_data_dir_platform_branches() {
         let full_env = |key: &str| match key {

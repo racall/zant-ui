@@ -1,8 +1,8 @@
 //! JSX text: React's whitespace rule and HTML entities.
 //!
-//! Direct translation of `tools/tsx/jsx_text.zig`. Inputs and outputs are
-//! bytes, not `String`: decoded entities may be WTF-8 (lone surrogates and
-//! `\xNN` escapes), which Rust's UTF-8 strings cannot hold.
+//! Inputs and outputs are bytes, not `String`: decoded entities may be WTF-8
+//! (lone surrogates and `\xNN` escapes), which Rust's UTF-8 strings cannot
+//! hold.
 
 use crate::jsx_entities;
 
@@ -122,7 +122,7 @@ fn entity(raw: &[u8]) -> Option<Entity> {
 
 /// XHTML entities in JSX text and attributes. Invalid references stay literal.
 /// Like SWC's JS strings, lone surrogates use WTF-8; adjacent pairs combine.
-// The nested `if`s mirror the Zig source line for line; clippy would fold them.
+// The nested `if`s keep one condition per step; clippy would fold them.
 #[allow(clippy::collapsible_if)]
 pub fn decode_entities(raw: &[u8]) -> Vec<u8> {
     if !raw.contains(&b'&') {
@@ -178,7 +178,6 @@ mod tests {
         assert_eq!(decode_entities(raw).as_slice(), expected);
     }
 
-    // Ported from `tools/tsx/parser_test.zig`, "jsx text whitespace follows React".
     #[test]
     fn jsx_text_whitespace_follows_react() {
         assert_eq!(clean_jsx_text(b"Count: ").unwrap().as_slice(), b"Count: ");
@@ -201,7 +200,6 @@ mod tests {
         );
     }
 
-    // Ported from `tools/tsx/jsx_entities_test.zig`, named-reference coverage.
     #[test]
     fn xhtml_named_references_cover_latin_greek_symbols_and_special_characters() {
         expect_decoded(
@@ -218,7 +216,6 @@ mod tests {
         );
     }
 
-    // Ported from `tools/tsx/jsx_entities_test.zig`, numeric references.
     #[test]
     fn decimal_and_lowercase_x_hexadecimal_numeric_references() {
         expect_decoded(b"&#169; 2026 &#8212; &#128512;", "© 2026 — 😀".as_bytes());
@@ -236,7 +233,6 @@ mod tests {
         );
     }
 
-    // Ported from `tools/tsx/jsx_entities_test.zig`, invalid references.
     #[test]
     fn invalid_numeric_and_non_alphanumeric_named_references_stay_literal() {
         const INVALID: [&[u8]; 19] = [
@@ -269,7 +265,6 @@ mod tests {
         );
     }
 
-    // Ported from `tools/tsx/jsx_entities_test.zig`, unterminated references.
     #[test]
     fn unterminated_references_and_ampersands_stay_literal() {
         const CASES: [&[u8]; 8] = [
@@ -289,7 +284,6 @@ mod tests {
         expect_decoded(b"&amp;copy;", b"&copy;");
     }
 
-    // Ported from `tools/tsx/jsx_entities_test.zig`, surrogate pairing.
     #[test]
     fn surrogates_follow_swc_javascript_code_points_pairing_only_adjacent_halves() {
         expect_decoded(

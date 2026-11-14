@@ -1,14 +1,10 @@
-//! Port of `src/markdown/render/` — WP-3.3.
-//!
 //! Block and inline rendering of a parsed document (Streamdown's
 //! `lib/components.tsx`): the whole-document renderer, the memoised
 //! `streamdown` component, code blocks / tables / Mermaid diagrams with their
 //! controls, inline math and links, the link-safety dialog.
 //!
-//! The names re-exported here are the ones `src/markdown/mod.zig` exposes
-//! (`docs/rust-port/conventions.md`: module declarations are pre-written, so
-//! the crate-root re-exports in `markdown/mod.rs` are added by the lead when
-//! the WP merges).
+//! The names re-exported here are the ones `markdown/mod.rs` exposes at the
+//! module root.
 
 pub mod actions;
 pub mod blocks;

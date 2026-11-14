@@ -1,12 +1,10 @@
 //! `<Text>` with nested `<Text>` spans and inline `<Link>`s, React Native
-//! style, compiled to `ui::rich_text`. Translation of
-//! `tools/tsx/codegen/rich_text.zig`.
+//! style, compiled to `ui::rich_text`.
 //!
 //! Each run of text becomes a `tsx::text::span(..)` whose style is its own
 //! props over its parents'; a `<Link>` span gets an index into the link
 //! actions passed as `on_link` (`tsx::text::links(..)`). The span helpers live
-//! in the TSX runtime (`zant/src/tsx/`, WP-5.7, port of `src/tsx_text.zig`);
-//! they apply the theme defaults the Zig runtime applied.
+//! in the TSX runtime (`zant/src/tsx/`); they apply the theme defaults.
 
 use crate::ast;
 use crate::tags::{self, Kind};

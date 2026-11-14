@@ -1,4 +1,4 @@
-//! Port of `src/ui_runtime.zig:1129-1218`: the animation tick.
+//! The animation tick.
 //!
 //! Animation frames only repaint: `Tree::poke` queues the nodes whose state
 //! changed and [`Runtime::tick`] advances only those (never the whole tree).
@@ -6,8 +6,7 @@
 //! `components/{input,toggle,select}` transitions advance here; the caret blink
 //! of the focused input is driven from `tick` as well.
 //!
-//! Exit transitions that finish detach and free the node here (Zig did it in
-//! `tick` as well).
+//! Exit transitions that finish detach and free the node here.
 #![forbid(unsafe_code)]
 
 use crate::components::{button, input, select, toggle};
@@ -90,7 +89,7 @@ impl Runtime {
         active
     }
 
-    /// The container share of `animateNode`: hover look and the animated
+    /// The container share of a node's animation: hover look and the animated
     /// `scroll_into_view` offset.
     fn animate_container(&mut self, id: NodeId, now: i64) -> bool {
         let mid = Transition {
@@ -126,7 +125,7 @@ impl Runtime {
         hover_active || (scroll.is_some() && !scroll_done)
     }
 
-    /// Zig `tick`: advances the queued animations, frees finished exit
+    /// Advances the queued animations, frees finished exit
     /// transitions, blinks the focused input's caret and reveals pending
     /// tooltips. Sets `any_animation` for the frame scheduler.
     pub(crate) fn tick(&mut self) {
@@ -399,8 +398,7 @@ mod tests {
         runtime.dispatch(Event::PointerDown(point));
         runtime.dispatch(Event::PointerUp(point));
         assert_eq!(runtime.tree.focused, Some(id));
-        // the first frame starts the hover / focus transition (Zig `tick`
-        // called `components/input.zig:animate` for it)
+        // the first frame starts the hover / focus transition
         frame(&mut runtime, &mut renderer);
         assert!(runtime.animating_contains(id));
         let focus_t = match &runtime.tree.get(id).data {

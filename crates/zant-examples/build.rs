@@ -1,25 +1,24 @@
-//! Generates the TSX side of the TSX frame benchmark (`zant-tsx-frame-bench`,
-//! WP-5.10c) into `$OUT_DIR`.
+//! Generates the TSX side of the TSX frame benchmark
+//! (`zant-tsx-frame-bench`) into `$OUT_DIR`.
 //!
 //! Zant applications get their TSX → Rust step from their own `build.rs`
 //! (`zant_build::tsx_app()` / `try_tsx_app()`, the `scaffold/template-ts`
 //! shape). The benchmark binary lives inside the `zant-examples` crate, which
 //! is not a TSX app, so this build script creates one throwaway app root per
 //! benchmark case under `$OUT_DIR` — `src/App.tsx` copied from the real
-//! `examples/tsx/*.tsx` input (or the one adapted page, see [`CASES`]), plus a
+//! `tsx/corpus/*.tsx` input (or the one adapted page, see [`CASES`]), plus a
 //! view file where the case needs one — and compiles it with the same
 //! [`zant_build::tsx_app_in`] the template's build script uses. The generated
 //! modules are included by `src/bin/zant_tsx_frame_bench/mod.rs`:
 //!
 //! ```ignore
-//! #[allow(clippy::all)] // generated TSX code, see WP-5.10 raised issues
+//! #[allow(clippy::all)] // generated TSX code
 //! mod counter_case {
 //!     include!(concat!(env!("OUT_DIR"), "/tsx-frame-bench/cases/counter/main.rs"));
 //! }
 //! ```
 //!
-//! The cases are exactly the TSX inputs of the Zig benchmark
-//! (`examples/tsx/bench.zig`):
+//! The cases and the scenarios they are measured with:
 //!
 //! | case | `src/App.tsx` | view | benchmark scenario |
 //! |---|---|---|---|
@@ -30,18 +29,16 @@
 //! | markdown | `markdown_bench.tsx` | `MarkdownView.tsx` | streaming markdown |
 //! | settings | `settings.tsx` | — | 40-switch settings page |
 //!
-//! The two adaptations exist because of a language difference the Zig
-//! benchmark did not have: the Zig TSX runtime exposed the root state
-//! (`tsx.State`), so `bench_list` / `bench_markdown` could set it
-//! (`app.rows.set(..)` / `app.source.set(..)`) before a timed frame. Rust
-//! codegen keeps the root struct's fields private, so:
+//! Two cases are adapted: the benchmark driver has to provide the list rows /
+//! the streamed Markdown source before a timed frame, but the generated root
+//! struct keeps its state fields private, so:
 //!
 //! - `markdown` keeps `markdown_bench.tsx` as the app root and drives the same
 //!   `<Markdown>` through a prop-taking `MarkdownView` component;
 //! - `list` builds the same 10 000 rows in the page itself (`ListBench.tsx`,
 //!   `list_bench.tsx` with a `makeRows()` initialiser), because the prop-taking
 //!   view version hits a `zant-tsx` codegen bug for `<List>` in non-root
-//!   components (reported in `docs/rust-port/status.md` WP-5.10c).
+//!   components.
 //!
 //! The generated `<List>` / `<Markdown>` JSX and the code paths are the ones
 //! of `list_bench.tsx` / `markdown_bench.tsx`. See `docs/tsx.md` (performance
@@ -50,18 +47,19 @@
 
 use std::path::{Path, PathBuf};
 
-/// One benchmark case: the TSX input of the Zig benchmark plus optional view
-/// helper files (checked into this crate) that mirror the case with a prop.
+/// One benchmark case: the TSX input plus optional view helper files
+/// (checked into this crate) that mirror the case with a prop.
 struct Case {
     /// Directory name under `$OUT_DIR/tsx-frame-bench/cases`.
     name: &'static str,
-    /// The real benchmark input under `examples/tsx/`, copied to `src/App.tsx`.
+    /// The benchmark input (a path from the repository root), copied to
+    /// `src/App.tsx`.
     input: &'static str,
     /// Extra files copied into `src/` of the generated app.
     views: &'static [&'static str],
 }
 
-/// Zig `examples/tsx/bench.zig` scenarios and their TSX inputs.
+/// The benchmark cases and their TSX inputs.
 const CASES: &[Case] = &[
     Case {
         name: "counter",
@@ -75,10 +73,10 @@ const CASES: &[Case] = &[
     },
     Case {
         name: "list",
-        // `list_bench.tsx` with the rows built by a same-file function: the Zig
-        // driver injected them through `tsx.State`, which Rust root state
-        // (private fields) does not allow; a prop-taking view hit a `zant-tsx`
-        // `<List>` codegen bug (reported). The JSX below `makeRows` is the
+        // `list_bench.tsx` with the rows built by a same-file function: the
+        // driver cannot inject them into the root state (private fields).
+        // TODO: use a prop-taking view once `zant-tsx` generates `<List>`
+        // correctly in non-root components. The JSX below `makeRows` is the
         // original page's. See the file header.
         input: "crates/zant-examples/src/bin/zant_tsx_frame_bench/tsx_views/ListBench.tsx",
         views: &[],
@@ -104,7 +102,7 @@ fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     let manifest =
         PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"));
-    // `crates/zant-examples` → repository root (`examples/` lives there).
+    // `crates/zant-examples` → repository root (the case inputs are relative to it).
     let repo = manifest
         .parent()
         .and_then(Path::parent)

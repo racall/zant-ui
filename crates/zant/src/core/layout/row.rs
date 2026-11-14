@@ -1,4 +1,4 @@
-//! Port of `src/core/layout.zig` — WP-1.3: single-line row layout.
+//! Single-line row layout.
 #![forbid(unsafe_code)]
 
 use crate::core::layout::Nodes;
@@ -11,8 +11,8 @@ use crate::core::node::NodeId;
 use crate::layout::flex;
 use crate::theme::tokens::Theme;
 
-/// Port of `layoutRow`: a non-wrapping horizontal flex line.
-#[allow(clippy::too_many_arguments)] // mirrors the Zig signature
+/// Lays out a non-wrapping horizontal flex line.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn layout_row(
     nodes: &mut Nodes<'_>,
     id: NodeId,

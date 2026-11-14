@@ -1,12 +1,10 @@
 //! Multi-window support: the window registry, the shared application state
-//! and the hooks of windows opened with `desktop::open_window` (port of
-//! `src/ui_runtime.zig`'s `open_runtimes`, `openWindow` / `closeWindow` /
-//! `invalidateAll` and the `wakeCallback` fan-out).
+//! and the hooks of windows opened with `desktop::open_window` (opening /
+//! closing / invalidating windows and the wake fan-out).
 //!
-//! Zig kept a module-level `open_runtimes: ArrayList(*Runtime)` and handed the
-//! same `*anyopaque` state pointer to every window. Rust keeps the application
-//! state in one [`SharedApp`] (`Rc<RefCell<Box<dyn App>>>`) that all runtimes
-//! clone, and the registry as weak references so a closed window drops out
+//! The application state lives in one [`SharedApp`]
+//! (`Rc<RefCell<Box<dyn App>>>`) that all runtimes clone, and the registry
+//! holds weak references so a closed window drops out
 //! ([`register`] / [`unregister`], plus the `Drop` of [`Runtime`]).
 //!
 //! Everything happens on the UI thread: `Runtime` is `!Send`, the registry is
@@ -26,8 +24,7 @@ use super::Runtime;
 
 /// The application state shared by all windows of the app.
 ///
-/// Zig passed the same `userdata: *anyopaque` to every `Runtime` and every
-/// window hook; the Rust port shares the boxed [`App`] instead. A later window
+/// Every `Runtime` and every window hook shares the boxed [`App`]. A later window
 /// created with `desktop::open_window` renders the same state, and actions in
 /// any window can change it.
 #[derive(Clone)]
@@ -50,8 +47,8 @@ impl SharedApp {
 
     /// Mutable access to the state (render, event hooks).
     ///
-    /// The borrow is released before user code calls back into the runtime;
-    /// see the "hard rule" in docs/rust-port/api.md §4.
+    /// The borrow must be released before user code calls back into the
+    /// runtime.
     pub fn borrow_mut(&self) -> RefMut<'_, Box<dyn App>> {
         self.inner.borrow_mut()
     }
@@ -64,7 +61,7 @@ impl SharedApp {
 
 // -------------------------------------------------------------- window hooks
 
-/// Builds a window's tree (Zig `hooks.render`): it must return a container.
+/// Builds a window's tree: it must return a container.
 pub type RenderHook = Rc<dyn Fn() -> Node>;
 /// A window's key handler: return true to consume the key.
 pub type KeyHook = Rc<dyn Fn(&KeyEvent) -> bool>;
@@ -74,8 +71,7 @@ pub type FocusHook = Rc<dyn Fn(bool) -> bool>;
 /// A window's close-request handler: return false to veto the close.
 pub type CloseHook = Rc<dyn Fn() -> bool>;
 
-/// Hooks of a window opened with `desktop::open_window` (Zig
-/// `desktop.WindowHooks`); `render` replaces the app's `App::render` for that
+/// Hooks of a window opened with `desktop::open_window`; `render` replaces the app's `App::render` for that
 /// window, the other hooks answer its events.
 ///
 /// The hooks close over whatever state the window renders (for a TSX
@@ -83,8 +79,8 @@ pub type CloseHook = Rc<dyn Fn() -> bool>;
 /// state is shared implicitly.
 #[derive(Clone)]
 pub struct WindowHooks {
-    /// Builds this window's tree (Zig `hooks.render`). It must return a
-    /// container, like `App::render`.
+    /// Builds this window's tree. It must return a container, like
+    /// `App::render`.
     pub render: RenderHook,
     /// Keys before the focused widget (Esc to hide a panel).
     pub on_key: Option<KeyHook>,
@@ -110,21 +106,20 @@ impl WindowHooks {
 // ------------------------------------------------------------------ registry
 
 thread_local! {
-    /// Windows of the app on the UI thread, main window first (Zig
-    /// `open_runtimes`). Weak: closing a window unregisters it.
+    /// Windows of the app on the UI thread, main window first. Weak: closing
+    /// a window unregisters it.
     static OPEN_RUNTIMES: RefCell<Vec<Weak<RefCell<Runtime>>>> = const { RefCell::new(Vec::new()) };
     /// Windows whose native close must run after the current event callback
     /// returns (a window may not destroy itself from inside its callback);
-    /// stored as the opaque owner address of the runtime (Zig had the same
-    /// constraint with `closeWindow`).
+    /// stored as the opaque owner address of the runtime.
     static PENDING_CLOSES: RefCell<Vec<*const ()>> = const { RefCell::new(Vec::new()) };
 }
 
 /// The `ZANT_FRAME_STATS` labels of the windows opened after the main one
-/// (Zig printed `:2`, `:3`, … per window).
+/// (`:2`, `:3`, … per window).
 const FRAME_STATS_LABELS: [&str; 8] = [":2", ":3", ":4", ":5", ":6", ":7", ":8", ":9"];
 
-/// Registers an open window (`Runtime.run`, `Runtime.openWindow`).
+/// Registers an open window.
 pub(crate) fn register(core: &Rc<RefCell<Runtime>>) {
     OPEN_RUNTIMES.with(|runtimes| {
         let mut runtimes = runtimes.borrow_mut();
@@ -138,7 +133,7 @@ pub(crate) fn register(core: &Rc<RefCell<Runtime>>) {
     });
 }
 
-/// Removes an open window from the registry (`Runtime.closeWindow`).
+/// Removes an open window from the registry.
 pub(crate) fn unregister(core: &Rc<RefCell<Runtime>>) {
     let address = Rc::as_ptr(core).cast::<()>();
     OPEN_RUNTIMES.with(|runtimes| {
@@ -169,7 +164,7 @@ pub fn open_count() -> usize {
 }
 
 /// The frame stats label of the next window opened (`":2"` for the first one
-/// after the main window, like Zig `openWindow`).
+/// after the main window).
 pub(crate) fn next_frame_stats_label() -> &'static str {
     let index = open_count()
         .saturating_sub(1)
@@ -177,7 +172,7 @@ pub(crate) fn next_frame_stats_label() -> &'static str {
     FRAME_STATS_LABELS[index]
 }
 
-/// Rebuilds every open window (Zig `Runtime.invalidateAll`): they may render
+/// Rebuilds every open window: they may render
 /// the same application state, so a change in one window changes all of them.
 pub fn invalidate_all() {
     OPEN_RUNTIMES.with(|runtimes| {
@@ -207,7 +202,7 @@ pub(crate) fn request_close(owner: *const ()) {
 }
 
 /// Closes a window opened with `desktop::open_window`: it leaves the registry
-/// and its native window is destroyed (Zig `Runtime.closeWindow`). The
+/// and its native window is destroyed. The
 /// `Runtime` itself is released when the last `desktop::Window` handle drops.
 pub fn close_window(core: &Rc<RefCell<Runtime>>) {
     unregister(core);
@@ -257,14 +252,13 @@ pub(crate) fn clear() {
 
 impl Runtime {
     /// Creates a runtime for an extra window: it shares `app` with the other
-    /// windows and renders through `hooks` (Zig `Runtime.init` from
-    /// `desktop.openWindow`).
+    /// windows and renders through `hooks`.
     pub fn init_window(app: SharedApp, hooks: WindowHooks, config: super::Config) -> Runtime {
         Runtime::with_shared(app, Some(hooks), config)
     }
 
     /// Creates a runtime that shares an existing application state but renders
-    /// through `App::render` (tests; `desktop.openWindow` uses `init_window`).
+    /// through `App::render` (tests; `desktop::open_window` uses `init_window`).
     #[cfg(test)]
     pub fn init_shared(app: SharedApp, config: super::Config) -> Runtime {
         Runtime::with_shared(app, None, config)
@@ -277,7 +271,7 @@ impl Runtime {
 
     /// Destroys this runtime's native window: dropping the last `Rc` calls
     /// `zant_window_destroy` (the `desktop::Window` handles only hold a weak
-    /// reference). Zig `Runtime.closeWindow`.
+    /// reference).
     pub(crate) fn close_native_window(&mut self) {
         self.window = None;
     }
@@ -457,7 +451,7 @@ mod tests {
         };
         assert_eq!(runtime.dispatch(Event::KeyDown(event)), 1);
         assert!(runtime.needs_build);
-        // the close hook can veto (Zig `hooks.close`)
+        // the close hook can veto
         assert_eq!(runtime.dispatch(Event::WindowCloseRequest), 1);
         // a child window never asks the app's quit hook
         assert_eq!(runtime.dispatch(Event::AppQuitRequest), 0);

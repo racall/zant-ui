@@ -1,8 +1,7 @@
-//! Choice / navigation builders of `src/ui.zig`: `radioGroup`, `tabs`,
-//! `select` (WP-2.3).
+//! Choice / navigation builders: `radio_group`, `tabs`, `select`.
 //!
 //! The builders declare the option list, the selection and the tab ink bar;
-//! radio / select popover behaviour is runtime code (WP-2.1 / WP-2.2).
+//! radio / select popover behaviour is runtime code.
 #![forbid(unsafe_code)]
 
 use crate::Str;
@@ -18,7 +17,7 @@ use super::super::options::{
 use super::super::styled::{Style, styled};
 use super::{button, column, divider, row};
 
-/// `ui::radioGroup`: one radio toggle per option in a column.
+/// `ui::radio_group`: one radio toggle per option in a column.
 pub fn radio_group(options: RadioGroupOptions) -> Node {
     let base = options.key.as_deref().unwrap_or("radio-group").to_string();
     let mut children = Vec::with_capacity(options.options.len());
@@ -212,7 +211,7 @@ mod tests {
             assert_eq!(radio.layout.shrink, 0.0);
             assert_eq!(radio.checked, i == 1);
             assert_eq!(radio.enabled, i != 1, "the disabled option is off");
-            // Zig's radioGroup does not set a text style (unlike checkbox),
+            // `radio_group` does not set a text style (unlike checkbox),
             // so the `text.Style` default applies.
             assert_eq!(radio.text_style.font_size, 14.0);
         }

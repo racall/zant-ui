@@ -1,17 +1,16 @@
-//! Port of `src/core/layout.zig` — WP-1.3: CSS-style flex layout of the
+//! CSS-style flex layout of the
 //! retained tree (intrinsic sizes, containers, rows, columns, wrap).
 //!
 //! Split by layout stage: [`intrinsic`] (min/max-content measures),
 //! [`container`] (the recursive entry point and absolute positioning),
 //! [`row`], [`column`] and [`wrap`].
 //!
-//! **Decomposition choice (plan.md §4).** The Zig layout functions take
-//! `[]*Node` plus a `*Node`; Rust cannot hand out `&mut RetainedNode` across a
-//! recursive call into the same `Vec`. The internal functions therefore take
+//! **Node access.** A `&mut RetainedNode` cannot be held across a recursive
+//! call into the same `Vec`. The internal functions therefore take
 //! `&mut Nodes<'_>` — a thin wrapper around `&mut [RetainedNode]` that indexes
-//! by [`NodeId`] — so the translation keeps Zig's shape (`nodes[id].bounds`),
-//! and each slot is re-borrowed after every recursive call. The public entry
-//! points still take `&mut [RetainedNode]` + id as the contract asks.
+//! by [`NodeId`] (`nodes[id].bounds`) — and each slot is re-borrowed after
+//! every recursive call. The public entry points take `&mut [RetainedNode]` +
+//! id.
 #![forbid(unsafe_code)]
 
 use std::cell::RefCell;
@@ -27,11 +26,9 @@ pub mod wrap;
 
 pub use container::{layout_tree, translate_subtree_x, translate_subtree_y};
 
-/// Reusable scratch buffers: layout runs every frame and Zig used arena/stack
-/// storage for these lists, so the Rust port caches them per thread instead of
-/// allocating a fresh `Vec` for every container / row / column (WP-2.11
-/// follow-up: the `stream` bench scenario had its margin eaten by allocator
-/// traffic).
+/// Reusable scratch buffers: layout runs every frame, so these lists are
+/// cached per thread instead of allocating a fresh `Vec` for every container /
+/// row / column (allocator traffic showed up in the `stream` bench scenario).
 const SCRATCH_POOL_MAX: usize = 64;
 
 thread_local! {

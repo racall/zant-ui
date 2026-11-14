@@ -1,24 +1,20 @@
-//! The imperative gallery application: port of `src/app.zig` (also
-//! `src/main.zig`'s window / snapshot wiring).
+//! The imperative gallery application, with its window / snapshot wiring.
 //!
-//! The Zig gallery predates the declarative runtime: `App` owns a retained
-//! [`Tree`] built by hand (see [`super::gallery`]), paints it and handles the
-//! native events itself. The Rust runtime (`ui::App` / `runtime::Runtime`)
-//! builds a *declarative* tree from `render()` on every state change and would
-//! free the hand-built nodes, so this app keeps the Zig shape instead: it
-//! implements [`HostHandler`] (the native callback table) directly, exactly
-//! like `makeHost` in `src/app.zig`.
+//! The gallery does not use the declarative runtime: [`GalleryApp`] owns a
+//! retained [`Tree`] built by hand (see [`super::gallery`]), paints it and
+//! handles the native events itself. The runtime (`ui::App` /
+//! `runtime::Runtime`) builds a *declarative* tree from `render()` on every
+//! state change and would free the hand-built nodes, so this app implements
+//! [`HostHandler`] (the native callback table) directly.
 //!
-//! Deviations from the Zig source:
+//! Notes:
 //!
-//! * The window handle is an `Rc<Window>` the app only holds weakly (Zig kept a
-//!   raw `*Window`): the host handler owns an `Rc<RefCell<GalleryApp>>`, so a
-//!   strong window reference here would form a cycle.
-//! * The input callback receives the node id in Zig; Rust's `TextAction` has no
-//!   node-id parameter, so the action captures the id of the input it belongs
-//!   to when the callback is wired after the tree was built.
-//! * Zig's `platform.clipboardAlloc` returns an allocated buffer; the Rust
-//!   platform wrapper returns an owned `String` (`clipboard_text`).
+//! * The window handle is an `Rc<Window>` the app only holds weakly: the host
+//!   handler owns an `Rc<RefCell<GalleryApp>>`, so a strong window reference
+//!   here would form a cycle.
+//! * `TextAction` has no node-id parameter, so the input's action captures
+//!   the id of the input it belongs to when the callback is wired after the
+//!   tree was built.
 #![forbid(unsafe_code)]
 
 use std::any::Any;
@@ -36,7 +32,7 @@ use zant::ui;
 
 use super::gallery::{GalleryIds, GalleryState};
 
-/// Zig `App`: the gallery's retained tree plus the event / frame state.
+/// The gallery's retained tree plus the event / frame state.
 pub struct GalleryApp {
     pub theme: Theme,
     pub tree: zant::core::tree::Tree,
@@ -57,8 +53,8 @@ pub struct GalleryApp {
 }
 
 impl GalleryApp {
-    /// Zig `App.create`: theme, retained tree with the gallery, and the
-    /// callbacks that mutate it.
+    /// Theme, retained tree with the gallery, and the callbacks that mutate
+    /// it.
     pub fn new() -> GalleryApp {
         let theme = tokens::ant_light();
         let mut tree = zant::core::tree::Tree::init(theme);
@@ -87,10 +83,8 @@ impl GalleryApp {
         app
     }
 
-    /// Zig `addButton(.., .{ .ctx = self, .func = onIncrement })` and
-    /// `addInput(.., .{ .ctx = self, .func = onInputChanged })` — the callbacks
-    /// were passed while building in Zig; the ids exist only afterwards, so
-    /// they are attached here.
+    /// Attaches the increment / input-changed callbacks: the node ids exist
+    /// only after the tree was built, so they are wired here.
     fn wire_callbacks(&mut self) {
         let action = ui::action(|app: &mut GalleryApp| app.increment());
         if let NodeData::Button(data) = &mut self.tree.get_mut(self.ids.increment_button).data {
@@ -105,7 +99,7 @@ impl GalleryApp {
         }
     }
 
-    /// Zig `onIncrement`.
+    /// Click callback of the counter button.
     pub fn increment(&mut self) {
         self.gallery.counter += 1;
         let value = format!("Clicked: {}", self.gallery.counter);
@@ -113,7 +107,7 @@ impl GalleryApp {
         self.tree.mark_paint_dirty();
     }
 
-    /// Zig `onInputChanged`.
+    /// Change callback of the inputs.
     pub fn input_changed(&mut self, node_id: NodeId) {
         let value = {
             let NodeData::Input(data) = &self.tree.get(node_id).data else {
@@ -135,7 +129,7 @@ impl GalleryApp {
         self.gallery.counter
     }
 
-    /// Zig `App.draw`: one frame into `canvas`.
+    /// One frame into `canvas`.
     pub fn draw(&mut self, canvas: Canvas, width: f32, height: f32, dpr: f32) {
         let _ = dpr;
         self.tick();
@@ -157,7 +151,7 @@ impl GalleryApp {
         self.compute_next_delay();
     }
 
-    /// Zig `App.tick`: the button hover / press transitions and the caret blink.
+    /// The button hover / press transitions and the caret blink.
     fn tick(&mut self) {
         self.now_ms = platform::monotonic_ms();
         let mut dt: f32 = (self.now_ms - self.last_tick_ms).max(0) as f32;
@@ -195,7 +189,7 @@ impl GalleryApp {
         }
     }
 
-    /// Zig `App.computeNextDelay`.
+    /// When the next frame is needed (animation, caret blink or none).
     fn compute_next_delay(&mut self) {
         let mut delay: i32 = -1;
         if self.any_animation {
@@ -216,7 +210,7 @@ impl GalleryApp {
         self.next_delay_ms = delay;
     }
 
-    /// Zig `App.handle`: the translated native event; 1 = consumed.
+    /// Handles a translated native event; 1 = consumed.
     pub fn handle(&mut self, event: Event) -> i32 {
         match event {
             Event::PointerMove(p) | Event::PointerEnter(p) => {
@@ -304,7 +298,6 @@ impl GalleryApp {
         self.update_cursor(target);
     }
 
-    /// Zig `App.setHover`.
     fn set_hover(&mut self, target: Option<NodeId>) {
         if self.hovered == target {
             return;
@@ -330,7 +323,7 @@ impl GalleryApp {
         self.tree.mark_paint_dirty();
     }
 
-    /// Zig `App.updateCursor`.
+    /// The pointer cursor for the node under the pointer.
     fn update_cursor(&mut self, target: Option<NodeId>) {
         let cursor = match target {
             Some(id) => match &self.tree.get(id).data {
@@ -410,7 +403,6 @@ impl GalleryApp {
         self.update_cursor(self.tree.hit_test(p.x, p.y));
     }
 
-    /// Zig `App.focusNode`.
     fn focus_node(&mut self, id: Option<NodeId>) {
         if let Some(old) = self.tree.focused
             && Some(old) != id
@@ -435,7 +427,7 @@ impl GalleryApp {
         }
     }
 
-    /// Zig `App.setInputCursor`: places the caret under the pointer.
+    /// Places the caret under the pointer.
     fn set_input_cursor(&mut self, id: NodeId, x: f32, y: f32, extend: bool) {
         let (bounds, scroll_x) = {
             let node = self.tree.get(id);
@@ -627,10 +619,10 @@ impl GalleryApp {
         0
     }
 
-    /// Zig `Tree.inputChanged` runs the input's `text_action` after every
-    /// successful edit (the Rust tree only changes state; the runtime notifies
-    /// the action, see `runtime/keyboard.rs:notify_text_action`). The gallery
-    /// drives the tree itself, so it notifies here.
+    /// Runs the input's `text_action` after a successful edit. The tree only
+    /// changes state; normally the runtime notifies the action (see
+    /// `runtime/keyboard.rs:notify_text_action`), but the gallery drives the
+    /// tree itself, so it notifies here.
     fn notify_text_action(&mut self, id: NodeId) {
         let action = match &self.tree.get(id).data {
             NodeData::Input(data) => data.text_action.clone(),
@@ -647,7 +639,7 @@ impl GalleryApp {
         action.call(&mut cx, &text);
     }
 
-    /// Zig `App.copySelection`.
+    /// Copies the input's selection to the clipboard.
     fn copy_selection(&mut self, id: NodeId) -> bool {
         let text = {
             let node = self.tree.get(id);
@@ -666,7 +658,7 @@ impl GalleryApp {
         platform::set_clipboard(&text)
     }
 
-    /// Zig `App.pasteInto`.
+    /// Pastes the clipboard text into the input.
     fn paste_into(&mut self, id: NodeId) {
         let Some(clipboard) = platform::clipboard_text() else {
             return;
@@ -679,7 +671,7 @@ impl GalleryApp {
         }
     }
 
-    /// Zig `App.imeRect`.
+    /// The caret rectangle of the focused input, for the input method.
     pub fn ime_rect(&mut self) -> Option<zant::core::geometry::Rect> {
         let id = self.tree.focused?;
         if !matches!(self.tree.get(id).data, NodeData::Input(_)) {
@@ -688,7 +680,6 @@ impl GalleryApp {
         self.tree.input_caret_rect(id)
     }
 
-    /// Zig `App.nextFrameDelay`.
     pub fn next_frame_delay(&self) -> i32 {
         self.next_delay_ms
     }
@@ -700,7 +691,7 @@ impl Default for GalleryApp {
     }
 }
 
-/// The native host callbacks of the gallery (Zig `makeHost`).
+/// The native host callbacks of the gallery.
 pub struct GalleryHost {
     app: Rc<RefCell<GalleryApp>>,
 }
@@ -739,7 +730,7 @@ impl HostHandler for GalleryHost {
     }
 }
 
-/// The `zant-gallery` entry point (Zig `src/main.zig`).
+/// The `zant-gallery` entry point.
 pub fn run() -> Result<(), Error> {
     let app = Rc::new(RefCell::new(GalleryApp::new()));
     let window = Rc::new(

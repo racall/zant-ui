@@ -1,5 +1,4 @@
-//! Port of `src/markdown/remend/link_image.zig` (remend
-//! `link-image-handler.ts`): heals `[text`, `[text](partial` and `![alt` at the
+//! remend `link-image-handler.ts`: heals `[text`, `[text](partial` and `![alt` at the
 //! end of a streamed text.
 
 use super::context::Context;

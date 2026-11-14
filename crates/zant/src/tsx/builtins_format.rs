@@ -1,12 +1,8 @@
 //! JavaScript number formatting: `String(number)` / `.toString()` /
-//! `.toFixed()` and (Rust-side additions for the codegen, see the module note)
-//! `.toPrecision()` / `.toString(radix)`.
+//! `.toFixed()` / `.toPrecision()` / `.toString(radix)`.
 //!
-//! Port of `src/tsx_builtins_format.zig` and the formatting half of
-//! `src/tsx_builtins.zig`. The Zig `format` function of that file rewrote
-//! `{d}` float fields of a Zig format string to `{s}` with the JS spelling;
-//! Rust codegen emits `format!` directly and calls [`js_float_string`] at the
-//! float fields, so that adapter has no Rust counterpart.
+//! The codegen emits `format!` directly and calls [`js_float_string`] at the
+//! float fields of a template string.
 //!
 //! `toFixed` rounds the *exact binary value* half away from zero (JS
 //! `toFixed`, unlike Rust's `{:.n}` which rounds half to even): `1.25` → `1.3`
@@ -210,8 +206,8 @@ pub fn to_fixed(x: f64, digits: f64) -> Str {
 /// `Number.prototype.toPrecision(precision)`: `precision` significant digits
 /// (JS thresholds for fixed / scientific spelling, ties away from zero).
 ///
-/// Not part of the Zig port (the Zig compiler only emits `toFixed` /
-/// `toString()`); provided for codegen completeness.
+/// The compiler only emits `toFixed` / `toString()` today; provided for
+/// codegen completeness.
 pub fn to_precision(x: f64, precision: f64) -> Str {
     if precision.is_nan() {
         return js_float_string(x);
@@ -290,7 +286,7 @@ pub fn to_precision(x: f64, precision: f64) -> Str {
 /// digits (enough for the dyadic bases; non-terminating expansions like base 3
 /// are rounded off, JS engines differ in their last digit too).
 ///
-/// Not part of the Zig port; provided for codegen completeness.
+/// Provided for codegen completeness.
 pub fn to_string_radix(x: f64, radix: f64) -> Str {
     let radix = if radix.is_nan() { 10.0 } else { radix.trunc() };
     if !(2.0..=36.0).contains(&radix) {
@@ -392,7 +388,7 @@ mod tests {
     }
 
     #[test]
-    fn js_number_spelling_matches_the_zig_tests() {
+    fn js_number_spelling_of_floats() {
         for (value, expected) in [
             (1.0, "1"),
             (-0.0, "0"),
@@ -416,7 +412,7 @@ mod tests {
     }
 
     #[test]
-    fn to_fixed_matches_the_zig_tests() {
+    fn to_fixed_rounds_the_exact_binary_value() {
         for (value, digits, expected) in [
             (1000000000000000128.0, 0.0, "1000000000000000128"),
             (1e20, 2.0, "100000000000000000000.00"),

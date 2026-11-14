@@ -11,8 +11,6 @@
 # Needs the `bindgen` CLI and libclang:
 #   cargo install bindgen-cli
 #   macOS: libclang ships with Xcode; pass LIBCLANG_PATH if bindgen misses it.
-#
-# docs/rust-port/plan.md WP-0.3.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

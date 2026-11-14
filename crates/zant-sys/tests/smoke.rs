@@ -1,7 +1,6 @@
-//! WP-0.3 acceptance: the native layer compiles, links and works.
-//!
-//! Plan requirement: "冒烟测试：创建 raster renderer，画一个矩形，读回像素；
-//! 创建一个 TextLayout 并量宽度。两平台通过" (docs/rust-port/plan.md WP-0.3).
+//! Smoke test: the native layer compiles, links and works. Creates a raster
+//! renderer, draws a rectangle and reads the pixels back; creates a text
+//! layout and measures its width. Must pass on both platforms.
 
 use zant_sys::skia::*;
 

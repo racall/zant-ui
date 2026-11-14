@@ -1,5 +1,4 @@
-//! Build-script helpers for a Zant application (replaces `addTsxApp` /
-//! `configureApp` / `addAppIcons` in Zig's `build.zig`).
+//! Build-script helpers for a Zant application.
 //!
 //! An application's `build.rs` calls [`tsx_app`]:
 //!
@@ -28,7 +27,7 @@
 //! - the assets imported from TSX (`import icon from "../assets/x.png"`) under
 //!   `_assets/`, referenced by `include_bytes!` in the generated modules.
 //! - `icons.rs`: one `icon_<name>` byte constant per `assets/icons/*.png`
-//!   (`-` → `_`, like Zig's `addAppIcons`). Include it where the bytes are
+//!   (`-` → `_`). Include it where the bytes are
 //!   needed: `mod icons { include!(concat!(env!("OUT_DIR"), "/icons.rs")); }`.
 //! - `app.d`, the dep file listing every source and asset the build read.
 //!
@@ -36,7 +35,7 @@
 //! `.tsx`, `.ts`, `.rs`, `native/` file, an icon/asset or `app.config.json`
 //! rebuilds the app.
 //!
-//! On Windows (host) it additionally replaces Zig's `configureApp`: the `.ico`
+//! On Windows (host) it additionally configures the executable: the `.ico`
 //! built from `assets/icons/app-windows.png`, the per-monitor-DPI /
 //! Common-Controls manifest (`crates/zant-sys/native/platform/windows/zant.manifest`)
 //! and the GUI
@@ -73,8 +72,7 @@ use zant_tsx::{codegen, entry};
 pub use icons::{Icon, enumerate as app_icons, module_source as icon_module_source};
 pub use zant_tsx::compile::ConfigSpec as AppConfig;
 
-/// The root component's file stem (`src/App.tsx`), like Zig's
-/// `TsxAppOptions.entry`.
+/// The root component's file stem (`src/App.tsx`).
 pub const ENTRY: &str = "App";
 
 /// A build-script failure (`build.rs` prints it and panics, like Cargo).
@@ -178,7 +176,7 @@ pub struct BuildReport {
     /// `$OUT_DIR/app.d` (Makefile-style dep file: sources and assets).
     pub dep_file: PathBuf,
     /// `<app_root>/native/spec.rs`: the generated module tree of the
-    /// `native/*.ts` specs (WP-5.8), written into the app so
+    /// `native/*.ts` specs, written into the app so
     /// `native/lib.rs` can declare `pub mod spec;`. `None` when the app has
     /// no native specs.
     pub spec_module: Option<PathBuf>,
@@ -277,7 +275,7 @@ pub fn tsx_app_in(app_root: &Path, out_dir: &Path) -> Result<BuildReport, Error>
     })
 }
 
-/// Writes the project's `native/spec.rs` into the app (WP-5.8): one `pub mod`
+/// Writes the project's `native/spec.rs` into the app: one `pub mod`
 /// per `native/*.ts` spec, which `native/lib.rs` declares as `pub mod spec;`.
 ///
 /// The generated modules call `crate::native::spec::<name>::…` and
@@ -344,8 +342,8 @@ fn module_declarations(files: &[SourceFile]) -> String {
          // `#[path]` is resolved relative to this file's directory (OUT_DIR).\n",
     );
     for file in files {
-        // Native specs are compiled by WP-5.8's native-module support; the
-        // generated entry does their registration (not wired in this base).
+        // Native specs are not declared here: they go to `native/spec.rs`
+        // and the generated entry registers them.
         if file.is_rust() || file.native {
             continue;
         }
@@ -429,7 +427,7 @@ fn validate_root(path: &Path, source: &str) -> Result<(), Error> {
 }
 
 /// The Windows `.ico` (16, 20, 24, 32, 40, 48, 64, 256) built from
-/// `assets/icons/app-windows.png` — Zig's `addWindowsIcon` / `zant-icon ico`.
+/// `assets/icons/app-windows.png`.
 /// `None` when the app has no Windows icon; an invalid PNG is an error (the
 /// executable's icon must not silently disappear).
 pub fn windows_icon(app_root: &Path) -> Result<Option<Vec<u8>>, Error> {

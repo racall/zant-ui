@@ -1,6 +1,5 @@
 //! System-wide hotkeys: the [`Shortcut`] value with its display / settings
-//! text forms and the registration calls (port of `src/desktop.zig`'s
-//! "hotkeys" section).
+//! text forms and the registration calls.
 #![forbid(unsafe_code)]
 
 use crate::core::events::{Key, KeyEvent, Modifiers};
@@ -39,7 +38,7 @@ impl Shortcut {
     }
 
     /// True when both name the same combination (the keys compare with Shift /
-    /// Ctrl / Alt / Cmd and ignore Caps Lock, like Zig `Shortcut.eql`).
+    /// Ctrl / Alt / Cmd and ignore Caps Lock).
     pub fn eql(&self, other: &Shortcut) -> bool {
         normalized(self.key) == normalized(other.key)
             && self.modifiers.shift == other.modifiers.shift
@@ -49,7 +48,7 @@ impl Shortcut {
     }
 
     /// Display label for this platform: "⌥⌘V" on macOS, "Ctrl+Alt+V" on
-    /// Windows (Zig `Shortcut.label` writes into a caller buffer).
+    /// Windows.
     pub fn label(&self) -> String {
         let mut out = String::new();
         let modifiers = self.modifiers;
@@ -152,7 +151,7 @@ impl Shortcut {
                 "tab" => Key::Tab,
                 "escape" => Key::Escape,
                 // unknown names keep the default character key and fail
-                // `is_valid`, like Zig's inline for
+                // `is_valid`
                 _ => Key::Character('\0'),
             };
         }
@@ -160,7 +159,7 @@ impl Shortcut {
     }
 }
 
-/// Zig `normalized`: character keys compare case-insensitively.
+/// Lowercases character keys so they compare case-insensitively.
 fn normalized(key: Key) -> Key {
     match key {
         Key::Character(character) if character.is_ascii_uppercase() => {
@@ -170,7 +169,8 @@ fn normalized(key: Key) -> Key {
     }
 }
 
-/// Zig `@tagName` of the non-character keys, as used by `Shortcut.format`.
+/// The settings-text name of the non-character keys, as used by
+/// `Shortcut::format`.
 fn key_tag_name(key: Key) -> &'static str {
     match key {
         Key::Character(_) => "character",
@@ -191,7 +191,7 @@ fn key_tag_name(key: Key) -> &'static str {
     }
 }
 
-/// Writes the display name of `key` (Zig `writeKeyName`).
+/// Writes the display name of `key`.
 fn write_key_name(out: &mut String, key: Key) {
     match key {
         Key::Character(character) => {
@@ -213,7 +213,7 @@ fn write_key_name(out: &mut String, key: Key) {
     }
 }
 
-/// Zig `platformKey`: the platform key code for a supported key.
+/// The platform key code for a supported key.
 fn platform_key(key: Key) -> Option<i32> {
     use crate::platform::platform::key as platform_key_code;
     Some(match key {
@@ -239,7 +239,7 @@ fn platform_key(key: Key) -> Option<i32> {
     })
 }
 
-/// Zig `platformModifiers`: the `ZANT_MOD_*` bits of a combination.
+/// The `ZANT_MOD_*` bits of a combination.
 fn platform_modifiers(modifiers: Modifiers) -> i32 {
     let mut out = 0;
     if modifiers.shift {
@@ -272,7 +272,7 @@ pub fn register_hotkey(id: u32, shortcut: Shortcut) -> bool {
     platform::register_hotkey(id, key, platform_modifiers(shortcut.modifiers))
 }
 
-/// Removes the hotkey registered with `id` (Zig `unregisterHotkey`).
+/// Removes the hotkey registered with `id`.
 pub fn unregister_hotkey(id: u32) {
     let id = i32::try_from(id).expect("hotkey id fits in a C int");
     platform::unregister_hotkey(id);
@@ -284,7 +284,6 @@ mod tests {
 
     #[test]
     fn shortcut_text_form_and_labels() {
-        // Zig `test "shortcut text form and labels"`
         let shortcut = Shortcut::parse("ctrl+alt+v").expect("parsed");
         assert!(shortcut.modifiers.control && shortcut.modifiers.alt && !shortcut.modifiers.shift);
         assert_eq!(shortcut.format(), "ctrl+alt+v");

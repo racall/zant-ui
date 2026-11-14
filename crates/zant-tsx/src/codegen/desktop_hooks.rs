@@ -5,9 +5,9 @@
 //! const ok = useHotkey(hotkey, () => panel.toggle());   // "ctrl+cmd+v"; "" for none
 //! ```
 //!
-//! Translation of `tools/tsx/codegen/desktop_hooks.zig`. Both run while
-//! rendering and apply only changes (`zant::tsx::desktop`); their callbacks are
-//! handlers (captures, snapshots) registered before the component is emitted.
+//! Both run while rendering and apply only changes (`zant::tsx::desktop`);
+//! their callbacks are handlers (captures, snapshots) registered before the
+//! component is emitted.
 //!
 //! `useTray` becomes `tsx::desktop::update(tsx::desktop::TrayOptions { … })`,
 //! `useHotkey` a hidden `tsx::desktop::Hotkey` field updated every render.
@@ -94,8 +94,8 @@ fn callback(g: &mut Generator<'_>, e: &ast::Expr) -> Result<()> {
                     data: ast::ExprData::Arrow(Box::new(function)),
                 }
             } else if crate::codegen::functions::find_index(g, name).is_some() {
-                // Staged port fix (M7.1): a plain function passed by name is
-                // called, like `events::function_arrow` does for JSX handlers.
+                // A plain function passed by name is called, like
+                // `events::function_arrow` does for JSX handlers.
                 let call = ast::Expr {
                     loc: e.loc,
                     data: ast::ExprData::Call(ast::Call {
@@ -118,7 +118,7 @@ fn callback(g: &mut Generator<'_>, e: &ast::Expr) -> Result<()> {
                 return fail(
                     g,
                     e.loc,
-                    "function-name callbacks need WP-5.4 (`events.functionArrow`); pass an arrow",
+                    "the callback must be an arrow or the name of a function",
                 );
             }
         }

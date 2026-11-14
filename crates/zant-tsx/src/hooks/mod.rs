@@ -2,9 +2,9 @@
 //! `useX(…)` call of a component is replaced by the hook's body before code
 //! is generated.
 //!
-//! Direct translation of `tools/tsx/hooks/`:
-//! `expand.zig` → [`expand`], `rewrite.zig` → [`rewrite`], `resolve.zig` →
-//! [`resolve`], `leftover.zig` → [`leftover`].
+//! [`expand`] drives the inlining, [`rewrite`] copies and renames the hook's
+//! body, [`resolve`] brings along the names the hook reads from its own file,
+//! and [`leftover`] reports the calls that could not be inlined.
 
 pub mod expand;
 pub mod leftover;
@@ -29,8 +29,8 @@ mod tests {
         }
     }
 
-    /// The expansion of a single-file program (Zig `compile.compile`'s first
-    /// stage: parse and inline, without code generation).
+    /// The expansion of a single-file program (the compiler's first stage:
+    /// parse and inline, without code generation).
     fn expand_source(src: &str) -> (Unit, Option<Failure>) {
         let mut units = vec![unit("App", "App.tsx", src)];
         let mut failure = None;
@@ -119,10 +119,8 @@ mod tests {
         );
     }
 
-    // Ported from `tools/tsx/hooks/expand_test.zig`,
-    // "a hook in the same file becomes the component's state and effects".
-    // The Zig test checks codegen's `useCounter_count: f64 = 5`; before code
-    // generation that state is a `useState(5)` destructuring declaration.
+    // Code generation turns this into `useCounter_count: f64 = 5`; before
+    // code generation that state is a `useState(5)` destructuring declaration.
     #[test]
     fn a_hook_in_the_same_file_becomes_the_components_state_and_effects() {
         let src = r#"import { useState, useEffect } from "zant";
@@ -151,10 +149,8 @@ export default function App() {
         );
     }
 
-    // Ported from `expand_test.zig`, "a hook in another file brings the
-    // imports it reads". The Zig test checks the generated `@import("…")`
-    // lines, `_Store.label(` and `_useClicks.step`; before code generation
-    // those are the imports inlining added.
+    // The generated code reads `_Store.label(` and `_useClicks.step`; before
+    // code generation those are the imports inlining added.
     #[test]
     fn a_hook_in_another_file_brings_the_imports_it_reads() {
         let store = r#"import { createStore } from "zant";
@@ -223,11 +219,10 @@ export default function App() {
         );
     }
 
-    // Ported from `expand_test.zig`, "hooks call hooks and errors point into
-    // the hook's file". The Zig test checks codegen's
-    // `useFlag_on: bool = false` and, for a broken hook, the reported file
-    // and location (`37`); here those are the inlined state and the location
-    // tag `decode` reports errors through.
+    // Code generation turns the nested hook into `useFlag_on: bool = false`
+    // and reports a broken hook in the hook's file; before code generation
+    // those are the inlined state and the location tag `decode` reports
+    // errors through.
     #[test]
     fn hooks_call_hooks_and_errors_point_into_the_hooks_file() {
         let hook = r#"import { useState } from "zant";
@@ -275,8 +270,6 @@ export default function App() {
         assert_eq!(1, decode(1, ret.loc).0);
     }
 
-    // Ported from `expand_test.zig`, "custom hook errors" (the same sources
-    // and the same messages; the Zig helper prints the generated code).
     #[test]
     fn custom_hook_errors() {
         let hook = "import { useState } from \"zant\";\nfunction useN(n: number) { const [v, setV] = useState(n); return v; }\n";
@@ -321,32 +314,30 @@ export default function App() {
         );
     }
 
-    // Not a Zig test: the repository's custom-hook project
-    // (`tests/tsx/hooks/`, compiled by the Zig compiler in `zig build test`)
-    // expands to the same names. The expectations are the local state the
-    // Zig compiler generates for it (App.zig / Clicker in `hooks_tsx`):
+    // The repository's custom-hook project (`tests/fixtures/hooks/`) expands to
+    // the local state the generated code declares for it:
     // `useCounter_count`, `useCounter2_count`, `useFlag_on`,
     // `useToggle_flips`, and `_config.step` imported from `./config`.
     #[test]
-    fn repo_custom_hook_project_expands_like_the_zig_compiler() {
+    fn repo_custom_hook_project_expands_to_prefixed_state() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let dir = root.join("tests/tsx/hooks");
-        // The Zig fixtures (and this test's inputs) are deleted at M8.
-        if !dir.is_dir() {
-            return;
-        }
+        let dir = root.join("crates/zant-tsx/tests/fixtures/hooks");
         let read = |rel: &str| std::fs::read_to_string(dir.join(rel)).expect("read fixture");
         let mut units = vec![
-            unit("App", "tests/tsx/hooks/App.tsx", &read("App.tsx")),
-            unit("config", "tests/tsx/hooks/config.tsx", &read("config.tsx")),
+            unit("App", "tests/fixtures/hooks/App.tsx", &read("App.tsx")),
+            unit(
+                "config",
+                "tests/fixtures/hooks/config.tsx",
+                &read("config.tsx"),
+            ),
             unit(
                 "useCounter",
-                "tests/tsx/hooks/hooks/useCounter.tsx",
+                "tests/fixtures/hooks/hooks/useCounter.tsx",
                 &read("hooks/useCounter.tsx"),
             ),
             unit(
                 "useToggle",
-                "tests/tsx/hooks/hooks/useToggle.tsx",
+                "tests/fixtures/hooks/hooks/useToggle.tsx",
                 &read("hooks/useToggle.tsx"),
             ),
         ];
@@ -406,8 +397,8 @@ export default function App() {
         );
     }
 
-    // Not a Zig test: the M4 AST dump of a component calling two custom
-    // hooks must be deterministic (same names and order on every run).
+    // The AST dump of a component calling two custom hooks must be
+    // deterministic (same names and order on every run).
     #[test]
     fn two_custom_hooks_expand_deterministically() {
         let src = r#"import { useState } from "zant";

@@ -1,5 +1,5 @@
-//! Continuous scrolling and page layout of the PDF viewer — the layout /
-//! navigation half of `src/pdf/viewer.zig` plus the toolbar chrome (WP-3.9).
+//! Continuous scrolling and page layout of the PDF viewer: page tops,
+//! navigation and the toolbar chrome.
 //!
 //! Page tops are computed in content pixels at `layout_zoom`; the viewport
 //! scrolls vertically through the stacked pages, and horizontally only when a
@@ -25,8 +25,7 @@ use crate::ui::{Style, styled};
 use super::{BarDrag, Fit, Inner, ViewOptions, Viewer};
 
 impl Inner {
-    /// Recomputes the page tops and the content box at `zoom` (Zig
-    /// `Viewer.relayout`).
+    /// Recomputes the page tops and the content box at `zoom`.
     pub(crate) fn relayout(&mut self) {
         let Some(doc) = self.doc.clone() else {
             return;
@@ -154,7 +153,7 @@ impl Inner {
         self.doc.as_ref().map_or(0, |doc| doc.page_count())
     }
 
-    /// Scrollbar drag (Zig `Viewer.onScrollbar`); `true` while dragging.
+    /// Scrollbar drag; `true` while dragging.
     pub(crate) fn on_scrollbar(
         &mut self,
         info: crate::ui::actions::PointerInfo,
@@ -246,6 +245,21 @@ impl Viewer {
         [inner.scroll_x, inner.scroll_y]
     }
 
+    /// Moves the viewport to a scroll offset (content px, clamped to the
+    /// content). `on_change` reports the move like a user scroll.
+    pub fn scroll_to(&self, x: f32, y: f32) {
+        let mut inner = self.borrow_mut();
+        let (dx, dy) = (x - inner.scroll_x, y - inner.scroll_y);
+        inner.scroll_by(dx, dy);
+        inner.changed();
+    }
+
+    /// Size of the viewport (px); zero before the first layout.
+    pub fn viewport_size(&self) -> [f32; 2] {
+        let inner = self.borrow();
+        [inner.view_w, inner.view_h]
+    }
+
     /// Content size of the stacked pages (px at the current zoom).
     pub fn content_size(&self) -> [f32; 2] {
         let inner = self.borrow();
@@ -307,10 +321,14 @@ pub(crate) fn toolbar(inner: &Inner, viewer: &Viewer, options: &ViewOptions, the
         width: Some(44.0),
         height: 24.0,
         font_size: 12.0,
-        on_change: Some(crate::ui::actions::TextAction::new(move |_cx, value| {
-            tb_page_input(&page_input_viewer, value)
+        on_change: Some(crate::ui::actions::TextAction::new(move |cx, value| {
+            tb_page_input(&page_input_viewer, value);
+            page_input_viewer.flush_callbacks(cx);
         })),
-        on_submit: Some(Action::new(move |_cx| tb_page_submit(&page_submit_viewer))),
+        on_submit: Some(Action::new(move |cx| {
+            tb_page_submit(&page_submit_viewer);
+            page_submit_viewer.flush_callbacks(cx);
+        })),
         ..Default::default()
     }));
     children.push(text(
@@ -342,7 +360,10 @@ pub(crate) fn toolbar(inner: &Inner, viewer: &Viewer, options: &ViewOptions, the
         width: Some(56.0),
         font_size: Some(12.0),
         focusable: false,
-        on_click: Some(Action::new(move |_cx| tb_fit(&zoom_viewer))),
+        on_click: Some(Action::new(move |cx| {
+            tb_fit(&zoom_viewer);
+            zoom_viewer.flush_callbacks(cx);
+        })),
         ..Default::default()
     });
     children.push(tooltip(TooltipOptions {
@@ -388,11 +409,16 @@ pub(crate) fn toolbar(inner: &Inner, viewer: &Viewer, options: &ViewOptions, the
         width: Some(160.0),
         height: 24.0,
         font_size: 12.0,
-        on_change: Some(crate::ui::actions::TextAction::new(move |_cx, value| {
-            tb_search(&search_change_viewer, value)
+        on_change: Some(crate::ui::actions::TextAction::new(move |cx, value| {
+            tb_search(&search_change_viewer, value);
+            search_change_viewer.flush_callbacks(cx);
         })),
         on_key: Some(crate::ui::actions::InputKeyAction::new(
-            move |_cx, event, _text, _anchor, _cursor| tb_search_key(&search_key_viewer, event),
+            move |cx, event, _text, _anchor, _cursor| {
+                let consumed = tb_search_key(&search_key_viewer, event);
+                search_key_viewer.flush_callbacks(cx);
+                consumed
+            },
         )),
         ..Default::default()
     }));
@@ -444,7 +470,7 @@ pub(crate) fn toolbar(inner: &Inner, viewer: &Viewer, options: &ViewOptions, the
     })
 }
 
-/// One toolbar icon button with a tooltip (`ui.iconButton` in Zig).
+/// One toolbar icon button with a tooltip.
 fn toolbar_button(
     key: &str,
     tooltip_text: Str,
@@ -461,7 +487,10 @@ fn toolbar_button(
         r#box: 28.0,
         disabled,
         tooltip: Some(tooltip_text),
-        on_click: Some(Action::new(move |_| callback(&v))),
+        on_click: Some(Action::new(move |cx| {
+            callback(&v);
+            v.flush_callbacks(cx);
+        })),
         ..Default::default()
     })
 }

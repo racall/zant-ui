@@ -1,8 +1,7 @@
-//! Building the PDF viewer's retained tree — the `Viewer.view` /
-//! `buildPages` / `tiles` / `buildScrollbars` parts of `src/pdf/viewer.zig`
-//! (WP-3.9).
+//! Building the PDF viewer's retained tree: [`view`], the page layers, their
+//! tiles and the scrollbars.
 //!
-//! The page tile cache itself is `pdf::renderer` (WP-3.8): this module asks it
+//! The page tile cache itself is `pdf::renderer`: this module asks it
 //! for the low-resolution base image of each page plus the sharp tiles of the
 //! visible part at the current zoom, and paints whatever is ready; missing
 //! tiles are queued by the renderer's worker and wake the UI thread. Nothing
@@ -27,7 +26,7 @@ use crate::ui::{self, Style, styled};
 use super::annotate;
 use super::{Fit, Inner, Tool, ViewOptions, Viewer};
 
-/// Logical px snapped to the display grid (Zig `snap`).
+/// Logical px snapped to the display grid.
 fn snap(value: f32, scale: f32) -> f32 {
     (value * scale).round() / scale
 }
@@ -98,29 +97,24 @@ pub fn view(viewer: &Viewer, options: ViewOptions) -> Node {
         }
     }
 
-    // Deferred `on_change` / `on_annotation` (Zig called them synchronously
-    // inside the mutation; see the module docs of `pdf::viewer`).
+    // Events run `on_change` / `on_annotation` themselves
+    // (`Viewer::flush_callbacks`). What is still due here came from a call
+    // without an event (the app driving the viewer API, or this build's own
+    // layout): run it as an effect and build again, so the callbacks' state
+    // changes show in this frame.
     if inner.pending_change || inner.pending_annotation {
-        let change = if inner.pending_change {
-            inner.options.on_change.clone()
-        } else {
-            None
-        };
-        let annotation = if inner.pending_annotation {
-            inner.options.on_annotation.clone()
-        } else {
-            None
-        };
-        inner.pending_change = false;
-        inner.pending_annotation = false;
-        ui::effect(Action::new(move |cx| {
-            if let Some(callback) = &change {
-                callback.call(cx);
-            }
-            if let Some(callback) = &annotation {
-                callback.call(cx);
-            }
-        }));
+        let (change, annotation) = inner.take_callbacks();
+        if change.is_some() || annotation.is_some() {
+            ui::effect(Action::new(move |cx| {
+                if let Some(callback) = &change {
+                    callback.call(cx);
+                }
+                if let Some(callback) = &annotation {
+                    callback.call(cx);
+                }
+                ui::request_rebuild();
+            }));
+        }
     }
 
     let mut vp_children: Vec<Node> = Vec::new();
@@ -183,7 +177,7 @@ pub fn view(viewer: &Viewer, options: ViewOptions) -> Node {
     let on_pointer = PointerAction::new(move |cx, info| pointer_viewer.pointer(cx, info));
     let resize_viewer = viewer.clone();
     let key_viewer = viewer.clone();
-    let on_key = KeyAction::new(move |_cx, event| key_viewer.key(event));
+    let on_key = KeyAction::new(move |cx, event| key_viewer.key(cx, event));
 
     children.push(pointer_area(PointerAreaOptions {
         r#box: BoxOptions {
@@ -496,8 +490,10 @@ fn build_scrollbars(
                 )],
                 ..Default::default()
             },
-            on_pointer: PointerAction::new(move |_, info| {
-                pointer_viewer.borrow_mut().on_vbar(info)
+            on_pointer: PointerAction::new(move |cx, info| {
+                let changed = pointer_viewer.borrow_mut().on_vbar(info);
+                pointer_viewer.flush_callbacks(cx);
+                changed
             }),
             ..Default::default()
         }));
@@ -529,8 +525,10 @@ fn build_scrollbars(
                 )],
                 ..Default::default()
             },
-            on_pointer: PointerAction::new(move |_, info| {
-                pointer_viewer.borrow_mut().on_hbar(info)
+            on_pointer: PointerAction::new(move |cx, info| {
+                let changed = pointer_viewer.borrow_mut().on_hbar(info);
+                pointer_viewer.flush_callbacks(cx);
+                changed
             }),
             ..Default::default()
         }));

@@ -1,9 +1,9 @@
-// A TSX project: NoteCard.tsx renders cards; format.zig formats counts. Run with
-// `zig build run-tsx-notes`.
+// A TSX project: NoteCard.tsx renders cards; a helper module formats counts.
+// Parser corpus only; the runnable app is `../../tsx-notes`.
 import { useState, useTheme, View, Row, Heading, Input, Button, Text } from "zant";
 import type { u32 } from "zant";
 import { NoteCard, type Note } from "./NoteCard";
-import { plural } from "./format.zig";
+import { plural } from "./format.rs";
 
 export default function Notes() {
   const [notes, setNotes] = useState<Note[]>([]);

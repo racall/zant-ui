@@ -7,16 +7,16 @@
 //! useClipboardChange(() => …);  useReopen(() => …);  useWake(() => …);  useAppExit(() => …);
 //! ```
 //!
-//! Translation of `tools/tsx/codegen/app_hooks.zig`. Each hook becomes a
-//! private method of the root struct and an `impl ui::App` method that
-//! forwards to it (`on_close_request`, `on_quit_request`, `on_key`,
-//! `on_app_event`, `on_wake`, `on_exit`). A no-props child component of a
-//! `createWindow` gets `_window_on_*` methods instead, which
-//! [`super::windows`] forwards to through `tsx::window::Component`.
+//! Each hook becomes a private method of the root struct and an
+//! `impl ui::App` method that forwards to it (`on_close_request`,
+//! `on_quit_request`, `on_key`, `on_app_event`, `on_wake`, `on_exit`). A
+//! no-props child component of a `createWindow` gets `_window_on_*` methods
+//! instead, which [`super::windows`] forwards to through
+//! `tsx::window::Component`.
 //!
 //! This module also owns the statement / declaration dispatcher hooks:
 //! `generate::install` installs [`statement`] and [`declaration`], which route
-//! app hooks, desktop hooks and the WP-5.5 hooks (`useEffect`, `useMemo`,
+//! app hooks, desktop hooks and the state hooks (`useEffect`, `useMemo`,
 //! `useStore`) to their implementations.
 
 use crate::ast;
@@ -218,8 +218,8 @@ pub fn collect(g: &mut Generator<'_>, e: &ast::Expr) -> Result<()> {
     }
     let mut function = (**function).clone();
     // The arrow's parameter is untyped (`(e) => …`); the hook supplies it.
-    // (Zig inferred it through `events.parameterType` in `method`; annotating
-    // it here keeps WP-5.4 out of the app layer.)
+    // Annotating it here keeps the event-handler inference (`events`) out of
+    // the app layer.
     match hook.param {
         HookParam::Key => annotate_param(g, &mut function, "KeyEvent")?,
         HookParam::Focused => annotate_param(g, &mut function, "boolean")?,
@@ -310,7 +310,7 @@ pub fn declaration(
     match name.as_str() {
         "useMemo" => hooks::memo(g, c, loc, d, top),
         "useStore" => stores::use_store(g, c, loc, d, top),
-        _ => fail(g, loc, format!("hook `{name}` is implemented by WP-5.6")),
+        _ => fail(g, loc, format!("hook `{name}` cannot be declared here")),
     }
 }
 

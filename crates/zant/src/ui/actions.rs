@@ -1,13 +1,13 @@
 //! Declarative callbacks (`ui::action`, `ui::text_action`, …).
 //!
-//! Port of `src/core/actions.zig` plus the `ui.action` / `ui.textAction` /
-//! `ui.boolAction` / `ui.indexAction` / `ui.rangeAction` / `ui.pointerAction` /
-//! `ui.keyAction` / `ui.inputKeyAction` adapters of `src/ui.zig`.
+//! The callback types stored in nodes plus the `ui::action` /
+//! `ui::text_action` / `ui::bool_action` / `ui::index_action` /
+//! `ui::range_action` / `ui::pointer_action` / `ui::key_action` /
+//! `ui::input_key_action` adapters that build them from a state method.
 //!
-//! Zig stores a `*anyopaque` context plus a function pointer; Rust stores a
-//! cheap `Rc` of a closure. The runtime always **clones the callback out of the
-//! node and releases its borrow before calling it** (plan §4), so closures may
-//! rebuild the UI or touch the tree.
+//! A callback is a cheap `Rc` of a closure. The runtime always **clones the
+//! callback out of the node and releases its borrow before calling it**, so
+//! closures may rebuild the UI or touch the tree.
 #![forbid(unsafe_code)]
 
 use std::any::Any;
@@ -18,9 +18,9 @@ use crate::core::events::{KeyEvent, Modifiers, PointerButton};
 /// The runtime context a callback runs in: the root application state plus,
 /// later, whatever the dispatcher needs.
 ///
-/// WP-1.2 has no runtime yet; tests construct it from a `&mut dyn Any` root.
-/// WP-1.4 may add `pub(crate)` fields (window, dispatcher, …) and extra
-/// constructors without changing `new` / `state` / `Action::call`.
+/// Tests construct it from a `&mut dyn Any` root. `pub(crate)` fields
+/// (window, dispatcher, …) and extra constructors may be added without
+/// changing `new` / `state` / `Action::call`.
 pub struct ActionCx<'a> {
     root: &'a mut dyn Any,
 }
@@ -32,7 +32,7 @@ impl<'a> ActionCx<'a> {
     }
 
     /// The root application state; panics when the callback expects another
-    /// type (`ui.action(self, State.save)` in Zig knew `State` statically).
+    /// type (the state type is only known at run time, through `dyn Any`).
     pub fn state<S: 'static>(&mut self) -> &mut S {
         match self.root.downcast_mut::<S>() {
             Some(state) => state,
@@ -44,7 +44,7 @@ impl<'a> ActionCx<'a> {
     }
 }
 
-/// `ui.action`: a callback that only needs the root state.
+/// `ui::action`: a callback that only needs the root state.
 #[derive(Clone)]
 pub struct Action(Rc<ActionFn>);
 
@@ -61,7 +61,7 @@ impl Action {
     }
 }
 
-/// `ui.bool_action`: toggles, checkboxes.
+/// `ui::bool_action`: toggles, checkboxes.
 #[derive(Clone)]
 pub struct BoolAction(Rc<BoolActionFn>);
 
@@ -77,7 +77,7 @@ impl BoolAction {
     }
 }
 
-/// `ui.text_action`: inputs and rich-text links.
+/// `ui::text_action`: inputs and rich-text links.
 #[derive(Clone)]
 pub struct TextAction(Rc<TextActionFn>);
 
@@ -93,7 +93,7 @@ impl TextAction {
     }
 }
 
-/// `ui.index_action`: one callback for a list of items.
+/// `ui::index_action`: one callback for a list of items.
 #[derive(Clone)]
 pub struct IndexAction(Rc<IndexActionFn>);
 
@@ -187,7 +187,7 @@ impl Default for PointerInfo {
     }
 }
 
-/// `ui.pointer_action`: return true when application state changed and the UI
+/// `ui::pointer_action`: return true when application state changed and the UI
 /// must be rebuilt.
 #[derive(Clone)]
 pub struct PointerAction(Rc<PointerActionFn>);
@@ -206,7 +206,7 @@ impl PointerAction {
     }
 }
 
-/// `ui.key_action`: key handler of a focused pointer area; true consumes the key.
+/// `ui::key_action`: key handler of a focused pointer area; true consumes the key.
 #[derive(Clone)]
 pub struct KeyAction(Rc<KeyActionFn>);
 
@@ -222,7 +222,7 @@ impl KeyAction {
     }
 }
 
-/// `ui.input_key_action`: key hook of an input. Receives the input's current
+/// `ui::input_key_action`: key hook of an input. Receives the input's current
 /// text and selection `(anchor, cursor)`; true consumes the key.
 #[derive(Clone)]
 pub struct InputKeyAction(Rc<InputKeyActionFn>);
@@ -248,33 +248,33 @@ impl InputKeyAction {
     }
 }
 
-/// `ui.action(state, State.save)`.
+/// `ui::action::<State>(State::save)`.
 pub fn action<S: 'static>(callback: impl Fn(&mut S) + 'static) -> Action {
     Action::new(move |cx| callback(cx.state::<S>()))
 }
 
-/// `ui.bool_action(state, State.set_checked)`.
+/// `ui::bool_action::<State>(State::set_checked)`.
 pub fn bool_action<S: 'static>(callback: impl Fn(&mut S, bool) + 'static) -> BoolAction {
     BoolAction::new(move |cx, checked| callback(cx.state::<S>(), checked))
 }
 
-/// `ui.text_action(state, State.set_text)`.
+/// `ui::text_action::<State>(State::set_text)`.
 pub fn text_action<S: 'static>(callback: impl Fn(&mut S, &str) + 'static) -> TextAction {
     TextAction::new(move |cx, value| callback(cx.state::<S>(), value))
 }
 
-/// `ui.index_action(state, State.select)`.
+/// `ui::index_action::<State>(State::select)`.
 pub fn index_action<S: 'static>(callback: impl Fn(&mut S, usize) + 'static) -> IndexAction {
     IndexAction::new(move |cx, index| callback(cx.state::<S>(), index))
 }
 
-/// `ui.range_action(state, State.set_selection)`.
+/// `ui::range_action::<State>(State::set_selection)`.
 pub fn range_action<S: 'static>(callback: impl Fn(&mut S, usize, usize) + 'static) -> RangeAction {
     RangeAction::new(move |cx, start, end| callback(cx.state::<S>(), start, end))
 }
 
-// The `actions.zig` call helpers, taking the optional field by value so the
-// tree is not borrowed while the callback runs (plan §4).
+// Call helpers, taking the optional field by value so the tree is not
+// borrowed while the callback runs.
 
 pub fn call(callback: Option<Action>, cx: &mut ActionCx<'_>) {
     if let Some(callback) = callback {
@@ -411,7 +411,7 @@ mod tests {
     }
 
     #[test]
-    fn pointer_info_defaults_match_the_zig_struct() {
+    fn pointer_info_has_the_expected_defaults() {
         let info = PointerInfo::default();
         assert_eq!(info.phase, PointerPhase::Down);
         assert_eq!(info.button, PointerButton::Left);

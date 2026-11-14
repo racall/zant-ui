@@ -1,20 +1,18 @@
-//! Diagnostics of the TSX parser: Zig `parser.zig`'s `error{Syntax}` becomes
-//! [`ParseError`] and its `Diag` struct [`Diag`]. Allocation failures are not
-//! errors in Rust, so `error.OutOfMemory` has no counterpart.
+//! Diagnostics of the TSX parser: a failed parse returns [`ParseError`] and
+//! records the first problem as a [`Diag`].
 //!
-//! [`position`] and [`render_diag`] are the source-position / caret renderer of
-//! Zig `compile.zig` (WP-4.4); the CLI and the tests format errors with them so
-//! the text stays byte-compatible with the Zig compiler:
+//! [`position`] and [`render_diag`] are the source-position / caret renderer;
+//! the CLI and the tests format errors with them so the text has one shape:
 //! `path:line:col: error: msg`, the source line, and a caret.
 
-/// A failure of the parser (Zig `error.Syntax`).
+/// A failure of the parser.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum ParseError {
     #[error("syntax error")]
     Syntax,
 }
 
-/// The location and message of the first syntax error (Zig `parser.Diag`).
+/// The location and message of the first syntax error.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Diag {
     /// Byte offset into the source.
@@ -22,7 +20,7 @@ pub struct Diag {
     pub msg: String,
 }
 
-/// A source position (Zig `compile.Position`).
+/// A source position.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Position<'a> {
     /// 1-based line number.
@@ -32,7 +30,7 @@ pub struct Position<'a> {
     pub line_text: &'a str,
 }
 
-/// The line / column / source line at `loc` (Zig `compile.position`).
+/// The line / column / source line at `loc`.
 pub fn position(src: &str, loc: u32) -> Position<'_> {
     let at = (loc as usize).min(src.len());
     let line_start = src[..at].rfind('\n').map(|i| i + 1).unwrap_or(0);
@@ -46,8 +44,8 @@ pub fn position(src: &str, loc: u32) -> Position<'_> {
     }
 }
 
-/// `path:line:col: error: msg` followed by the source line and a caret, the way
-/// Zig reports errors (Zig `compile.renderDiag`).
+/// `path:line:col: error: msg` followed by the source line and a caret, the
+/// shape compilers such as rustc and clang report errors in.
 pub fn render_diag(path: &str, src: &str, diag: &Diag) -> String {
     let pos = position(src, diag.loc);
     let mut caret = String::new();
@@ -70,7 +68,7 @@ mod tests {
     use super::*;
     use crate::parser::Parser;
 
-    // Zig `compile.zig` tests for the diagnostic renderer.
+    // The diagnostic renderer.
 
     #[test]
     fn positions_count_lines_and_code_points() {

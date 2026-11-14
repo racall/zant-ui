@@ -1,5 +1,4 @@
-//! Port of `src/markdown/remend/comparison_operator.zig` (remend
-//! `comparison-operator-handler.ts`): `- >5` in a list item would start a block
+//! remend `comparison-operator-handler.ts`: `- >5` in a list item would start a block
 //! quote; escape the `>`.
 
 use super::context::Context;

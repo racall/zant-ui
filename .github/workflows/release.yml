@@ -9,7 +9,7 @@
 # The runners' rustup installs the toolchain pinned in rust-toolchain.toml
 # (channel and components), and the scripts fetch the pinned Skia first.
 #
-# WP-6.6: the `prebuilt` job compiles the native layer (C++/ObjC/C bridge,
+# The `prebuilt` job compiles the native layer (C++/ObjC/C bridge,
 # platform and PDF code) once per platform and uploads the static archive with
 # its source-hash metadata. The packaging jobs download it, and every app built
 # from the released zant-ui links it instead of compiling C++/ObjC, so users

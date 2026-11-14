@@ -1,8 +1,5 @@
-//! Port of `src/markdown/render/data_images.zig` — WP-3.3.
-//!
 //! Decoded `data:image/…;base64,…` URIs, cached by content hash (UI thread).
-//! Zig kept a plain module-level map; Rust uses a thread-local map of retained
-//! `Image` handles.
+//! The cache is a thread-local map of retained `Image` handles.
 
 use std::cell::RefCell;
 use std::collections::HashMap;

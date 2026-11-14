@@ -56,7 +56,7 @@ export default function Events() {
     tsx();
     let writeOnly = 1;
     writeOnly = 2;
-    let unchanged = "const in Zig";
+    let unchanged = "const in Rust";
     console.log(unchanged);
   }
   const reset = () => setCount(0);

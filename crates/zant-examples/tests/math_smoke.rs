@@ -1,4 +1,4 @@
-//! Headless smoke test for the `zant-math` binary (WP-3.11): the 18-formula
+//! Headless smoke test for the `zant-math` binary: the 18-formula
 //! gallery is built through [`Runtime`] and painted on a raster canvas; every
 //! formula becomes a non-empty retained vector drawing.
 
@@ -28,7 +28,7 @@ fn app() -> (Runtime, Renderer) {
 #[test]
 fn math_gallery_has_the_eighteen_formulas() {
     assert_eq!(FORMULAS.len(), 18);
-    // the Zig array includes the mhchem (\ce / \pu), array, xarrow and
+    // the formulas include the mhchem (\ce / \pu), array, xarrow and
     // colorbox formulas
     assert!(FORMULAS.iter().any(|formula| formula.contains("\\ce{")));
     assert!(FORMULAS.iter().any(|formula| formula.contains("\\pu{")));
@@ -100,7 +100,7 @@ fn math_block_is_the_centred_display_wrapper() {
             ..LayoutOptions::default()
         },
     );
-    // the Zig `math.block` row: 100% wide, centred, half-em vertical margins,
+    // the `math::block` row: 100% wide, centred, half-em vertical margins,
     // one vector child
     assert_eq!(node.element().layout.width_percent, Some(100.0));
     assert_eq!(

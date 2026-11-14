@@ -1,5 +1,5 @@
-// Markdown streaming next to a PDF reader (WP-5.10b port of
-// `examples/tsx/reader.tsx`; same panes, keys and UI text). Run it with
+// Markdown streaming next to a PDF reader: two panes, the left one streams a
+// reply, the right one opens a PDF. Run it with
 // `cargo run -p zant-tsx-reader`.
 import { useState, useTheme, View, Row, Text, Button, Input, Icon, Markdown, PdfViewer } from "zant";
 

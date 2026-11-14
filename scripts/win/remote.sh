@@ -5,16 +5,14 @@
 #   scripts/win/remote.sh XyUI 'cargo test --workspace'
 #   scripts/win/remote.sh stillmd 'cargo build'
 #
-# ZANT_WIN_HOST / ZANT_WIN_DIR as in sync.sh; ZANT_WIN_PATH (optional) is a
-# directory to put first on PATH.
+# ZANT_WIN_HOST / ZANT_WIN_DIR as in sync.sh.
 set -euo pipefail
 
 # shellcheck disable=SC1091
 [ -f "$(dirname "$0")/.env" ] && . "$(dirname "$0")/.env"
 HOST="${ZANT_WIN_HOST:?set ZANT_WIN_HOST (or scripts/win/.env)}"
 DIR="${ZANT_WIN_DIR:?set ZANT_WIN_DIR (or scripts/win/.env)}"
-PATH_PREFIX="${ZANT_WIN_PATH:-}"
 project="$1"
 shift
 
-ssh ${ZANT_WIN_SSH_OPTS:-} "$HOST" "[Console]::OutputEncoding=[Text.Encoding]::UTF8; \$OutputEncoding=[Text.Encoding]::UTF8; if ('$ZIG') { \$env:PATH='$ZIG;'+\$env:PATH }; Set-Location '$DIR/$project'; $*; exit \$LASTEXITCODE"
+ssh ${ZANT_WIN_SSH_OPTS:-} "$HOST" "[Console]::OutputEncoding=[Text.Encoding]::UTF8; \$OutputEncoding=[Text.Encoding]::UTF8; Set-Location '$DIR/$project'; $*; exit \$LASTEXITCODE"

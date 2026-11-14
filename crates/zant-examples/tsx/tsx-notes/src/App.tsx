@@ -1,5 +1,5 @@
 // A TSX project: NoteCard.tsx renders cards; `native/format.ts` (implemented in
-// `native/format.rs`) formats counts. WP-5.10b port of `examples/tsx/notes/`.
+// `native/format.rs`) formats counts: a multi-file app with a native module.
 // Run it with `cargo run -p zant-tsx-notes`.
 import { useState, useTheme, View, Row, Heading, Input, Button, Text } from "zant";
 import type { u32 } from "zant";

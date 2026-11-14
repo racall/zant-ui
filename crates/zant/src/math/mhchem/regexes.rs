@@ -1,8 +1,6 @@
 //! Hand-written matchers for every regexp of `mhchemParser.patterns.patterns`
 //! that is not a trivial literal. Each one reproduces the JS sticky regexp's
 //! boolean/full-match semantics by hand.
-//!
-//! Port of `src/math/mhchem.zig` (character helpers + pattern regexps).
 
 use super::chars::{
     PosSet, any_at, char_at, decode, digit_at, digits_end, eql, is_alpha, is_close_paren, is_digit,

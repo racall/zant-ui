@@ -1,13 +1,11 @@
 //! Inline array callbacks become Rust closures inside iterator adapters.
-//! Translation of `tools/tsx/codegen/callbacks.zig`, adapted to Rust: where
-//! the Zig original opens a labeled value block inside a plain `for` loop, the
-//! Rust port emits a closure (`.map(|item| …)`, `.filter_map(…)`, `.fold(…)`),
-//! which keeps the same "parameters bind as scoped locals" rule and the same
-//! type inference for block bodies (`docs/rust-port/tsx-codegen.md` §7/§8).
+//! Each callback is emitted as a closure (`.map(|item| …)`, `.filter_map(…)`,
+//! `.fold(…)`): its parameters bind as scoped locals, and the result type of a
+//! block body is inferred from its `return` statements.
 //!
 //! The closure's parameter *pattern* is passed separately from the arrow's
 //! parameter order: `enumerate()` adapters hand `(index, item)` tuples while a
-//! TSX arrow declares `(item, index)` (`array_methods.zig`).
+//! TSX arrow declares `(item, index)` (see `array_methods`).
 
 use crate::ast;
 
@@ -44,7 +42,7 @@ pub fn closure(
             ),
         );
     }
-    // elements built here repeat once per item (`nesting.zig`: keys)
+    // elements built here repeat once per item (`nesting`: keys)
     g.loop_depth += 1;
     let result = closure_body(g, c, callback, function, arguments, pattern, expected);
     g.loop_depth -= 1;
@@ -69,7 +67,7 @@ fn closure_body(
         // a narrowed local (`current && (…)`) keeps its proven type
         match super::narrowing::find(outer, binding.name.as_bytes()) {
             Some(value) => (binding.name.clone(), value.ty, value.code),
-            None => (binding.name.clone(), binding.ty, binding.zig.clone()),
+            None => (binding.name.clone(), binding.ty, binding.rust.clone()),
         }
     }));
     let mut c = scope::Context {
@@ -113,7 +111,7 @@ fn closure_body(
         }
         let binding = scope::bind(g, &mut c, name.as_bytes(), ty, false)?;
         c.bindings[binding].name = name.clone();
-        c.bindings[binding].zig = code;
+        c.bindings[binding].rust = code;
     }
     let annotation = match function.ret.as_ref() {
         Some(reference) => Some(types::type_ref(g, reference, false)?),
@@ -172,8 +170,8 @@ fn closure_body(
     Ok((body, ty))
 }
 
-/// A zero-argument inline arrow as an immediately invoked closure (the Zig
-/// `callbacks.emit` with no arguments: `useMemo` bodies and store selectors).
+/// A zero-argument inline arrow as an immediately invoked closure (`useMemo`
+/// bodies and store selectors).
 pub fn inline(
     g: &mut Generator<'_>,
     c: &scope::Context,

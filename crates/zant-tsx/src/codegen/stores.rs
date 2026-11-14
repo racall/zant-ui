@@ -1,5 +1,5 @@
 //! Shared state across components and files (Zustand style, `zant.store` in
-//! `docs/tsx.md`). Translation of `tools/tsx/codegen/stores.zig`.
+//! `docs/tsx.md`).
 //!
 //! ```tsx
 //! export const settings = createStore<Settings>({ dark: false, size: 14 });
@@ -11,11 +11,9 @@
 //! store becomes a `thread_local!` value plus four `pub fn` accessors
 //! (`settings_get` / `settings_read` / `settings_set` / `settings_update`).
 //! Generated code calls the accessors, which keeps a store usable from another
-//! file through its module alias. Rust's `tsx::Store<T>` (WP-5.7) only needs
+//! file through its module alias. `tsx::Store<T>` only needs
 //! `zant::store::Store` (the runtime store) inside a `RefCell`, plus
-//! `get` / `read` / `set` / `update(f)` accessor functions (Zig's
-//! `threadlocal var ... = tsx.Store(T)` with `&self` methods).
-//! reported as the contract for that work package.
+//! `get` / `read` / `set` / `update(f)` accessor functions.
 //!
 //! Changing a store rebuilds every window (the `tsx::Store` runtime does it).
 
@@ -160,8 +158,7 @@ pub fn exported(module: &ast::Module, name: &str) -> Option<ast::TopConst> {
 }
 
 /// `import { settings } from "./store"`: registers the imported store under
-/// its local name. The type is resolved by the importing module (`imports.zig`,
-/// WP-5.6).
+/// its local name. The type is resolved by the importing module (`imports`).
 pub fn imported(
     g: &mut Generator<'_>,
     local: &str,
@@ -170,7 +167,7 @@ pub fn imported(
     ty: Type,
 ) -> Result<()> {
     let _ = imported;
-    // `alias` is already a Rust module path (`crate::store`, WP-5.6's
+    // `alias` is already a Rust module path (`crate::store`, from
     // `imports`): escaping it would turn the `::` into `__`.
     let _ = g;
     let module = format!("{alias}::");

@@ -1,12 +1,8 @@
-//! Port of `tests/math_test.zig` — WP-3.6.
+//! Math layout tests: sizes, display vs inline style, scripts, the error
+//! rendering of a formula that does not parse and the display-formula node.
 //!
-//! The Zig file has six tests; five are layout / `Drawing` level and are
-//! ported here. `test "math block renders a vector node"` builds `ui` nodes
-//! (`ui.beginFrame` / `math.block`), so it belongs to WP-2.10 (the `ui.vector`
-//! side of `math/mod.zig`), not to this work package.
-//!
-//! The smoke test at the bottom lays out the 18 formulas of
-//! `examples/math.zig` and asserts the drawings are non-empty and sane.
+//! The smoke test at the bottom lays out the 18 formulas of the `zant-math`
+//! example and asserts the drawings are non-empty and sane.
 
 use zant::core::vector::Command;
 use zant::math::layout::{Drawing, Options, layout};
@@ -22,7 +18,6 @@ fn lay(source: &str, display: bool) -> Drawing {
     )
 }
 
-/// Zig: `test "math layout produces sized drawings"`.
 #[test]
 fn math_layout_produces_sized_drawings() {
     let cases = [
@@ -47,7 +42,6 @@ fn math_layout_produces_sized_drawings() {
     }
 }
 
-/// Zig: `test "display fractions are taller than inline ones"`.
 #[test]
 fn display_fractions_are_taller_than_inline_ones() {
     let display = lay("\\frac{a}{b}", true);
@@ -60,7 +54,6 @@ fn display_fractions_are_taller_than_inline_ones() {
     );
 }
 
-/// Zig: `test "superscript is raised and subscript lowered"`.
 #[test]
 fn superscript_is_raised_and_subscript_lowered() {
     let plain = lay("x", false);
@@ -80,7 +73,6 @@ fn superscript_is_raised_and_subscript_lowered() {
     );
 }
 
-/// Zig: `test "parse errors render the source in the error colour"`.
 #[test]
 fn parse_errors_render_the_source_in_the_error_colour() {
     let drawing = layout(
@@ -97,7 +89,6 @@ fn parse_errors_render_the_source_in_the_error_colour() {
     }
 }
 
-/// Zig: `test "matrix-like inline formula lays out as math, not an error"`.
 #[test]
 fn matrix_like_inline_formula_lays_out_as_math_not_an_error() {
     let drawing = layout(
@@ -112,8 +103,19 @@ fn matrix_like_inline_formula_lays_out_as_math_not_an_error() {
     assert!(drawing.commands.len() > 1);
 }
 
-/// Smoke test: every formula of the `zant-math` example (`examples/math.zig`)
-/// lays out into a non-empty drawing with a sane width and extent.
+#[test]
+fn math_block_renders_a_vector_node() {
+    zant::ui::begin_frame();
+    let node = zant::math::block("\\frac{1}{2}", Options::default());
+    zant::ui::end_frame();
+    assert_eq!(
+        node.element().children[0].element().kind,
+        zant::core::node::NodeKind::Vector
+    );
+}
+
+/// Smoke test: every formula of the `zant-math` example lays out into a
+/// non-empty drawing with a sane width and extent.
 #[test]
 fn example_formulas_lay_out() {
     let formulas = [
@@ -138,7 +140,7 @@ fn example_formulas_lay_out() {
     ];
     let error_color = Options::default().error_color;
     for (i, formula) in formulas.iter().enumerate() {
-        // Exactly the options `examples/math.zig` uses for each block.
+        // Exactly the options the example uses for each block.
         let drawing = layout(
             formula,
             Options {

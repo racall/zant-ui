@@ -1,5 +1,3 @@
-//! Port of `src/markdown/highlight.zig` — WP-3.2.
-//!
 //! Lightweight syntax highlighter (stands in for Streamdown's Shiki code
 //! plugin). Tokenises per line so streaming code re-highlights cheaply.
 

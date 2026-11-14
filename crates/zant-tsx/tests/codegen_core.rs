@@ -1,15 +1,9 @@
-//! WP-5.3 codegen core tests: expression / statement / type generation
+//! Codegen core tests: expression / statement / type generation
 //! against hand-reviewed Rust, and `syn::parse_file` validation of everything
 //! that is emitted.
 //!
-//! The Zig `codegen/*.zig` files of this work package carry no `test` blocks
-//! (their behaviour tests live in the shared `*_test.zig` compiler suites and
-//! belong to WP-5.9), so these tests translate the relevant assertions of
-//! `functions_test.zig`, `loops_test.zig`, `emission_test.zig` and
-//! `builtins_test.zig` where they only need plain functions, plus new
-//! unit / golden coverage for the core. Zig expected fragments are adapted to
-//! the Rust output (`var`→`let mut`, `@as`→suffixed literals, `orelse`→
-//! `unwrap_or_else`, `[]const T`→`tsx::List<T>`).
+//! The cases only need plain functions (functions, loops, emission and
+//! builtins); components and JSX have their own suites.
 
 use zant_tsx::ast;
 use zant_tsx::codegen::{self, Generator, functions, model};
@@ -21,7 +15,7 @@ struct Compiled {
 }
 
 impl Compiled {
-    /// The whole generated module wrapped in the preamble WP-5.6 adds.
+    /// The whole generated module wrapped in the preamble the application layer adds.
     fn module(&self) -> String {
         format!(
             "#![allow(clippy::redundant_clone)]\n#![allow(clippy::too_many_arguments)]\n\
@@ -136,8 +130,9 @@ return x > 0.0f64 && x < 10.0f64;
 
 #[test]
 fn integer_division_keeps_rust_truncating_semantics() {
-    // Zig emits `@divTrunc` / `@rem`; Rust's `/` and `%` on integers already
-    // truncate toward zero, so the operator stays plain.
+    // Rust's `/` and `%` on integers already truncate toward zero (the
+    // JavaScript `Math.trunc(a / b)` / `%` semantics), so the operator stays
+    // plain.
     let compiled = generated(r#"function divmod(a: u32, b: u32): u32 { return (a / b) % b; }"#);
     assert_contains(&compiled.functions, "return a / b % b;");
 }
@@ -416,7 +411,7 @@ return 0.0f64;
 #[test]
 fn switch_case_tests_are_arbitrary_expressions() {
     // Case tests may call functions and run in source order, so the if chain
-    // (like the Zig codegen) is the only sound lowering.
+    // is the only sound lowering.
     let compiled = generated(
         r#"function next(n: number): number { return n; }
 function select(): number { let total = 0; switch (next(2)) { case next(1): total = 1; break; case next(2): total = 20; break; default: total = 90; break; } return total; }"#,
@@ -447,7 +442,7 @@ function make(cb: Cb): number { return 1; }"#,
     );
     // `Rc<dyn Fn>` is neither `Default` nor `PartialEq`, so the struct derives
     // `Clone` and gets a no-op default closure. A callback that is not a ui
-    // action takes the runtime `ActionCx` first (WP-5.9, so handlers can call
+    // action takes the runtime `ActionCx` first (so handlers can call
     // it `ui::effect`-queued): `(value: number) => void` is not an event.
     assert_eq!(
         r#"#[derive(Clone)]
@@ -523,7 +518,7 @@ fn number_constants_and_conversions_use_the_js_helpers() {
     assert_contains(&compiled.functions, "tsx::builtins::number(");
 }
 
-// ── ported `functions_test.zig` diagnostics ──────────────────────────
+// ── function diagnostics ─────────────────────────────────────────────
 
 #[test]
 fn function_diagnostics() {
@@ -564,12 +559,12 @@ function g(): number { return f(1); }"#,
     }
 }
 
-// ── ported `loops_test.zig` assignment / scoping behaviour ───────────
+// ── loop assignment / scoping behaviour ──────────────────────────────
 
 #[test]
 fn loop_bindings_use_assigned_tracking_and_do_not_leak() {
-    // Zig asserts `var x: f64` (assigned) and `const y: f64` (not assigned),
-    // plus an `i_2` rename for the shadowed loop variable.
+    // An assigned binding is `let mut`, an unassigned one plain `let`, and
+    // the shadowed loop variable is renamed `i_2`.
     let compiled = generated(
         r#"function bindings(): void {
 let total = 0;

@@ -1,6 +1,6 @@
-//! `local_bench.tsx` vs `local_manual.zig` (ported): 300 rows mounted one click
-//! at a time, then 300 clicks on the row counters (each a `useState` /
-//! `ui::local_state`) — Zig `bench_local.zig`.
+//! `local_bench.tsx` vs the hand-written page: 300 rows mounted one click at
+//! a time, then 300 clicks on the row counters (each a `useState` /
+//! `ui::local_state`).
 #![forbid(unsafe_code)]
 
 use zant::ui::App;
@@ -10,10 +10,10 @@ use super::{Harness, Stats, local_case};
 
 const ROWS: usize = 300;
 
-/// The TSX root component (`src/App.tsx` of `examples/tsx/local_bench.tsx`).
+/// The TSX root component (`src/App.tsx` of `tsx/corpus/local_bench.tsx`).
 type TsxLocal = local_case::app::LocalBench;
 
-/// Zig `scenario`: mount `rows` counters, then click the visible ones.
+/// Mount `ROWS` counters, then click the visible ones.
 fn run(app: impl App) -> Vec<Stats> {
     let mut harness = Harness::new(app);
 
@@ -21,8 +21,8 @@ fn run(app: impl App) -> Vec<Stats> {
     for _ in 0..ROWS {
         mount.add(harness.click("add").expect("the add button is on screen"));
     }
-    // Zig asserted the mount really created one local-state slot per row (and
-    // none extra): 300 `<Counter>` instances. The slot count is public on the
+    // The mount must really create one local-state slot per row (and none
+    // extra): 300 `<Counter>` instances. The slot count is public on the
     // runtime's local-state store.
     let slots = harness.rt.local_states.borrow().count();
     assert_eq!(
@@ -43,7 +43,7 @@ pub fn tsx() -> Vec<Stats> {
     run(TsxLocal::default())
 }
 
-/// The hand-written control: `local_manual.zig` ported.
+/// The hand-written control.
 pub fn manual() -> Vec<Stats> {
     run(ManualLocal::new())
 }

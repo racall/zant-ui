@@ -1,16 +1,13 @@
 //! The native `platform::HostHandler` of a [`Runtime`].
 //!
-//! Zig passed a raw `*Runtime` as the `ZantHost.userdata` and installed plain
-//! `callconv(.c)` callbacks (`drawCallback`, `eventCallback`, …,
-//! `ui_runtime.zig:2666-2721`). Rust's platform layer forwards the C table to a
+//! The platform layer forwards the native C callback table to a
 //! `Box<dyn HostHandler>`; this type is that handler: it holds the
 //! `Rc<RefCell<Runtime>>` the runtime lives in and borrows it for each
 //! callback.
 //!
 //! The borrow is released when the callback returns, so a native modal loop
 //! that paints from inside an event callback cannot re-borrow the runtime; such
-//! a nested frame is skipped (Zig painted the unchanged tree instead — see the
-//! WP-1.4 report).
+//! a nested frame is skipped.
 #![forbid(unsafe_code)]
 
 use std::cell::RefCell;

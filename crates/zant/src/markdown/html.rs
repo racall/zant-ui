@@ -1,5 +1,3 @@
-//! Port of `src/markdown/html.zig` — WP-3.2.
-//!
 //! HTML export of a parsed document (GFM-style markup). `standalone`
 //! wraps it in a complete page with readable default styles and KaTeX
 //! (auto-render) for math; otherwise only the body fragment is produced.

@@ -1,4 +1,4 @@
-//! Cheap-clone immutable strings (`zant::Str`), see docs/rust-port/api.md.
+//! Cheap-clone immutable strings (`zant::Str`).
 //!
 //! Option structs and declaration nodes copy strings constantly (every frame
 //! builds a fresh tree, `styled()` clones elements); a `Str` is either a
@@ -17,7 +17,7 @@ pub enum Str {
 }
 
 impl Str {
-    /// Copies a runtime `&str` into a shared `Str` (Zig: arena copy).
+    /// Copies a runtime `&str` into a shared `Str`.
     pub fn copy(value: &str) -> Str {
         Str::Shared(Rc::from(value))
     }

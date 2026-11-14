@@ -4,10 +4,8 @@
 产物是纯原生代码，运行时没有 JS 引擎，也不需要 npm。示例：`scaffold/template-ts/` 生成的
 TS 项目（`src/App.tsx`）。
 
-> **迁移中（WP-5.6 / 5.8–5.10、WP-6.2）**：编译器的词法 / 语法 / hooks / codegen 已落在
-> `crates/zant-tsx/`，但应用层（imports、native trait、入口、CLI）、`zant_build::tsx_app()`
-> 与仓库内的 TSX 示例（Rust 入口见下方「示例」，帧基准场景文件仍是 Zig 入口）还没全部合入。
-> 本文件写最终用法；未合入处以 [`docs/rust-port/status.md`](rust-port/status.md) 为准。
+> 编译器在 `crates/zant-tsx/`（词法 / 语法 / hooks / codegen、应用层的 imports、native trait、入口和
+> `zant-tsx` CLI），应用的 `build.rs` 通过 `zant_build::tsx_app()` 调用它；仓库内的 TSX 示例见下方「示例」。
 
 ```tsx
 import { useState, View, Row, Text, Button } from "zant";
@@ -198,7 +196,7 @@ Zant 的静态子集及精确的嵌套限制，最终仍由 `zant-tsx` 检查；
 
 - 整数字面量可以给任何数值类型，小数字面量只能给浮点类型；没有类型标注的字面量是 `number`（`f64`）。
 - 整数可以隐式转为浮点（例如传给 `f32` 的属性）；浮点不会隐式转为整数，两种整数类型之间也不会互相转换。
-- 整数运算按 Zig / Rust 一致语义：`/` 向零取整，`%` 取余，溢出 panic（工作区与应用模板的 release
+- 整数运算按 Rust 语义：`/` 向零取整，`%` 取余，溢出 panic（工作区与应用模板的 release
   profile 都开了 `overflow-checks = true`）。需要 JS 的数值语义就用 `number`。
 - 条件、`&&`、`||`、`!` 的操作数必须是 `boolean`（没有“真值”转换：写 `count > 0`，不要写 `count`）。
 
@@ -489,33 +487,26 @@ React Native 写法（`backgroundColor`、`paddingHorizontal`、`flex`、`positi
 ### 性能
 
 生成的代码与手写 Rust 一样：没有虚拟 DOM、没有运行时解释，状态是 struct 字段，事件是 action / 闭包。
-每次改代码生成都要用 `bench-tsx` 复测；差距超过 5% 视为回归。回归门槛：TSX 生成代码不慢于手写 Rust
+每次改代码生成都要用 `scripts/tsx/bench-tsx.sh` 复测；差距超过 5% 视为回归。回归门槛：TSX 生成代码不慢于手写 Rust
 对照组 **1.2 倍**。
 
-Rust 侧的**帧对比基准**（WP-5.10c）是 `zant-tsx-frame-bench`
+**帧对比基准**是 `zant-tsx-frame-bench`
 （`crates/zant-examples/src/bin/zant-tsx-frame-bench.rs`）：`crates/zant-examples/build.rs` 用
-`zant_build::tsx_app_in` 把 `examples/tsx/` 的六个基准页（`counter` / `todos` / `list_bench` /
-`local_bench` / `markdown_bench` / `settings`）编成 Rust，和 `controls/` 里手写的 `ui::App`
-对照组（`*_manual.zig` 的逐行移植 + 一个 settings 对照）跑同一个无窗口帧循环（640×900 raster、
+`zant_build::tsx_app_in` 把六个基准页（`crates/zant-examples/tsx/corpus/` 的 `counter` / `todos` /
+`local_bench` / `markdown_bench` / `settings`，以及 `tsx_views/ListBench.tsx`）编成 Rust，和
+`controls/` 里手写的 `ui::App` 对照组跑同一个无窗口帧循环（640×900 raster、
 假时钟、每帧 `renderFrame` 全量重建/布局/绘制），交替重复取每侧最好一轮，逐场景（以及每个 app 的
-汇总行）判 ≤1.2×。`scripts/tsx/bench-tsx.sh` 构建 Release 并打印对照表与闸门结论；本机 best-of-3
-全部通过（最高 `local-mount` ≈1.10×，其余 ≤1.08×；见 `docs/rust-port/status.md` WP-5.10c）。
-Zig 的 `bench-tsx`（`examples/tsx/bench.zig`）已被这份 Rust 基准取代。
+汇总行）判 ≤1.2×。`scripts/tsx/bench-tsx.sh` 构建 Release 并打印对照表与闸门结论。
 
-编译基准（WP-5.10）是另一件事：`zant-tsx-bench` 把 `tools/tsx/testdata/*.tsx` 逐个在进程内编译
-（预热 + 迭代），对照 Zig 编译器进程内基线（`tools/tsx/compile_bench.zig`），由
-`scripts/tsx/examples-check.sh` 跑并判 ≤1.25×；本机平均 **1.08×**。
+编译基准是另一件事：`zant-tsx-bench` 把 `crates/zant-tsx/testdata/tsx/*.tsx` 逐个在进程内编译
+（预热 + 迭代）并打印每个文件的耗时，由 `scripts/tsx/examples-check.sh` 跑并检查编译通过的文件数。
 
-> **示例**：仓库内的 TSX 示例现在有 Rust 入口（WP-5.10 / WP-5.10b）：`crates/zant-examples/tsx/`
-> 下 `tsx-counter`（`examples/tsx/counter.tsx`）、`tsx-demo`（`examples/tsx/app/App.tsx`）、
-> `tsx-bench`（`examples/tsx/settings.tsx`，帧基准的重负载页）、`tsx-gallery`（`gallery.tsx`）、
-> `tsx-todos`（`todos.tsx`）、`tsx-reader`（`reader.tsx`）、`tsx-notes`（`notes/`，含 native 模块
+> **示例**：仓库内的 TSX 示例在 `crates/zant-examples/tsx/`：`tsx-counter`、`tsx-demo`、
+> `tsx-bench`（帧基准的重负载页）、`tsx-gallery`、`tsx-todos`、`tsx-reader`、`tsx-notes`（含 native 模块
 > `native/format.ts|rs`）七个 Cargo workspace 成员，形态与 `scaffold/template-ts/` 相同（`build.rs` →
 > `zant_build::tsx_app()`）；`scripts/tsx/examples-check.sh` 构建、无窗口截图（`ZANT_SNAPSHOT` +
-> `ZANT_LAYOUT_FILE`）并断言，设 `ZANT_ZIG_BIN=<zig-out-baseline/bin>` 时再与 Zig 版 4 个应用逐字节
-> layout / ≤0.1% 像素对照。`scripts/mac/tsx-counter.steps` 驱动 `zant-tsx-counter` 的真实 GUI 场景也
-> 已通过（见 `docs/rust-port/status.md` WP-5.10b）。帧基准的场景文件（`bench_*.zig`、`*_manual.zig`、
-> `list/markdown/local_bench.tsx` 的 Zig harness）仍是 Zig 入口。
+> `ZANT_LAYOUT_FILE`）并断言（截图非空白、窗口尺寸来自 `app.config.json`、两次运行逐字节一致、
+> 带 key 的控件都有布局）。`scripts/mac/tsx-counter.steps` 是驱动 `zant-tsx-counter` 的真实 GUI 场景。
 
 ## 第三阶段（进行中）：组件状态与 hooks
 
@@ -830,7 +821,7 @@ const dark = useStore(settings, (s) => s.dark);   // 选择器可省略：useSto
 - 在事件处理函数和 effect 里修改：`store.update({ 字段: 值 })` 按字段浅合并，`store.set(新值)` 整体替换，
   `store.get()` 读当前值（任何地方都能调用）。修改会让所有窗口重建。
 - 和根组件的状态一样，值按「要么 `Copy`，要么廉价 `Clone`」保存；多个窗口共用时，一个窗口在另一个窗口重建之前
-  收到事件、并且回调里用到旧值，是目前已知的边界情况（见 `docs/rust-port/status.md` 的待决问题）。
+  收到事件、并且回调里用到旧值，是目前已知的边界情况。
 
 ### 字符串方法
 
@@ -873,8 +864,7 @@ const visible = notes.filter((note) => note.title.toLowerCase().includes(needle)
 ## 后续阶段
 
 - 已完成：`zant create` 的 TS 模板、TSX 编译器前端（lexer / parser / hooks）与 codegen 核心、
-  `#[derive(TsxProps)]` 标签表、`zant.d.ts` 生成、框架的 TSX 运行时（`zant::tsx`）、`zant_build::tsx_app()`
-  （WP-6.2）、`zant-tsx` CLI 与应用层（WP-5.6）、native 模块 trait 生成（WP-5.8）、黄金用例（WP-5.9）、
-  TSX 示例与编译基准（WP-5.10）、帧对比基准 `bench-tsx`（WP-5.10c，`zant-tsx-frame-bench`，
-  TSX 生成代码 vs 手写 Rust 的 counter / todos / list / markdown / local / settings 场景，≤1.2× PASS）。
-- 迁移中：M5 收尾与 Windows 验证。逐项进度见 [`docs/rust-port/status.md`](rust-port/status.md)。
+  `#[derive(TsxProps)]` 标签表、`zant.d.ts` 生成、框架的 TSX 运行时（`zant::tsx`）、`zant_build::tsx_app()`、
+  `zant-tsx` CLI 与应用层、native 模块 trait 生成、黄金用例、
+  TSX 示例与编译基准、帧对比基准（`zant-tsx-frame-bench`，
+  TSX 生成代码 vs 手写 Rust 的 counter / todos / list / markdown / local / settings 场景，闸门 ≤1.2×）。

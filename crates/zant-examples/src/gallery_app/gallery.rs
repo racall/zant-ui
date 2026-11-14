@@ -1,9 +1,9 @@
-//! The imperative gallery of `zant-gallery`: port of `src/gallery.zig`.
+//! The imperative gallery of `zant-gallery`.
 //!
 //! The gallery is the framework's retained-mode demo: it builds the tree by
 //! hand (`Tree::add_container` / `add_text` / `add_button` / `add_input`) and
-//! mutates nodes on interaction instead of rebuilding a declarative tree, the
-//! way `src/app.zig` drives it. The callbacks and the event loop live in
+//! mutates nodes on interaction instead of rebuilding a declarative tree.
+//! The callbacks and the event loop live in
 //! [`super::app`]; this module only builds the tree and returns the node ids
 //! the app keeps.
 #![forbid(unsafe_code)]
@@ -25,20 +25,20 @@ pub struct GalleryIds {
     pub inputs: Vec<NodeId>,
 }
 
-/// Zig `GalleryState`: the gallery's own state (the counter).
+/// The gallery's own state (the counter).
 pub struct GalleryState {
     pub theme: Theme,
     pub counter: u32,
 }
 
-/// `FlexStyle` with `f` applied (Zig's `.{ .field = .. }` struct literal).
+/// The default `FlexStyle` with `f` applied.
 fn flex_style(f: impl FnOnce(&mut FlexStyle)) -> FlexStyle {
     let mut style = FlexStyle::default();
     f(&mut style);
     style
 }
 
-/// Zig `GalleryState.addCard`.
+/// A titled card; returns the card node the content goes into.
 fn add_card(tree: &mut Tree, parent: NodeId, title: &str) -> NodeId {
     let theme = tree.theme;
     let card = tree.add_container(
@@ -71,7 +71,7 @@ fn add_card(tree: &mut Tree, parent: NodeId, title: &str) -> NodeId {
     card
 }
 
-/// Zig `GalleryState.addDescription`.
+/// A secondary-colored description line.
 fn add_description(tree: &mut Tree, parent: NodeId, value: &str, theme: &Theme) {
     tree.add_text(
         Some(parent),
@@ -90,7 +90,7 @@ impl GalleryState {
         GalleryState { theme, counter: 0 }
     }
 
-    /// Zig `GalleryState.build`: the whole window tree.
+    /// Builds the whole window tree.
     pub fn build(&mut self, tree: &mut Tree) -> GalleryIds {
         let root = tree.root;
         {
@@ -131,7 +131,7 @@ impl GalleryState {
         );
         tree.add_text(
             Some(header),
-            "Native Desktop UI powered by Zig + Skia",
+            "Native Desktop UI powered by Rust + Skia",
             TextStyle {
                 font_size: 14.0,
                 color: self.theme.color_text_secondary,
@@ -470,7 +470,6 @@ impl GalleryState {
         )
     }
 
-    // Zig `addInputColumn` has the same nine parameters.
     #[allow(clippy::too_many_arguments)]
     fn add_input_column(
         &mut self,

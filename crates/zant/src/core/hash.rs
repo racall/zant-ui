@@ -1,5 +1,3 @@
-//! Port of `src/core/hash.zig` — WP-1.1b.
-//!
 //! Structural hashing: hashes a value field by field so padding bytes never
 //! leak into the result (hashing `mem::as_bytes(&struct)` reads undefined
 //! padding and makes memo keys change at random).
@@ -7,23 +5,18 @@
 //! Rules: bool/int/enum by value; floats by bit pattern; optionals by
 //! presence + payload; arrays element-wise; structs recursively; enums by tag +
 //! payload; `&str` / `&[u8]` (and other byte slices) by content; other slices
-//! element-wise. Zig hashes every other pointer by address; Rust has no
-//! meaningful pointer identity and no code hashes raw pointers, so that case is
-//! deliberately not ported.
+//! element-wise. Raw pointers are not hashed: there is no meaningful pointer
+//! identity and no code needs it.
 //!
-//! The hash function is a literal port of Zig `std.hash.Wyhash` (wyhash final
-//! version 4.2), **not** `std::hash` and not the `wyhash` crate (which
-//! implements older wyhash versions): TSX child ids and cache keys are compared
-//! across the Zig and Rust implementations, so the results must be
-//! bit-identical (plan.md §4). The `wyhash` workspace dependency is therefore
-//! not used by this module.
+//! The hash function is wyhash final version 4.2, **not** `std::hash` and not
+//! the `wyhash` crate (which implements older wyhash versions): TSX child ids
+//! and cache keys depend on the exact values, which the tests below pin. The
+//! `wyhash` workspace dependency is therefore not used by this module.
 //!
-//! Zig's `hashValue` is a comptime-generic function over every type; in Rust it
-//! becomes the [`HashValue`] trait with impls for the primitive shapes Zig
-//! handles. Structs and enums implement the trait field by field, exactly like
-//! Zig's `inline for (info.field_names)` / tagged-union switch.
+//! [`HashValue`] has impls for the primitive shapes. Structs and enums
+//! implement the trait field by field (enums: tag, then payload).
 
-/// Zig `std.hash.Wyhash` (wyhash final version 4.2), ported line by line.
+/// Wyhash (final version 4.2), incremental and one-shot.
 #[derive(Clone)]
 pub struct Wyhash {
     a: u64,
@@ -42,7 +35,7 @@ const SECRET: [u64; 4] = [
 ];
 
 impl Wyhash {
-    /// Zig `Wyhash.init`.
+    /// A hasher seeded with `seed`.
     pub fn init(seed: u64) -> Self {
         let state = seed ^ mix(seed ^ SECRET[0], SECRET[1]);
         Wyhash {
@@ -55,7 +48,7 @@ impl Wyhash {
         }
     }
 
-    /// Zig `Wyhash.update`.
+    /// Feeds `input` into the hash.
     ///
     /// This is subtly different from other hash function update calls: wyhash
     /// requires the last full 48-byte block to go through `final1` when the
@@ -95,7 +88,7 @@ impl Wyhash {
         self.buf_len = remaining_bytes.len();
     }
 
-    /// Zig `Wyhash.final` (`final` is a Rust keyword). Idempotent, like Zig's.
+    /// The hash of everything fed so far. Idempotent: the hasher is unchanged.
     pub fn finish(&self) -> u64 {
         let mut input: &[u8] = &self.buf[..self.buf_len];
         let mut new_self = self.shallow_copy(); // ensure idempotency
@@ -123,7 +116,7 @@ impl Wyhash {
         new_self.final2()
     }
 
-    /// Zig `Wyhash.hash`: one-shot hash, equivalent to init + update + finish.
+    /// One-shot hash, equivalent to init + update + finish.
     pub fn hash(seed: u64, input: &[u8]) -> u64 {
         let mut this = Wyhash::init(seed);
 
@@ -244,9 +237,8 @@ fn mix(a: u64, b: u64) -> u64 {
     a ^ b
 }
 
-/// Zig `hashValue`: hash a value structurally. Implement it field by field for
-/// structs and enums, mirroring Zig's `inline for` over fields and its
-/// tag-then-payload union hashing.
+/// Hashes a value structurally. Implement it field by field for structs, and
+/// tag-then-payload for enums.
 pub trait HashValue {
     fn hash_value(&self, h: &mut Wyhash);
 }
@@ -273,9 +265,8 @@ macro_rules! impl_hash_int {
         $(
             impl HashValue for $ty {
                 fn hash_value(&self, h: &mut Wyhash) {
-                    // Zig widens to an unsigned integer of at least 8 bits
-                    // with the same width (all Rust integer widths are
-                    // multiples of 8), then hashes its little-endian bytes.
+                    // Reinterpreted as the unsigned integer of the same
+                    // width, then hashed as its little-endian bytes.
                     h.update(&(*self as $unsigned).to_le_bytes());
                 }
             }
@@ -296,7 +287,7 @@ impl_hash_int!(
     i128 as u128,
 );
 
-// `usize`/`isize` are pointer-width in Zig; the Rust targets are 64-bit.
+// `usize`/`isize` are hashed as 64-bit values; every supported target is 64-bit.
 #[cfg(target_pointer_width = "64")]
 impl HashValue for usize {
     fn hash_value(&self, h: &mut Wyhash) {
@@ -339,10 +330,7 @@ impl HashValue for f64 {
 
 impl HashValue for char {
     fn hash_value(&self, h: &mut Wyhash) {
-        // Zig hashes `u21` after widening to `@Int(.unsigned, 24)`, whose
-        // `@sizeOf` is 4 (bits 24..32 are zero), so the result is the same as
-        // hashing the codepoint as u32. Verified against Zig: `hash(0, @as(u21,
-        // 0xE9)) == hash(0, @as(u32, 0xE9))`.
+        // A codepoint hashes as its `u32` value.
         (*self as u32).hash_value(h);
     }
 }
@@ -361,9 +349,9 @@ impl<T: HashValue> HashValue for Option<T> {
 
 impl<T: HashValue> HashValue for [T] {
     fn hash_value(&self, h: &mut Wyhash) {
-        // Zig: slices hash their length first; byte slices then hash their
-        // content directly, other slices element-wise. Feeding `u8`s one at a
-        // time produces the same byte stream, hence the same result.
+        // Slices hash their length first, then their elements. For byte
+        // slices, feeding `u8`s one at a time produces the same byte stream as
+        // hashing the content in one call, hence the same result.
         self.len().hash_value(h);
         for item in self {
             item.hash_value(h);
@@ -379,7 +367,7 @@ impl<T: HashValue> HashValue for Vec<T> {
 
 impl<T: HashValue, const N: usize> HashValue for [T; N] {
     fn hash_value(&self, h: &mut Wyhash) {
-        // Zig hashes arrays element-wise, without a length prefix.
+        // Arrays hash element-wise, without a length prefix.
         for item in self {
             item.hash_value(h);
         }
@@ -423,14 +411,14 @@ mod tests {
 
     impl HashValue for Kind {
         fn hash_value(&self, h: &mut Wyhash) {
-            // Zig: enums hash their backing integer.
+            // Enums hash their backing integer.
             (*self as u8).hash_value(h);
         }
     }
 
     impl HashValue for Tagged<'_> {
         fn hash_value(&self, h: &mut Wyhash) {
-            // Zig: tagged unions hash the tag then the payload.
+            // Enums with data hash the tag then the payload.
             match self {
                 Tagged::N(payload) => {
                     0u8.hash_value(h);
@@ -480,11 +468,10 @@ mod tests {
         }
     }
 
-    /// Expected values were produced by running the Zig implementation
-    /// (`src/core/hash.zig` imported from a scratch file under /tmp, `zig run`,
-    /// Zig 0.17.1, arm64 macOS), so the Rust port is pinned to Zig's output.
+    /// Regression values: TSX child ids and cache keys depend on them, so
+    /// the hash of each primitive shape must never change.
     #[test]
-    fn pinned_hash_values_match_zig() {
+    fn hash_values_are_pinned() {
         assert_eq!(0x0409_638e_e2bd_e459, hash(0, &()));
         assert_eq!(0xd5b2_6ee4_85f2_a92d, hash(0, &true));
         assert_eq!(0xfbe5_af10_e5f8_bd85, hash(0, &false));
@@ -511,12 +498,13 @@ mod tests {
         assert_eq!(0x759a_2dab_8a7a_594d, hash(0, &structural(false)));
         assert_eq!(0x9bad_c291_da40_59c6, hash(42, "abc"));
 
-        // > 48 bytes exercises the buffered/chunked update path; Zig hashed
-        // this byte slice in one call, Rust hashes each byte individually.
+        // > 48 bytes exercises the buffered/chunked update path; the pinned
+        // value is the hash of the slice in one call, while this hashes each
+        // byte individually.
         let long: Vec<u8> = (0..100).map(|i| i as u8).collect();
         assert_eq!(0x6191_9d3a_7952_af41, hash(0, &long));
 
-        // One-shot `Wyhash.hash` vectors from Zig std's wyhash test table.
+        // One-shot `Wyhash::hash` vectors from the wyhash reference test table.
         assert_eq!(0x0409_638e_e2bd_e459, Wyhash::hash(0, b""));
         assert_eq!(0x32dd_92e4_b291_5153, Wyhash::hash(2, b"abc"));
         assert_eq!(
@@ -540,8 +528,7 @@ mod tests {
         assert_ne!(hash(0, &one), hash(0, &two));
     }
 
-    /// The incremental API must agree with the one-shot hash for any chunking
-    /// (Zig's `verify.iterativeApi` does the same at chunk sizes 1..=31).
+    /// The incremental API must agree with the one-shot hash for any chunking.
     #[test]
     fn incremental_matches_one_shot() {
         let data: Vec<u8> = (0..=255).map(|i| i as u8).collect();

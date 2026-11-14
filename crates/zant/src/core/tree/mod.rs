@@ -1,12 +1,12 @@
-//! Port of `src/core/tree.zig` — WP-1.3: the retained node tree.
+//! The retained node tree.
 //!
 //! A `Tree` owns a node arena (`nodes: Vec<RetainedNode>`), the recycling list
 //! of freed slots (`free_ids`), the key index, the set of nodes with a running
 //! transition (`animating`) and the focus / theme state. `NodeId` is an index
 //! into `nodes`; freed slots stay as tombstones (`alive == false`) and their
-//! ids are reused, exactly like the Zig arena.
+//! ids are reused.
 //!
-//! **Hard rule (plan.md §4):** no `&mut RetainedNode` is held across a tree
+//! **Hard rule:** no `&mut RetainedNode` is held across a tree
 //! mutation. Methods re-borrow `self.nodes[id]` after every call; recursive
 //! helpers copy the child-id list first. The implementation is split by
 //! concern: allocation / builders / dirty state in [`alloc`], painting in
@@ -37,7 +37,7 @@ pub use crate::core::node::{
 };
 pub use crate::core::tree::input_ops::Move;
 
-/// Zig `Tree`.
+/// The retained node tree (see the module docs).
 pub struct Tree {
     /// Node slots. Freed slots become tombstones (`alive == false`) and their
     /// ids are reused through `free_ids`.
@@ -86,8 +86,7 @@ impl Tree {
         tree
     }
 
-    /// Zig `Tree.deinit`: Rust frees the nodes on `Drop`; kept so ported call
-    /// sites compile unchanged.
+    /// No-op: the nodes are freed on `Drop`.
     pub fn deinit(&mut self) {}
 
     pub fn get(&self, id: NodeId) -> &RetainedNode {
@@ -193,7 +192,7 @@ impl Tree {
         self.nodes[index].anim.as_mut()
     }
 
-    /// The node Zig's tree exposes as `Node` for the current theme.
+    /// The node's resolved [`Visual`].
     pub fn visual_of(&self, id: NodeId) -> Visual {
         self.nodes[id as usize].visual
     }

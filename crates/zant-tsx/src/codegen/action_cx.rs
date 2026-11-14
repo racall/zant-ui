@@ -1,9 +1,8 @@
 //! The runtime `ActionCx` a handler needs to call a callback prop.
 //!
-//! Zig's `tsx.Callback` carries the component's `self` pointer, so a child
-//! component calls a callback prop synchronously (`components.zig` `tryCall`:
-//! `{callee}.func({callee}.ctx, …)`). Rust callbacks are `ui::Action`-family
-//! values / `Rc<dyn Fn(&mut ui::ActionCx<'_>, …)>`, which can only run inside
+//! A child component calls a callback prop synchronously (see
+//! `components::try_call`). Callbacks are `ui::Action`-family values /
+//! `Rc<dyn Fn(&mut ui::ActionCx<'_>, …)>`, which can only run inside
 //! an action with the runtime context. A generated handler therefore takes the
 //! context as its first parameter when its body calls a callback prop:
 //!

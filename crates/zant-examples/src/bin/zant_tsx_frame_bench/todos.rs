@@ -1,6 +1,5 @@
-//! `todos.tsx` vs `todos_manual.zig` (ported): 1000 items typed + Enter, 500
-//! checkbox toggles, 60 filter switches — one harness per side, like Zig
-//! `bench_todos.zig`.
+//! `todos.tsx` vs the hand-written todo app: 1000 items typed + Enter, 500
+//! checkbox toggles, 60 filter switches — one harness per side.
 #![forbid(unsafe_code)]
 
 use zant::core::events::{Event, Key, KeyEvent, Modifiers};
@@ -9,14 +8,14 @@ use zant::ui::App;
 use super::controls::todos::Todos as ManualTodos;
 use super::{Harness, Stats, todos_case};
 
-/// The TSX root component (`src/App.tsx` of `examples/tsx/todos.tsx`).
+/// The TSX root component (`src/App.tsx` of `tsx/corpus/todos.tsx`).
 type TsxTodos = todos_case::app::Todos;
 
 const ITEMS: usize = 1000;
 const TOGGLES: usize = 500;
 const FILTERS: usize = 60;
 
-/// Zig `scenario`: add / toggle / filter through one runtime.
+/// Add / toggle / filter through one runtime.
 fn run(app: impl App) -> Vec<Stats> {
     let mut harness = Harness::new(app);
 
@@ -62,7 +61,7 @@ pub fn tsx() -> Vec<Stats> {
     run(TsxTodos::default())
 }
 
-/// The hand-written control: `todos_manual.zig` ported.
+/// The hand-written control.
 pub fn manual() -> Vec<Stats> {
     run(ManualTodos::new())
 }

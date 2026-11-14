@@ -1,4 +1,4 @@
-//! Port of `src/ui_runtime.zig:2229-2574`: keyboard and text input.
+//! Keyboard and text input.
 //!
 //! Keys go to: the app's `on_key` hook (in `dispatch`), a focused pointer
 //! area's `on_key`, the selected text (copy / clear / select all), a focused
@@ -15,7 +15,7 @@ use crate::platform::platform;
 use super::Runtime;
 
 impl Runtime {
-    /// Zig `handleKeyDown`: returns 1 when the key was consumed.
+    /// Returns 1 when the key was consumed.
     pub(crate) fn handle_key_down(&mut self, k: KeyEvent) -> i32 {
         let shift = k.modifiers.shift;
         // focused pointer areas (canvases, viewers) see keys first
@@ -165,7 +165,7 @@ impl Runtime {
         }
     }
 
-    /// Zig's `.select` key arm of `handleKeyDown`.
+    /// Key handling of a focused select.
     fn select_key(&mut self, id: NodeId, k: KeyEvent) -> i32 {
         let (open, len, selected) = {
             let node = self.tree.get(id);
@@ -218,7 +218,7 @@ impl Runtime {
         0
     }
 
-    /// Zig's `.input` key arm of `handleKeyDown`.
+    /// Key handling of a focused input.
     fn input_key(&mut self, id: NodeId, k: KeyEvent) -> i32 {
         let shift = k.modifiers.shift;
         let (has_composition, multiline) = {
@@ -445,7 +445,7 @@ impl Runtime {
         true
     }
 
-    /// Zig `handleTextInput`: types text into the focused input, dropping
+    /// Types text into the focused input, dropping
     /// control characters (an input method or a stray key event may deliver
     /// Esc / Backspace as text).
     pub(crate) fn handle_text_input(&mut self, raw: &str) -> i32 {
@@ -474,10 +474,8 @@ impl Runtime {
         0
     }
 
-    /// Zig `Tree.inputChanged` → `components/input.zig` calls the input's
-    /// `on_change` (legacy `Callback`, not ported) and then its `text_action`.
-    /// The Rust tree only changes state, so the runtime notifies the action
-    /// here after every successful edit.
+    /// Calls the input's `text_action`. The tree only changes state, so the
+    /// runtime notifies the action here after every successful edit.
     pub(crate) fn notify_text_action(&mut self, id: NodeId) {
         let action = {
             let node = self.tree.get(id);
@@ -498,7 +496,7 @@ impl Runtime {
         action.call(&mut cx, &data.text);
     }
 
-    /// Zig `copySelection`: puts the input's selection on the clipboard.
+    /// Puts the input's selection on the clipboard.
     fn copy_selection(&mut self, id: NodeId) -> bool {
         let text = {
             let node = self.tree.get(id);
@@ -520,7 +518,7 @@ impl Runtime {
         platform::set_clipboard(&text)
     }
 
-    /// Zig `pasteInto`: inserts the clipboard text into the input.
+    /// Inserts the clipboard text into the input.
     fn paste_into(&mut self, id: NodeId) {
         let Some(clipboard) = platform::clipboard_text() else {
             return;
@@ -534,7 +532,7 @@ impl Runtime {
     }
 }
 
-/// Zig `hasControlChars`: a control character that must not be typed.
+/// A control character that must not be typed.
 pub(crate) fn has_control_chars(text: &str) -> bool {
     text.bytes().any(|byte| {
         (byte < 0x20 && byte != b'\t' && byte != b'\n' && byte != b'\r') || byte == 0x7f
@@ -546,7 +544,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn control_characters_are_detected_like_zig() {
+    fn control_characters_are_detected() {
         assert!(!has_control_chars("hello"));
         assert!(!has_control_chars("a\tb\nc\rd"));
         assert!(!has_control_chars("héllo 中文"));
@@ -743,7 +741,7 @@ mod keyboard_tests {
         }
     }
 
-    // ── WP-2.1: keyboard activation of toggles and selects ─────────────────
+    // ── keyboard activation of toggles and selects ─────────────────────────
 
     #[derive(Default)]
     struct Options {

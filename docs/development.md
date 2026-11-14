@@ -7,7 +7,7 @@
 - 或 Windows 10/11 x64、Visual Studio 2022+ / Build Tools（「使用 C++ 的桌面开发」），
   依赖（Skia、头文件、PDFium、STIX Two Math）首次执行
   `powershell -ExecutionPolicy Bypass -File scripts/fetch_skia_windows.ps1`。
-  原生代码由 `crates/zant-sys/build.rs` 用 MSVC 直接编进可执行文件（不再有 `zant_skia.dll`）。
+  原生代码由 `crates/zant-sys/build.rs` 用 MSVC 直接编进可执行文件（没有单独的 Skia DLL）。
 
 沙箱 / AI 执行环境里 `~/.cargo` 不可写，**一律用 `./scripts/cargo.sh` 代替 `cargo`**
 （它把 `CARGO_HOME` 指到仓库内的 `.cargo-home/`，已 gitignore）。普通机器上可以直接用 `cargo`。
@@ -49,7 +49,7 @@ cargo run -p zant-examples --bin zant-pdf -- a.pdf # PDF 阅读器（ZANT_PDF_PA
   超过 8 ms 的帧另打一行 `[slow-frame]`（含当帧新建的文字排版数与耗时）。
 - `ZANT_AUTOPLAY=1`（`zant-components`）：示例自己循环菜单、对话框、提示、主题等动画，
   用来无人值守地测帧率；`=quiet` 不打印 `[event]`。
-- `ZANT_WINDOW_SIZE=WxH`：覆盖初始窗口尺寸（parity 截图用）。
+- `ZANT_WINDOW_SIZE=WxH`：覆盖初始窗口尺寸（自动化截图用）。
 - `ZANT_APP_EVENT_*` / `ZANT_POINTER_*` / `ZANT_KEY_*`：headless 测试驱动事件（见 `crates/zant/tests/`）。
 
 性能要看 Release 构建（`cargo build --release`）：Debug 构建的 rebuild 会慢 10 倍以上。
@@ -66,9 +66,8 @@ Windows 上写 stderr 很贵（每行约 10 ms），不要在每帧都会执行�
 
 - 沙箱里：`./scripts/cargo.sh test --workspace`。
 - 只跑某个 crate：`./scripts/cargo.sh test -p zant markdown`、`./scripts/cargo.sh test -p zant-tsx`。
-- 布局 / 像素对照（迁移期的工具，需要旧的 Zig 基线产物）：
-  `ZANT_ZIG_BIN=/path/to/zig-out-baseline/bin scripts/parity/compare.sh zant-demo`
-  （layout 每个 key 差值 ≤ 0.01；像素通道差 > 2 的像素占比 ≤ 0.1%）。
+- 两张截图的像素对比：`python3 scripts/lib/imgdiff.py a.png b.png [--diff out.png]`
+  （默认像素通道差 > 2 的像素占比 ≤ 0.1% 算一致；纯标准库，不需要 Pillow）。
 - 时间相关测试注入假时钟（`runtime.clock = fake_clock`），不要 sleep。
 
 ## 帧基准
@@ -78,9 +77,14 @@ Windows 上写 stderr 很贵（每行约 10 ms），不要在每帧都会执行�
 `hover`（指针扫过长列表）、`resize`（窗口宽度变化）、`scroll`（滚轮）。`ZANT_BENCH_LIST=1` 用虚拟列表，
 `ZANT_BENCH_MESSAGES` 改对话长度。结果确定、可复现，适合改动前后、两个平台对比。
 
-> 闸门要求见 AGENTS.md「性能规则」：各场景不超过记录基线 **1.25 倍**
-> （`scripts/parity/bench.sh` 内置 `docs/rust-port/status.md` 记录的 Zig 基线数字；
-> 有旧的 `zig-out-baseline` 时直接用它对照）。
+```bash
+scripts/bench.sh                    # 构建 Release 的 zant-bench，两种模式各跑 3 轮取最好一轮
+scripts/bench.sh --no-build stream  # 用已有的 target/release/zant-bench，只跑 stream
+```
+
+> 闸门要求见 AGENTS.md「性能规则」：各场景平均帧耗时不超过记录基线 **1.25 倍**，稳态场景低于 16.7 ms
+> （`scripts/bench.sh` 内置记录基线数字；原始输出在 `target/bench/`）。Windows 测试机上用
+> `scripts/win/bench.ps1` 跑同样的场景并留下日志。
 
 ## 流式 Markdown 基准
 
@@ -135,19 +139,12 @@ scripts/win/remote.sh XyUI 'powershell -File scripts/win/run-desktop.ps1 -Exe ta
 export ZANT_WIN_SSH_OPTS="-o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/tmp/winhome/.ssh/known_hosts -o LogLevel=ERROR"
 ```
 
-`scripts/win/sync.sh` 的远端目录名默认取本 checkout 的目录名；在 git worktree 里（目录名如
-`wp-win`）与机器上的固定目录（如 `XyUI`）对不上时，在 `.env` 里加 `ZANT_WIN_PROJECT=XyUI`。
+`scripts/win/sync.sh` 的远端目录名默认取本 checkout 的目录名；本地目录名与机器上的固定目录
+（如 `XyUI`）对不上时，在 `.env` 里加 `ZANT_WIN_PROJECT=XyUI`。
 同步是**覆盖**式（打包 tracked + untracked 文件后解包），不会删除远端已不存在的文件：仓库里
-删掉的文件（例如 M6 删掉的 `scaffold/template-ts/build.zig`）会留在远端，让测试看到幽灵文件。
-远端源码与仓库不一致时重建：保留 `third_party/`、`target/`、`.zig-cache` 等目录，其余从空目录
-重新同步一次。
-> Zig 基线在 `zig build -Doptimize=ReleaseFast` 之后位于 `zig-out\bin\`（含 `zant_skia.dll`、
-> `pdfium.dll`，要一起用）；Rust 产物是 `target\{debug,release}\`。
-
-一致性对照（Rust vs Zig 基线，plan.md §6/§7.2）在 Windows 上这样跑：`parity-compare.sh` 用
-`parity-capture.ps1` 在机器上按 浅/深色 × 三种窗口尺寸抓 `shot.png` + `layout.txt`（Zig 用
-`zig-out\bin`，Rust 用 `target\release`），把结果拷回 Mac 后用 `scripts/parity/{layoutdiff,imgdiff}.py`
-比对；`ZANT_WIN_SKIP_CAPTURE=1` 只重跑比对。
+删掉的文件会留在远端，让测试看到幽灵文件。
+远端源码与仓库不一致时重建：保留 `third_party/`、`target/` 等目录，其余从空目录
+重新同步一次。构建产物在 `target\{debug,release}\`。
 
 SSH 会话里的窗口不可见、也拿不到真实缩放，所以视觉检查用 `run-desktop.ps1` 在已登录的
 桌面会话里运行。一直运行的程序（例如测试同步时的应用）用自己的 `-Name`（计划任务名，一个名字
@@ -164,12 +161,12 @@ SSH 会话里的窗口不可见、也拿不到真实缩放，所以视觉检查�
 | `scripts/win/scaffold-check.ps1（Rust TSX 脚手架：create → cargo build → headless 快照）` | 在真实命令行窗口（代码页 936）运行 `zant create`，用 Unicode 按键输入中文标题，截图并检查生成的 `app.config.json` |
 | `scripts/win/stream-resize-check.ps1 -Sse <录制的 SSE>` | `zant-md-stream` 回放真实回复的同时，真实鼠标拖动标题栏移动窗口、拖右下角放大 / 缩到最小 / 还原，每步截图，统计帧时间 |
 | `scripts/win/pdf-check.ps1 -Folder <目录>` | 对目录里的 PDF 检查页数、文字、链接与目录、首页 / 中间页截图；真实鼠标拖选 + Ctrl+C、双击选词、缩放、滚轮、搜索、翻页 |
-| `scripts/win/desktop-checks.ps1` | 依次跑上面这些检查（同一时间只能一个程序占鼠标 / 前台），把每份 report 汇总到 `E:\dev\checks\desktop\summary.txt`；`-Checks resize,stream` 可选子集，`-ComponentsExe` / `-MdStreamExe` / `-PdfExe` 换成任意实现（例如 Zig 基线做对照） |
+| `scripts/win/desktop-checks.ps1` | 依次跑上面这些检查（同一时间只能一个程序占鼠标 / 前台），把每份 report 汇总到 `%TEMP%\zant-checks\desktop\summary.txt`（`-Out` 可改）；`-Checks resize,stream` 可选子集，`-ComponentsExe` / `-MdStreamExe` / `-PdfExe` 指定被测程序（默认 `target\release\`），`-StillExe` 指定 still. 应用（`smoke` / `docs` 两项用） |
 
 用 `run-desktop.ps1 -Exe powershell.exe -Arguments "-NoProfile -ExecutionPolicy Bypass -File <脚本>"`
 在桌面会话运行；结果与截图在 `%TEMP%\zant-checks\` 下。含中文的 `.ps1` 要保存为带 BOM 的
-UTF-8（Windows PowerShell 5.1）。桌面脚本默认跑 `zig-out\bin\` 里的 Zig 版本；验证 Rust 版时传
-`-Exe <repo>\target\release\<app>.exe`（`smoke-stillmd.ps1` / `docs-check.ps1` 传 `-App`）。
+UTF-8（Windows PowerShell 5.1）。单个桌面脚本默认跑 `target\debug\` 里的示例；测 Release 时传
+`-Exe <repo>\target\release\<app>.exe`（`pdf-check.ps1` / `smoke-stillmd.ps1` / `docs-check.ps1` 传 `-App`）。
 `stream-resize-check.ps1 -Sse` 需要一份录制的 SSE；仓库里的合成样例是
 `scripts/win/fixtures/stream-replay.sse`（几十个 `data: {"type":"text_delta",…}`）。
 
@@ -224,4 +221,5 @@ cargo build -p zant-cli
 - `crates/zant/src/core/keys.rs`、`crates/zant/src/core/paths.rs`：平台快捷键与应用数据目录。
 - `crates/zant/src/db/`：SQLite 封装（rusqlite；`#[derive(Table)]` 对象集合）。
 - `scripts/win/`：Windows 测试机同步、远程执行与桌面冒烟测试。
-- `scripts/parity/`：布局 / 像素 / 帧基准对照（Zig 基线数字记录在 `docs/rust-port/status.md`）。
+- `scripts/bench.sh`：帧基准闸门（内置记录基线）；`scripts/tsx/`：TSX 构建、示例与基准检查；
+  `scripts/lib/imgdiff.py`：PNG 解码与像素对比。

@@ -2,12 +2,8 @@
 //! typed callback props): `tsx::Deps`, `tsx::Memo`, `tsx::Effect`,
 //! `tsx::Callback`, `tsx::Ref`.
 //!
-//! Port of `src/tsx_hooks.zig` and the `Deps` / `Memo` / `Effect` /
-//! `deepEql` / `Callback` parts of `src/tsx.zig`. The Zig version copied
-//! dependency values into an arena because the frame arena owned them; Rust
-//! hook values are `Clone` and compared by value, so the hook just stores the
-//! last list (`docs/rust-port/tsx-codegen.md` §3: generated values are `Copy`
-//! or cheaply `Clone`).
+//! Hook values are `Clone` and compared by value, so a hook just stores the
+//! last dependency list (generated values are `Copy` or cheaply `Clone`).
 //!
 //! ```ignore
 //! // useMemo: the field keeps the value while the dependency list is equal
@@ -28,8 +24,7 @@ use std::rc::Rc;
 use crate::ui::Action;
 
 /// A `useRef` value: the live value, shared with the closures that write it
-/// (`src/tsx.zig` had no ref runtime: generated Zig used a plain field, but a
-/// Rust closure needs shared ownership). `useRef` writes do not snapshot the
+/// (a closure needs shared ownership). `useRef` writes do not snapshot the
 /// state, they mutate through `borrow_mut()`.
 pub type Ref<T> = Rc<RefCell<T>>;
 
@@ -46,7 +41,7 @@ pub fn local_state<T: 'static>(id: u64, init: impl FnOnce() -> T) -> Ref<T> {
 }
 
 /// The dependency list of `useMemo` / `useEffect`: the last list, compared by
-/// value (Zig `Deps(D)`; `deepEql` is Rust's `PartialEq`).
+/// value (`PartialEq`).
 ///
 /// Generated code passes the dependency tuple, e.g. `(self.a.clone(),
 /// self.items.clone())`; an empty list is `()`.
@@ -83,9 +78,8 @@ impl<D: Clone + PartialEq> Deps<D> {
     }
 }
 
-/// `useMemo`: the value computed for the current dependency list
-/// (Zig `Memo(T, D)`). A cached value is cloned out: generated values are
-/// cheap to clone (`docs/rust-port/tsx-codegen.md` §3).
+/// `useMemo`: the value computed for the current dependency list.
+/// A cached value is cloned out: generated values are cheap to clone.
 pub struct Memo<T, D> {
     deps: Deps<D>,
     value: Option<T>,
@@ -136,14 +130,13 @@ impl<T, D> Default for Memo<T, D> {
 }
 
 /// `useEffect` with a cleanup function: the dependency list plus the cleanup
-/// the last run returned (Zig `Effect(D)`).
+/// the last run returned.
 ///
 /// The cleanup is queued as an effect before the effect runs again
 /// ([`Effect::queue`]) and when the component unmounts: dropping the
 /// `Effect` (its `local_state` slot is freed) queues the cleanup for the next
-/// effect run, where the root state is available again. Zig called the cleanup
-/// with a raw state pointer at that point; Rust runs it as an effect, which is
-/// the safe equivalent (same call order: after the rebuild).
+/// effect run, where the root state is available again (it runs as an effect,
+/// after the rebuild).
 pub struct Effect<D> {
     deps: Deps<D>,
     cleanup: Option<Action>,
@@ -202,9 +195,8 @@ impl<D> Drop for Effect<D> {
 }
 
 /// A typed callback prop of a TSX child component (`onToggle: (id: number) =>
-/// void`): generated Zig had no closures and used `tsx.Callback(fn (u32)
-/// void)`; Rust's cheap closure is `Rc<dyn Fn(..)>`
-/// (`docs/rust-port/tsx-codegen.md` §2), so this alias names that type.
+/// void`): a cheap-to-clone closure is `Rc<dyn Fn(..)>`, so this alias names
+/// that type.
 ///
 /// `tsx::Callback<dyn Fn(u32)>` is `Rc<dyn Fn(u32)>`.
 pub type Callback<F> = Rc<F>;

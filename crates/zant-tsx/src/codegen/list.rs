@@ -1,14 +1,13 @@
 //! `<List>` (React Native `FlatList`) → `ui::list`, the virtual list: only the
-//! rows on screen are built (docs/tsx.md, "长列表"). Translation of
-//! `tools/tsx/codegen/list.zig` adapted to Rust closures:
+//! rows on screen are built (docs/tsx.md, "长列表"):
 //!
 //! ```tsx
 //! <List data={todos} renderItem={(t, i) => <Row …/>} keyExtractor={(t) => t.id} />
 //! ```
 //!
-//! Zig registered a hidden `ui.ListState` field, a capture struct and item /
-//! id methods. Rust has closures and `Rc<RefCell<..>>` state, so the list is
-//! emitted inline:
+//! The component keeps a hidden `ui::ListState` field; the item and id
+//! callbacks are closures over `Rc<RefCell<..>>` state, so the list is emitted
+//! inline:
 //!
 //! ```ignore
 //! {
@@ -26,7 +25,7 @@
 //! ```
 //!
 //! `renderItem` bodies that read render locals capture them into `_cap_*`
-//! locals before the closure (the Zig `captures.zig` role); state reads
+//! locals before the closure (see [`super::captures`]); state reads
 //! capture `self.field` the same way. `keyExtractor` supports the item / index
 //! parameters and constants (reading render locals there is a diagnostic).
 
@@ -43,7 +42,7 @@ use super::stmt;
 use super::types::{self, Type, Value};
 use super::{Generator, Result, fail};
 
-/// One `<List>` of the component being generated (Zig `ListInfo`).
+/// One `<List>` of the component being generated.
 #[derive(Clone, Debug)]
 pub struct ListInfo {
     /// The element's address: connects [`scan`] and [`emit`].
@@ -148,11 +147,11 @@ fn option_props() -> Vec<Prop> {
             values: vec![
                 tags::Value {
                     ts: "top",
-                    zig: "top",
+                    rust: "top",
                 },
                 tags::Value {
                     ts: "bottom",
-                    zig: "bottom",
+                    rust: "bottom",
                 },
             ],
             ..Prop::default()
@@ -425,7 +424,7 @@ fn bind_item(
     rows: &str,
 ) -> Result<String> {
     let index_param = scope::bind(g, c, b"_index", Type::Usize, false)?;
-    let index_name = c.bindings[index_param].zig.clone();
+    let index_name = c.bindings[index_param].rust.clone();
     let item = &function.params[0];
     if let Some(reference) = item.ty.as_ref()
         && types::type_ref(g, reference, false)? != element
@@ -433,7 +432,7 @@ fn bind_item(
         return fail(g, item.name.loc, "the item type does not match `data`");
     }
     let binding = scope::bind(g, c, &item.name.name, element, false)?;
-    let item_name = c.bindings[binding].zig.clone();
+    let item_name = c.bindings[binding].rust.clone();
     let item_code = if element.copy(g) {
         format!("{rows}[{index_name}]")
     } else {
@@ -448,7 +447,7 @@ fn bind_item(
             return fail(g, index.name.loc, "the index is a usize");
         }
         let binding = scope::bind(g, c, &index.name.name, Type::Usize, false)?;
-        let name = c.bindings[binding].zig.clone();
+        let name = c.bindings[binding].rust.clone();
         prologue.push_str(&format!("let {name}: usize = {index_name};\n"));
     }
     Ok(prologue)
@@ -473,7 +472,7 @@ fn item_closure(
     // name (the binding's Rust identifier is the `_cap_*` local)
     for capture in captures {
         let binding = scope::bind(g, &mut c, &capture.name, capture.ty, false)?;
-        c.bindings[binding].zig = capture.local.clone();
+        c.bindings[binding].rust = capture.local.clone();
     }
     // the closure is built while rendering the component: it must not borrow
     // `self` (it outlives the `&mut self` build), so prop reads go through the
@@ -509,7 +508,7 @@ fn item_closure(
 }
 
 /// `move |_index: usize| -> u64` from keyExtractor: integer keys as they are,
-/// floats truncated, strings hashed (Zig `std.hash.Wyhash.hash`).
+/// floats truncated, strings hashed.
 fn id_closure(
     g: &mut Generator<'_>,
     function: &ast::Function,
@@ -524,7 +523,7 @@ fn id_closure(
     };
     for capture in captures {
         let binding = scope::bind(g, &mut c, &capture.name, capture.ty, false)?;
-        c.bindings[binding].zig = capture.local.clone();
+        c.bindings[binding].rust = capture.local.clone();
     }
     let component = std::mem::take(&mut g.current_component);
     let prologue = bind_item(g, &mut c, function, element, rows)?;
@@ -570,9 +569,9 @@ fn collect_captures(
         if let Some(binding) = scope::local(c, &name) {
             let ty = binding.ty;
             let init = if ty.copy(g) {
-                binding.zig.clone()
+                binding.rust.clone()
             } else {
-                format!("{}.clone()", binding.zig)
+                format!("{}.clone()", binding.rust)
             };
             let local = format!("_cap_{}", String::from_utf8_lossy(&name));
             captures.push(Capture {

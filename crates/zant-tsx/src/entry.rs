@@ -1,5 +1,4 @@
-//! A TSX app's generated entry (`zant-tsx --out … --main App`). Translation of
-//! `tools/tsx/entry.zig`.
+//! A TSX app's generated entry (`zant-tsx --out … --main App`).
 //!
 //! The generated `main.rs` declares the project's modules (one Rust file per
 //! `.tsx`) and runs the default export of the entry file with the project's
@@ -17,7 +16,7 @@
 //! }
 //! ```
 //!
-//! `zant_build::tsx_app` (WP-6.2) writes the generated modules into `OUT_DIR`
+//! `zant_build::tsx_app` writes the generated modules into `OUT_DIR`
 //! and the app's `src/main.rs` includes this file
 //! (`include!(concat!(env!("OUT_DIR"), "/main.rs"))`); `#[path]` is resolved
 //! relative to the generated file's own directory, so the included entry finds
@@ -26,8 +25,9 @@
 //! (`mod format;`, `mod native;`), and a second declaration would be a
 //! duplicate.
 //!
-//! Differences from Zig: no `app_config`/`native` module wiring (the generated
-//! `Config` literal carries the values; native modules are WP-5.8).
+//! The entry wires no `app_config` / `native` modules: the generated `Config`
+//! literal carries the configuration, and native modules are declared by the
+//! app's own crate root.
 
 use crate::ast;
 use crate::compile::{ConfigSpec, SourceFile};
@@ -163,8 +163,7 @@ fn parse(src: &[u8]) -> Option<ast::Module> {
 }
 
 /// Every `.tsx` / `.ts` / `.rs` under `dir` (any depth, hidden entries
-/// skipped), sorted so outputs don't depend on the file system's order (Zig
-/// `entry.collect`).
+/// skipped), sorted so outputs don't depend on the file system's order.
 pub fn collect(dir: &str) -> std::io::Result<Vec<String>> {
     let mut out = Vec::new();
     walk(dir, &mut out, 0)?;
@@ -197,7 +196,7 @@ fn walk(dir: &str, out: &mut Vec<String>, depth: usize) -> std::io::Result<()> {
 }
 
 /// The specs of native modules: `<dir>/*.ts` (not `.d.ts`; not deeper, where
-/// the modules keep their internal code). WP-5.8 compiles them.
+/// the modules keep their internal code); `native_specs` compiles them.
 pub fn collect_specs(dir: &str) -> std::io::Result<Vec<String>> {
     let mut out = Vec::new();
     for entry in std::fs::read_dir(dir)? {
@@ -224,8 +223,6 @@ pub fn collect_specs(dir: &str) -> std::io::Result<Vec<String>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    // Ported from `tools/tsx/entry.zig`.
 
     #[test]
     fn the_entry_runs_the_default_export_with_the_project_config() {

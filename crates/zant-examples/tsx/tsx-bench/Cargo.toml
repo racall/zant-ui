@@ -1,7 +1,7 @@
-# TSX benchmark workload app (WP-5.10).
+# TSX benchmark workload app.
 #
-# The app renders the heavy stateful page the Zig frame benchmark
-# (`examples/tsx/bench.zig`) benchmarks (`examples/tsx/settings.tsx`: 5
+# The app renders the heavy stateful page of the TSX frame benchmark
+# (`zant-tsx-frame-bench`; the same page as `../corpus/settings.tsx`: 5
 # sections, 40 switches with their own state). It is a Cargo workspace member
 # so `cargo build --workspace` / `cargo test --workspace` build and check it;
 # `build.rs` is the template's TSX → Rust step (`../app_config_build.rs`).

@@ -1,6 +1,5 @@
-//! `counter.tsx` written by hand in Rust (`examples/tsx/counter_manual.zig`
-//! ported): the control group of the `counter-clicks` / `counter-typing`
-//! scenarios.
+//! `counter.tsx` written by hand in Rust: the control group of the
+//! `counter-clicks` / `counter-typing` scenarios.
 #![forbid(unsafe_code)]
 
 use zant::Str;
@@ -10,7 +9,7 @@ use zant::ui::{
     self, App, BoxOptions, ButtonOptions, InputOptions, TextOptions, ToggleOptions, ViewOptions,
 };
 
-/// Zig `counter_manual.Counter`.
+/// The counter page state.
 #[derive(Default)]
 pub struct Counter {
     count: u32,
@@ -21,7 +20,7 @@ pub struct Counter {
 }
 
 impl Counter {
-    /// The Zig `Counter{}` default: count 0, step 1, name "Zant", notify on.
+    /// The initial state: count 0, step 1, name "Zant", notify on.
     pub fn new() -> Counter {
         Counter {
             count: 0,
@@ -58,7 +57,6 @@ impl Counter {
 }
 
 impl App for Counter {
-    /// Zig `Counter.render`.
     fn render(&mut self) -> ui::Node {
         let mut children = vec![
             ui::text(

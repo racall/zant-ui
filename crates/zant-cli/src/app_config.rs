@@ -1,7 +1,5 @@
-//! Port of `tools/zant/app_config.zig`: `app.config.json` → the app's
-//! configuration, and the `src/app_config.rs` the app compiles against.
-//! Shared by the `zant` CLI (sync, run, packaging) and, later, by
-//! `zant-build` (TS apps generate it while building, for the target platform).
+//! `app.config.json` → the app's configuration, and the `src/app_config.rs`
+//! the app compiles against. Used by `zant sync`, `run` and packaging.
 
 use serde::Deserialize;
 
@@ -160,8 +158,7 @@ struct RawConfig {
     windows: Option<RawWindows>,
 }
 
-/// Failures of `parse`. `InvalidJson` / `InvalidBundleId` carry the detail
-/// (the Zig version reports it through its `why` out-parameter).
+/// Failures of `parse`. `InvalidJson` / `InvalidBundleId` carry the detail.
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ParseError {
@@ -279,8 +276,8 @@ pub fn parse(data: &str, os: Os) -> Result<AppConfig, ParseError> {
 }
 
 /// `src/app_config.rs`: what the app reads at compile time (title, bundle id,
-/// window options). Rust target of `app_config.zig`'s `source`; the field
-/// names stay the Zig ones (snake_case) and every window field is written out.
+/// window options). The constants keep the `app.config.json` field names
+/// (snake_case) and every window field is written out.
 pub fn source(cfg: &AppConfig) -> String {
     let title = escape_rust(&cfg.title);
     let bundle = escape_rust(&cfg.bundle_id);
@@ -351,7 +348,7 @@ pub fn source(cfg: &AppConfig) -> String {
     out
 }
 
-/// Zig `{d}` prints `680` for an `f32`; Rust float literals need `680.0`.
+/// Whole numbers print as `680.0`: Rust float literals need the fraction.
 fn fmt_f32(value: f32) -> String {
     if value.is_finite() && value.fract() == 0.0 {
         format!("{value:.1}")
@@ -516,12 +513,9 @@ mod tests {
     }
 
     #[test]
-    fn generated_source_matches_the_zig_generator_fixture() {
-        // `tests/fixtures/app.config.json` was run through the Zig CLI
-        // (`zant sync`) and the Rust CLI (`zant sync`) in this worktree: both
-        // generated the same values, byte-identical Info.plist and config JSON.
-        // `app_config_expected.rs` is the Rust target of the Zig `app_config.zig`
-        // for that fixture (see the WP-6.1 report).
+    fn generated_source_matches_the_expected_fixture() {
+        // `app_config_expected.rs` is what `zant sync` writes for
+        // `tests/fixtures/app.config.json`.
         let json = include_str!("../tests/fixtures/app.config.json");
         let expected = include_str!("../tests/fixtures/app_config_expected.rs");
         let cfg = parse(json, Os::Macos).expect("fixture parse");

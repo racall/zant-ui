@@ -5,7 +5,8 @@
 #   powershell -File scripts/win/run-desktop.ps1 -Exe powershell.exe `
 #     -Arguments "-NoProfile -ExecutionPolicy Bypass -File E:\dev\XyUI\scripts\win\desktop-checks.ps1" -Wait 3600
 #
-# -Checks selects a subset (default: all). Missing executables are SKIPped.
+# -Checks selects a subset (default: all). Missing executables are SKIPped
+# (`smoke` / `docs` drive the stillmd app passed as -StillExe).
 # Every check writes its own report and screenshots under -Out; this driver
 # writes summary.txt and prints it at the end.
 param(
@@ -14,12 +15,11 @@ param(
     [string]$ComponentsExe = "",
     [string]$MdStreamExe = "",
     [string]$PdfExe = "",
-    [string]$StillZig = "",
-    [string]$StillRust = "",
+    [string]$StillExe = "",
     [string]$Sse = "",
     [string]$PdfFolder = "",
     [string]$ZantExe = "",
-    [string]$Checks = "components,resize,stream,pdf,scaffold,smoke-zig,smoke-rust,docs-zig,docs-rust"
+    [string]$Checks = "components,resize,stream,pdf,scaffold,smoke,docs"
 )
 $ErrorActionPreference = "Continue"
 if (!$Out) { $Out = Join-Path $env:TEMP "zant-checks/desktop" }
@@ -100,12 +100,9 @@ Run-Check "pdf" "pdf-check.ps1" "-Folder '$PdfFolder' -App '$PdfExe' -Out '$d'" 
 $d = Join-Path $Out "scaffold"
 Run-Check "scaffold" "scaffold-check.ps1" "-Zant '$ZantExe' -Out '$d'" $ZantExe $d
 $stillDir = Join-Path $env:TEMP "zant-checks/smoke"
-Run-Check "smoke-zig" "smoke-stillmd.ps1" "-App '$StillZig'" $StillZig $stillDir
-Run-Check "smoke-rust" "smoke-stillmd.ps1" "-App '$StillRust'" $StillRust $stillDir
-$d = Join-Path $Out "docs-zig"
-Run-Check "docs-zig" "docs-check.ps1" "-App '$StillZig' -Out '$d'" $StillZig $d
-$d = Join-Path $Out "docs-rust"
-Run-Check "docs-rust" "docs-check.ps1" "-App '$StillRust' -Out '$d'" $StillRust $d
+Run-Check "smoke" "smoke-stillmd.ps1" "-App '$StillExe'" $StillExe $stillDir
+$d = Join-Path $Out "docs"
+Run-Check "docs" "docs-check.ps1" "-App '$StillExe' -Out '$d'" $StillExe $d
 
 Record "done" "" ""
 Write-Output "--- summary ---"

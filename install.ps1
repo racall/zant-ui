@@ -8,11 +8,11 @@
 # 1. Rust: installs rustup into %USERPROFILE%\.cargo when it is missing and
 #    makes sure the Rust toolchain Zant UI pins (zant-ui\rust-toolchain.toml)
 #    is installed. Also checks Visual Studio Build Tools (the MSVC linker and
-#    Windows SDK cargo needs). No Zig download any more.
+#    Windows SDK cargo needs).
 # 2. Downloads the release archive into $ZANT_HOME: zant.exe, the Rust
 #    workspace with the native sources, Skia, PDFium and fonts, so nothing is
 #    compiled during installation. Adds $ZANT_HOME\bin to the user PATH.
-#    WP-6.6: the archive also contains a prebuilt native library
+#    The archive also contains a prebuilt native library
 #    (zant-ui\third_party\zant-native-prebuilt\, made by
 #    scripts/release/prebuilt.ps1). Apps built from this install link it
 #    instead of compiling C++/C — Visual Studio Build Tools stay required to

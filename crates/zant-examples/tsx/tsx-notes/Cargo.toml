@@ -1,4 +1,4 @@
-# The two-file TSX notes app (port of examples/tsx/notes/) (WP-5.10b).
+# The two-file TSX notes app (with a native module).
 #
 # The app is a Cargo workspace member: `build.rs` calls
 # `zant_build::try_tsx_app()` (the template's TSX → Rust step) and writes

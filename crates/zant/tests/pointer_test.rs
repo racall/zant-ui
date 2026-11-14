@@ -1,4 +1,4 @@
-//! Port of `tests/pointer_test.zig` — `ui::pointer_area` (capture, local
+//! `ui::pointer_area` (capture, local
 //! coordinates, multi-click, wheel capture, keys; `BoxOptions::on_resize`),
 //! in-memory images shown by `ui::image` and the container hover look.
 

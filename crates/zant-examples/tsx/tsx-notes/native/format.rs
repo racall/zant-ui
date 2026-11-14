@@ -1,17 +1,14 @@
 //! Implementation of the notes app's formatting module (`native/format.ts`).
 //!
-//! Port of `examples/tsx/notes/format.zig`: the Zig app imported a plain Zig
-//! module (`import { plural } from "./format.zig"`); the Rust TSX compiler
-//! rejects `.zig` imports, so the same function lives where the rest of an
-//! app's Rust lives — a native module. The spec is the single source of truth
+//! A helper the TSX code cannot express lives where the rest of an app's
+//! Rust lives — a native module. The spec is the single source of truth
 //! for the interface: `build.rs` compiles `native/format.ts` into
 //! `native/spec.rs` (`crate::native::spec::format`), which holds the
 //! `FormatSpec` trait; this file implements it and TSX calls the function
 //! directly — no bridge, no serialization. A missing or mistyped function is
 //! a rustc error at the `impl`.
 //!
-//! The Zig version allocated the string in the frame arena; here the result is
-//! an owned [`zant::Str`], which can be stored across frames too.
+//! The result is an owned [`zant::Str`], which can be stored across frames.
 
 use zant::Str;
 

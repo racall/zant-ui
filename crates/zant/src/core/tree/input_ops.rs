@@ -1,13 +1,10 @@
-//! Port of `src/core/tree.zig` — WP-1.3: text / input / toggle state changes.
+//! Text / input / toggle state changes.
 //!
-//! **Ownership note.** Zig's `Tree.inputInsert` & co. delegate to
-//! `components/input.zig` and invoke the stored callbacks from inside the tree
-//! (`inputChanged`). In Rust the callbacks are `ui::actions` values that need
+//! **Ownership note.** The stored callbacks are `ui::actions` values that need
 //! the runtime's `ActionCx`, so the tree only changes state and marks paint
-//! dirty; the runtime clones the action out of the node and calls it
-//! (plan.md §4). The editing helpers themselves live in
-//! [`crate::components::input`] (WP-2.1); the methods below only look the node
-//! up and call them.
+//! dirty; the runtime clones the action out of the node and calls it. The
+//! editing helpers themselves live in [`crate::components::input`]; the
+//! methods below only look the node up and call them.
 #![forbid(unsafe_code)]
 
 use crate::Str;
@@ -16,9 +13,8 @@ use crate::core::geometry::Rect;
 use crate::core::node::{NodeData, NodeId};
 use crate::core::tree::Tree;
 
-/// Zig `input.Move`: a caret movement. It lives here rather than in
-/// `components::input` because the tree-level editing port (WP-1.3) declared it
-/// first; `components::input` re-exports it under the Zig module's name.
+/// A caret movement. It is declared here with the tree-level editing
+/// methods; `components::input` re-exports it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Move {
     Left,
@@ -80,7 +76,7 @@ impl Tree {
         self.mark_dirty(id, true, true);
     }
 
-    // ── input editing (`components/input.zig`) ─────────────────────────────
+    // ── input editing (`components::input`) ────────────────────────────────
 
     pub fn input_insert(&mut self, id: NodeId, value: &str) -> bool {
         let Some(data) = self.nodes[id as usize].input_mut() else {
@@ -200,10 +196,10 @@ impl Tree {
 
     // ── toggles ────────────────────────────────────────────────────────────
 
-    /// Sets a toggle's checked state and queues its transition. Zig's
-    /// `Tree.toggleSet` also called the `index_action` / `action`; the Rust
-    /// runtime does that after cloning the callback out of the node
-    /// (`Runtime::toggle_set` in `runtime/pointer.rs`, plan.md §4).
+    /// Sets a toggle's checked state and queues its transition. The
+    /// `index_action` / `action` is not called here: the runtime does that
+    /// after cloning the callback out of the node (`Runtime::toggle_set` in
+    /// `runtime/pointer.rs`).
     pub fn toggle_set(&mut self, id: NodeId, checked: bool) {
         if !matches!(self.nodes[id as usize].data, NodeData::Toggle(_)) {
             return;

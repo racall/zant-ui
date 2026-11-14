@@ -1,5 +1,4 @@
-//! Port of `src/core/geometry.zig`: points, sizes, edges, rectangles and
-//! layout constraints.
+//! Points, sizes, edges, rectangles and layout constraints.
 #![forbid(unsafe_code)]
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -161,8 +160,8 @@ impl Default for Constraints {
     }
 }
 
-// `src/core/geometry.zig` has no `test` blocks; these cover the arithmetic
-// (boundary inclusivity, clamping) that the ported layout code relies on.
+// These cover the arithmetic (boundary inclusivity, clamping) that the layout
+// code relies on.
 #[cfg(test)]
 mod tests {
     use super::{Constraints, Edges, Rect, Size};

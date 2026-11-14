@@ -9,9 +9,8 @@
 # ZANT_WIN_HOST (user@host) and ZANT_WIN_DIR (parent directory on the
 # machine, forward slashes) come from the environment or from an untracked
 # scripts/win/.env file (KEY=value lines). ZANT_WIN_PROJECT (optional)
-# overrides the remote directory name of this checkout: a git worktree is
-# named after the worktree (e.g. wp-win), but the machine keeps the main
-# checkout at a fixed name (e.g. XyUI).
+# overrides the remote directory name of this checkout, for a local checkout
+# directory that is named differently from the one on the machine (e.g. XyUI).
 set -euo pipefail
 # no AppleDouble "._*" files (extended attributes) in the archives
 export COPYFILE_DISABLE=1

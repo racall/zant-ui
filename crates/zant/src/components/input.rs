@@ -1,6 +1,4 @@
-//! Port of `src/components/input.zig` — WP-2.1 (the component half; the
-//! paint-and-caret helpers WP-1.5 needs for the `zant-demo` M1 parity were
-//! ported here first and the rest of the module follows the Zig source 1:1).
+//! The antd text input: measure, editing operations, caret and paint.
 //!
 //! The input is an antd-style text field: rounded shell with a border that
 //! eases to `primary-hover` on hover and `primary` on focus (plus the soft
@@ -9,14 +7,12 @@
 //! indicator. `Animated` blur/focus transitions of the shell are sampled by
 //! [`animate`], the caret blink by [`update_blink`].
 //!
-//! Zig owns the editing operations here too (`insertText`, `deleteBackward`,
-//! `move*`, `beginComposition`, …). They are the single implementation now:
+//! The editing operations live here too (`insert_text`, `delete_backward`,
+//! `move_*`, `begin_composition`, …). They are the single implementation:
 //! `core/tree/input_ops.rs` (the tree-level state changes) and
-//! `runtime/ime.rs` (the runtime helpers) delegate to the functions below, so
-//! the temporary copies that existed while this module was a stub are gone.
+//! `runtime/ime.rs` (the runtime helpers) delegate to the functions below.
 //!
-//! Signature adaptations (identical behaviour): Zig passes `*const Node` for
-//! `bounds` / `enabled`; Rust takes the values (`Rect`, `bool`) like the
+//! `bounds` / `enabled` are passed as values (`Rect`, `bool`) like the
 //! neighbouring component modules, and `measure_width` / `measure_height`
 //! take `&FlexStyle` like `components::{button,select,toggle}`.
 #![forbid(unsafe_code)]
@@ -31,25 +27,25 @@ use crate::theme::tokens;
 use crate::theme::tokens::Theme;
 use zant_sys::skia::ZantRect;
 
-/// Zig `default_width`: the antd middle control width.
+/// The antd middle control width.
 pub const DEFAULT_WIDTH: f32 = 220.0;
-/// Zig `default_height`.
+/// The antd middle control height.
 pub const DEFAULT_HEIGHT: f32 = 32.0;
-/// Zig `padding_x`: horizontal padding between the shell and the text column.
+/// Horizontal padding between the shell and the text column.
 pub const PADDING_X: f32 = 11.0;
-/// Zig `blink_interval_ms`.
+/// Half period of the caret blink.
 pub const BLINK_INTERVAL_MS: i64 = 530;
 
-/// Zig `Move` (the editing command of `input_move`); it lives in
-/// `core::tree` because the tree-level editing port landed before WP-2.1.
+/// The editing command of `input_move`, defined next to the tree-level
+/// editing operations in `core::tree`.
 pub use crate::core::tree::Move;
 
-/// Zig `control_height`: the default height of an input.
+/// The default height of an input.
 pub fn control_height() -> f32 {
     DEFAULT_HEIGHT
 }
 
-/// Zig `textLeft`: left edge of the text column (centred when
+/// Left edge of the text column (centred when
 /// `content_max_width` is set).
 pub fn text_left(data: &InputData, bounds: Rect) -> f32 {
     let full = (bounds.width - PADDING_X * 2.0).max(0.0);
@@ -59,7 +55,7 @@ pub fn text_left(data: &InputData, bounds: Rect) -> f32 {
     bounds.x + PADDING_X
 }
 
-/// Zig `textWidth`: width of the text column.
+/// Width of the text column.
 pub fn text_width(data: &InputData, bounds: Rect) -> f32 {
     let full = (bounds.width - PADDING_X * 2.0).max(0.0);
     if data.content_max_width > 0.0 {
@@ -68,32 +64,32 @@ pub fn text_width(data: &InputData, bounds: Rect) -> f32 {
     full
 }
 
-/// Zig `measureWidth`.
+/// The styled width, or the default control width.
 pub fn measure_width(style: &FlexStyle) -> f32 {
     style.width.unwrap_or(DEFAULT_WIDTH)
 }
 
-/// Zig `measureHeight`.
+/// The styled height, or the default control height.
 pub fn measure_height(style: &FlexStyle) -> f32 {
     style.height.unwrap_or(DEFAULT_HEIGHT)
 }
 
-/// Zig `selectionRange`.
+/// The selection as an ordered `(start, end)` byte range.
 pub fn selection_range(data: &InputData) -> (usize, usize) {
     (data.cursor.min(data.anchor), data.cursor.max(data.anchor))
 }
 
-/// Zig `hasSelection`.
+/// Whether a non-empty range is selected.
 pub fn has_selection(data: &InputData) -> bool {
     data.cursor != data.anchor
 }
 
-/// Zig `rebuildDisplay` (`core/node.zig:InputData` already carries the port).
+/// Rebuilds the displayed text (value plus composition) from the editing state.
 pub fn rebuild_display(data: &mut InputData) {
     data.rebuild_display();
 }
 
-/// Zig `ensureLayout`: shapes `display_text` (cached until the next
+/// Shapes `display_text` (cached until the next
 /// invalidation). Returns false when shaping fails.
 pub fn ensure_layout(data: &mut InputData) -> bool {
     if !data.layout_dirty && data.layout.is_some() {
@@ -124,7 +120,7 @@ pub fn ensure_layout(data: &mut InputData) -> bool {
     }
 }
 
-/// Zig `ensurePlaceholder`.
+/// Shapes the placeholder once and returns its cached layout.
 fn ensure_placeholder(data: &mut InputData, theme: Theme) -> Option<&TextLayout> {
     if data.placeholder_layout.is_none() {
         let style = text::Style {
@@ -143,7 +139,8 @@ fn ensure_placeholder(data: &mut InputData, theme: Theme) -> Option<&TextLayout>
     data.placeholder_layout.as_ref()
 }
 
-/// Zig `replaceRange`.
+/// Replaces the byte range `start..end` with `value`, puts the caret after it
+/// and ends any composition. Returns false for an invalid range.
 fn replace_range(data: &mut InputData, start: usize, end: usize, value: &str) -> bool {
     if start > end || end > data.text.len() {
         return false;
@@ -164,7 +161,7 @@ fn replace_range(data: &mut InputData, start: usize, end: usize, value: &str) ->
     true
 }
 
-/// Zig `insertText`.
+/// Inserts `value` at the caret, replacing the selection.
 pub fn insert_text(data: &mut InputData, value: &str) -> bool {
     if data.read_only || value.is_empty() {
         return false;
@@ -178,7 +175,7 @@ pub fn insert_text(data: &mut InputData, value: &str) -> bool {
     replace_range(data, start, end, value)
 }
 
-/// Zig `deleteSelection`.
+/// Deletes the selected range; false when nothing is selected.
 pub fn delete_selection(data: &mut InputData) -> bool {
     if data.read_only {
         return false;
@@ -190,7 +187,7 @@ pub fn delete_selection(data: &mut InputData) -> bool {
     replace_range(data, start, end, "")
 }
 
-/// Zig `deleteBackward`.
+/// Deletes the selection, or the character before the caret.
 pub fn delete_backward(data: &mut InputData) -> bool {
     if data.read_only {
         return false;
@@ -205,7 +202,7 @@ pub fn delete_backward(data: &mut InputData) -> bool {
     replace_range(data, start, data.cursor, "")
 }
 
-/// Zig `deleteForward`.
+/// Deletes the selection, or the character after the caret.
 pub fn delete_forward(data: &mut InputData) -> bool {
     if data.read_only {
         return false;
@@ -220,7 +217,7 @@ pub fn delete_forward(data: &mut InputData) -> bool {
     replace_range(data, data.cursor, end, "")
 }
 
-/// Zig `moveTo`.
+/// Moves the caret to `target`, extending the selection when `extend` is set.
 fn move_to(data: &mut InputData, target: usize, extend: bool) {
     let clamped = target.min(data.text.len());
     data.reveal_caret = true;
@@ -230,7 +227,7 @@ fn move_to(data: &mut InputData, target: usize, extend: bool) {
     }
 }
 
-/// Zig `moveLeft`.
+/// Moves the caret one character to the left.
 pub fn move_left(data: &mut InputData, extend: bool) {
     move_to(
         data,
@@ -239,7 +236,7 @@ pub fn move_left(data: &mut InputData, extend: bool) {
     );
 }
 
-/// Zig `moveRight`.
+/// Moves the caret one character to the right.
 pub fn move_right(data: &mut InputData, extend: bool) {
     move_to(
         data,
@@ -248,27 +245,27 @@ pub fn move_right(data: &mut InputData, extend: bool) {
     );
 }
 
-/// Zig `moveHome`.
+/// Moves the caret to the start of the text.
 pub fn move_home(data: &mut InputData, extend: bool) {
     move_to(data, 0, extend);
 }
 
-/// Zig `moveEnd`.
+/// Moves the caret to the end of the text.
 pub fn move_end(data: &mut InputData, extend: bool) {
     move_to(data, data.text.len(), extend);
 }
 
-/// Zig `moveWordLeft`.
+/// Moves the caret to the previous word boundary.
 pub fn move_word_left(data: &mut InputData, extend: bool) {
     move_to(data, unicode::word_start(&data.text, data.cursor), extend);
 }
 
-/// Zig `moveWordRight`.
+/// Moves the caret to the next word boundary.
 pub fn move_word_right(data: &mut InputData, extend: bool) {
     move_to(data, unicode::word_end(&data.text, data.cursor), extend);
 }
 
-/// Zig `moveVertical`: moves the caret one visual line up or down, keeping its
+/// Moves the caret one visual line up or down, keeping its
 /// column.
 pub fn move_vertical(data: &mut InputData, down: bool, extend: bool) {
     if !ensure_layout(data) {
@@ -301,7 +298,7 @@ pub fn move_vertical(data: &mut InputData, down: bool, extend: bool) {
     move_to(data, byte.min(data.text.len()), extend);
 }
 
-/// Zig `moveLineEdge`: start (`end == false`) or end of the visual line holding
+/// Start (`end == false`) or end of the visual line holding
 /// the caret.
 pub fn move_line_edge(data: &mut InputData, end: bool, extend: bool) {
     if !ensure_layout(data) {
@@ -321,13 +318,13 @@ pub fn move_line_edge(data: &mut InputData, end: bool, extend: bool) {
     move_to(data, byte.min(data.text.len()), extend);
 }
 
-/// Zig `selectAll`.
+/// Selects the whole text.
 pub fn select_all(data: &mut InputData) {
     data.anchor = 0;
     data.cursor = data.text.len();
 }
 
-/// Zig `cursorFromPoint`: places the caret at a window point.
+/// Places the caret at a window point.
 pub fn cursor_from_point(data: &mut InputData, bounds: Rect, x: f32, y: f32) {
     if !ensure_layout(data) {
         return;
@@ -348,7 +345,7 @@ pub fn cursor_from_point(data: &mut InputData, bounds: Rect, x: f32, y: f32) {
     data.reveal_caret = true;
 }
 
-/// Zig `beginComposition`.
+/// Starts or updates the IME composition with the marked text.
 pub fn begin_composition(
     data: &mut InputData,
     marked: &str,
@@ -368,7 +365,7 @@ pub fn begin_composition(
     rebuild_display(data);
 }
 
-/// Zig `cancelComposition`.
+/// Drops the IME composition without committing it.
 pub fn cancel_composition(data: &mut InputData) {
     if !data.has_composition && data.composition.is_empty() {
         return;
@@ -379,7 +376,7 @@ pub fn cancel_composition(data: &mut InputData) {
     rebuild_display(data);
 }
 
-/// Zig `maxScrollY`.
+/// The largest vertical scroll offset for a view of `view_height`.
 pub fn max_scroll_y(data: &mut InputData, view_height: f32) -> f32 {
     if !ensure_layout(data) {
         return 0.0;
@@ -391,7 +388,7 @@ pub fn max_scroll_y(data: &mut InputData, view_height: f32) -> f32 {
     (height - view_height.max(1.0)).max(0.0)
 }
 
-/// Zig `ensureCaretVisible`.
+/// Scrolls the content so the caret stays inside the view.
 pub fn ensure_caret_visible(data: &mut InputData, available_width: f32, view_height: f32) {
     if !ensure_layout(data) {
         return;
@@ -440,7 +437,7 @@ pub fn ensure_caret_visible(data: &mut InputData, available_width: f32, view_hei
     }
 }
 
-/// Zig `caretRect`.
+/// The caret rectangle in window space, if the layout is available.
 pub fn caret_rect(data: &mut InputData, bounds: Rect) -> Option<Rect> {
     if !ensure_layout(data) {
         return None;
@@ -473,7 +470,7 @@ pub fn caret_rect(data: &mut InputData, bounds: Rect) -> Option<Rect> {
     ))
 }
 
-/// Zig `updateBlink`: the caret blink; true when the blink state flipped and
+/// The caret blink; true when the blink state flipped and
 /// the input must repaint.
 pub fn update_blink(data: &mut InputData, enabled: bool, now_ms: i64) -> bool {
     if !data.focused || !enabled {
@@ -494,7 +491,7 @@ pub fn update_blink(data: &mut InputData, enabled: bool, now_ms: i64) -> bool {
     false
 }
 
-/// Zig `paint`.
+/// Paints the shell, the value or placeholder, the selection and the caret.
 pub fn paint(node: &mut RetainedNode, canvas: Canvas, theme: Theme) {
     if !node.visible {
         return;
@@ -698,7 +695,7 @@ pub fn paint(node: &mut RetainedNode, canvas: Canvas, theme: Theme) {
     }
 }
 
-/// Zig `animate`: border / focus-ring transitions (antd 200ms ease-in-out).
+/// Border / focus-ring transitions (antd 200ms ease-in-out).
 /// Returns true while another frame is needed. The caret blink is driven
 /// separately.
 pub fn animate(data: &mut InputData, now: i64, theme: Theme) -> bool {
@@ -755,7 +752,7 @@ mod tests {
     }
 
     #[test]
-    fn measure_width_and_height_match_the_zig_defaults() {
+    fn measure_width_and_height_use_the_default_control_size() {
         assert_eq!(measure_width(&FlexStyle::default()), 220.0);
         assert_eq!(measure_height(&FlexStyle::default()), 32.0);
         assert_eq!(control_height(), 32.0);

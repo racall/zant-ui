@@ -1,7 +1,6 @@
 //! TSX types, literal inference, numeric peers, and the permitted implicit
-//! conversions. Translation of `tools/tsx/codegen/types.zig`; the Zig
-//! `@as`/`@floatFromInt`/`@floatCast`/`@divTrunc` conversions become Rust
-//! `as` casts and suffixed literals (`docs/rust-port/tsx-codegen.md` §2/§4).
+//! conversions. Numeric conversions are emitted as Rust `as` casts and
+//! suffixed literals.
 
 use std::rc::Rc;
 
@@ -42,7 +41,7 @@ pub enum Type {
     Compound(u32),
 }
 
-/// Literal inference state (Zig `Value.inference`).
+/// Literal inference state.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Inference {
     /// The code already has its final Rust type.
@@ -124,7 +123,7 @@ impl Type {
         self == Type::IntLiteral || self == Type::FloatLiteral
     }
 
-    /// The wider type when it holds every value of both (Zig's peer rule:
+    /// The wider type when it holds every value of both (the peer rule:
     /// `u8` and `usize` → `usize`, `u16` and `i32` → `i32`); otherwise a TS
     /// `number` (`f64`), e.g. `u64` and `i32`.
     pub fn numeric_peer(a: Type, b: Type) -> Option<Type> {
@@ -199,7 +198,7 @@ impl Type {
         if self.literal() { Type::F64 } else { self }
     }
 
-    /// The Rust spelling of this type (Zig `Type.zig`).
+    /// The Rust spelling of this type.
     pub fn rust<'g>(self, g: &'g Generator<'_>) -> &'g str {
         match self {
             Type::Boolean => "bool",
@@ -226,8 +225,8 @@ impl Type {
         }
     }
 
-    /// Whether reading this type copies it (`docs/rust-port/tsx-codegen.md`
-    /// §3: every non-`Copy` read appends `.clone()`).
+    /// Whether reading this type copies it (every non-`Copy` read appends
+    /// `.clone()`).
     pub fn copy(self, g: &Generator<'_>) -> bool {
         match self {
             Type::Boolean
@@ -271,12 +270,12 @@ fn integer_peer(a: Type, b: Type) -> Type {
 /// The type of a TSX `Uint8Array`: the runtime's static byte slice
 /// (`&'static [u8]`). This is the same interned compound that asset imports
 /// (`rust_imports::bytes`) and `TrayOptions::icon` use, so a byte literal and
-/// an imported `.png` are the same value type (`docs/rust-port/status.md`).
+/// an imported `.png` are the same value type.
 pub fn bytes_type(g: &mut Generator<'_>) -> Result<Type> {
     rust_imports::bytes(g)
 }
 
-/// A type annotation (Zig `types.typeRef`).
+/// Resolve a type annotation.
 pub fn type_ref(g: &mut Generator<'_>, reference: &ast::TypeRef, allow_void: bool) -> Result<Type> {
     if let Some(detail) = reference.detail.as_deref() {
         if let Some(resolved) = g
@@ -316,14 +315,14 @@ pub fn type_ref(g: &mut Generator<'_>, reference: &ast::TypeRef, allow_void: boo
             None => fail(
                 g,
                 reference.loc,
-                "`KeyEvent` needs the application hooks (WP-5.6)",
+                "`KeyEvent` needs the application hooks installed",
             ),
         };
     }
     if reference.name == b"Image" {
         return match g.extensions.hooks.image_type {
             Some(hook) => hook(g),
-            None => fail(g, reference.loc, "`Image` needs the JSX hooks (WP-5.4)"),
+            None => fail(g, reference.loc, "`Image` needs the JSX hooks installed"),
         };
     }
     // bytes (tray icons, imported assets, file contents): the runtime's
@@ -350,7 +349,7 @@ pub fn type_ref(g: &mut Generator<'_>, reference: &ast::TypeRef, allow_void: boo
 }
 
 /// Allow matching types, contextual literals, integer-to-float, and
-/// float-width conversions (Zig `types.coerce`).
+/// float-width conversions.
 pub fn coerce(g: &mut Generator<'_>, v: Value, t: Type, loc: ast::Loc) -> Result<Value> {
     if v.ty == t {
         return Ok(v);
@@ -506,7 +505,7 @@ pub fn coerce(g: &mut Generator<'_>, v: Value, t: Type, loc: ast::Loc) -> Result
 }
 
 /// Explicit assertions allow numeric conversions that implicit coercion
-/// rejects (Zig `types.explicitCast`).
+/// rejects.
 pub fn explicit_cast(
     g: &mut Generator<'_>,
     value: Value,
@@ -545,9 +544,9 @@ pub fn explicit_cast(
     })
 }
 
-/// Materialize a contextual literal or conversion into a typed expression
-/// (Zig `types.concrete`). Rust conversions already carry their `as` cast, so
-/// only literals need the typed spelling here.
+/// Materialize a contextual literal or conversion into a typed expression.
+/// Conversions already carry their `as` cast, so only literals need the
+/// typed spelling here.
 pub fn concrete(g: &mut Generator<'_>, v: Value) -> Result<Value> {
     if v.inference == Inference::Known || (!v.ty.numeric() && !model::enum_type(g, v.ty)) {
         return Ok(v);
@@ -562,8 +561,8 @@ pub fn concrete(g: &mut Generator<'_>, v: Value) -> Result<Value> {
     Ok(result)
 }
 
-/// Generic formatting observes a comptime literal's precision in Zig; in Rust
-/// literals are polymorphic, so [`concrete`] decides their final type.
+/// Rust literals are polymorphic, so [`concrete`] decides the final type of a
+/// literal before it is formatted.
 pub fn format_value(g: &mut Generator<'_>, v: Value) -> Result<Value> {
     if v.inference == Inference::Literal || v.inference == Inference::ResultLocation {
         return concrete(g, v);
@@ -612,7 +611,7 @@ pub fn literal_code(raw: &str, t: Type) -> String {
     format!("{sign}{rest}{suffix}")
 }
 
-/// Unify one operand type with the other (Zig `types.unify`).
+/// Unify one operand type with the other.
 pub fn unify(g: &mut Generator<'_>, a: Type, b: Type, loc: ast::Loc) -> Result<Type> {
     if a == b {
         return Ok(a);
@@ -656,7 +655,7 @@ pub fn unify(g: &mut Generator<'_>, a: Type, b: Type, loc: ast::Loc) -> Result<T
 }
 
 /// Only literal-only numeric trees take peer context; typed integers must
-/// still unify (Zig `types.numericHint`).
+/// still unify.
 pub fn numeric_hint(
     g: &mut Generator<'_>,
     c: &mut scope::Context,
@@ -665,8 +664,7 @@ pub fn numeric_hint(
     Ok(expression_hint(g, c, e)?.filter(|t| t.numeric() && !t.literal()))
 }
 
-/// The type an expression is expected to have, without emitting it
-/// (Zig `types.expressionHint`).
+/// The type an expression is expected to have, without emitting it.
 pub fn expression_hint(
     g: &mut Generator<'_>,
     c: &mut scope::Context,
@@ -717,8 +715,7 @@ pub fn numeric_context(
     Ok(Some(t))
 }
 
-/// Reject an out-of-range integer literal at its TSX source position
-/// (Zig `types.checkLiteral`).
+/// Reject an out-of-range integer literal at its TSX source position.
 pub fn check_literal(g: &mut Generator<'_>, e: &ast::Expr, t: Type) -> Result<()> {
     if !t.integer() {
         return Ok(());

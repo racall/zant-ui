@@ -1,5 +1,3 @@
-//! Port of `src/markdown/editor.zig` — WP-3.3.
-//!
 //! Markdown editor component: edit / split / preview modes, a formatting
 //! toolbar and editing shortcuts (mod+B/I/K/E, mod+Shift+X — ⌘ on macOS,
 //! Ctrl on Windows; list continuation on Enter, Tab / ⇧Tab list indentation).
@@ -12,16 +10,13 @@ use crate::core::events::{self, Key, KeyEvent};
 use crate::core::geometry::Edges;
 use crate::core::icons::Icon;
 use crate::core::keys;
-use crate::core::node::{ButtonSize, ButtonType};
 use crate::layout::flex;
 use crate::markdown::cache::Cache;
 use crate::markdown::edit;
 use crate::markdown::render::view::{self, Props as ViewProps};
 use crate::ui;
 use crate::ui::actions::{Action, ActionCx, IndexAction, InputKeyAction, RangeAction, TextAction};
-use crate::ui::options::{
-    BoxOptions, ButtonOptions, IconButtonOptions, InputOptions, SpaceOptions, TextOptions,
-};
+use crate::ui::options::{BoxOptions, IconButtonOptions, InputOptions, SpaceOptions, TextOptions};
 use crate::ui::styled::Style;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -92,7 +87,7 @@ impl Default for Labels {
 }
 
 impl Labels {
-    /// Zig `Labels.zh`.
+    /// Chinese labels.
     pub fn zh() -> Labels {
         Labels {
             edit: "编辑".into(),
@@ -278,7 +273,7 @@ impl KeyCtx {
                         self.sink.emit(cx, &result);
                         true
                     }
-                    // Shift-Tab outside a list is consumed (like Zig)
+                    // Shift-Tab outside a list is consumed
                     None => key.modifiers.shift,
                 }
             }
@@ -351,76 +346,28 @@ fn centered(key: &str, max: Option<f32>, gutter: f32, child: ui::Node) -> ui::No
 }
 
 /// The edit / split / preview selector.
-///
-/// Deviation: `ui::segmented` (`src/components/segmented.zig`) belongs to
-/// WP-2.5 and does not exist in the Rust tree yet, so the switcher is composed
-/// from `ui::button` with the same keys, icons and `IndexAction`. Replace it
-/// with `ui::segmented` when WP-2.5 lands.
 fn mode_switcher(
     key: &str,
     selected: Mode,
     labels: &Labels,
     on_mode: Option<IndexAction>,
 ) -> ui::Node {
-    let theme = ui::current_theme();
-    let options = [
-        (labels.edit.clone(), Icon::Pencil),
-        (labels.split.clone(), Icon::Columns),
-        (labels.preview.clone(), Icon::BookOpen),
-    ];
-    let mut items: Vec<ui::Node> = Vec::with_capacity(3);
-    for (i, (label, icon)) in options.into_iter().enumerate() {
-        let active = i == selected.index();
-        let item = ui::button(ButtonOptions {
-            key: Some(Str::copy(&format!("{key}-{i}"))),
-            text: label,
-            icon,
-            icon_size: 14.0,
-            variant: if active {
-                ButtonType::Plain
-            } else {
-                ButtonType::Text
-            },
-            size: ButtonSize::Small,
-            font_size: Some(13.0),
-            text_color: Some(if active {
-                theme.color_text
-            } else {
-                theme.color_text_secondary
-            }),
-            index_action: on_mode.clone(),
-            index: i,
-            ..Default::default()
-        });
-        let item = if active {
-            ui::styled(
-                item,
-                Style {
-                    background: Some(theme.color_bg_elevated),
-                    radius: Some(4.0),
-                    ..Default::default()
-                },
-            )
-        } else {
-            item
-        };
-        items.push(item);
-    }
-    ui::styled(
-        ui::row(BoxOptions {
-            key: Some(Str::copy(key)),
-            gap: 2.0,
-            padding: Edges::all(2.0),
-            align_items: flex::Align::Center,
-            children: items,
-            ..Default::default()
-        }),
-        Style {
-            background: Some(theme.color_bg_layout),
-            radius: Some(6.0),
-            ..Default::default()
-        },
-    )
+    let option = |label: &Str, icon: Icon| ui::SegmentedOption {
+        label: label.clone(),
+        icon,
+        tooltip: None,
+    };
+    ui::segmented(ui::SegmentedOptions {
+        key: Some(Str::copy(key)),
+        options: vec![
+            option(&labels.edit, Icon::Pencil),
+            option(&labels.split, Icon::Columns),
+            option(&labels.preview, Icon::BookOpen),
+        ],
+        selected: selected.index(),
+        on_change: on_mode,
+        ..Default::default()
+    })
 }
 
 pub fn editor(p: Props<'_>) -> ui::Node {

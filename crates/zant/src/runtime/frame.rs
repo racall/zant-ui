@@ -1,4 +1,4 @@
-//! Port of `src/ui_runtime.zig:1277-1400` + `renderFrame`: the frame loop.
+//! The frame loop.
 //!
 //! One frame: sample the clock, finish `ui::wake_after` timers, rebuild when
 //! needed, advance transitions (`tick`), lay out (up to three passes while
@@ -17,7 +17,7 @@ use super::Runtime;
 use super::debug::{self, Phase};
 
 impl Runtime {
-    /// Zig `sampleClock`: the timestamp of this frame / event.
+    /// The timestamp of this frame / event.
     pub(crate) fn sample_clock(&mut self) {
         self.now_ms = (self.clock)();
         self.tree.now_ms = self.now_ms;
@@ -33,7 +33,7 @@ impl Runtime {
         }
     }
 
-    /// Draws one frame into `canvas` (`Runtime.renderFrame`). The native host
+    /// Draws one frame into `canvas`. The native host
     /// calls it from `HostHandler::draw`; headless tests call it with a raster
     /// canvas and a fake [`Runtime::clock`].
     pub fn render_frame(&mut self, canvas: Canvas, width: f32, height: f32, dpr: f32) {
@@ -114,7 +114,7 @@ impl Runtime {
         }
     }
 
-    /// Zig `notifyResizes`: calls `on_resize` of containers whose size changed
+    /// Calls `on_resize` of containers whose size changed
     /// in the last layout; true when any was called. Callbacks may read the new
     /// boxes through `ui::key_bounds` (the snapshot was refreshed after layout).
     fn notify_resizes(&mut self) -> bool {
@@ -154,7 +154,7 @@ impl Runtime {
         any
     }
 
-    /// Zig `runCommands`: runs `ui::focus` / `ui::scroll_into_view` /
+    /// Runs `ui::focus` / `ui::scroll_into_view` /
     /// `ui::scroll_to_end` after layout, when the nodes they name have bounds.
     fn run_commands(&mut self) {
         let commands = crate::ui::take_commands_for(self.owner_ptr());
@@ -219,12 +219,12 @@ impl Runtime {
         }
     }
 
-    /// The live node with `key` (`Runtime.findKey`).
+    /// The live node with `key`.
     pub fn find_key(&self, key: &str) -> Option<NodeId> {
         self.tree.id_of_key(key)
     }
 
-    /// Zig `scrollIntoView`: animates the nearest scroll container so `id` sits
+    /// Animates the nearest scroll container so `id` sits
     /// 12 px below its top edge.
     fn scroll_into_view(&mut self, id: NodeId) {
         let (mut current, target_y) = {
@@ -275,7 +275,7 @@ impl Runtime {
         }
     }
 
-    /// Zig `computeNextDelay`: when the native side should ask for the next
+    /// When the native side should ask for the next
     /// frame (-1 = no timer).
     fn compute_next_delay(&mut self) {
         let mut delay: i32 = -1;

@@ -1,5 +1,3 @@
-//! Port of `src/renderer/text.zig` — WP-1.1c.
-//!
 //! Shaped text layouts (Skia Paragraph) plus the caret / selection geometry
 //! helpers the editor needs.
 
@@ -9,7 +7,7 @@ use std::time::Instant;
 use crate::core::geometry::Rect;
 use zant_sys::skia as ffi;
 
-/// Errors of text layout creation (Zig: `error.TextLayoutFailed`).
+/// Errors of text layout creation.
 #[derive(Debug, thiserror::Error)]
 pub enum TextLayoutError {
     #[error("text layout creation failed")]
@@ -76,7 +74,7 @@ impl Default for Style {
     }
 }
 
-/// Layout metrics in logical points (`usize` line count like the Zig `Metrics`).
+/// Layout metrics in logical points.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Metrics {
     pub width: f32,
@@ -101,7 +99,7 @@ fn metrics_from_native(native: ffi::ZantTextMetrics) -> Metrics {
 fn native_style(style: Style) -> ffi::ZantTextStyle {
     ffi::ZantTextStyle {
         font_size: style.font_size,
-        // The C ABI takes `int` fields, like `@backingInt` on the Zig enums.
+        // The C ABI takes `int` fields for the enums.
         weight: style.weight as i32,
         align: style.text_align as i32,
         wrap: style.wrap,
@@ -114,8 +112,8 @@ fn native_style(style: Style) -> ffi::ZantTextStyle {
 
 /// Text layouts created and time spent shaping them (`ZANT_FRAME_STATS`).
 ///
-/// Zig used module-level `var`s; Rust uses atomics so the runtime can read and
-/// reset them from the UI thread while the counter is bumped during layout.
+/// The counters are atomics so the runtime can read and reset them from the
+/// UI thread while the counter is bumped during layout.
 pub struct LayoutStats {
     enabled: AtomicBool,
     count: AtomicU32,
@@ -162,8 +160,6 @@ pub(crate) fn shaping_start() -> Option<Instant> {
 
 pub(crate) fn shaping_finished(start: Option<Instant>) {
     if let Some(start) = start {
-        // Zig used `platform.monotonicUs`; `Instant` has the same monotonic
-        // semantics (deviation noted in docs/rust-port/status.md).
         LAYOUT_STATS.add(i64::try_from(start.elapsed().as_micros()).unwrap_or(i64::MAX));
     }
 }
@@ -301,8 +297,7 @@ mod tests {
 
     #[test]
     fn layout_stats_count_shaping_when_enabled() {
-        // The counters are process-wide (Zig had module-level vars, the UI is
-        // single-threaded there); other tests lay out text in parallel, so the
+        // The counters are process-wide; other tests lay out text in parallel, so the
         // count can only be checked to have grown, not to be exact.
         LAYOUT_STATS.set_enabled(false);
         let _ = LAYOUT_STATS.take();

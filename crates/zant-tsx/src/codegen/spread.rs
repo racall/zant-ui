@@ -1,7 +1,6 @@
-//! JSX spread attributes: `<Button {...common} onClick={save} />`. Translation
-//! of `tools/tsx/codegen/spread.zig`. Before a tag or component reads its
-//! attributes, every spread becomes plain attributes in source order, so a
-//! later attribute wins as in React:
+//! JSX spread attributes: `<Button {...common} onClick={save} />`. Before a
+//! tag or component reads its attributes, every spread becomes plain
+//! attributes in source order, so a later attribute wins as in React:
 //!
 //! - an object literal `{...{ size: "small" }}` spreads its properties;
 //! - a typed object (`common: ButtonStyle`) spreads `common.field` for each

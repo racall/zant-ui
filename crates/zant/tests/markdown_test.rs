@@ -1,8 +1,6 @@
-//! `tests/markdown_test.zig` ported case by case.
-//!
-//! The parser-level cases came with WP-3.2; WP-3.3 added the renderer /
-//! editor cases (`renderDocument`, `streamdown`, `editor`, `linkSafetyModal`,
-//! heading / block keys).
+//! Markdown tests: the parser-level cases, then the renderer / editor cases
+//! (`render_document`, `streamdown`, `editor`, `link_safety_modal`, heading /
+//! block keys).
 
 use zant::markdown::ast::{Align, Block};
 use zant::markdown::cache::{Cache, Mode};
@@ -192,7 +190,6 @@ $$
 [^1]: The footnote.
 "#;
 
-/// Zig `tests/markdown_test.zig`: `test "full document renders"`.
 #[test]
 fn full_document_renders() {
     let doc = parse(FULL_SAMPLE);
@@ -220,7 +217,6 @@ fn full_document_renders() {
     ui::end_frame();
 }
 
-/// Zig `tests/markdown_test.zig`: `test "streamdown view memoises blocks"`.
 #[test]
 fn streamdown_view_memoises_blocks() {
     let mut cache = Cache::new();
@@ -269,8 +265,6 @@ fn streamdown_view_memoises_blocks() {
     ui::end_frame();
 }
 
-/// Zig `tests/markdown_test.zig`:
-/// `test "block keys are stable across insertions and resolvable by offset"`.
 #[test]
 fn block_keys_are_stable_across_insertions_and_resolvable_by_offset() {
     let mut cache = Cache::new();
@@ -298,7 +292,6 @@ fn block_keys_are_stable_across_insertions_and_resolvable_by_offset() {
     ui::end_frame();
 }
 
-/// Zig `tests/markdown_test.zig`: `test "editor renders in every mode"`.
 #[test]
 fn editor_renders_in_every_mode() {
     let mut cache = Cache::new();
@@ -316,7 +309,6 @@ fn editor_renders_in_every_mode() {
     ui::end_frame();
 }
 
-/// Zig `tests/markdown_test.zig`: `test "link safety modal"`.
 #[test]
 fn link_safety_modal_is_absolute() {
     ui::begin_frame();
@@ -329,8 +321,6 @@ fn link_safety_modal_is_absolute() {
     assert!(node.element().layout.absolute);
 }
 
-/// Zig `tests/markdown_test.zig`:
-/// `test "heading keys resolve to rendered heading nodes, also in single-block documents"`.
 #[test]
 fn heading_keys_resolve_to_rendered_heading_nodes() {
     let mut cache = Cache::new();

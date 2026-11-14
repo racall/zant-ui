@@ -1,5 +1,4 @@
 //! Which child components keep local state (phase 3, `docs/tsx.md`).
-//! Translation of `tools/tsx/codegen/stateful.zig`.
 //!
 //! A component that calls a hook (`useState`, `useRef`, …), renders a
 //! `<List>` (its scroll state), or renders another stateful component needs an
@@ -16,7 +15,7 @@ use crate::codegen::hooks;
 /// Nesting limit for components rendering components across files (cycles).
 const MAX_DEPTH: u32 = 16;
 
-/// `./components/TodoRow.tsx` → `TodoRow` (Zig `imports.stem`).
+/// `./components/TodoRow.tsx` → `TodoRow`.
 pub fn stem(source: &[u8]) -> Vec<u8> {
     let mut base = source;
     if let Some(index) = base.iter().rposition(|b| *b == b'/' || *b == b'\\') {
@@ -33,8 +32,8 @@ fn module_matches(source: &ModuleSource<'_>, import: &[u8]) -> bool {
     source.name.as_bytes() == stem(import).as_slice()
 }
 
-/// A parsed file of the project (`imports.NamedModule` in the Zig original;
-/// WP-5.6's `imports` module owns the full representation).
+/// A parsed file of the project (the `imports` module owns the full
+/// representation).
 #[derive(Clone, Copy, Debug)]
 pub struct ModuleSource<'a> {
     /// The file stem (`TodoRow`), the key a relative import names it by.
@@ -311,8 +310,6 @@ mod tests {
         parser.parse_module().expect("test source parses")
     }
 
-    // Zig `stateful.zig` test "useState, List and stateful children make a
-    // component stateful" (the same source and the same expectations).
     #[test]
     fn usestate_list_and_stateful_children_make_a_component_stateful() {
         let src = "import { useState as useS } from \"zant\";\n\

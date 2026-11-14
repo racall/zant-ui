@@ -23,8 +23,7 @@
 - PDF：阅读器 `zant::pdf`（`PdfViewer` 组件）与单页预览（macOS PDFKit，Windows PDFium）
 - 平台：macOS、Windows 10/11 x64 均已完成（见下文「跨平台规范」）
 
-这个仓库既包含框架，也包含生成项目的模板、TSX 编译器和 CLI。这里只写**最终状态**；
-Zig → Rust 迁移的历史记录与验证数字见 [docs/rust-port/status.md](docs/rust-port/status.md)。
+这个仓库既包含框架，也包含生成项目的模板、TSX 编译器和 CLI。
 
 ## 常用命令
 
@@ -89,8 +88,8 @@ crates/
   zant-cli/             zant 命令：create / run / compile / package / build / sync / update
   zant-examples/        示例：demo、gallery、components、markdown、md-stream、math、pdf
 scaffold/template-ts/   生成项目的模板（Cargo.toml + build.rs + src/App.tsx + native/）
-scripts/                Skia 依赖、cargo 包装、parity 对照、发布打包、Windows 测试机脚本
-docs/                   中文文档和截图；Rust 迁移在 docs/rust-port/
+scripts/                Skia 依赖、cargo 包装、帧基准闸门、发布打包、Windows 测试机脚本
+docs/                   中文文档和截图
 third_party/            Skia 预编译依赖（不提交到 Git）
 ```
 
@@ -310,8 +309,7 @@ ui::styled(node, ui::Style {
   16.7 ms；Windows 上用 `scripts/win/resize-check.ps1` 测拖动缩放帧率（应跟满刷新率）。
 - 每帧路径里不要写 stderr（Windows 上每行约 10 ms）。
 - 测试：`cargo test --workspace` 全绿（macOS 与 Windows 都要过）；新增行为应补测试。
-  测试数量不得少于迁移完成时的数量（含 remend 522 条、mhchem 823 条夹具；见
-  `docs/rust-port/status.md` 最终验证矩阵）。
+  不要删减已有测试（含 remend 522 条、mhchem 823 条夹具）。
 - 文字排版缓存：`TextData` / `RichTextData` 保留当前与上一个宽度的排版，测量自然宽度走独立缓存
   （`measure_width` / `natural_width`）；不要在测量路径里调 `ensure_layout` 换宽度，否则每帧会重排所有文字。
 - 无确定高度的 column 不计算子节点的 flex 基准高度（不会用到），避免整棵子树按估计宽度多排一遍。
@@ -320,11 +318,9 @@ ui::styled(node, ui::Style {
 - 宽度变化时文字复用已整形的排版只重新断行（`zant_text_layout_relayout`）；新增排版缓存逻辑要保证
   与新建排版结果一致（`crates/zant/tests/text_test.rs` 有对照测试）。
 - 长列表 / 聊天用 `List`（`docs/components/list.md`），不要把成百上千条放进普通滚动容器。
-- **性能闸门**：`scripts/parity/bench.sh` 跑 `zant-bench` 各场景（open / stream / typing /
+- **性能闸门**：`scripts/bench.sh` 跑 `zant-bench` 各场景（open / stream / typing /
   caret / hover / resize / scroll，另跑 `ZANT_BENCH_LIST=1`），每个场景不超过记录基线
-  **1.25 倍**（基线数字记录在 `docs/rust-port/status.md`，脚本内置；旧的
-  `zig-out-baseline` 目录还在时脚本直接用它对照）；`zant-md-stream` 流式帧率达标。
-  布局 / 像素对照（`scripts/parity/compare.sh`）是迁移期工具，需要旧的 Zig 基线产物。
+  **1.25 倍**（基线数字内置在脚本里），稳态场景平均帧耗时低于 16.7 ms；`zant-md-stream` 流式帧率达标。
   没有可测量收益、或过不了闸门的改动不要合入。
 
 ## 代码质量
@@ -333,7 +329,7 @@ ui::styled(node, ui::Style {
   `./scripts/cargo.sh clippy --workspace --all-targets -- -D warnings` 必须 0 告警。
 - 保持 API 简单，优先组合而不是新增抽象。
 - 不要引入不必要的依赖；新依赖只从根 `Cargo.toml` 的 `[workspace.dependencies]` 里选，
-  需要新的先登记到 `docs/rust-port/status.md` 的「待决问题」。
+  需要新的先加到那里并说明用途。
 - `unsafe` 只允许出现在 `zant-sys`、`zant/src/renderer/`、`zant/src/platform/`、
   `zant/src/image.rs`、`zant/src/pdf/native.rs`；其余模块由 crate 根的
   `#![forbid(unsafe_code)]` / `#![deny(unsafe_code)]` 兜底。

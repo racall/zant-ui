@@ -1,5 +1,5 @@
 //! The clipboard: text, images (PNG), files, change watching and the change
-//! counter (port of `src/desktop.zig`'s clipboard section).
+//! counter.
 //!
 //! Read the order the docs suggest: files first (Finder also puts the file
 //! names on the clipboard as text), then text (copied text often comes with an
@@ -70,12 +70,12 @@ mod tests {
         let _guard = crate::platform::platform::native_test_lock();
         // keep the user's clipboard: the test writes to the real one
         let previous = clipboard_text();
-        assert!(set_clipboard_text("zant wp-2.8 clipboard test"));
-        assert_eq!(clipboard_text(), "zant wp-2.8 clipboard test");
+        assert!(set_clipboard_text("zant clipboard test"));
+        assert_eq!(clipboard_text(), "zant clipboard test");
         let before = clipboard_change_count();
-        assert!(set_clipboard_text("zant wp-2.8 clipboard test 2"));
+        assert!(set_clipboard_text("zant clipboard test 2"));
         assert!(clipboard_change_count() >= before, "the counter advances");
-        assert_eq!(clipboard_text(), "zant wp-2.8 clipboard test 2");
+        assert_eq!(clipboard_text(), "zant clipboard test 2");
         // restore whatever was there before the test
         set_clipboard_text(&previous);
     }

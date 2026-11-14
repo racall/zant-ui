@@ -5,10 +5,9 @@
 //! panel.toggle();  panel.place("trayCorner", 12);  panel.focus("search");
 //! ```
 //!
-//! Translation of `tools/tsx/codegen/windows.zig`. A window is a file-level
-//! `createWindow(Component, { … })` constant; Rust has no mutable static, so
-//! it becomes a `thread_local!` slot plus a `pub fn panel_with(..)` accessor
-//! that opens the window on first use:
+//! A window is a file-level `createWindow(Component, { … })` constant; Rust
+//! has no mutable static, so it becomes a `thread_local!` slot plus a
+//! `pub fn panel_with(..)` accessor that opens the window on first use:
 //!
 //! ```ignore
 //! pub fn panel_with<R>(apply: impl FnOnce(&mut tsx::window::Window<Panel>) -> R) -> R
@@ -31,7 +30,7 @@ use super::scope;
 use super::types::{self, Type, Value};
 use super::{Generator, Result, fail};
 
-/// Whether `e` is a `createWindow(…)` call (Zig `windows.isCreate`).
+/// Whether `e` is a `createWindow(…)` call.
 pub fn is_create(e: &ast::Expr) -> bool {
     matches!(
         &e.data,
@@ -352,11 +351,10 @@ fn place_literal(g: &mut Generator<'_>, e: &ast::Expr) -> Result<String> {
 /// The `impl tsx::window::Component for PanelWindow` of a window's component:
 /// the component's app hooks are the window's hooks.
 ///
-/// WP-5.5's child component keeps its state in flat fields on the struct (not
-/// in a separate `Local` type as `docs/rust-port/tsx-codegen.md` §6.2 sketched
-/// for windows), so the window renders through a small wrapper holding the
-/// `Rc<RefCell<Panel>>` the window keeps alive (`tsx::window::Component::Local
-/// = Panel`).
+/// A child component keeps its state in flat fields on the struct (not in a
+/// separate `Local` type), so the window renders through a small wrapper
+/// holding the `Rc<RefCell<Panel>>` the window keeps alive
+/// (`tsx::window::Component::Local = Panel`).
 pub(crate) fn component_impl(
     g: &mut Generator<'_>,
     struct_name: &str,

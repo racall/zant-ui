@@ -1,4 +1,4 @@
-//! Port of `src/core/node.zig` — WP-1.3: `TextData` and its layout caches.
+//! `TextData` and its layout caches.
 //!
 //! A text node keeps **both** the layout at the current width and one at the
 //! previous width (`alt_layout`), plus a separate single-width natural-size
@@ -12,11 +12,11 @@
 use crate::Str;
 use crate::renderer::text::{self, TextLayout};
 
-/// Tolerance under which two widths count as the same cached width (Zig uses
-/// 0.25 in all three caches).
+/// Tolerance under which two widths count as the same cached width (the same
+/// in all three caches).
 const WIDTH_EPSILON: f32 = 0.25;
 
-/// Zig `TextData`.
+/// A plain text node: its content, style and layout caches.
 pub struct TextData {
     pub content: Str,
     pub style: text::Style,

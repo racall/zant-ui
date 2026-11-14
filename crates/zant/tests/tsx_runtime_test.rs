@@ -1,9 +1,9 @@
-//! Contract tests of the TSX runtime support API (`zant::tsx`, WP-5.7): the
-//! shapes generated Rust code compiles against (docs/rust-port/tsx-codegen.md),
-//! driven through the public crate API only.
+//! Contract tests of the TSX runtime support API (`zant::tsx`): the shapes
+//! generated Rust code compiles against, driven through the public crate API
+//! only.
 //!
 //! They also cover the behavior that needs a real caller: copy-on-write arrays,
-//! the JS string / number edge cases, child ids pinned against the Zig values,
+//! the JS string / number edge cases, child ids pinned to fixed values,
 //! the timer scheduler with a fake clock, the `Shell` around a root component
 //! (wake → timers → root hook) and the desktop helpers with the real system
 //! disabled.
@@ -91,7 +91,7 @@ fn list_is_copy_on_write_and_supports_the_array_methods() {
 // --------------------------------------------------------------- child ids
 
 #[test]
-fn child_ids_are_pinned_against_the_zig_values() {
+fn child_ids_are_pinned_to_fixed_values() {
     assert_eq!(tsx::child_id(0, "Child", 0u64), 0x4232_64cd_89a6_5067);
     assert_eq!(tsx::child_id(0, "Child", "row"), 0x7240_374a_9028_02dd);
     assert_eq!(tsx::child_id(42, "Row", 7u32), 0x2a3f_103b_05e3_5c30);
@@ -438,7 +438,7 @@ fn native_modules_register_and_resolve_by_name() {
 // ----------------------------------------------------------------- helpers
 
 #[test]
-fn number_and_index_helpers_match_the_zig_semantics() {
+fn number_and_index_helpers_follow_js_semantics() {
     assert_eq!(tsx::to_int::<usize>(2.9), 2);
     assert_eq!(tsx::to_int::<u8>(1e9), 255);
     assert_eq!(tsx::list_index(-1.0), None);

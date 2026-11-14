@@ -1,17 +1,14 @@
-//! Port of `src/components/image.zig` — WP-2.2: image loading, intrinsic size
-//! and paint (fit + radius clipping).
+//! Image loading, intrinsic size and paint (fit + radius clipping).
 //!
-//! Zig loads the file synchronously inside `Tree.addImage`; the Rust retained
-//! tree deliberately does not do file I/O (`core/tree/alloc.rs:add_image`), so
-//! the runtime calls [`load`] when it creates an image node or when its `path`
-//! changes — outside the render pass, like Zig's reconcile (`ui_runtime.zig`,
-//! image arm: `image_mod.load(data)`).
+//! The retained tree deliberately does not do file I/O
+//! (`core/tree/alloc.rs:add_image`), so the runtime calls [`load`] when it
+//! creates an image node or when its `path` changes — in the reconcile step,
+//! outside the render pass.
 //!
-//! Deviation from Zig: `zant_image_load_file` (Skia file codec) is not called
-//! directly because `unsafe` is not allowed in `components/` (conventions rule
-//! 5); [`load`] reads the bytes with `std::fs` and decodes them through the
-//! safe [`Image::from_encoded`] wrapper (same Skia codec, eager rather than
-//! deferred decode).
+//! `zant_image_load_file` (Skia file codec) is not called directly because
+//! `unsafe` is not allowed in `components/`; [`load`] reads the bytes with
+//! `std::fs` and decodes them through the safe [`Image::from_encoded`] wrapper
+//! (same Skia codec, eager rather than deferred decode).
 #![forbid(unsafe_code)]
 
 use std::rc::Rc;
@@ -21,14 +18,14 @@ use crate::image::Image;
 use crate::renderer::canvas::Canvas;
 use crate::theme::tokens::Theme;
 
-/// `image.zig:measureWidth` — the fallback width before a source is loaded.
+/// The fallback width before a source is loaded.
 pub const DEFAULT_WIDTH: f32 = 160.0;
-/// `image.zig:measureHeight` — the fallback height before a source is loaded.
+/// The fallback height before a source is loaded.
 pub const DEFAULT_HEIGHT: f32 = 120.0;
 
 /// Loads (or reloads) [`ImageData::path`] into the node.
 ///
-/// Mirrors `image.zig:load`: the handle and the intrinsic size are reset even
+/// The handle and the intrinsic size are reset even
 /// when the file cannot be read or decoded (a placeholder is painted then).
 /// Call it from the runtime's reconcile step, never from `render`.
 pub fn load(data: &mut ImageData) {
@@ -46,12 +43,12 @@ pub fn load(data: &mut ImageData) {
     data.handle = Some(Rc::new(image));
 }
 
-/// Shows an in-memory image, keeping its own reference to the pixels
-/// (`image.zig:setSource`; the `Rc` clone is the Zig `zant_image_retain`).
+/// Shows an in-memory image, keeping its own reference to the pixels (the
+/// `Rc` clone).
 ///
 /// `source` is `Option<&Rc<Image>>` so the runtime can pass
 /// `element.image_handle.as_ref()` without consuming the element; `id` is the
-/// `Image::id` of the source (Zig's `element.image_id`, 0 = file path).
+/// `Image::id` of the source (`element.image_id`, 0 = file path).
 pub fn set_source(data: &mut ImageData, source: Option<&Rc<Image>>, id: u64) {
     data.handle = None;
     data.intrinsic_width = 0;
@@ -65,13 +62,13 @@ pub fn set_source(data: &mut ImageData, source: Option<&Rc<Image>>, id: u64) {
     data.intrinsic_height = source.height as i32;
 }
 
-/// Releases the handle (`image.zig:destroy`); the Dropped `Rc` frees the pixels
+/// Releases the handle; the dropped `Rc` frees the pixels
 /// when the last node stops showing them.
 pub fn destroy(data: &mut ImageData) {
     data.handle = None;
 }
 
-/// `image.zig:measureWidth`: the intrinsic width, or 160px before it is known.
+/// The intrinsic width, or 160px before it is known.
 pub fn measure_width(style: &FlexStyle, data: &ImageData) -> f32 {
     if let Some(width) = style.width {
         return width;
@@ -83,7 +80,7 @@ pub fn measure_width(style: &FlexStyle, data: &ImageData) -> f32 {
     }
 }
 
-/// `image.zig:measureHeight`: keeps the intrinsic aspect ratio at `width`.
+/// Keeps the intrinsic aspect ratio at `width`.
 pub fn measure_height(style: &FlexStyle, data: &ImageData, width: f32) -> f32 {
     if let Some(height) = style.height {
         return height;
@@ -95,7 +92,7 @@ pub fn measure_height(style: &FlexStyle, data: &ImageData, width: f32) -> f32 {
     }
 }
 
-/// `image.zig:paint`: the pixels clipped to the node radius, or the
+/// Paints the pixels clipped to the node radius, or the
 /// fill-secondary placeholder while unloaded / undecodable.
 pub fn paint(node: &mut RetainedNode, canvas: Canvas, theme: Theme) {
     let rect = node.bounds;

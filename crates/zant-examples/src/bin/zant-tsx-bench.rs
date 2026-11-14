@@ -1,21 +1,15 @@
-//! The TSX compile benchmark (WP-5.10): compile every corpus `.tsx`
+//! The TSX compile benchmark: compile every corpus `.tsx`
 //! (`crates/zant-tsx/testdata/tsx/`) through the in-process compiler,
-//! `warmup + iterations` times each, and report the same statistics line as the
-//! old Zig frame benchmark.
-//!
-//! During the migration the comparison baseline was the Zig compiler in process
-//! (`tools/tsx/compile_bench.zig`, gate ≤1.25×); the Zig toolchain and sources
-//! were removed at M8, so `scripts/tsx/examples-check.sh` now runs the Rust side
-//! alone and checks the corpus count.
+//! `warmup + iterations` times each, and report the same statistics line as
+//! the frame benchmarks. `scripts/tsx/examples-check.sh` runs it and checks
+//! the corpus count.
 //!
 //!   cargo run --release -p zant-examples --bin zant-tsx-bench
 //!   ./target/release/zant-tsx-bench <corpus dir> [warmup] [iterations]
 //!
-//! `frames=` is the number of timed compiles of that file (the bench row of the
-//! Zig harness, whose unit is a frame); `total` aggregates the files that
-//! compiled. Two corpus files are rejected by the Rust compiler today
-//! (`desktop`/`entities`, status.md「待决问题」2/4); they are reported and
-//! skipped, and the gate compares the files both sides compile.
+//! `frames=` is the number of timed compiles of that file (the column name is
+//! shared with the frame benchmarks); `total` aggregates the files that
+//! compiled. Corpus files the compiler rejects are reported and skipped.
 
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -27,8 +21,8 @@ fn default_corpus() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../zant-tsx/testdata/tsx")
 }
 
-/// Per-file compile samples in milliseconds; the report line of
-/// `examples/tsx/bench_harness.zig` `Stats.report` (`{s: <20} frames=…`).
+/// Per-file compile samples in milliseconds, reported as one
+/// `<name> frames=… avg=… p95=… max=…` line.
 #[derive(Default)]
 struct Stats {
     samples: Vec<f64>,
@@ -56,13 +50,12 @@ impl Stats {
     }
 }
 
-/// The p95 sample index of `examples/tsx/bench_harness.zig`:
-/// `(len * 95) / 100`, clamped to the last sample.
+/// The p95 sample index: `(len * 95) / 100`, clamped to the last sample.
 fn p95_index(len: usize) -> usize {
     (len * 95 / 100).min(len.saturating_sub(1))
 }
 
-/// Every `.tsx` file of `corpus`, sorted by name (the Zig harness sorts too).
+/// Every `.tsx` file of `corpus`, sorted by name.
 fn corpus_files(corpus: &Path) -> Vec<PathBuf> {
     let entries = match std::fs::read_dir(corpus) {
         Ok(entries) => entries,
@@ -165,7 +158,7 @@ fn main() {
 mod tests {
     use super::*;
 
-    /// The corpus shipped in the repository: the plan's 32 `.tsx` files.
+    /// The corpus shipped in the repository: at least 32 `.tsx` files.
     #[test]
     fn corpus_has_the_32_testdata_files() {
         let files = corpus_files(&default_corpus());
@@ -182,9 +175,9 @@ mod tests {
         assert!(names.contains(&"todos.tsx".to_owned()));
     }
 
-    /// `Stats::report` prints the Zig harness line (`{s: <20} frames=…`).
+    /// The statistics behind `Stats::report`: sample count, average and p95.
     #[test]
-    fn report_matches_the_zig_stats_line() {
+    fn report_statistics_use_the_sorted_samples() {
         let mut stats = Stats::default();
         for ms in [0.1, 0.2, 0.3, 0.4] {
             stats.add(ms);
@@ -196,10 +189,9 @@ mod tests {
         assert_eq!(stats.samples[p95_index(4)], 0.4);
     }
 
-    /// The p95 index of the Zig harness (`bench_harness.zig`):
-    /// `(len * 95) / 100`, clamped to `len - 1`.
+    /// The p95 index is `(len * 95) / 100`, clamped to `len - 1`.
     #[test]
-    fn p95_index_matches_the_zig_harness() {
+    fn p95_index_is_95_percent_of_the_length_clamped() {
         assert_eq!(p95_index(1), 0);
         assert_eq!(p95_index(4), 3);
         assert_eq!(p95_index(100), 95);

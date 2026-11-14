@@ -1,8 +1,7 @@
 //! Lower qualified React hooks and Fragment to the existing Zant syntax.
 //! Runs after parsing all imports, before stateful analysis or generation.
 //!
-//! Direct translation of `tools/tsx/react_compat.zig`. The walker mutates the
-//! tree in place (`&mut Module`), as Zig mutates through its pointers.
+//! The walker mutates the tree in place (`&mut Module`).
 
 use crate::ast::{
     Body, Child, Expr, ExprData, Function, Import, Jsx, Module, Pattern, Stmt, StmtData,
@@ -38,9 +37,8 @@ pub fn node_type(imports: &[Import], name: &[u8]) -> bool {
 
 /// Normalize only the four supported React hooks and React's Fragment tag.
 pub fn normalize(module: &mut Module) {
-    // Zig walks the imports slice while mutating points reached from it; in
-    // Rust the bindings are collected first so the module can be borrowed
-    // mutably afterwards.
+    // The bindings are collected first so the module can be borrowed mutably
+    // afterwards.
     let mut bindings: Vec<Vec<u8>> = Vec::new();
     for imp in &module.imports {
         if imp.source.as_slice() != b"react".as_slice() || imp.type_only {
@@ -316,8 +314,6 @@ mod tests {
         }
     }
 
-    // Ported from `tools/tsx/parser_test.zig`,
-    // "React compatibility respects shadowed namespace bindings".
     #[test]
     fn react_compatibility_respects_shadowed_namespace_bindings() {
         let m = crate::parser::parse_ok(

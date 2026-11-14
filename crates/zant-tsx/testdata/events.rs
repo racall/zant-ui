@@ -104,7 +104,7 @@ impl Events {
         self.tsx();
         let mut writeOnly: f64 = 1.0f64;
         writeOnly = 2.0f64;
-        let unchanged: zant::Str = zant::Str::from("const in Zig");
+        let unchanged: zant::Str = zant::Str::from("const in Rust");
         tsx::builtins::log(
             &[tsx::Any::from(zant::Str::copy(&format!("{}", unchanged.clone())))],
         );

@@ -1,16 +1,14 @@
 //! Event signatures, inferred parameters, generated handlers, and reusable
-//! setter adapters. Translation of `tools/tsx/codegen/events.zig`.
+//! setter adapters.
 //!
 //! Handler discovery runs before emission (so names and inferred signatures are
-//! stable); the JSX emitter then refers to the registered method. Zig emitted
-//! `ui.textAction(self, State._setName)` plus a `tsx.capture` struct; Rust has
-//! closures, so the generated value is
-//! `Some(ui::text_action(|s: &mut Counter, v: &str| s._set_name(v)))` and the
+//! stable); the JSX emitter then refers to the registered method. The
+//! generated value is a closure,
+//! `Some(ui::text_action(|s: &mut Counter, v: &str| s._set_name(v)))`, and the
 //! method signature lives on the component.
 //!
-//! Event expressions are identified by AST address, like the Zig pointer
-//! comparison: nodes of the parsed module are stable while a component is
-//! generated.
+//! Event expressions are identified by AST address: nodes of the parsed module
+//! are stable while a component is generated.
 
 use crate::ast;
 use crate::tags::{self, Kind};
@@ -24,12 +22,11 @@ use super::scope;
 use super::types::{self, Type};
 use super::{Generator, Method, Result, fail};
 
-/// A handler expression registered before emission (Zig `events.Event`).
+/// A handler expression registered before emission.
 ///
-/// Zig identifies an expression by its pointer. Rust's AST owns its nodes and
-/// the spread / JSX shape helpers clone expressions, so the pointer is not
-/// stable there; the source location is: a clone keeps it, and one source
-/// position holds at most one expression.
+/// The AST owns its nodes and the spread / JSX shape helpers clone
+/// expressions, so a node's address is not stable there; the source location
+/// is: a clone keeps it, and one source position holds at most one expression.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Event {
     pub loc: ast::Loc,
@@ -94,9 +91,8 @@ fn call_ident(call: &ast::Call, name: &str) -> bool {
 }
 
 /// `setTimeout(() => …, ms)` registers its callback as a method while the
-/// component is scanned (Zig `codegen/timers.zig` `scan`). The lowering lives
-/// in `events.rs` because the unowned `timers.zig` has no Rust module yet;
-/// the callback behaves like an event arrow (captures, no parameters).
+/// component is scanned. The lowering lives here because the callback behaves
+/// like an event arrow (captures, no parameters).
 fn scan_timer(g: &mut Generator<'_>, call: &ast::Call) -> Result<()> {
     if !call_ident(call, "setTimeout") {
         return Ok(());
@@ -164,7 +160,7 @@ fn timer_plain(g: &Generator<'_>, ty: Type) -> bool {
     model::info(g, ty).is_some_and(|entry| entry.kind == model::InfoKind::Enumeration)
 }
 
-/// `setTimeout(…)` / `clearTimeout(id)` in a handler (Zig `timers.tryCall`).
+/// `setTimeout(…)` / `clearTimeout(id)` in a handler.
 pub fn timer_call(
     g: &mut Generator<'_>,
     c: &mut scope::Context,
@@ -569,9 +565,8 @@ pub fn event_value(
         let method = g.methods[event.method].clone();
         let root = g.current_component.is_none();
         if root {
-            // the shape of docs/rust-port/tsx-codegen.md §5:
-            // `ui::action(|s: &mut App| s._on_click1())`; a handler that reads
-            // render locals gets a capture struct first
+            // the root shape is `ui::action(|s: &mut App| s._on_click1())`;
+            // a handler that reads render locals gets a capture struct first
             let Some(class) = rust_text::id(g.name.as_bytes()) else {
                 return fail(g, e.loc, "component name is not valid UTF-8");
             };
@@ -657,7 +652,7 @@ pub fn action_signature(kind: Kind) -> &'static str {
 }
 
 /// `fn _setName(&mut self, value: &str)` for a `useState` setter used as a
-/// handler (Zig `events.emitSetter`). The component state is a plain field.
+/// handler. The component state is a plain field.
 pub fn emit_setter(g: &mut Generator<'_>, m: &Method) -> Result<String> {
     let Some(setter) = m.setter else {
         return fail(g, 0, "setter method without a state");
@@ -915,8 +910,8 @@ fn function_arrow(e: &ast::Expr, kind: Kind) -> ast::Expr {
 }
 
 /// `fn` passed as a child component's callback prop of `count` parameters:
-/// `(_a0, …) => fn(_a0, …)` (the prop gives the parameter types). WP-5.5's
-/// component layer uses this; kept next to its Zig original.
+/// `(_a0, …) => fn(_a0, …)` (the prop gives the parameter types). Used by the
+/// component layer.
 pub fn forward_arrow(e: &ast::Expr, count: usize) -> ast::Expr {
     let mut args: Vec<Box<ast::Expr>> = Vec::new();
     let mut params: Vec<ast::Param> = Vec::new();

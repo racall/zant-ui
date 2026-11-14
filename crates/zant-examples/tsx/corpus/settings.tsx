@@ -1,5 +1,5 @@
 // A long settings page (5 sections, 40 switches with their own state):
-// the heavy TSX case for `zig build bench-tsx`. Written out in full because
+// the heavy TSX case for `zant-tsx-frame-bench`. Written out in full because
 // phase 1 has no `.map`; it reads like a hand-made settings screen.
 import { useState, View, Row, Text, Switch } from "zant";
 

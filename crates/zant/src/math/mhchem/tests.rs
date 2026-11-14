@@ -1,6 +1,4 @@
 //! Tests: the 823-case upstream fixture and the basics.
-//!
-//! Port of the `test` blocks at the end of `src/math/mhchem.zig`.
 
 use serde::Deserialize;
 

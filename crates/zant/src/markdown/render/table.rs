@@ -1,5 +1,3 @@
-//! Port of `src/markdown/render/table.zig` — WP-3.3.
-//!
 //! Table (Streamdown `table/*`): bordered grid with a header row and
 //! copy (Markdown / CSV) and download (CSV or Markdown) controls.
 

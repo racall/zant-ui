@@ -1,12 +1,10 @@
-//! WP-5.9 end-to-end project tests: the `tests/tsx/**` fixtures ported to Rust
-//! and compiled through the project API ([`compile::compile_project_root_with`],
-//! the entry point `zant_build::tsx_app` uses).
+//! End-to-end project tests: the fixture projects compiled through the project
+//! API ([`compile::compile_project_root_with`], the entry point
+//! `zant_build::tsx_app` uses).
 //!
-//! The fixtures are copies of the Zig work package's projects under
-//! `crates/zant-tsx/tests/fixtures/`; the Zig modules they imported
-//! (`data.zig`, `thumbs.zig`, `devices.zig`, `jobs.zig`) have Rust mirrors with
-//! the same public signatures, and the `import … from "./x.zig"` statements
-//! name the `.rs` file. The assertions drive the whole pipeline: file
+//! The fixtures are the projects under `crates/zant-tsx/tests/fixtures/`; the
+//! hand-written Rust modules they import are `data.rs`, `thumbs.rs`,
+//! `devices.rs` and `jobs.rs`. The assertions drive the whole pipeline: file
 //! collection, parsing, cross-file resolution (components, types, stores and
 //! hand-written Rust signatures), custom-hook expansion, assets, and code
 //! generation of every module.

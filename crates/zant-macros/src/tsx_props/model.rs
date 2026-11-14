@@ -1,6 +1,5 @@
 //! Model extraction for `#[derive(TsxProps)]`: the struct name, doc comment and
-//! the fields in declaration order (Zig `@typeInfo(T).@"struct"` in
-//! `tools/tsx/manifest/reflect.zig`).
+//! the fields in declaration order.
 
 use syn::{Data, DeriveInput, Error, Fields, Ident, Type};
 
@@ -19,8 +18,7 @@ pub(super) struct StructProps {
 pub(super) struct FieldProps {
     pub(super) ident: Ident,
     pub(super) ty: Type,
-    /// `#[tsx(required)]`: the TSX prop must be supplied (Zig fields without a
-    /// default value; `reflect.zig:props` set `required` for those).
+    /// `#[tsx(required)]`: the TSX prop must be supplied.
     pub(super) required: bool,
     /// `#[tsx(default = "..")]`: the Rust default expression as written, for
     /// structs that do not use `Default::default()` for this field.
@@ -29,7 +27,7 @@ pub(super) struct FieldProps {
 
 impl FieldProps {
     /// The Rust field name with the raw-identifier prefix stripped (`type` for
-    /// `r#type`; `reflect.zig` used the Zig field name, which has no prefix).
+    /// `r#type`).
     pub(super) fn name(&self) -> String {
         let name = self.ident.to_string();
         name.strip_prefix("r#").unwrap_or(&name).to_string()

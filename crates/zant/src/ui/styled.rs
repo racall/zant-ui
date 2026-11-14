@@ -1,5 +1,5 @@
 //! `ui::styled`: override common visual / layout / text properties of any
-//! component (port of `Style` / `styled` in `src/ui.zig:550-665`).
+//! component.
 #![forbid(unsafe_code)]
 
 use crate::core::geometry::Edges;
@@ -10,7 +10,7 @@ use crate::renderer::text;
 use super::element::Node;
 
 /// Property overrides applied by [`styled`]; `None` keeps the component's own
-/// value. Field names and order match the Zig `ui.Style`.
+/// value.
 #[derive(Clone, Default, zant_macros::TsxProps)]
 pub struct Style {
     pub background: Option<u32>,
@@ -124,8 +124,8 @@ pub fn styled(node: Node, style: Style) -> Node {
     if let Some(value) = style.height_percent {
         element.layout.height_percent = Some(value);
     }
-    // Zig assigns the absolute box twice (a harmless duplicate); kept so the
-    // two implementations diff cleanly.
+    // The absolute flag is assigned again further down (a harmless
+    // duplicate).
     if let Some(value) = style.absolute {
         element.layout.absolute = value;
     }
@@ -211,12 +211,12 @@ pub fn styled(node: Node, style: Style) -> Node {
     Node::new(element)
 }
 
-/// The same inset on all four edges (`ui.inset`).
+/// The same inset on all four edges (`ui::inset`).
 pub fn inset(value: f32) -> Edges {
     Edges::all(value)
 }
 
-/// Horizontal / vertical insets (`ui.insetXY`).
+/// Horizontal / vertical insets (`ui::inset_xy`).
 pub fn inset_xy(horizontal: f32, vertical: f32) -> Edges {
     Edges::symmetric(horizontal, vertical)
 }

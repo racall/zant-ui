@@ -1,4 +1,4 @@
-//! `ui::pdfPreview` of `src/ui.zig` (WP-2.3): a native single-page PDF
+//! `ui::pdf_preview`: a native single-page PDF
 //! preview with an optional toolbar (PDFKit on macOS, PDFium on Windows).
 //!
 //! Interaction is inspired by EmbedPDF, but this remains a native Skia UI
@@ -17,12 +17,12 @@ use super::super::options::{BoxOptions, ButtonOptions, ImageOptions, PdfOptions,
 use super::super::styled::inset;
 use super::{button, column, image, row, text};
 
-/// Zig `std.fs.max_path_bytes` for the temp PNG path of a rendered PDF page.
+/// Buffer length for the temp PNG path of a rendered PDF page.
 const PATH_BUF_LEN: usize = 4096;
-/// Zig `copyPdfText` page-text buffer.
+/// Buffer length for the extracted text of a page.
 const PAGE_TEXT_BUF_LEN: usize = 64 * 1024;
 
-/// `ui::pdfPreview`: a native single-page PDF preview with an optional toolbar
+/// `ui::pdf_preview`: a native single-page PDF preview with an optional toolbar
 /// (PDFKit on macOS, PDFium on Windows).
 pub fn pdf_preview(options: PdfOptions) -> Node {
     let count = pdf::page_count(&options.src);
@@ -33,7 +33,7 @@ pub fn pdf_preview(options: PdfOptions) -> Node {
     };
     let mut path_buf = [0u8; PATH_BUF_LEN];
     let rendered = if count > 0 {
-        // Zig: `@intFromFloat(@max(1, options.width * 2))` (2x for Retina).
+        // 2x for Retina, at least one pixel.
         let width = (options.width * 2.0).max(1.0) as u32;
         let height = (options.height * 2.0).max(1.0) as u32;
         pdf::render_page(&options.src, page, width, height, &mut path_buf).map(Str::copy)
@@ -231,7 +231,7 @@ mod tests {
         assert_eq!(element.children.len(), 1, "only the fallback page");
         assert!(
             element.key.is_none(),
-            "Zig returns the page node, not the keyed wrapper"
+            "the page node is returned, not the keyed wrapper"
         );
     }
 }

@@ -1,7 +1,6 @@
-//! `zant-md-stream`: port of `examples/markdown_stream.zig` (WP-3.11).
-//!
-//! Streaming Markdown benchmark: a chat with finished history messages and one
-//! assistant reply that streams in, like an AI chat over SSE.
+//! `zant-md-stream`: the streaming Markdown benchmark, a chat with finished
+//! history messages and one assistant reply that streams in, like an AI chat
+//! over SSE.
 //!
 //! ```text
 //! zant-md-stream                         # built-in long reply, simulated deltas
@@ -10,13 +9,13 @@
 //! zant-md-stream --sse-replay recorded.sse        # recorded SSE, one event per ZANT_STREAM_MS
 //! ```
 //!
-//! Environment (unchanged from the Zig example): `ZANT_STREAM_CHARS`,
+//! Environment: `ZANT_STREAM_CHARS`,
 //! `ZANT_STREAM_MS`, `ZANT_STREAM_HISTORY`, `ZANT_STREAM_EXIT`,
 //! `ZANT_STREAM_WIDTH`, `ZANT_FRAME_STATS`, `ZANT_DARK`.
 //!
 //! The stream runs on a worker thread (like a network reader); it appends to a
-//! shared buffer and calls `ui.postWake()`; each build renders the whole buffer
-//! with `markdown.streamdown` (block cache + remend). The virtual list only
+//! shared buffer and calls `ui::post_wake()`; each build renders the whole buffer
+//! with `markdown::streamdown` (block cache + remend). The virtual list only
 //! builds the messages in view and follows the reply while it streams.
 #![forbid(unsafe_code)]
 
@@ -37,7 +36,7 @@ use zant::renderer::text::Weight;
 use zant::theme::tokens::{self, Theme};
 use zant::ui::{self, BoxOptions, ListAlignment, ListOptions, ListState, RunOptions, TextOptions};
 
-/// `examples/markdown_stream.zig: builtin_reply` verbatim.
+/// The built-in long reply that is streamed when no source is given.
 pub const BUILTIN_REPLY: &str = r#"## 二次函数的最值问题
 
 设函数 $f(x) = ax^2 + bx + c$（其中 $a \neq 0$），我们来系统地分析它的**最大值与最小值**。首先回顾配方：
@@ -92,7 +91,7 @@ $$
 掌握了“定轴动区间”与“动轴定区间”两类问题，就能解决绝大多数二次函数最值题。下一步可以练习几道综合题，巩固这种**分类讨论**的思路。
 "#;
 
-/// `examples/markdown_stream.zig: history_samples` verbatim.
+/// The finished history messages (user / assistant alternating).
 pub const HISTORY_SAMPLES: [&str; 4] = [
     "帮我讲一下二次函数的最值问题，最好带例题。",
     "当然可以！二次函数 $y = ax^2+bx+c$ 的图像是抛物线，**开口方向**由 $a$ 决定，对称轴是 $x=-\\frac{b}{2a}$。\n\n- $a>0$：开口向上，有最小值\n- $a<0$：开口向下，有最大值\n\n我们先看一个例子：$y = x^2 - 4x + 3 = (x-2)^2 - 1$，最小值为 $-1$。",
@@ -100,8 +99,7 @@ pub const HISTORY_SAMPLES: [&str; 4] = [
     "这时函数在区间上是**单调**的，最值在端点取得。例如 $y=(x-2)^2-1$ 在 $[3,5]$ 上递增：\n\n| x | 3 | 4 | 5 |\n|---|---|---|---|\n| y | 0 | 3 | 8 |\n\n所以最小值 $0$，最大值 $8$。",
 ];
 
-/// Worker-shared buffer (`Shared` in Zig): appended under the mutex, read by
-/// the UI thread.
+/// Worker-shared buffer: appended under the mutex, read by the UI thread.
 #[derive(Default)]
 pub struct SharedInner {
     pub text: Vec<u8>,
@@ -109,7 +107,7 @@ pub struct SharedInner {
     pub deltas: usize,
 }
 
-/// `std.Thread.Mutex`-guarded shared buffer (`*Shared` in Zig).
+/// The mutex-guarded shared buffer.
 pub type Shared = Arc<Mutex<SharedInner>>;
 
 fn lock(shared: &Shared) -> MutexGuard<'_, SharedInner> {
@@ -128,7 +126,7 @@ fn env_parse<T: std::str::FromStr>(name: &str) -> Option<T> {
         .and_then(|value| value.parse().ok())
 }
 
-/// The stream source (Zig `Source`).
+/// The stream source.
 enum Source {
     /// Simulated deltas from a document.
     Text(Vec<u8>),
@@ -138,12 +136,11 @@ enum Source {
     SseReplay(Vec<u8>),
 }
 
-/// Zig `readFile`.
 fn read_file(path: &str) -> zant::Result<Vec<u8>> {
     Ok(std::fs::read(path)?)
 }
 
-/// Zig `appendDelta`.
+/// Appends one delta to the shared buffer and wakes the UI.
 pub fn append_delta(shared: &Shared, bytes: &[u8]) {
     {
         let mut inner = lock(shared);
@@ -153,7 +150,7 @@ pub fn append_delta(shared: &Shared, bytes: &[u8]) {
     ui::post_wake();
 }
 
-/// Zig `finish`.
+/// Marks the stream as finished and wakes the UI.
 pub fn finish(shared: &Shared) {
     {
         let mut inner = lock(shared);
@@ -162,12 +159,11 @@ pub fn finish(shared: &Shared) {
     ui::post_wake();
 }
 
-/// Zig `sleepMs`.
 fn sleep_ms(ms: u32) {
     std::thread::sleep(Duration::from_millis(u64::from(ms)));
 }
 
-/// Zig `simulate`: waits for the window, then appends `chars` bytes at a time.
+/// Waits for the window, then appends `chars` bytes at a time.
 fn simulate(shared: Shared, text: Vec<u8>, chars: usize, ms: u32) {
     sleep_ms(400);
     let mut i: usize = 0;
@@ -184,8 +180,7 @@ fn simulate(shared: Shared, text: Vec<u8>, chars: usize, ms: u32) {
     finish(&shared);
 }
 
-/// Zig `readSse`: reads SSE from stdin and appends the `content` of
-/// `text_delta` events.
+/// Reads SSE from stdin and appends the `content` of `text_delta` events.
 fn read_sse(shared: Shared) {
     let mut line: Vec<u8> = Vec::new();
     let mut buf = [0u8; 4096];
@@ -210,7 +205,7 @@ fn read_sse(shared: Shared) {
     finish(&shared);
 }
 
-/// Zig `replaySse`.
+/// Replays recorded SSE lines, one event per `ms`.
 fn replay_sse(shared: Shared, recorded: Vec<u8>, ms: u32) {
     sleep_ms(400);
     for raw in recorded.split(|&byte| byte == b'\n') {
@@ -225,7 +220,7 @@ fn replay_sse(shared: Shared, recorded: Vec<u8>, ms: u32) {
     finish(&shared);
 }
 
-/// Zig `handleSseLine`.
+/// Handles one SSE line: a `data:` line with a `text_delta` appends its content.
 pub fn handle_sse_line(shared: &Shared, line: &str) {
     let Some(rest) = line.strip_prefix("data:") else {
         return;
@@ -268,7 +263,7 @@ impl StreamView {
     }
 }
 
-/// Zig `State`.
+/// The chat application state.
 pub struct StreamApp {
     shared: Shared,
     view: Rc<RefCell<StreamView>>,
@@ -304,7 +299,7 @@ impl StreamApp {
         }
     }
 
-    /// Zig `summary`.
+    /// Prints the end-of-stream timing summary.
     fn summary(&self, deltas: usize) {
         let elapsed = self.finished_ms - self.started_ms;
         let avg = if self.builds > 0 {
@@ -342,8 +337,8 @@ impl StreamApp {
         (StreamApp::new(shared.clone(), view, false, false), shared)
     }
 
-    /// Zig `render`, body without the build-timing `defer` (the caller in
-    /// [`StreamApp::render`] adds it, so the numbers stay identical).
+    /// The window tree, without the build timing (the caller in
+    /// [`StreamApp::render`] measures around it).
     fn build(&mut self) -> ui::Node {
         if self.started_ms == 0 {
             self.started_ms = ui::now_ms();
@@ -441,7 +436,6 @@ impl ui::App for StreamApp {
         node
     }
 
-    /// Zig `State.theme`.
     fn theme(&self) -> Option<Theme> {
         Some(if self.dark {
             tokens::ant_dark()
@@ -451,7 +445,7 @@ impl ui::App for StreamApp {
     }
 }
 
-/// Zig `message`: one history message or the streaming reply.
+/// One history message or the streaming reply.
 fn message(view: &mut StreamView, dark: bool, done_now: bool, index: usize) -> ui::Node {
     let theme = ui::current_theme();
     let markdown_theme = if dark {
@@ -509,7 +503,7 @@ fn message(view: &mut StreamView, dark: bool, done_now: bool, index: usize) -> u
     bubble("reply", false, theme, content)
 }
 
-/// Zig `bubble`: a chat bubble aligned at the start (assistant) or end (user).
+/// A chat bubble aligned at the start (assistant) or end (user).
 fn bubble(key: &str, user: bool, theme: Theme, content: ui::Node) -> ui::Node {
     ui::row(BoxOptions {
         key: Some(Str::copy(key)),
@@ -538,8 +532,7 @@ fn bubble(key: &str, user: bool, theme: Theme, content: ui::Node) -> ui::Node {
     })
 }
 
-/// Zig `launch.run(.., .{ .title = "Zant streaming Markdown", .window = .{
-/// .width = width, .height = 900, .min_width = 600, .min_height = 500 } })`.
+/// Window title, size (`width`×900) and minimum size (600×500).
 pub fn run_options(width: f32) -> RunOptions {
     RunOptions {
         title: String::from("Zant streaming Markdown"),
@@ -554,7 +547,7 @@ pub fn run_options(width: f32) -> RunOptions {
     }
 }
 
-/// Zig `main`.
+/// The example entry point: picks the source from the arguments and runs.
 pub fn run() -> zant::Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let mut source = Source::Text(BUILTIN_REPLY.as_bytes().to_vec());

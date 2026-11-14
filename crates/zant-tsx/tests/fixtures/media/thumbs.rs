@@ -1,5 +1,4 @@
-//! A thumbnail cache stand-in for tests/fixtures/media/App.tsx (Rust mirror of
-//! the Zig fixture `tests/tsx/media/thumbs.zig`).
+//! A thumbnail cache stand-in for tests/fixtures/media/App.tsx.
 
 /// The runtime's in-memory image handle (`Image` in TSX).
 pub type Image = std::rc::Rc<zant::image::Image>;

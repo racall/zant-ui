@@ -1,5 +1,5 @@
-// A TS + TSX app as `zant create` makes it: no Rust to write (WP-5.10 port of
-// `examples/tsx/app/App.tsx`). `build.rs` compiles every .tsx here, the
+// A TS + TSX app as `zant create` makes it: no Rust to write for the UI.
+// `build.rs` compiles every .tsx here, the
 // runtime entry is `src/main.rs`, and the UI is this file plus `components/`.
 // Run it with `cargo run -p zant-tsx-demo`.
 import { createStore, useState, useStore, useKeyDown, View, Row, Heading, Paragraph, Button } from "zant";

@@ -1,4 +1,4 @@
-//! `zant-pdf`: port of `examples/pdf.zig` (WP-3.11).
+//! `zant-pdf`: the PDF reader example.
 //!
 //! `pdf::view` with continuous scrolling, zoom (toolbar, ⌘/Ctrl + wheel,
 //! pinch), text selection and copy, search and links. `ZANT_PDF_PAGE` picks
@@ -8,11 +8,9 @@
 //! document facts without a window. ⌘S / Ctrl+S saves an annotated copy.
 //! `ZANT_DARK=1` for dark.
 //!
-//! Deviation from the Zig source (WP-3.11 report): without an argv path the
-//! Zig example prints `usage: zant-pdf <file.pdf>` and exits; so that the
-//! binary can be captured statically by `scripts/parity/compare.sh` (which
-//! passes no arguments), the port opens `tests/fixtures/widgets.pdf` instead
-//! (a path relative to the working directory, like the other example assets).
+//! Without an argv path the app opens `tests/fixtures/widgets.pdf` (a path
+//! relative to the working directory, like the other example assets), so the
+//! binary can be run and snapshotted without arguments.
 #![forbid(unsafe_code)]
 
 use zant::core::events::{KeyEvent, character_equals};
@@ -27,7 +25,7 @@ use zant::ui::{self, BoxOptions, RunOptions};
 /// tracked and reused; see `.gitignore`).
 pub const DEFAULT_DOCUMENT: &str = "tests/fixtures/widgets.pdf";
 
-/// Zig `State`.
+/// The reader application: the viewer and the dark flag.
 pub struct PdfApp {
     viewer: Viewer,
     dark: bool,
@@ -38,7 +36,7 @@ impl PdfApp {
         PdfApp { viewer, dark }
     }
 
-    /// Zig `State.render`.
+    /// The window tree.
     fn build(&mut self) -> ui::Node {
         ui::column(BoxOptions {
             grow: 1.0,
@@ -62,7 +60,7 @@ impl ui::App for PdfApp {
         self.build()
     }
 
-    /// Zig `State.onKey`: ⌘S / Ctrl+S saves an annotated copy.
+    /// ⌘S / Ctrl+S saves an annotated copy.
     fn on_key(&mut self, key: &KeyEvent) -> bool {
         if !key.modifiers.primary() || !character_equals(key.key, b's') {
             return false;
@@ -76,7 +74,6 @@ impl ui::App for PdfApp {
         true
     }
 
-    /// Zig `State.theme`.
     fn theme(&self) -> Option<Theme> {
         Some(if self.dark {
             tokens::ant_dark()
@@ -86,7 +83,7 @@ impl ui::App for PdfApp {
     }
 }
 
-/// Zig `demoAnnotations`: sample annotations on the first page with text
+/// `ZANT_PDF_DEMO=1`: sample annotations on the first page with text
 /// (visual checks).
 pub fn demo_annotations(viewer: &Viewer) {
     let Some(document) = viewer.document() else {
@@ -157,7 +154,7 @@ pub fn demo_annotations(viewer: &Viewer) {
     }
 }
 
-/// Zig `ZANT_PDF_PROBE=1`: prints document facts without a window.
+/// `ZANT_PDF_PROBE=1`: prints document facts without a window.
 fn probe(path: &str) -> zant::Result<()> {
     let document = match Document::open(path, None) {
         Ok(document) => document,
@@ -201,8 +198,7 @@ fn probe(path: &str) -> zant::Result<()> {
     Ok(())
 }
 
-/// Zig `launch.run(.., .{ .title = "Zant PDF", .window = .{ .width = 900,
-/// .height = 900, .min_width = 480, .min_height = 480 } })`.
+/// Window title, size (900×900) and minimum size (480×480) of the example.
 pub fn run_options() -> RunOptions {
     RunOptions {
         title: String::from("Zant PDF"),
@@ -217,7 +213,7 @@ pub fn run_options() -> RunOptions {
     }
 }
 
-/// Zig `main`.
+/// The example entry point.
 pub fn run() -> zant::Result<()> {
     let args: Vec<String> = std::env::args().collect();
     let path = match args.get(1) {

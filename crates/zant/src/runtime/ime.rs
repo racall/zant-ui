@@ -1,11 +1,9 @@
-//! Port of `src/ui_runtime.zig:2545-2582`: IME composition events and the IME
-//! candidate-window anchor.
+//! IME composition events and the IME candidate-window anchor.
 //!
-//! The input-editing helpers the runtime needs (`hasSelection`,
-//! `selectionRange`, `maxScrollY`, `updateBlink`, `textLeft`, `ensureLayout`)
-//! live in [`crate::components::input`] (WP-2.1); this module re-exports the
-//! ones other runtime modules call under their runtime-side names, so the
-//! three temporary copies that existed while the component was a stub are gone.
+//! The input-editing helpers the runtime needs (`has_selection`,
+//! `selection_range`, `max_scroll_y`, `update_blink`, `text_left`, `ensure_layout`)
+//! live in [`crate::components::input`]; this module re-exports the ones other
+//! runtime modules call under their runtime-side names.
 #![forbid(unsafe_code)]
 
 use crate::core::events::Composition;
@@ -19,7 +17,7 @@ pub(crate) use crate::components::input::{
 };
 
 impl Runtime {
-    /// Zig `handleComposition`: feeds an IME composition update to the focused
+    /// Feeds an IME composition update to the focused
     /// input; an empty text cancels it.
     pub(crate) fn handle_composition(&mut self, composition: &Composition) -> i32 {
         if let Some(id) = self.tree.focused {
@@ -41,7 +39,7 @@ impl Runtime {
         0
     }
 
-    /// Zig `imeRect`: where the IME candidate window should point (the focused
+    /// Where the IME candidate window should point (the focused
     /// input's caret box).
     pub(crate) fn ime_rect(&mut self) -> Option<Rect> {
         let id = self.tree.focused?;
@@ -85,7 +83,7 @@ mod tests {
     }
 
     #[test]
-    fn selection_helpers_match_the_zig_component() {
+    fn selection_helpers_report_the_ordered_range() {
         let mut data = InputData::default();
         assert!(!has_selection(&data));
         assert_eq!(selection_range(&data), (0, 0));

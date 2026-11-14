@@ -1,10 +1,9 @@
-//! Build the reflected tag table: port of `tools/tsx/manifest/reflect.zig`.
+//! Build the reflected tag table.
 //!
-//! `reflect.zig` turned `@typeInfo(ui)` into source at comptime. Here the
-//! options structs come from `#[derive(TsxProps)]`
+//! The options structs come from `#[derive(TsxProps)]`
 //! (`zant::ui::options::TSX_REGISTRY`), the builder list / theme / enum
-//! variants from [`source::Index`], and the not-yet-ported tags from
-//! [`pending`]. The result is emitted by [`crate::emit`].
+//! variants from [`source::Index`], and the tags that are not reflected yet
+//! from [`pending`]. The result is emitted by [`crate::emit`].
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -16,8 +15,8 @@ use zant_tsx::tags::{Content, Kind, Prop, Sides, Skipped, Tag, Value};
 use crate::pending;
 use crate::source::{Builder, Index, Resolved, last_type_ident, type_arguments, type_segments};
 
-/// Every `ui.*` builder of `src/ui.zig` in declaration order: the Zig table
-/// order (`ui_tags.zig`). Reflected tags and [`pending`] tags together fill it.
+/// Every `ui.*` builder in the order of the generated table. Reflected tags
+/// and [`pending`] tags together fill it.
 const TAG_ORDER: &[&str] = &[
     "column",
     "row",
@@ -59,9 +58,9 @@ const TAG_ORDER: &[&str] = &[
     "pdf_viewer",
 ];
 
-/// Builders intentionally excluded from the generated table (`ui_tags.skipped`
-/// in the Zig tool: adapters, runtime-only builders and the composite / viewer
-/// builders that take non-option types).
+/// Builders intentionally excluded from the generated table: adapters,
+/// runtime-only builders and the composite / viewer builders that take
+/// non-option types.
 pub(crate) const SKIPPED: &[Skipped] = &[
     Skipped {
         builder: "ui.portal",
@@ -122,8 +121,8 @@ enum KindData {
 #[derive(Default)]
 struct PropsResult {
     props: Vec<Prop>,
-    /// An unsupported required leaf: the tag / array is unusable (`reflect.zig`
-    /// skipped it with "options have unsupported required fields").
+    /// An unsupported required leaf: the tag / array is unusable (it is skipped
+    /// with "options have unsupported required fields").
     invalid: bool,
     children: bool,
     child_count: usize,
@@ -271,7 +270,7 @@ fn build_tag(
     }
 }
 
-/// `ui.radioGroup` / `ui.@"switch"` — the builder spelling of the Zig table.
+/// `ui.radioGroup` / `ui.@"switch"` — the builder spelling stored in the table.
 fn builder_name(builder: &Builder) -> String {
     let name = zant_tsx::tags::camel(&builder.name);
     if builder.raw_ident {
@@ -442,7 +441,7 @@ fn classify_type(
             let inner = type_arguments(ty).first().copied()?;
             classify_type(index, registry, module, inner, true)
         }
-        // `Option<Rc<Image>>` is Zig's `?zant.image.Image`.
+        // `Option<Rc<Image>>` is an optional `Image`: look through the `Rc`.
         "Rc" => {
             let inner = type_arguments(ty).first().copied()?;
             classify_type(index, registry, module, inner, optional)
@@ -474,9 +473,8 @@ fn classify_type(
         "Vec" => classify_vec(index, registry, module, ty),
         _ => {
             // Rust enums used by the options (`flex::Wrap`, `text::Weight`,
-            // `Cursor`, `Icon`, ...) and nested options structs. Zig read both
-            // through `@typeInfo`; here the path is resolved in the source
-            // index.
+            // `Cursor`, `Icon`, ...) and nested options structs: the path is
+            // resolved in the source index.
             let segments = type_segments(ty)?;
             match index.resolve(module, &segments)? {
                 Resolved::Enum(variants) => Some(KindData::Plain {
@@ -528,22 +526,22 @@ fn plain(kind: Kind) -> KindData {
 
 /// One `tags.Value` per TSX spelling of every enum variant, in declaration
 /// order: the Rust `WrapReverse` becomes `wrap_reverse` / `wrap-reverse` /
-/// `wrapReverse` (Zig variant name `wrap_reverse`).
+/// `wrapReverse` (table value `wrap_reverse`).
 fn enum_values(variants: &[String]) -> Vec<Value> {
     let mut values = Vec::new();
     for variant in variants {
-        let zig = intern(snake_case(variant));
-        for spelling in zant_tsx::tags::spellings(zig) {
+        let rust = intern(snake_case(variant));
+        for spelling in zant_tsx::tags::spellings(rust) {
             values.push(Value {
                 ts: intern(spelling),
-                zig,
+                rust,
             });
         }
     }
     values
 }
 
-/// `WrapReverse` → `wrap_reverse`: the Zig enum variant spelling.
+/// `WrapReverse` → `wrap_reverse`: the variant spelling stored in the table.
 pub fn snake_case(name: &str) -> String {
     let mut result = String::with_capacity(name.len() + 4);
     for (index, char) in name.chars().enumerate() {
@@ -584,7 +582,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn rust_enum_variants_become_zig_spellings() {
+    fn rust_enum_variants_become_snake_case_spellings() {
         assert_eq!(snake_case("WrapReverse"), "wrap_reverse");
         assert_eq!(snake_case("ExtraLight"), "extra_light");
         assert_eq!(snake_case("SerifCjk"), "serif_cjk");
@@ -594,7 +592,7 @@ mod tests {
     }
 
     #[test]
-    fn builder_names_keep_the_zig_spelling() {
+    fn builder_names_are_camel_case_with_raw_identifiers_quoted() {
         let builder = |name: &str, raw_ident: bool| Builder {
             name: name.to_string(),
             raw_ident,

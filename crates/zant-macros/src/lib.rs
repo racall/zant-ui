@@ -1,9 +1,9 @@
 //! Procedural macros for Zant UI.
 //!
 //! - `#[derive(TsxProps)]`: exposes a plain Rust options struct to the TSX
-//!   compiler (field names / types / defaults). See docs/rust-port/tsx-codegen.md.
-//! - `#[derive(Table)]`: generates the SQLite schema of `db/sqlite.zig`.
-//!   See docs/rust-port/plan.md WP-3.10.
+//!   compiler (field names / types / defaults).
+//! - `#[derive(Table)]`: generates the SQLite schema, parameter binding and
+//!   row reading of a model struct for `zant::db::sqlite`.
 use proc_macro::TokenStream;
 use syn::parse_macro_input;
 
@@ -11,20 +11,19 @@ mod table;
 mod tsx_props;
 
 /// `#[derive(TsxProps)]`: compile-time reflection of a `ui` option struct for
-/// the TSX compiler (`docs/rust-port/tsx-codegen.md` §5, WP-5.2).
+/// the TSX compiler.
 ///
 /// It emits `impl zant::ui::options::tsx_props::TsxProps for T` with the struct
 /// name, doc comment, module path and every field in declaration order. Field
 /// types are emitted as token strings; the `zant-tsx-tags` generator resolves
 /// them against the `zant` sources and turns them into the TSX prop table
-/// (`crates/zant-tsx/src/ui_tags.rs`), exactly like `tools/tsx/manifest/`
-/// reflected the Zig `ui.*` structs at comptime.
+/// (`crates/zant-tsx/src/ui_tags.rs`).
 ///
 /// Field attributes:
-/// - `#[tsx(required)]` — the TSX prop must be supplied. In the Zig structs
-///   those were the fields without a default value; `impl Default` hides that
-///   in Rust, so it is spelled out. Also marks unsupported required fields, so
-///   the generator can skip the whole tag like `reflect.zig` did.
+/// - `#[tsx(required)]` — the TSX prop must be supplied. `impl Default` gives
+///   every field a value, so a field without a meaningful default is spelled
+///   out. Also marks unsupported required fields, so the generator can skip
+///   the whole tag.
 /// - `#[tsx(default = "..")]` — the default expression as written (defaults to
 ///   the struct's `Default::default()`).
 #[proc_macro_derive(TsxProps, attributes(tsx))]
@@ -36,31 +35,27 @@ pub fn derive_tsx_props(input: TokenStream) -> TokenStream {
     }
 }
 
-/// `#[derive(Table)]`: the comptime ORM of `src/db/sqlite.zig` (`Table(T)`) as
-/// a derive macro.
+/// `#[derive(Table)]`: the compile-time ORM behind `zant::db::sqlite::Table<T>`.
 ///
 /// It generates an `impl zant::db::sqlite::TableModel for T` with the table
-/// name, the exact SQL text Zig generated (`CREATE TABLE`, `SELECT`, `INSERT`,
-/// `UPDATE`, `DELETE`, `COUNT`, and the `ALTER TABLE ... ADD COLUMN` list used
-/// to migrate older table files), plus the parameter binding and row reading
-/// code.
+/// name, the SQL text (`CREATE TABLE`, `SELECT`, `INSERT`, `UPDATE`, `DELETE`,
+/// `COUNT`, and the `ALTER TABLE ... ADD COLUMN` list used to migrate older
+/// table files), plus the parameter binding and row reading code. The SQL text
+/// is stable so existing databases keep opening.
 ///
 /// Struct attributes:
-/// - `#[table(name = "users")]` — SQL table name; mirrors Zig's
-///   `pub const table_name`. Without it the Rust type name is used. Zig's
-///   `@typeName(T)` fallback is the module root name plus the type name (for
-///   the original test file, `"db_test.Message"`), so models with existing
-///   table files should always spell the name out.
+/// - `#[table(name = "users")]` — SQL table name. Without it the Rust type
+///   name is used, so models with existing table files should always spell
+///   the name out (renaming the type would otherwise rename the table).
 ///
 /// Field attributes:
 /// - `#[table(default = "image")]` — the enum variant used for rows written by
-///   an older app version (and by `ALTER TABLE ... DEFAULT`), mirroring Zig's
-///   field default (`kind: Kind = .image`). Without it the enum's first variant
-///   (`SqlEnum::FIRST`) is used, like Zig's `defaultEnum` fallback.
+///   an older app version (and by `ALTER TABLE ... DEFAULT`). Without it the
+///   enum's first variant (`SqlEnum::FIRST`) is used.
 ///
 /// The model must be a plain struct with named fields. `id` is the
 /// auto-increment primary key (`INTEGER PRIMARY KEY AUTOINCREMENT`); an
-/// `Option<i64>` `id` is a plain nullable column instead, like Zig.
+/// `Option<i64>` `id` is a plain nullable column instead.
 #[proc_macro_derive(Table, attributes(table))]
 pub fn derive_table(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as syn::DeriveInput);

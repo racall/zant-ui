@@ -1,11 +1,11 @@
-//! Port of `src/ui_runtime.zig:654-1092`: patching a retained node with the
-//! element of the same position (`applyCommon`, `patchNode`) and the small
-//! equality / selection helpers it needs.
+//! Patching a retained node with the element of the same position
+//! (`apply_common`, `patch_node`) and the small equality / selection helpers
+//! it needs.
 //!
 //! Patching only writes what changed: layout is marked dirty when a box /
 //! visual / content affecting layout changed, paint only for colours and
 //! component state. Actions are cloned out of the element into the node — the
-//! runtime clones them out of the node again before calling (plan.md §4).
+//! runtime clones them out of the node again before calling.
 #![forbid(unsafe_code)]
 
 use crate::Str;
@@ -17,7 +17,7 @@ use crate::ui::element::{Element, Node};
 use super::Runtime;
 
 impl Runtime {
-    /// Zig `applyCommon`: style, visual, motion, enabled and tooltip of any
+    /// Style, visual, motion, enabled and tooltip of any
     /// node kind. Returns true when the layout is affected.
     pub(crate) fn apply_common(&mut self, id: NodeId, element: &Element) -> bool {
         let mut layout_changed;
@@ -96,7 +96,7 @@ impl Runtime {
         layout_changed
     }
 
-    /// Zig `patchNode`: updates the retained node `id` from `spec` and
+    /// Updates the retained node `id` from `spec` and
     /// reconciles its children for containers. Returns true when the layout
     /// must run.
     pub(crate) fn patch_node(&mut self, id: NodeId, spec: Node) -> bool {
@@ -364,9 +364,9 @@ impl Runtime {
                 };
                 if element.image_id != 0 {
                     if data.source_id != element.image_id {
-                        // Zig compares the intrinsic size before / after
-                        // `image.zig:setSource`: a differently sized source
-                        // changes the measured box.
+                        // compare the intrinsic size before / after
+                        // `set_source`: a differently sized source changes
+                        // the measured box.
                         let old_width = data.intrinsic_width;
                         let old_height = data.intrinsic_height;
                         crate::components::image::set_source(
@@ -381,8 +381,8 @@ impl Runtime {
                         paint_changed = true;
                     }
                 } else if data.source_id != 0 || data.path != element.content {
-                    // Zig loads the file synchronously here (`image.zig:load`);
-                    // this runs during reconcile, never from `render`.
+                    // the file is loaded synchronously here; this runs
+                    // during reconcile, never from `render`.
                     data.path = Str::copy(&element.content);
                     data.source_id = 0;
                     crate::components::image::load(data);
@@ -457,7 +457,7 @@ impl Runtime {
     }
 }
 
-/// Zig `applySelection`: applies a controlled input selection when it changed.
+/// Applies a controlled input selection when it changed.
 /// Returns true when the input must repaint.
 pub(crate) fn apply_selection(data: &mut InputData, selection: Option<[usize; 2]>) -> bool {
     let Some(selection) = selection else {
@@ -480,8 +480,7 @@ pub(crate) fn apply_selection(data: &mut InputData, selection: Option<[usize; 2]
     true
 }
 
-/// Zig `clampBoundary`: the largest char boundary `<= index` (Zig walked back
-/// over UTF-8 continuation bytes; the Rust port asks `str` directly).
+/// The largest char boundary `<= index`.
 pub(crate) fn clamp_boundary(bytes: &str, index: usize) -> usize {
     let mut index = index.min(bytes.len());
     while index > 0 && !bytes.is_char_boundary(index) {
@@ -491,8 +490,7 @@ pub(crate) fn clamp_boundary(bytes: &str, index: usize) -> usize {
 }
 
 /// `renderer::text::Style` has no `PartialEq` (it is a plain option struct);
-/// compare the fields the patch pass cares about, like Zig's
-/// `std.meta.eql(data.style, element.text_style)`.
+/// compare the fields the patch pass cares about.
 fn text_style_equal(a: &text::Style, b: &text::Style) -> bool {
     a.font_size == b.font_size
         && a.weight == b.weight
@@ -504,7 +502,7 @@ fn text_style_equal(a: &text::Style, b: &text::Style) -> bool {
         && a.family == b.family
 }
 
-/// Zig `richSpansEqual`: field-by-field, embed drawings by content hash.
+/// Field-by-field, embed drawings by content hash.
 fn rich_spans_equal(a: &[RichSpan], b: &[RichSpan]) -> bool {
     if a.len() != b.len() {
         return false;
@@ -545,7 +543,7 @@ fn rich_spans_equal(a: &[RichSpan], b: &[RichSpan]) -> bool {
     true
 }
 
-/// Zig `selectOptionsEqual`.
+/// Whether the select already holds exactly `options`.
 fn select_options_equal(data: &SelectData, options: &[Str]) -> bool {
     if data.options.len() != options.len() {
         return false;
@@ -653,7 +651,7 @@ mod tests {
         assert!(!rich_spans_equal(std::slice::from_ref(&base), &[]));
     }
 
-    // ── WP-2.1: image loading in the reconcile / patch arms ─────────────────
+    // ── image loading in the reconcile / patch arms ─────────────────────────
 
     struct Picture {
         path: String,
@@ -707,7 +705,7 @@ mod tests {
             assert!(data.handle.is_none());
             assert_eq!((data.intrinsic_width, data.intrinsic_height), (0, 0));
         }
-        // the path changes: the patch arm loads it (Zig `image.zig:load`) and
+        // the path changes: the patch arm loads it and
         // its intrinsic size re-lays out the box
         runtime.app_state_mut::<Picture>().path = real_path.clone();
         runtime.rebuild_for_test();
@@ -720,7 +718,7 @@ mod tests {
             runtime.tree.needs_layout(),
             "a new intrinsic size dirties the layout"
         );
-        // an in-memory source goes through `setSource`
+        // an in-memory source goes through `set_source`
         runtime.app_state_mut::<Picture>().image = Some(Rc::new(source));
         runtime.rebuild_for_test();
         {

@@ -1,14 +1,13 @@
 //! `createWindow(Panel, { … })` in TSX: another window of the app rendering a
-//! component without props (port of `src/tsx_window.zig`).
+//! component without props.
 //!
 //! The window opens the first time it is used (`show`, `toggle`, …) and keeps
 //! its component's state, like any instance, in its own runtime. Hooks inside
 //! the component (`useKeyDown`, `useCloseRequest`, `useWindowFocus`) become
 //! this window's.
 //!
-//! Zig passed a pointer to the component built last (`last: ?*Comp`) to the
-//! window hooks; Rust closures capture the component's shared `local_state`
-//! instead, and the generated `impl tsx::window::Component for Panel` rebuilds
+//! The window hooks are closures that capture the component's shared
+//! `local_state`, and the generated `impl tsx::window::Component for Panel` rebuilds
 //! the component from it:
 //!
 //! ```ignore
@@ -35,7 +34,7 @@ use super::app::{KeyEvent, current_theme, key_event};
 /// A TSX component that can live in its own window: a component without props
 /// whose state is its `Local`.
 pub trait Component: Sized + 'static {
-    /// The component's `local_state` type (`_Local` in the Zig codegen).
+    /// The component's `local_state` type.
     type Local: Default + 'static;
 
     /// Builds the component around its shared local state (the codegen sets
@@ -59,7 +58,7 @@ pub trait Component: Sized + 'static {
     }
 }
 
-/// Another window of the app (`tsx.Window(Comp)` in Zig) rendering `C`.
+/// Another window of the app rendering `C`.
 pub struct Window<C: Component> {
     options: desktop::OpenOptions,
     handle: Option<desktop::Window>,
@@ -175,7 +174,7 @@ impl<C: Component> Window<C> {
         }
     }
 
-    /// The theme windows of the app use now (Zig `Window.theme`).
+    /// The theme windows of the app use now.
     pub fn theme(&self) -> tokens::Theme {
         current_theme()
     }

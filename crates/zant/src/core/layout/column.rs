@@ -1,4 +1,4 @@
-//! Port of `src/core/layout.zig` — WP-1.3: column layout.
+//! Column layout.
 #![forbid(unsafe_code)]
 
 use crate::core::layout::Nodes;
@@ -11,9 +11,9 @@ use crate::core::node::NodeId;
 use crate::layout::flex;
 use crate::theme::tokens::Theme;
 
-/// Port of `layoutColumn`: a vertical flex line (also used for scroll
+/// Lays out a vertical flex line (also used for scroll
 /// containers with no definite height, which then measure their content).
-#[allow(clippy::too_many_arguments)] // mirrors the Zig signature
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn layout_column(
     nodes: &mut Nodes<'_>,
     id: NodeId,

@@ -1,5 +1,5 @@
 //! `zant-tsx-tags [--check] <path>` writes the reflected tag table; `--check`
-//! verifies the file is up to date. Port of `tools/tsx/manifest/main.zig`.
+//! verifies the file is up to date.
 //!
 //! Regenerate `crates/zant-tsx/src/ui_tags.rs` with
 //!

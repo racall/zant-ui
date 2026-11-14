@@ -1,4 +1,4 @@
-// In-memory images, an imported asset and the hotkey recorder (tests/tsx_media_test.zig).
+// In-memory images, an imported asset and the hotkey recorder.
 import { useState, View, Image, HotkeyInput, Text } from "zant";
 import { thumbnail, pngWidth } from "./thumbs.rs";
 import dot from "../assets/dot.png";

@@ -1,8 +1,6 @@
 //! After inlining: a custom hook still named somewhere was called where
 //! hooks can't be (inside a condition, a loop, a handler, a plain
 //! function); and a hook's body may only return at its end.
-//!
-//! Direct translation of `tools/tsx/hooks/leftover.zig`.
 
 use crate::ast::{self, Loc};
 

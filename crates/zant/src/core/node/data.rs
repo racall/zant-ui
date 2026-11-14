@@ -1,9 +1,9 @@
 //! Data types of retained nodes.
 //!
-//! Port of the *data* declarations of `src/core/node.zig` (WP-1.2; the tree,
-//! layout and paint behaviour of a retained node is WP-1.3 in
-//! `core/node/{mod,text,rich_text}.rs`). `ui::Element` stores these types, so
-//! they are needed before the retained tree exists.
+//! Only the *data* declarations live here; the tree, layout and paint
+//! behaviour of a retained node is in `core/node/{mod,text,rich_text}.rs`.
+//! `ui::Element` stores these types, so they do not depend on the retained
+//! tree.
 #![forbid(unsafe_code)]
 
 use crate::Str;
@@ -68,7 +68,7 @@ pub enum ButtonSize {
     Large,
 }
 
-/// `enum(c_int)` in Zig: the value is handed to the native image bridge.
+/// `#[repr(i32)]`: the value is handed to the native image bridge.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[repr(i32)]
 pub enum ImageFit {
@@ -78,15 +78,15 @@ pub enum ImageFit {
     Fill = 2,
 }
 
-/// The Zant icon set (`core::icons::Icon`, 24×24 line icons). Zig had a single
-/// enum used by both `ui.Element` and the drawing functions, so Rust re-exports
-/// the definition from `core/icons.rs` here instead of duplicating it.
+/// The Zant icon set (`core::icons::Icon`, 24×24 line icons). One enum is used
+/// by both `ui::Element` and the drawing functions, so the definition from
+/// `core/icons.rs` is re-exported here instead of duplicated.
 pub use crate::core::icons::Icon;
 
-/// Zig: `pub const ButtonIcon = icons.zig.Icon;`
+/// The icon of a button: the shared [`Icon`] set.
 pub type ButtonIcon = Icon;
 
-/// Per-node dirty flags (Zig `packed struct`); WP-1.3 uses them.
+/// Per-node dirty flags.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct DirtyFlags {
     pub layout: bool,
@@ -138,7 +138,7 @@ pub struct FlexStyle {
 }
 
 impl Default for FlexStyle {
-    /// Field defaults of the Zig struct (note `shrink = 1`).
+    /// Note `shrink = 1`, as in CSS.
     fn default() -> Self {
         FlexStyle {
             direction: flex::Direction::Row,
@@ -187,7 +187,7 @@ pub struct MotionStyle {
 }
 
 impl Default for MotionStyle {
-    /// Zig: `.{ .presence = .none, .origin = .center, .layout_transition = null }`.
+    /// No presence animation, centered origin, no layout transition.
     fn default() -> Self {
         MotionStyle {
             presence: motion::Presence::None,
@@ -245,7 +245,6 @@ pub struct PointerArea {
 }
 
 impl Default for PointerArea {
-    /// Zig: `.{ .action = .., .capture_scroll = false, .clicks = true }`.
     fn default() -> Self {
         PointerArea {
             action: crate::ui::actions::PointerAction::new(|_, _| false),
@@ -279,8 +278,7 @@ pub struct RichSpan {
 }
 
 impl Default for RichSpan {
-    /// Field defaults of the Zig struct (`text` is required there; an empty
-    /// span is harmless and keeps `..Default::default()` usable).
+    /// An empty span is harmless and keeps `..Default::default()` usable.
     fn default() -> Self {
         RichSpan {
             text: Str::default(),

@@ -1,6 +1,5 @@
-//! Ported tests of `src/tsx_builtins.zig`: same names, same assertions (the
-//! `tsx.fmt` template assertion becomes `format!` with [`string`], which is
-//! what generated Rust code emits).
+//! Tests of the `Math` / number builtins (the template assertion uses
+//! `format!` with [`string`], which is what generated code emits).
 
 use super::*;
 use crate::Str;
@@ -181,8 +180,7 @@ fn js_number_formatting_decimal_carries_templates_and_clocks() {
     ] {
         eq_str(expected, to_fixed(value, digits));
     }
-    // Zig: `tsx.fmt("{{{d}}} {d} {d} {d} {d}", …)`; Rust codegen emits
-    // `format!` with the JS spelling at the float fields.
+    // The codegen emits `format!` with the JS spelling at the float fields.
     let formatted = format!(
         "{{{}}} {} {} {} {}",
         string(1e21f64),

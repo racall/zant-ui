@@ -4,8 +4,8 @@
 #
 # Run from a clean checkout after scripts/fetch_skia_windows.ps1, on a machine
 # with Visual Studio (C++) and Rust on PATH (or $env:CARGO): rustup installs
-# the toolchain pinned in rust-toolchain.toml, so no Zig is needed any more.
-# WP-6.6: apps in the archive link the prebuilt native layer instead of
+# the toolchain pinned in rust-toolchain.toml.
+# Apps in the archive link the prebuilt native layer instead of
 # compiling C++/C, so this needs scripts/release/prebuilt.ps1 to have run (or
 # $env:ZANT_NATIVE_PREBUILT set to a directory made by it); -AllowNoPrebuilt
 # packages without it.
@@ -17,7 +17,7 @@
 #                                        (crates/zant-sys/native/skia, platform)
 #   zant-ui/third_party/                 Skia libraries, headers, PDFium and fonts
 #   zant-ui/third_party/zant-native-prebuilt/
-#                                        zant_native.lib + metadata.txt (WP-6.6):
+#                                        zant_native.lib + metadata.txt:
 #                                        app builds link this instead of compiling
 #                                        the native layer; build.rs falls back to
 #                                        compiling if it is stale
@@ -40,7 +40,7 @@ Set-Location $Root
 if (!(Test-Path 'third_party/skia-win/skia-binaries/skia.lib')) { throw 'run scripts/fetch_skia_windows.ps1 first' }
 if (!(Test-Path 'third_party/skia-headers/include/core/SkSurface.h')) { throw 'run scripts/fetch_skia_windows.ps1 first' }
 
-# WP-6.6: the prebuilt native library the archive ships. $env:ZANT_NATIVE_PREBUILT
+# The prebuilt native library the archive ships. $env:ZANT_NATIVE_PREBUILT
 # is the same variable build.rs reads, so setting it here also makes the
 # packaging build skip the C++ compile. Otherwise use the directory
 # scripts/release/prebuilt.ps1 wrote by default.
@@ -65,7 +65,7 @@ if ($prebuilt) {
 }
 
 # --locked keeps the release on the committed Cargo.lock; Rust targets the
-# baseline CPU by default (Zig needed -Dcpu=baseline).
+# baseline CPU by default.
 & $Cargo build --release --locked -p zant-cli --bin zant
 if ($LASTEXITCODE -ne 0) { throw 'cargo build -p zant-cli failed' }
 

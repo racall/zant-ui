@@ -1,14 +1,8 @@
-//! Port of `src/components/widgets.zig` — WP-3.3 (markdown half) and WP-M3
-//! (PDF half).
-//!
 //! Stateful document builders. Slots belong to the current runtime and are
 //! destroyed on unmount, including caches, documents and PDF worker threads.
 //!
-//! Ported here: [`MarkdownOptions`] / [`MarkdownState`] / [`markdown`] and
-//! [`PdfViewerOptions`] / [`PdfViewerState`] / [`pdf_viewer`] (the PDF widget
-//! was ported line for line by WP-3.11 in the `zant-components` example while
-//! `pdf/viewer.rs` was still being ported; WP-M3 moved it here, where the Zig
-//! source has it).
+//! Provides [`MarkdownOptions`] / [`MarkdownState`] / [`markdown`] and
+//! [`PdfViewerOptions`] / [`PdfViewerState`] / [`pdf_viewer`].
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -104,8 +98,8 @@ pub struct MarkdownState {
 }
 
 impl MarkdownState {
-    /// Zig `deinit` released the parsed blocks and their arenas; the Rust cache
-    /// frees them on `Drop`, so this is a no-op kept for a symmetrical API.
+    /// The cache frees the parsed blocks on `Drop`, so this is a no-op kept
+    /// for a symmetrical API.
     pub fn deinit(&mut self) {}
 }
 
@@ -146,6 +140,8 @@ pub fn markdown(id: u64, options: MarkdownOptions) -> Node {
                 content_width: options.content_width,
                 is_animating: options.streaming,
                 caret: options.caret,
+                line_numbers: options.line_numbers,
+                code_max_height: options.code_max_height,
                 controls: Controls {
                     code: CodeControls {
                         copy: options.code_copy,
@@ -167,7 +163,6 @@ pub fn markdown(id: u64, options: MarkdownOptions) -> Node {
                 labels: options.labels.clone(),
                 image_loader: options.image_loader.clone(),
                 block_renderers: options.block_renderers.clone(),
-                ..Default::default()
             },
         };
         view::streamdown(&mut state.cache, &options.source, render)
@@ -184,8 +179,7 @@ pub fn markdown(id: u64, options: MarkdownOptions) -> Node {
 
 // ── PDF viewer widget ─────────────────────────────────────────────────────
 
-/// Zig `PdfViewerOptions`: full reader options, with document source and flex
-/// sizing added.
+/// Full reader options, with document source and flex sizing added.
 pub struct PdfViewerOptions {
     pub src: Str,
     pub password: Option<Str>,
@@ -235,7 +229,7 @@ impl Default for PdfViewerOptions {
     }
 }
 
-/// Zig `PdfViewerState`: the slot payload, including owned input strings (TSX
+/// The slot payload, including owned input strings (TSX
 /// props may be frame memory).
 #[derive(Default)]
 pub struct PdfViewerState {
@@ -249,7 +243,7 @@ pub struct PdfViewerState {
 }
 
 impl PdfViewerState {
-    /// Zig `update`: remembers a changed source / password and opens it after
+    /// Remembers a changed source / password and opens it after
     /// reconciliation (file I/O must not run in the build itself). Failed paths
     /// are remembered too (no retry every frame).
     fn update(state: &Rc<RefCell<PdfViewerState>>, options: &PdfViewerOptions, fresh: bool) {
@@ -267,7 +261,7 @@ impl PdfViewerState {
         ui::effect(Action::new(move |_cx| PdfViewerState::open(&effect_state)));
     }
 
-    /// Zig `open`: closes the document and opens `src` (empty clears it).
+    /// Closes the document and opens `src` (empty clears it).
     fn open(state: &Rc<RefCell<PdfViewerState>>) {
         let (src, password) = {
             let slot = state.borrow();
@@ -297,7 +291,7 @@ fn same_password(a: Option<&str>, b: Option<&str>) -> bool {
     }
 }
 
-/// Zig `pdfViewer`: a complete PDF reader that reopens only when src/password
+/// A complete PDF reader that reopens only when src/password
 /// change. Empty, loading and failed sources keep the same size and themed
 /// surface.
 pub fn pdf_viewer(id: u64, options: PdfViewerOptions) -> Node {
@@ -399,8 +393,6 @@ pub fn pdf_viewer(id: u64, options: PdfViewerOptions) -> Node {
 mod tests {
     use super::*;
 
-    /// Zig `widgets.zig`: `test "password identity includes presence and
-    /// content"`.
     #[test]
     fn password_identity_includes_presence_and_content() {
         assert!(same_password(None, None));

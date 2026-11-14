@@ -1,6 +1,6 @@
-//! `counter.tsx` vs `counter_manual.zig` (ported): 3000 clicks cycling every
-//! control of the page, then 300 typed characters. Zig `bench.zig`'s `clicks`
-//! and `typing` scenarios.
+//! `counter.tsx` vs the hand-written counter: 3000 clicks cycling every
+//! control of the page, then 300 typed characters (the `clicks` and `typing`
+//! scenarios).
 #![forbid(unsafe_code)]
 
 use zant::ui::App;
@@ -8,18 +8,18 @@ use zant::ui::App;
 use super::controls::counter::Counter as ManualCounter;
 use super::{Harness, Stats, counter_case};
 
-/// Zig `counter_keys`: the controls in the order the scenario clicks them.
+/// The controls in the order the scenario clicks them.
 const COUNTER_KEYS: [&str; 9] = [
     "inc", "inc", "step", "inc", "large", "notify", "reset", "inc", "step",
 ];
 
-/// The TSX root component (`src/App.tsx` of `examples/tsx/counter.tsx`).
+/// The TSX root component (`src/App.tsx` of `tsx/corpus/counter.tsx`).
 type TsxCounter = counter_case::app::Counter;
 
-/// Zig `clickCounter` decided whether `reset` was clickable from the state
-/// (`count == 0`). The TSX root state is private in Rust, so the benchmark
-/// tracks the same tiny state machine (count / step) on both sides; clicks are
-/// only dispatched where the Zig loop dispatched them.
+/// Whether `reset` is clickable depends on the state (`count == 0`). The TSX
+/// root state is private, so the benchmark tracks the same tiny state machine
+/// (count / step) on both sides; clicks are only dispatched on enabled
+/// controls.
 #[derive(Clone, Copy)]
 struct Shadow {
     count: u32,
@@ -45,7 +45,7 @@ impl Shadow {
     }
 }
 
-/// Zig `clickCounter`: 3000 timed click frames.
+/// 3000 timed click frames.
 fn clicks(app: impl App) -> Stats {
     let mut harness = Harness::new(app);
     let mut stats = Stats::new();
@@ -63,7 +63,7 @@ fn clicks(app: impl App) -> Stats {
     stats
 }
 
-/// Zig `typing`: click the input, then 300 characters.
+/// Click the input, then 300 characters.
 fn typing(app: impl App) -> Stats {
     let mut harness = Harness::new(app);
     harness.click("name").expect("the name input is on screen");
@@ -79,7 +79,7 @@ pub fn tsx() -> Vec<Stats> {
     vec![clicks(TsxCounter::default()), typing(TsxCounter::default())]
 }
 
-/// The hand-written control: `counter_manual.zig` ported.
+/// The hand-written control.
 pub fn manual() -> Vec<Stats> {
     vec![clicks(ManualCounter::new()), typing(ManualCounter::new())]
 }

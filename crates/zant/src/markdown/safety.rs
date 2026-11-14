@@ -1,5 +1,3 @@
-//! Port of `src/markdown/safety.zig` — WP-3.2.
-//!
 //! URL hardening for links and images (Streamdown's rehype-harden).
 //!
 //! The parser keeps every URL; the renderer asks `check` before making a span

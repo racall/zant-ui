@@ -1,4 +1,4 @@
-# The TSX component gallery (port of examples/tsx/gallery.tsx) (WP-5.10b).
+# The TSX component gallery.
 #
 # The app is a Cargo workspace member: `build.rs` calls
 # `zant_build::try_tsx_app()` (the template's TSX → Rust step) and writes

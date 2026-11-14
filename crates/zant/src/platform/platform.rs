@@ -1,14 +1,12 @@
-//! Port of `src/platform/platform.zig` — WP-1.1d.
-//!
-//! Safe wrappers over the platform C ABI (`src/platform/platform.h`, implemented
-//! by `src/platform/macos/window.m` and `src/platform/windows/window.c`):
+//! Safe wrappers over the platform C ABI (`platform.h` in
+//! `zant-sys/native/platform/`, implemented by `macos/window.m` and
+//! `windows/window.c`):
 //! a main window plus optional extra windows, the `ZantHost` callback table
 //! forwarded to a Rust [`HostHandler`], window services, clipboard, tray /
 //! status bar item, global hotkeys, launch-at-login and native dialogs.
 //!
 //! The C callback table (`ZantHost`) is an `extern "C"` trampoline that
-//! forwards to a `Box<dyn HostHandler>` stored next to the window; see
-//! docs/rust-port/plan.md WP-1.1d.
+//! forwards to a `Box<dyn HostHandler>` stored next to the window.
 
 use std::cell::RefCell;
 use std::ffi::{CStr, CString};
@@ -133,8 +131,7 @@ pub fn event_command(event: &Event) -> bool {
     }
 }
 
-/// Errors of window creation (Zig: `error.UnsupportedPlatform` /
-/// `error.WindowCreationFailed`).
+/// Errors of window creation.
 #[derive(Debug, thiserror::Error)]
 pub enum PlatformError {
     #[error("unsupported platform")]
@@ -370,8 +367,7 @@ unsafe extern "C" fn trampoline_wake(userdata: *mut std::ffi::c_void) {
 }
 
 /// `ZANT_WINDOW_SIZE=WxH` (automation): forces the logical window size so
-/// `scripts/parity/capture.sh` can screenshot at fixed sizes and compare the Zig
-/// and Rust builds (Zig change log in docs/rust-port/status.md).
+/// scripts can take screenshots at fixed sizes and compare them.
 fn parse_window_size(value: &str) -> Option<(f32, f32)> {
     let (width, height) = value.split_once('x')?;
     let width: f32 = width.parse().ok()?;
@@ -605,7 +601,7 @@ pub fn set_post_wake_window(window: *mut ffi::ZantWindow) {
 }
 
 /// Thread-safe: asks the UI thread to run the `wake` callback once and redraw
-/// (Zig: `ui.postWake`). Does nothing before a window exists.
+/// (`ui::post_wake`). Does nothing before a window exists.
 pub fn post_wake() {
     let handle = POST_WAKE_WINDOW.load(Ordering::Relaxed);
     if !handle.is_null() {
@@ -692,7 +688,7 @@ pub unsafe fn set_app_handler(
 ///
 /// The native side delivers these through a single C callback; this trait is
 /// the safe half (`desktop` installs it from `ui::app::run`) so the high-level
-/// modules do not need `unsafe` (plan.md §3 rule 5).
+/// modules do not need `unsafe`.
 pub trait AppEventHandler {
     fn event(&mut self, event: &AppEvent);
 }
@@ -724,8 +720,7 @@ unsafe extern "C" fn app_event_trampoline(
     });
 }
 
-/// Installs the handler of the app-level native events (Zig
-/// `zant.desktop.setAppEventHandler` / `setExitHandler`); called by
+/// Installs the handler of the app-level native events; called by
 /// `ui::app::run`.
 pub fn install_app_event_handler(handler: impl AppEventHandler + 'static) {
     APP_EVENT_HANDLER.with(|slot| *slot.borrow_mut() = Some(Box::new(handler)));
@@ -944,8 +939,8 @@ pub fn clipboard_change_count() -> u64 {
 
 /// Monotonic clock in microseconds.
 ///
-/// Zig called `clock_gettime(MONOTONIC)` / `QueryPerformanceCounter`; Rust's
-/// `Instant` is the std equivalent (the port only ever uses differences).
+/// Measured with `Instant` from the first call (callers only ever use
+/// differences).
 pub fn monotonic_us() -> i64 {
     static EPOCH: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
     let epoch = EPOCH.get_or_init(Instant::now);

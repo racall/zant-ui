@@ -1,11 +1,10 @@
-//! Build-wide and per-module state of the application layer (WP-5.6).
+//! Build-wide and per-module state of the application layer.
 //!
-//! The Zig compiler carries the application-layer bookkeeping on its
-//! `Generator` (`imports`, `zig_imports`, `windows`, `desktop_hooks`,
-//! `app_hooks`). The Rust codegen core ([`super::Generator`], WP-5.3/5.5) has
-//! no fields for them and `generate::install` is the only per-module entry
-//! point WP-5.6 may touch, so this module keeps that state in thread-local
-//! storage:
+//! The bookkeeping of `imports`, `rust_imports`, `windows`, `desktop_hooks`
+//! and `app_hooks` is kept out of the codegen core ([`super::Generator`]),
+//! which stays independent of the application layer; `generate::install` is
+//! its only per-module entry point. This module keeps that state in
+//! thread-local storage:
 //!
 //! - [`ProjectData`] is set once per project by [`crate::compile`]: the parsed
 //!   `.tsx`/`.rs` files, the asset imports and the entry file's name.
@@ -16,10 +15,6 @@
 //! Code generation is single threaded (one module at a time on the calling
 //! thread), so `RefCell` is enough; a nested `generate` call would clobber the
 //! state, which the pipeline never does.
-//!
-//! **Reported deviation**: the Zig `Generator` fields are a thread-local here
-//! instead of new `Generator` fields, because WP-5.5 owns `Generator` /
-//! `generate.rs` and this work package only fills the `install` hooks.
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -36,7 +31,7 @@ pub struct ModuleFile {
     pub name: String,
     /// The path as given to the compiler (`src/components/TodoRow.tsx`).
     pub path: String,
-    /// A native module spec (`native/clips.ts`, compiled by WP-5.8).
+    /// A native module spec (`native/clips.ts`, compiled by `native_specs`).
     pub native: bool,
     /// The source text (diagnostics of asset imports, entry generation).
     pub source: String,
@@ -53,9 +48,8 @@ pub struct RustSource {
     pub file: syn::File,
 }
 
-/// Everything the generation of one project needs (`imports.zig`'s
-/// `NamedModule` list, `zig_imports.zig`'s `Source` list, `assets.zig`'s copy
-/// list).
+/// Everything the generation of one project needs: the project's modules,
+/// the hand-written `.rs` sources and the asset copy list.
 pub struct ProjectData {
     /// Parsed `.tsx` files, in input order (native specs have `native` set).
     pub modules: Vec<ModuleFile>,
@@ -75,9 +69,9 @@ pub struct ProjectData {
 
 impl ProjectData {
     /// The `.tsx` file `source` names (`./components/TodoRow` → `TodoRow`),
-    /// `None` for native specs (Zig `imports.findModule`).
+    /// `None` for native specs.
     pub fn find_module(&self, source: &str) -> Option<&ModuleFile> {
-        if source.ends_with(".rs") || source.ends_with(".zig") {
+        if source.ends_with(".rs") {
             return None;
         }
         let name = imports::stem(source);
@@ -97,7 +91,7 @@ impl ProjectData {
         self.modules.iter().find(|module| module.path == path)
     }
 
-    /// The project's parsed files as `stateful::ModuleSource` (`components.zig`
+    /// The project's parsed files as `stateful::ModuleSource` (`components`
     /// asks whether an imported component keeps local state).
     pub fn module_sources(&self) -> Vec<super::stateful::ModuleSource<'_>> {
         self.modules
@@ -110,7 +104,7 @@ impl ProjectData {
     }
 }
 
-/// A `createWindow` declaration (`windows.zig`'s `Window`).
+/// A `createWindow` declaration (see `windows`).
 #[derive(Clone, Debug)]
 pub struct Window {
     pub name: String,
@@ -119,9 +113,9 @@ pub struct Window {
     pub rust: String,
 }
 
-/// A registered `useTray` / `useHotkey` callback (`desktop_hooks.zig`'s
-/// `Callback`; the Rust AST has no stable node addresses, so the expression is
-/// compared structurally like `hooks::Effect` does).
+/// A registered `useTray` / `useHotkey` callback (see `desktop_hooks`; the
+/// AST has no stable node addresses, so the expression is compared
+/// structurally like `hooks::Effect` does).
 #[derive(Clone, Debug)]
 pub struct DesktopCallback {
     pub expr: ast::Expr,
@@ -130,22 +124,21 @@ pub struct DesktopCallback {
 
 /// The app-layer state of the module being generated.
 pub struct ModuleState {
-    /// `imports.zig`: types imported by name from project files.
+    /// `imports`: types imported by name from project files.
     pub imported_types: Vec<imports::ImportedType>,
-    /// `imports.zig`: import scopes of other project files.
+    /// `imports`: import scopes of other project files.
     pub scopes: Vec<imports::Scope>,
-    /// The scope declarations are currently resolved in (`Generator::type_scope`
-    /// in the Zig compiler, which only kept a flag).
+    /// The scope declarations are currently resolved in.
     pub type_scope: Option<usize>,
-    /// `zig_types.zig`: types imported by name from `.rs` files.
+    /// `rust_imports`: types imported by name from `.rs` files.
     pub rust_types: Vec<rust_imports::ImportedType>,
-    /// `zig_imports.zig`: functions imported from `.rs` files.
+    /// `rust_imports`: functions imported from `.rs` files.
     pub rust_functions: Vec<rust_imports::Function>,
-    /// `windows.zig`: the `createWindow` handles of this file.
+    /// `windows`: the `createWindow` handles of this file.
     pub windows: Vec<Window>,
-    /// `desktop_hooks.zig`: the callbacks registered by `collect`.
+    /// `desktop_hooks`: the callbacks registered by `collect`.
     pub desktop_callbacks: Vec<DesktopCallback>,
-    /// `windows.zig`: the handle whose `Window::new` is being emitted (the
+    /// `windows`: the handle whose `Window::new` is being emitted (the
     /// source of `createWindow` components' state).
     pub app_config: Option<crate::compile::ConfigSpec>,
 }

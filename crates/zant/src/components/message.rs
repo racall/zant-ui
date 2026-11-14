@@ -1,4 +1,4 @@
-//! Port of `src/components/message.zig` — WP-2.5: the antd global message.
+//! The antd global message.
 //!
 //! A small pill centred near the top of the window that drops in and fades
 //! out. It holds nothing clickable, so clicks pass through to the page.
@@ -54,7 +54,7 @@ impl Default for MessageOptions {
     }
 }
 
-/// Zig `message`: the transient pill near the top of the window.
+/// The transient pill near the top of the window.
 pub fn message(o: MessageOptions) -> Node {
     let theme = current_theme();
     let icon_name: Icon = match o.kind {
@@ -145,7 +145,7 @@ mod tests {
     }
 
     #[test]
-    fn message_defaults_match_the_zig_struct() {
+    fn message_defaults() {
         let defaults = MessageOptions::default();
         assert_eq!(defaults.key.as_str(), "message");
         assert!(defaults.text.is_empty());

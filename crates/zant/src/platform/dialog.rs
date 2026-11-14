@@ -1,5 +1,3 @@
-//! Port of `src/platform/dialog.zig` — WP-1.1d.
-//!
 //! Native modal dialogs and small platform services (AppKit on macOS,
 //! IFileDialog / TaskDialog / ShellExecute on Windows).
 
@@ -10,8 +8,7 @@ use zant_sys::platform as ffi;
 /// Extensions of `open_file` / `save_file` (Markdown and plain text).
 pub const TEXT_EXTENSIONS: &str = "md,markdown,txt";
 
-/// Errors of file dialogs / file writing (Zig: `error.WriteFailed`,
-/// `error.NameTooLong`).
+/// Errors of file dialogs / file writing.
 #[derive(Debug, thiserror::Error)]
 pub enum DialogError {
     #[error("write failed")]

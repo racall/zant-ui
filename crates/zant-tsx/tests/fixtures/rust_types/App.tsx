@@ -1,4 +1,4 @@
-// Zig structs and enums used from TSX (tests/tsx_zig_types_test.zig).
+// Rust structs and enums used from TSX.
 import { useState, View, Text, Button } from "zant";
 import { peers, label, firstOnline } from "./devices.rs";
 import type { Peer, Kind } from "./devices.rs";

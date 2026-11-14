@@ -1,10 +1,10 @@
-//! Port of `src/components/modal.zig` — WP-2.5: the antd `Modal`.
+//! The antd `Modal`.
 //!
 //! A dimmed mask over the window with a centred card — title, close button,
 //! content and an optional footer. The mask fades and the card zooms (antd
 //! motion). Render it as the last child of the window root while it is open;
 //! give each modal its own `key`. Esc handling stays with the app (call the
-//! same close action from its key handler), like Zig.
+//! same close action from its key handler).
 //!
 //! ```ignore
 //! if state.help_open {
@@ -56,18 +56,17 @@ impl Default for ModalOptions {
             title: Str::Static(""),
             content: Node::default(),
             footer: None,
-            // Zig: `.width = 520`
             width: Some(520.0),
             on_close: None,
             closable: true,
             mask_closable: true,
-            // Zig: `.mask = 0x73000000`
+            // 45% black
             mask: 0x7300_0000,
         }
     }
 }
 
-/// Zig `modal`: the mask + centred card overlay.
+/// The mask + centred card overlay.
 pub fn modal(o: ModalOptions) -> Node {
     let theme = current_theme();
     let base = o.key.clone();
@@ -238,7 +237,7 @@ mod tests {
     }
 
     #[test]
-    fn modal_defaults_match_the_zig_struct() {
+    fn modal_defaults() {
         let defaults = ModalOptions::default();
         assert_eq!(defaults.key.as_str(), "modal");
         assert!(defaults.title.is_empty());

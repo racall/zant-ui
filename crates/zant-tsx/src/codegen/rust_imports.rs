@@ -1,7 +1,6 @@
 //! Public functions and types of hand-written Rust files, used from TSX
 //! (`import { plural } from "./format.rs"`, `import type { Peer } from
-//! "./sync.rs"`). Translation of `tools/tsx/codegen/{zig_imports,zig_types}.zig`
-//! with `std.zig.Ast` replaced by `syn`.
+//! "./sync.rs"`). The files are parsed with `syn`.
 //!
 //! A project file ending in `.rs` is copied next to the generated modules and
 //! declared as a Rust module by the generated entry, so its `pub fn`s are
@@ -38,7 +37,7 @@ pub struct Function {
     pub ret: Type,
 }
 
-/// A type imported by name into this file (`zig_types.Imported`).
+/// A type imported by name into this file.
 #[derive(Clone, Debug)]
 pub struct ImportedType {
     pub local: String,
@@ -110,7 +109,7 @@ pub fn process(g: &mut Generator<'_>, import: &ast::Import, source: &str) -> Res
     Ok(())
 }
 
-/// `name` is one of this file's imported Rust types (`zig_types.named`).
+/// `name` is one of this file's imported Rust types.
 pub fn named(_g: &mut Generator<'_>, name: &str) -> Result<Option<Type>> {
     Ok(app_state::with_module(|state| {
         state
@@ -193,8 +192,7 @@ fn find(file: &syn::File, name: &str) -> Option<syn::ItemFn> {
     })
 }
 
-/// The closest public function name, for "did you mean" (Zig
-/// `zig_imports.closest`).
+/// The closest public function name, for "did you mean".
 fn closest(file: &syn::File, name: &str) -> Option<String> {
     let mut best: Option<String> = None;
     let mut distance = 3usize;
@@ -273,7 +271,7 @@ fn quote_tokens(tokens: impl ToTokens) -> Option<String> {
     Some(tokens.to_token_stream().to_string().replace(' ', ""))
 }
 
-/// The TSX type of the Rust type `name` declared in `file` (`zig_types.resolve`).
+/// The TSX type of the Rust type `name` declared in `file`.
 pub fn resolve_type(
     g: &mut Generator<'_>,
     alias: &str,
@@ -355,7 +353,7 @@ pub fn resolve_type(
     }
 }
 
-/// A Rust type as a TSX type (`zig_types.mapIn`).
+/// A Rust type as a TSX type.
 pub fn map_type(
     g: &mut Generator<'_>,
     alias: &str,
@@ -453,8 +451,7 @@ pub fn map_type(
 ///
 /// The runtime takes imported assets as `&'static [u8]`
 /// (`tsx::platform::asset_image`, `tsx::desktop::TrayOptions::icon`), so the
-/// type keeps that spelling instead of `tsx::List<u8>` (deviation from
-/// WP-5.3's `Uint8Array` mapping, reported).
+/// type keeps that spelling instead of `tsx::List<u8>`.
 pub fn bytes(g: &mut Generator<'_>) -> Result<Type> {
     for (index, entry) in g.compounds.iter().enumerate() {
         if entry.rust == "&'static [u8]" {
@@ -498,7 +495,6 @@ mod tests {
         with_generator(|g| signature(g, "crate::format", &file, &function, 0))
     }
 
-    /// Ported from `tools/tsx/codegen/zig_imports.zig`'s signature test.
     #[test]
     fn signatures_map_primitive_optional_and_slice_types() {
         let source = "\
@@ -569,7 +565,6 @@ pub fn nothing() {}
         });
     }
 
-    /// Ported from the unsupported-signature test.
     #[test]
     fn unsupported_signatures_report_the_import_name_and_offending_type() {
         for parameter in [

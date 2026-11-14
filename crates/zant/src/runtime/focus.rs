@@ -1,8 +1,7 @@
-//! Port of `src/ui_runtime.zig:2188-2212` + `reportSelection`: focus moves and
-//! the input selection notification.
+//! Focus moves and the input selection notification.
 //!
-//! The Tab order itself lives in the retained tree (`Tree::tab_focus`,
-//! WP-1.3); this module only coordinates it with IME composition, the select
+//! The Tab order itself lives in the retained tree (`Tree::tab_focus`);
+//! this module only coordinates it with IME composition, the select
 //! popup and the `on_selection` callback.
 #![forbid(unsafe_code)]
 
@@ -11,7 +10,7 @@ use crate::core::node::{NodeData, NodeId};
 use super::Runtime;
 
 impl Runtime {
-    /// Zig `focusNode`: cancels the IME composition of the node that loses the
+    /// Cancels the IME composition of the node that loses the
     /// focus, moves the focus and closes a select popup that is no longer
     /// focused.
     pub(crate) fn focus_node(&mut self, id: Option<NodeId>) {
@@ -25,7 +24,7 @@ impl Runtime {
     }
 
     /// Focus moved away from an open select: close its popup so it cannot
-    /// swallow the next click (Zig `closeSelectUnlessFocused`).
+    /// swallow the next click.
     pub(crate) fn close_select_unless_focused(&mut self) {
         let Some(select_id) = self.open_select else {
             return;
@@ -53,7 +52,7 @@ impl Runtime {
         }
     }
 
-    /// Zig `focusedHasComposition`: the app's `on_key` hook is skipped while an
+    /// The app's `on_key` hook is skipped while an
     /// input method is composing.
     pub(crate) fn focused_has_composition(&self) -> bool {
         let Some(id) = self.tree.focused else {
@@ -62,7 +61,7 @@ impl Runtime {
         matches!(&self.tree.get(id).data, NodeData::Input(data) if data.has_composition)
     }
 
-    /// Zig `reportSelection`: notifies the focused input's `on_selection` when
+    /// Notifies the focused input's `on_selection` when
     /// its anchor / cursor moved.
     pub(crate) fn report_selection(&mut self) {
         let Some(id) = self.tree.focused else {

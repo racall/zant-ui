@@ -146,7 +146,7 @@ fn escape_rust(text: &str) -> String {
     out
 }
 
-/// Zig `{d}` prints `680` for an `f32`; Rust float literals need `680.0`.
+/// Whole numbers print as `680.0`: Rust float literals need the fraction.
 fn fmt_f32(value: f32) -> String {
     if value.is_finite() && value.fract() == 0.0 {
         format!("{value:.1}")

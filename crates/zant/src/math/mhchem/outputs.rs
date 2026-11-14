@@ -1,7 +1,5 @@
 //! Output builders: `ce_output` / `pu_output` / `pu2_output` / `output9`,
 //! `enumber`, `half` and the `- after o/d` action.
-//!
-//! Port of `src/math/mhchem.zig` (the remaining Parser action helpers).
 
 use super::chars::{
     char_at, digit_at, digits_end, eql, is_sign, opt_eql, replace_all, replace_alternatives,

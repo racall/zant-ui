@@ -1,5 +1,4 @@
-//! Port of `src/components/menu.zig` — WP-2.5: the antd Dropdown menu panel
-//! (Dropdown + Menu tokens).
+//! The antd Dropdown menu panel (Dropdown + Menu tokens).
 //!
 //! 8 px radius, 4 px padding, 32 px item rows with 12 px horizontal padding
 //! and a 4 px radius, a hover / press fill painted by the row's hit button,
@@ -8,8 +7,7 @@
 //!
 //! Position the panel with `ui::styled(.., Style { absolute: .. })` and put a
 //! `ui::dismiss_layer` before it so outside clicks close it; the runtime owns
-//! the open / close state and the `ui::key_bounds` positioning (Zig kept that
-//! in the app / runtime as well).
+//! the open / close state and the `ui::key_bounds` positioning.
 #![forbid(unsafe_code)]
 
 use crate::Str;
@@ -60,7 +58,7 @@ pub struct MenuItem {
 }
 
 impl MenuItem {
-    /// Zig `MenuItem.divider`: a 1 px separator row.
+    /// A 1 px separator row.
     pub const DIVIDER: MenuItem = MenuItem {
         kind: MenuItemKind::Divider,
         key: None,
@@ -77,7 +75,7 @@ impl MenuItem {
         content: None,
     };
 
-    /// Zig `MenuItem.group`: a small disabled-coloured section title.
+    /// A small disabled-coloured section title.
     pub fn group(label: impl Into<Str>) -> MenuItem {
         MenuItem {
             kind: MenuItemKind::Group,
@@ -119,14 +117,13 @@ impl Default for MenuOptions {
             text_color: None,
             extra_color: None,
             border_color: None,
-            // Zig: `.motion = .slide_up`, `.motion_origin = .top_right`
             motion: motion::Presence::SlideUp,
             motion_origin: motion::Origin::TopRight,
         }
     }
 }
 
-/// Zig `itemKey`: the item's own key, else `"{base}-{index}"`.
+/// The item's own key, else `"{base}-{index}"`.
 fn item_key(base: &str, item: &MenuItem, index: usize) -> Str {
     match &item.key {
         Some(key) => key.clone(),
@@ -134,7 +131,7 @@ fn item_key(base: &str, item: &MenuItem, index: usize) -> Str {
     }
 }
 
-/// Zig `dropdownMenu`: the antd dropdown panel.
+/// The antd dropdown panel.
 pub fn dropdown_menu(o: MenuOptions) -> Node {
     let theme = current_theme();
     let fg = o.text_color.unwrap_or(theme.color_text);
@@ -362,7 +359,7 @@ mod tests {
     }
 
     #[test]
-    fn menu_option_defaults_match_the_zig_struct() {
+    fn menu_option_defaults() {
         let defaults = MenuOptions::default();
         assert_eq!(defaults.key.as_deref(), Some("dropdown-menu"));
         assert!(defaults.items.is_empty());

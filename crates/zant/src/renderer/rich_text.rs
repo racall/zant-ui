@@ -1,20 +1,18 @@
-//! Port of `src/renderer/rich_text.zig` — WP-1.1c.
-//!
 //! Paragraphs made of styled spans (inline markdown, syntax highlighting,
 //! inline math placeholders). The native layout owns a copy of the span text.
 
 use crate::core::geometry::Rect;
 use zant_sys::skia as ffi;
 
-/// Errors of rich text layout creation (Zig: `error.LayoutFailed`).
+/// Errors of rich text layout creation.
 #[derive(Debug, thiserror::Error)]
 pub enum RichTextError {
     #[error("rich text layout creation failed")]
     Failed,
 }
 
-/// One styled run of text. Fields mirror `Span` in `rich_text.zig`; `italic` is
-/// the Zig `c_int` used as a boolean.
+/// One styled run of text. Fields mirror the native `ZantRichSpan`; `italic`
+/// is a C `int` used as a boolean.
 #[derive(Clone, Copy, Debug)]
 pub struct Span<'a> {
     pub text: &'a str,
@@ -133,7 +131,7 @@ impl Layout {
     }
 
     /// Selection rectangles for a UTF-8 byte range (into the concatenated span
-    /// text); returns the number written (Zig: `zant_text_layout_range_rects`).
+    /// text); returns the number written.
     pub fn range_rects(&self, start: usize, end: usize, out: &mut [Rect]) -> usize {
         if out.is_empty() {
             return 0;

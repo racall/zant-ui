@@ -1,7 +1,7 @@
-// The `<Markdown>` of `examples/tsx/markdown_bench.tsx` with its source as a
+// The `<Markdown>` of `tsx/corpus/markdown_bench.tsx` with its source as a
 // **prop** instead of a `useState`, for the TSX frame benchmark
-// (`zant-tsx-frame-bench`, WP-5.10c). The Zig benchmark grew the root
-// component's state (`tsx.State`) from the driver; Rust codegen keeps root
+// (`zant-tsx-frame-bench`). A driver cannot grow the root
+// component's state from outside: codegen keeps root
 // state private, so the hand-written benchmark driver owns the streamed text
 // and hands it in here. Same widget, same options, same keys
 // (`md-<site id>`): only where the text comes from differs.

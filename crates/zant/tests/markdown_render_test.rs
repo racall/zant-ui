@@ -1,4 +1,4 @@
-//! Headless render smoke tests for the markdown renderer (WP-3.3).
+//! Headless render smoke tests for the markdown renderer.
 //!
 //! Builds the node tree of the repository README and of a 10 000-line document
 //! without a window, checks node kinds / keys, and drives a real `Runtime`
@@ -54,7 +54,7 @@ fn readme_renders_a_complete_node_tree() {
     assert_eq!(body.element().kind, NodeKind::Container);
     assert_eq!(body.element().key.as_deref(), Some("md"));
     // one child per top-level block; non-paragraph blocks carry their position
-    // key (`md-<index>`), paragraphs are keyless rich text (like Zig)
+    // key (`md-<index>`), paragraphs are keyless rich text
     assert_eq!(body.element().children.len(), doc.blocks.len());
     let keyed = body
         .element()
@@ -243,4 +243,82 @@ fn markdown_widget_keeps_a_cache_per_instance_id() {
     );
     ui::end_frame();
     assert_eq!(second.element().key.as_deref(), Some("custom"));
+}
+
+/// One `ui::markdown` with a long code block.
+struct CodeDoc {
+    source: String,
+    line_numbers: bool,
+    code_max_height: f32,
+}
+
+impl App for CodeDoc {
+    fn render(&mut self) -> Node {
+        ui::column(BoxOptions {
+            width: Some(600.0),
+            children: vec![zant::components::widgets::markdown(
+                0x4d44_0008,
+                zant::components::widgets::MarkdownOptions {
+                    source: self.source.clone().into(),
+                    line_numbers: self.line_numbers,
+                    code_max_height: self.code_max_height,
+                    ..Default::default()
+                },
+            )],
+            ..Default::default()
+        })
+    }
+}
+
+/// (node count, height of the code body) of the laid-out document.
+fn code_doc_shape(line_numbers: bool, code_max_height: f32) -> (usize, f32) {
+    use zant::renderer::renderer::Renderer;
+
+    let lines: Vec<String> = (0..60).map(|i| format!("let v{i} = {i};")).collect();
+    let mut runtime = Runtime::init(
+        CodeDoc {
+            source: format!("```rust\n{}\n```", lines.join("\n")),
+            line_numbers,
+            code_max_height,
+        },
+        RunOptions::default(),
+    );
+    let mut renderer = Renderer::create_raster(640, 2400).expect("raster renderer");
+    for _ in 0..2 {
+        let canvas = renderer.begin(1.0).expect("canvas");
+        runtime.render_frame(canvas, 640.0, 2400.0, 1.0);
+        renderer.end();
+    }
+    let live: Vec<_> = runtime
+        .tree
+        .nodes
+        .iter()
+        .filter(|node| node.alive)
+        .collect();
+    let body = live
+        .iter()
+        .find(|node| {
+            node.key
+                .as_deref()
+                .is_some_and(|key| key.ends_with("-body"))
+        })
+        .expect("the code block body");
+    (live.len(), body.bounds.height)
+}
+
+#[test]
+fn markdown_widget_passes_line_numbers_and_code_max_height() {
+    let (numbered, capped) = code_doc_shape(true, 400.0);
+    assert_eq!(capped, 400.0, "a long block scrolls at code_max_height");
+
+    // without line numbers the body is one rich text instead of a row per line
+    let (plain, _) = code_doc_shape(false, 400.0);
+    assert!(
+        plain < numbered,
+        "{plain} nodes without line numbers, {numbered} with"
+    );
+
+    // 0 turns the cap off: the body is as tall as its 60 lines
+    let (_, uncapped) = code_doc_shape(true, 0.0);
+    assert!(uncapped > 400.0, "uncapped body height {uncapped}");
 }

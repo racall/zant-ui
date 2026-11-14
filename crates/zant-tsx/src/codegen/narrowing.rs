@@ -8,10 +8,10 @@
 //! s.prompt !== null && s.prompt.row == row      // member paths too
 //! ```
 //!
-//! Translation of `tools/tsx/codegen/narrowing.zig`. A condition proves "this
-//! name is non-null when the condition is true / false"; while a branch is
-//! emitted, reading the name gives the child type and `x.unwrap()` (from the
-//! cloned `Option`, satisfying the ownership rule of §3).
+//! A condition proves "this name is non-null when the condition is true /
+//! false"; while a branch is emitted, reading the name gives the child type
+//! and `x.unwrap()` (on a clone of the `Option`, so the binding itself is
+//! never moved out of).
 
 use crate::ast;
 

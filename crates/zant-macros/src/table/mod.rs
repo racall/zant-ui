@@ -1,5 +1,5 @@
 //! `#[derive(Table)]` code generation: table name, SQL text, parameter binding
-//! and row reading — the comptime ORM half of `src/db/sqlite.zig` (WP-3.10).
+//! and row reading. The SQL text is stable so existing databases keep opening.
 
 use proc_macro2::{Literal, TokenStream as TokenStream2};
 use quote::{quote, quote_spanned};
@@ -37,7 +37,7 @@ pub(crate) fn expand_table(input: &DeriveInput) -> syn::Result<TokenStream2> {
         .join(", ");
     let columns_sql_lit = LitStr::new(&columns_sql, span);
 
-    // Zig `Table(T).create`: CREATE TABLE IF NOT EXISTS "t" ("id" ...).
+    // CREATE TABLE IF NOT EXISTS "t" ("id" ...).
     let mut create_table_sql = format!("CREATE TABLE IF NOT EXISTS {table_name_sql} (");
     for (index, field) in fields.iter().enumerate() {
         if index > 0 {
@@ -58,7 +58,7 @@ pub(crate) fn expand_table(input: &DeriveInput) -> syn::Result<TokenStream2> {
     create_table_sql.push(')');
     let create_table_sql = LitStr::new(&create_table_sql, span);
 
-    // Zig `Table(T).columns`: columns named in struct field order.
+    // Columns are named in struct field order.
     let select_sql = LitStr::new(&format!("SELECT {columns_sql} FROM {table_name_sql}"), span);
     let select_by_id_sql = LitStr::new(
         &format!("SELECT {columns_sql} FROM {table_name_sql} WHERE id = ? LIMIT 1"),
@@ -102,9 +102,8 @@ pub(crate) fn expand_table(input: &DeriveInput) -> syn::Result<TokenStream2> {
         }
     } else {
         quote! {
-            // Zig's `Table.update` failed to compile when the model had no
-            // `id` field; the trait method cannot be left out, so fail at the
-            // call site instead.
+            // A model without an `id` field cannot be updated; the trait
+            // method cannot be left out, so fail at the call site instead.
             fn update_params(_value: &Self) -> ::std::vec::Vec<::zant::db::sqlite::Value> {
                 ::std::panic!("`#[derive(Table)]`: the model has no `id` field")
             }
@@ -127,7 +126,7 @@ pub(crate) fn expand_table(input: &DeriveInput) -> syn::Result<TokenStream2> {
             const COUNT_SQL: &'static str = #count_sql;
 
             /// Column definition used by `ALTER TABLE ... ADD COLUMN` for a
-            /// field added in a later app version (Zig `addedColumn`).
+            /// field added in a later app version.
             fn added_column(index: usize) -> ::std::option::Option<::std::string::String> {
                 match index {
                     #(#added_column_arms)*
@@ -179,7 +178,7 @@ fn quoted_columns(fields: &[ModelField], include_id: bool) -> String {
         .join(", ")
 }
 
-/// `ALTER TABLE` column definitions (Zig `addedColumn`).
+/// `ALTER TABLE` column definitions, one `added_column` match arm per field.
 fn added_column_arms(fields: &[ModelField], span: proc_macro2::Span) -> Vec<TokenStream2> {
     let mut arms = Vec::new();
     for (index, field) in fields.iter().enumerate() {
@@ -253,7 +252,7 @@ fn bind_value(field: &ModelField, value: TokenStream2) -> TokenStream2 {
 fn bind_scalar(field: &ModelField, reference: TokenStream2) -> TokenStream2 {
     match field.kind {
         FieldKind::Integer => {
-            // Zig `@intCast(value)` to i64: infallible for the narrow types,
+            // Conversion to i64: infallible for the narrow types,
             // checked for the ones that can exceed i64.
             let conversion = match type_ident(&field.inner).as_deref() {
                 Some("i64") => quote!(*#reference),
@@ -310,7 +309,7 @@ fn update_params_body(fields: &[ModelField]) -> Vec<TokenStream2> {
     params
 }
 
-/// `field: <read expression>` pairs for `from_row` (Zig `mapRow`).
+/// `field: <read expression>` pairs for `from_row`.
 fn field_reads(fields: &[ModelField]) -> Vec<TokenStream2> {
     fields
         .iter()

@@ -1,12 +1,10 @@
-//! Port of `tests/motion_test.zig` (WP-1.1a pure cases + WP-2.7 runtime cases).
+//! Motion: the pure primitives and their runtime integration.
 //!
 //! The first four cases are the pure motion primitives. The second half is the
-//! runtime integration the Zig file already had — the six cases deferred when
-//! the motion primitives landed, ported 1:1 with the same names and
-//! assertions (`button hover …`, `with motion disabled state changes …`,
-//! `presence: enter, exit out of flow, free, revive`, `segmented thumb slides
-//! with FLIP …`, `ui.focus and ui.scrollIntoView …`, `ui.wakeAfter rebuilds …`)
-//! — plus the WP-2.7 coverage of the rest of the motion wiring:
+//! runtime integration (`button hover …`, `with motion disabled state changes
+//! …`, `presence: enter, exit out of flow, free, revive`, `segmented thumb
+//! slides with FLIP …`, `ui.focus and ui.scrollIntoView …`, `ui.wakeAfter
+//! rebuilds …`) plus the rest of the motion wiring:
 //!
 //! * presence enter / exit lifetime and freeing (`presence: …` and
 //!   `modal_and_message_presence_…`),
@@ -39,7 +37,7 @@ use zant::ui::{
 };
 
 /// Tests here mutate the process-wide `motion.enabled` switch, so serialise
-/// them (the Zig test runner runs its tests one at a time).
+/// them (the test harness runs tests on several threads).
 static MOTION_LOCK: Mutex<()> = Mutex::new(());
 
 fn lock() -> MutexGuard<'static, ()> {
@@ -158,21 +156,21 @@ fn presence_transforms() {
     assert_eq!(mix_color(0xff000000, 0xffffffff, 0.502), 0xff808080);
 }
 
-// ---- runtime integration (fake clock), from `tests/motion_test.zig` ----
+// ---- runtime integration (fake clock) ----
 //
-// Zig's `Harness` (`tests/motion_test.zig`): a runtime with a fake clock, a
-// 400×300 raster canvas and `find(key)` over the retained tree. The fake
-// timestamp is module state and every `Harness::init` resets it to 1000, so
-// tests advance it explicitly between frames and never sleep.
+// `Harness`: a runtime with a fake clock, a 400×300 raster canvas and
+// `find(key)` over the retained tree. The fake timestamp is module state and
+// every `Harness::init` resets it to 1000, so tests advance it explicitly
+// between frames and never sleep.
 
-/// The Zig module-level `var fake_now: i64 = 1000`.
+/// The fake timestamp in milliseconds (starts at 1000).
 static FAKE_NOW: AtomicI64 = AtomicI64::new(1_000);
 
 fn fake_clock() -> i64 {
     FAKE_NOW.load(Ordering::Relaxed)
 }
 
-/// Zig `fake_now += ms`.
+/// Advances the fake clock by `ms`.
 fn advance(ms: i64) {
     FAKE_NOW.fetch_add(ms, Ordering::Relaxed);
 }
@@ -212,13 +210,13 @@ impl Harness {
         self.renderer.end();
     }
 
-    /// Zig `Harness.find`: any live node with the key (exiting nodes included).
+    /// Any live node with the key (exiting nodes included).
     fn find(&self, key: &str) -> NodeId {
         self.find_alive(key)
             .unwrap_or_else(|| panic!("key not found: {key}"))
     }
 
-    /// Zig `findLive`: the node while it is alive, `None` once it was freed.
+    /// The node while it is alive, `None` once it was freed.
     fn find_alive(&self, key: &str) -> Option<NodeId> {
         self.runtime
             .tree
@@ -229,7 +227,7 @@ impl Harness {
     }
 
     /// A copy of the node's animation state (the borrowed node cannot outlive
-    /// the frame in Rust; Zig kept the `*Node`).
+    /// the frame).
     fn anim(&self, id: NodeId) -> zant::core::node::NodeAnim {
         self.runtime
             .tree
@@ -719,7 +717,7 @@ fn ui_wake_after_rebuilds_once_the_time_has_passed() {
     assert_eq!(h.runtime.app_state_mut::<CmdState>().renders, n + 1);
 }
 
-// ---- WP-2.7 coverage: modal / message presence and motion off ----
+// ---- modal / message presence and motion off ----
 
 struct OverlayState {
     show: bool,

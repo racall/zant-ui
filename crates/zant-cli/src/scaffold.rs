@@ -1,13 +1,11 @@
-//! Port of `tools/zant/scaffold.zig`: copy a language template, substituting
+//! `zant create`'s scaffold: copies the application template, substituting
 //! project metadata only in text files.
 
 use std::path::Path;
 
-/// The TSX template: a Rust application (`Cargo.toml` + `build.rs` +
+/// The `zant create` template: a Rust application (`Cargo.toml` + `build.rs` +
 /// `rust-toolchain.toml`). `src/` holds only TS/TSX, `native/` the Rust native
-/// modules, and `zant_build::tsx_app()` (WP-6.2) compiles the TSX in `build.rs`.
-/// It is the only `zant create` template since M8 (the pure-Zig template was
-/// deleted with the Zig toolchain).
+/// modules, and `zant_build::tsx_app()` compiles the TSX in `build.rs`.
 pub const TEMPLATE_TS: &str = "scaffold/template-ts";
 
 pub struct Options {
@@ -15,7 +13,8 @@ pub struct Options {
     pub target: String,
     pub title: String,
     pub bundle: String,
-    pub zig_name: String,
+    /// The Cargo package name (snake_case).
+    pub crate_name: String,
     pub dependency: String,
     pub hidden_titlebar: bool,
 }
@@ -72,7 +71,7 @@ fn copy_tree(
 }
 
 fn expand(source: &str, options: &Options, is_tsx: bool) -> Vec<u8> {
-    let fingerprint = (u64::from(crc32(options.zig_name.as_bytes())) << 32) | 0x9e37_79b9;
+    let fingerprint = (u64::from(crc32(options.crate_name.as_bytes())) << 32) | 0x9e37_79b9;
     let hex = format!("0x{fingerprint:016x}");
     let top = if options.hidden_titlebar {
         "top: 56"
@@ -80,7 +79,7 @@ fn expand(source: &str, options: &Options, is_tsx: bool) -> Vec<u8> {
         "top: 24"
     };
     let pairs: [(&str, &str); 7] = [
-        ("__APP_NAME_SNAKE__", &options.zig_name),
+        ("__APP_NAME_SNAKE__", &options.crate_name),
         ("__APP_FINGERPRINT__", &hex),
         ("__ZANT_PATH__", &options.dependency),
         ("__APP_TITLE__", &options.title),
@@ -104,7 +103,7 @@ fn expand(source: &str, options: &Options, is_tsx: bool) -> Vec<u8> {
     output.into_bytes()
 }
 
-/// `std.hash.Crc32` (IEEE) of the Zig name, used for the project fingerprint.
+/// CRC-32 (IEEE) of the crate name, used for the project fingerprint.
 fn crc32(data: &[u8]) -> u32 {
     let mut crc = 0xffff_ffffu32;
     for byte in data {
@@ -146,16 +145,15 @@ mod tests {
             target: target.to_string_lossy().into_owned(),
             title: "My \"App\"".to_string(),
             bundle: "com.acme.myapp".to_string(),
-            zig_name: "my_app".to_string(),
+            crate_name: "my_app".to_string(),
             dependency: "../zant-ui".to_string(),
             hidden_titlebar: true,
         }
     }
 
     #[test]
-    fn template_directory_is_the_tsx_template() {
+    fn template_directory_exists() {
         assert!(Path::new(&repo_root()).join(TEMPLATE_TS).is_dir());
-        assert!(!Path::new(&repo_root()).join("scaffold/template").exists());
     }
 
     #[test]
@@ -183,8 +181,6 @@ mod tests {
         ] {
             assert!(target.join(file).is_file(), "{file} missing");
         }
-        // No Zig files exist in the template any more.
-        assert!(!target.join("src/main.zig").exists());
         // app.config.json is written by create, not copied from the template
         assert!(!target.join("app.config.json").exists());
         let manifest = std::fs::read_to_string(target.join("Cargo.toml")).expect("Cargo.toml");

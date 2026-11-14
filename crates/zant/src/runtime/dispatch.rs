@@ -1,4 +1,4 @@
-//! Port of `src/ui_runtime.zig:1402-1567`: event dispatch.
+//! Event dispatch.
 //!
 //! [`Runtime::dispatch`] is the entry point of the native event callback: it
 //! samples the clock, lets the event handlers run, reports input selection
@@ -14,7 +14,7 @@ use crate::ui::actions::PointerPhase;
 use super::{Runtime, window};
 
 impl Runtime {
-    /// Zig `dispatch`: handles `event` and returns the native callback's
+    /// Handles `event` and returns the native callback's
     /// "redraw needed" flag. The native host calls it from
     /// `HostHandler::event`; tests inject events directly.
     pub fn dispatch(&mut self, event: Event) -> i32 {
@@ -23,9 +23,9 @@ impl Runtime {
         self.sample_clock();
         let result = self.dispatch_event(&event);
         self.report_selection();
-        // the app's state may have changed: other windows rebuild too (Zig
-        // `dispatch` fan-out; the dispatching window itself is already
-        // borrowed, so `invalidate_all` skips it)
+        // the app's state may have changed: other windows rebuild too (the
+        // dispatching window itself is already borrowed, so `invalidate_all`
+        // skips it)
         if self.needs_build && window::open_count() > 1 {
             window::invalidate_all();
         }
@@ -45,7 +45,7 @@ impl Runtime {
         redraw
     }
 
-    /// Zig `dispatchEvent`: the per-event handler.
+    /// The per-event handler.
     fn dispatch_event(&mut self, event: &Event) -> i32 {
         match event {
             Event::PointerMove(p) => {
@@ -171,7 +171,7 @@ impl Runtime {
             }
             Event::AppQuitRequest => {
                 if self.window_hooks.is_some() {
-                    // Zig: only the main window configures `quit_fn`, so a
+                    // only the main window decides about quitting, so a
                     // panel simply allows the app to quit
                     return 0;
                 }
@@ -183,7 +183,7 @@ impl Runtime {
         }
     }
 
-    /// Zig's `.scroll` arm: pointer areas with `capture_scroll` first, then
+    /// Wheel events: pointer areas with `capture_scroll` first, then
     /// multiline input scrolling, then the innermost scroll container.
     fn handle_scroll(&mut self, scroll: crate::core::events::Scroll) -> i32 {
         if let Some(target) = self.tree.wheel_target_at(scroll.x, scroll.y) {
@@ -393,7 +393,7 @@ mod tests {
         assert_eq!(runtime.tree.focused, None);
     }
 
-    /// An input built from a raw `Element` (the `ui::input` builder is WP-2.1).
+    /// An input built from a raw `Element`, without the `ui::input` builder.
     fn input_node(value: &str, on_text: crate::ui::TextAction) -> Node {
         Node::new(Element {
             kind: NodeKind::Input,
@@ -406,8 +406,8 @@ mod tests {
                 ..Default::default()
             },
             on_text: Some(on_text),
-            // Zig's `ui.input` builder marks the element focusable; the raw
-            // element used here (no builder before WP-2.1) has to say it.
+            // The `ui::input` builder marks the element focusable; the raw
+            // element used here has to say it.
             focusable: true,
             ..Element::default()
         })

@@ -1,4 +1,4 @@
-// Markdown streaming next to a PDF reader. Run it with `zig build run-tsx-reader`.
+// Markdown streaming next to a PDF reader. The runnable copy is `../tsx-reader`.
 import { useState, useTheme, View, Row, Text, Button, Input, Icon, Markdown, PdfViewer } from "zant";
 
 export default function Reader() {

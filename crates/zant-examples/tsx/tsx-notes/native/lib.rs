@@ -4,7 +4,7 @@
 //! module per `native/<name>.ts` spec:
 //!
 //! - `native/format.ts` declares `plural` (the interface, the single source of
-//!   truth; port of `examples/tsx/notes/format.zig`);
+//!   truth);
 //! - `native/format.rs` implements it (zant-tsx generates the spec types and
 //!   one trait per module, so a missing or mistyped function is a rustc error
 //!   at the `impl`);
@@ -20,8 +20,8 @@ pub mod format;
 /// spec (`crate::native::spec::<name>`). `build.rs`
 /// (`zant_build::tsx_app()`) writes `native/spec.rs` from the specs before the
 /// crate is compiled; the file is generated and gitignored. `rustfmt::skip`:
-/// it is generated, so `cargo fmt --check` must not rewrite it (WP-5.10
-/// report: the generated file has a trailing blank line rustfmt removes).
+/// it is generated, so `cargo fmt --check` must not rewrite it (the
+/// generated file has a trailing blank line rustfmt removes).
 #[rustfmt::skip]
 pub mod spec;
 

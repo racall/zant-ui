@@ -1,5 +1,5 @@
-//! Port of `src/markdown/remend/scan.zig`: single-pass classification of a text
-//! into code and prose regions, plus lazy masks for math, link URLs and HTML tags.
+//! remend `scan.ts`: single-pass classification of a text into code and
+//! prose regions, plus lazy masks for math, link URLs and HTML tags.
 //!
 //! Positions are UTF-8 byte offsets. Every delimiter remend looks at is ASCII,
 //! so byte positions behave exactly like the UTF-16 positions of the original.

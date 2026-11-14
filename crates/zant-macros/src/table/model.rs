@@ -1,5 +1,5 @@
-//! Model reflection for `#[derive(Table)]`: the Zig comptime part that turned
-//! struct fields into columns, SQL types and defaults.
+//! Model reflection for `#[derive(Table)]`: turns struct fields into columns,
+//! SQL types and defaults.
 
 use syn::{Data, DeriveInput, Error, Fields, LitStr, Type};
 
@@ -13,7 +13,7 @@ pub(super) enum FieldKind {
 }
 
 impl FieldKind {
-    /// Zig `Table(T).sqlType`.
+    /// The SQL column type.
     pub(super) fn sql_type(self) -> &'static str {
         match self {
             FieldKind::Integer | FieldKind::Boolean => "INTEGER",
@@ -29,7 +29,7 @@ pub(super) struct ModelField {
     pub(super) inner: Type,
     pub(super) kind: FieldKind,
     pub(super) optional: bool,
-    /// Field named `id` (Zig `isId`): skipped by INSERT/UPDATE and used by the
+    /// Field named `id`: skipped by INSERT/UPDATE and used by the
     /// `WHERE id = ?` clauses. May itself be optional.
     pub(super) is_id: bool,
     /// `#[table(default = "tag")]`, only meaningful for enum fields.
@@ -99,7 +99,7 @@ fn field_default_tag(field: &syn::Field) -> syn::Result<Option<String>> {
     Ok(tag)
 }
 
-/// Strip one `Option<..>` layer (Zig `?T` → `Option<T>`).
+/// Strip one `Option<..>` layer.
 fn unwrap_option(ty: &Type) -> syn::Result<(Type, bool)> {
     let Type::Path(path) = ty else {
         return Err(Error::new_spanned(

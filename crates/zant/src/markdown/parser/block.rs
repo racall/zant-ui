@@ -1,5 +1,3 @@
-//! Port of `src/markdown/parser/block.zig` — WP-3.2.
-//!
 //! Block-level Markdown parser (CommonMark + GFM): headings, paragraphs,
 //! fenced/indented code, block quotes and GFM alerts, nested lists with task
 //! items, tables, math, HTML blocks, footnote and link definitions, front
@@ -38,7 +36,7 @@ impl Default for Options {
     }
 }
 
-/// Zig `std.meta.eql` structural hash used by `cache.zig` for the parse options.
+/// Structural hash used by `cache.rs` for the parse options.
 impl HashValue for Options {
     fn hash_value(&self, h: &mut Wyhash) {
         self.single_dollar_math.hash_value(h);

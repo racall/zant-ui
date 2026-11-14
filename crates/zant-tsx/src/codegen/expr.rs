@@ -1,9 +1,8 @@
 //! Typed expressions, numeric operators, conditionals, strings, calls, and
-//! `console.log`. Translation of `tools/tsx/codegen/expr.zig`.
+//! `console.log`.
 //!
-//! Zig's `orelse`/`if (x) |v|`/`@as` spellings become Rust `Option`
-//! combinators and typed literals; ownership follows
-//! `docs/rust-port/tsx-codegen.md` §3 (reads of non-`Copy` values clone).
+//! Optionals lower to `Option` combinators and numbers to typed literals;
+//! reads of non-`Copy` values clone.
 
 use crate::ast;
 
@@ -60,7 +59,7 @@ pub fn emit(
         ast::ExprData::Call(call) => call_value(g, c, e.loc, call, expected)?,
         ast::ExprData::Jsx(jsx) => match g.extensions.hooks.emit_jsx {
             Some(hook) => hook(g, c, jsx)?,
-            None => return fail(g, e.loc, "JSX code generation is implemented by WP-5.4"),
+            None => return fail(g, e.loc, "JSX needs the JSX emitter installed"),
         },
         ast::ExprData::Arrow(_) => {
             return fail(
@@ -116,8 +115,8 @@ fn static_bytes_expected(g: &Generator<'_>, expected: Option<Type>) -> Option<Ty
     model::is_static_bytes(g, inner).then_some(inner)
 }
 
-/// A `Uint8Array` literal: Zig emitted `&[_]u8{ 137, 80, … }`; Rust takes a
-/// promoted slice, `&[137u8, 80u8, …]`, which coerces to `&'static [u8]`
+/// A `Uint8Array` literal becomes a promoted slice, `&[137u8, 80u8, …]`,
+/// which coerces to `&'static [u8]`
 /// (`const icon: Uint8Array = [137, 80, 78, 71]`). Only integer literals are
 /// const-promotable, so anything else is a diagnostic instead of code that
 /// would not compile.
@@ -241,7 +240,7 @@ pub fn conditional(
 }
 
 /// Unify numeric peers, reject truthiness, and lower strings and optional
-/// children (Zig `expr.binary`).
+/// children.
 pub fn binary(
     g: &mut Generator<'_>,
     c: &mut scope::Context,
@@ -418,8 +417,7 @@ pub fn binary(
     } else {
         std::str::from_utf8(&b.op).unwrap_or("==")
     };
-    // Rust's integer `/` and `%` have the same truncating semantics as Zig's
-    // `@divTrunc` / `@rem`.
+    // Rust's integer `/` and `%` truncate toward zero.
     let result = infix(g, a, op, z, if comparison { Type::Boolean } else { t })?;
     if !comparison && t.integer() && (op == "/" || op == "%") {
         let mut result = result;
@@ -521,7 +519,11 @@ pub fn call_value(
     if matches!(call.callee.data, ast::ExprData::Member(_)) {
         return match g.extensions.array_methods {
             Some(hook) => hook(g, c, loc, call, expected),
-            None => fail(g, loc, "array and string methods are implemented by WP-5.5"),
+            None => fail(
+                g,
+                loc,
+                "array and string methods need the method emitter installed",
+            ),
         };
     }
     let ast::ExprData::Ident(name) = &call.callee.data else {
@@ -584,7 +586,7 @@ pub fn call_value(
             return fail(
                 g,
                 loc,
-                "component functions that read render locals need WP-5.5",
+                "component functions that read render locals need the component emitter installed",
             );
         };
         let nested = hook(g, c, loc, index)?;
@@ -624,7 +626,7 @@ pub fn call_value(
     let mut arguments: Vec<String> = Vec::new();
     if method.inline_only {
         // `self.method(&_capture, …)`: the receiver is the instance, not the
-        // capture struct (Zig passed the capture struct as the context)
+        // capture struct
         arguments.push("self".to_owned());
         if receiver != "self" {
             arguments.push(format!("&({receiver})"));

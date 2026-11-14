@@ -1,8 +1,4 @@
-//! `zant-components`: port of the Zig `zant-components` example,
-//! `examples/components.zig` (the `zant-components` executable target of
-//! `build.zig`).
-//!
-//! Every `ui.*` component in one window. Each interaction prints
+//! `zant-components`: every `ui::*` component in one window. Each interaction prints
 //! `[event] ...` to stderr and shows it under the title, which
 //! `scripts/win/components-check.ps1` uses (with `ZANT_LAYOUT_FILE`) to click
 //! every component and check the result. `ZANT_DARK=1` starts in dark mode.
@@ -11,15 +7,12 @@
 //! with `ZANT_FRAME_STATS=1`; `ZANT_AUTOPLAY=quiet` runs the same cycle without
 //! the `[event]` lines (stderr writes are slow on Windows).
 //!
-//! Deviations from the Zig source (see the WP-2.9 report):
+//! Notes:
 //!
-//! * `ui.pdfViewer` now comes from the framework
-//!   (`zant::ui::pdf_viewer`, moved into `components/widgets.rs` by WP-M3);
-//!   the documents section shows the real reader and logs "pdf changed".
-//! * Zig stores the last event in a fixed 96-byte buffer with `bufPrint`, so a
-//!   longer message is dropped entirely; the port keeps that rule (no log, the
+//! * The documents section shows the real reader (`zant::ui::pdf_viewer`) and
+//!   logs "pdf changed".
+//! * An event message longer than 96 bytes is dropped entirely (no log, the
 //!   displayed text keeps its previous value).
-//! * `ui.textFmt` has no Rust counterpart: call sites format with `format!`.
 #![forbid(unsafe_code)]
 
 mod view;
@@ -36,17 +29,17 @@ use zant::ui::{self, ListState, RunOptions};
 
 use self::view::render;
 
-/// Zig `State.last_event` capacity (`[96]u8`).
+/// Longest event message that is kept, in bytes.
 const LAST_EVENT_CAPACITY: usize = 96;
-/// Zig `State.autoplayTick`: one state change every 700 ms.
+/// Autoplay: one state change every 700 ms.
 const AUTOPLAY_STEP_MS: i64 = 700;
 
-/// Zig `State`: the whole application state of the components example.
+/// The whole application state of the components example.
 pub struct ComponentsApp {
     pub(crate) dark: bool,
     pub(crate) widget_chunk: bool,
-    /// The last `[event]` line, shown under the title (`last_len = 0` in Zig
-    /// while nothing happened).
+    /// The last `[event]` line, shown under the title (empty while nothing
+    /// happened).
     pub(crate) last_event: String,
     pub(crate) notifications: bool,
     pub(crate) beta: bool,
@@ -68,14 +61,12 @@ pub struct ComponentsApp {
     pub(crate) knob_drag: Option<[f32; 2]>,
     /// Virtual list demo (10 000 rows).
     pub(crate) rows: Rc<RefCell<ListState>>,
-    /// `src` of the PDF viewer widget (the Zig example uses the working
-    /// directory relative fixture path; the headless tests point it at the
-    /// repository fixture).
+    /// `src` of the PDF viewer widget (a fixture path relative to the working
+    /// directory; the headless tests point it at the repository fixture).
     pub(crate) pdf_src: String,
 }
 
 impl ComponentsApp {
-    /// Zig `State{ .dark = .., .autoplay = .., .quiet = .. }`.
     pub fn new(dark: bool, autoplay: bool, quiet: bool) -> ComponentsApp {
         ComponentsApp {
             dark,
@@ -118,8 +109,8 @@ impl ComponentsApp {
         }
     }
 
-    /// Zig `State.autoplayTick`: one state change every 700 ms, so each enter /
-    /// exit animation runs to the end before the next one starts.
+    /// One state change every 700 ms, so each enter / exit animation runs to
+    /// the end before the next one starts.
     fn autoplay_tick(&mut self) {
         let now = ui::now_ms();
         if self.autoplay_at_ms == 0 {
@@ -146,8 +137,8 @@ impl ComponentsApp {
         ui::wake_after((self.autoplay_at_ms - now).max(1) as u32);
     }
 
-    /// Zig `State.event`: `bufPrint` into a 96-byte buffer — an over-long
-    /// message is dropped entirely (no store, no log).
+    /// Records and logs an event; an over-long message is dropped entirely
+    /// (no store, no log).
     fn event(&mut self, message: String) {
         if message.len() > LAST_EVENT_CAPACITY {
             return;
@@ -163,12 +154,11 @@ impl ComponentsApp {
         self.event(String::from("markdown chunk"));
     }
 
-    /// Zig `State.pdfChanged`.
     fn pdf_changed(&mut self) {
         self.event(String::from("pdf changed"));
     }
 
-    /// `ui.pointerArea`: drag the knob along the track; double click resets it.
+    /// `ui::pointer_area`: drag the knob along the track; double click resets it.
     fn on_track(&mut self, info: ui::PointerInfo) -> bool {
         match info.phase {
             ui::PointerPhase::Down => {
@@ -303,7 +293,6 @@ impl ui::App for ComponentsApp {
         render(self)
     }
 
-    /// Zig `State.theme`.
     fn theme(&self) -> Option<Theme> {
         Some(if self.dark {
             tokens::ant_dark()
@@ -312,7 +301,7 @@ impl ui::App for ComponentsApp {
         })
     }
 
-    /// Zig `State.onKey`: Esc closes the menu and the modal.
+    /// Esc closes the menu and the modal.
     fn on_key(&mut self, key: &KeyEvent) -> bool {
         if key.key == zant::core::events::Key::Escape && (self.menu_open || self.modal_open) {
             self.menu_open = false;
@@ -324,7 +313,7 @@ impl ui::App for ComponentsApp {
     }
 }
 
-/// Zig `Runtime.Config` of the example (`zant.launch.run` options).
+/// Window title, size and theme of the example.
 pub fn run_options() -> RunOptions {
     RunOptions {
         title: String::from("Zant 组件总览"),
@@ -339,7 +328,7 @@ pub fn run_options() -> RunOptions {
     }
 }
 
-/// `ZANT_AUTOPLAY` / `ZANT_DARK` of the Zig `main`.
+/// The initial state from `ZANT_AUTOPLAY` / `ZANT_DARK`.
 pub fn state_from_env() -> ComponentsApp {
     let dark = platform::getenv("ZANT_DARK").is_some();
     let autoplay = platform::getenv("ZANT_AUTOPLAY");
@@ -347,7 +336,7 @@ pub fn state_from_env() -> ComponentsApp {
     ComponentsApp::new(dark, autoplay.is_some(), quiet)
 }
 
-/// The example entry point (`pub fn main` of the Zig source).
+/// The example entry point.
 pub fn run() -> zant::Result<()> {
     ui::run(state_from_env(), run_options())
 }

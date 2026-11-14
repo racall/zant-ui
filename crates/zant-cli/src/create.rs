@@ -1,6 +1,5 @@
-//! Port of the `zant create` half of `tools/zant/main.zig`: project name /
-//! bundle id validation, interactive prompts, the scaffold template and the
-//! initial `app.config.json`.
+//! `zant create`: project name / bundle id validation, interactive prompts,
+//! the scaffold template and the initial `app.config.json`.
 
 use crate::app_config::bundle_error;
 use crate::scaffold;
@@ -39,7 +38,7 @@ pub fn cmd_create(options: CreateOptions) -> std::io::Result<()> {
 
     let default_title = title_from_name(name);
     let slug = slug_from_name(name);
-    let zig_name = zig_name_from_name(name);
+    let crate_name = crate_name_from_name(name);
     let default_bundle = format!("dev.zant.{slug}");
 
     let mut title = options.title.clone().unwrap_or(default_title);
@@ -118,7 +117,7 @@ pub fn cmd_create(options: CreateOptions) -> std::io::Result<()> {
         target: target.to_string_lossy().into_owned(),
         title: title.clone(),
         bundle: bundle.clone(),
-        zig_name,
+        crate_name,
         dependency: zant_rel,
         hidden_titlebar: style == "hidden-titlebar",
     })?;
@@ -237,7 +236,7 @@ fn zant_dependency_path(target: &Path, zroot: &Path) -> std::io::Result<String> 
 }
 
 /// Relative path from `from` to `to` (a `..`-walking path); absolute when the
-/// two have no common root (different drives), like `std.fs.path.relative`.
+/// two have no common root (different drives).
 fn relative_path(from: &Path, to: &Path) -> PathBuf {
     let from = std::fs::canonicalize(from).unwrap_or_else(|_| from.to_path_buf());
     let to = std::fs::canonicalize(to).unwrap_or_else(|_| to.to_path_buf());
@@ -306,7 +305,8 @@ pub fn slug_from_name(name: &str) -> String {
         .collect()
 }
 
-pub fn zig_name_from_name(name: &str) -> String {
+/// The Cargo package name: lower case, `-` becomes `_`.
+pub fn crate_name_from_name(name: &str) -> String {
     name.chars()
         .map(|ch| match ch {
             'A'..='Z' => ch.to_ascii_lowercase(),
@@ -321,7 +321,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn project_name_validation_matches_the_zig_rule() {
+    fn project_names_start_with_a_letter_and_use_letters_digits_dash_underscore() {
         for name in ["app", "MyApp", "my-app", "my_app2", "a1"] {
             assert!(valid_name(name), "{name} should be valid");
         }
@@ -333,12 +333,12 @@ mod tests {
     }
 
     #[test]
-    fn names_become_title_slug_and_snake_name() {
+    fn names_become_title_slug_and_crate_name() {
         assert_eq!(title_from_name("my-app"), "My App");
         assert_eq!(title_from_name("my_app"), "My App");
         assert_eq!(title_from_name("demo"), "Demo");
         assert_eq!(slug_from_name("My_App"), "my-app");
-        assert_eq!(zig_name_from_name("My-App"), "my_app");
+        assert_eq!(crate_name_from_name("My-App"), "my_app");
     }
 
     #[test]

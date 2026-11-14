@@ -1,8 +1,8 @@
 //! File-level constants and type declarations, resolved before component
-//! state. Translation of `tools/tsx/codegen/globals.zig`.
+//! state.
 //!
 //! Asset imports (`import icon from "../assets/icon.png"`) belong to the build
-//! layer (WP-5.6): [`assets`] is a hook the entry point calls, and without it
+//! layer: [`assets`] is a hook the entry point calls, and without it
 //! asset imports are a diagnostic.
 
 use crate::ast;
@@ -42,8 +42,7 @@ pub fn collect(g: &mut Generator<'_>, constants: &[&ast::TopConst]) -> Result<St
         // Rust `const` items cannot allocate or run `format!`; a TSX module
         // constant is usually a `Str` / `List`, so it becomes a function over a
         // `thread_local!` value (a cached per-thread initializer; the read
-        // clones, which is cheap for `Str` / `List`). Zig evaluated these at
-        // comptime (WP-5.9 deviation, see docs/rust-port/status.md).
+        // clones, which is cheap for `Str` / `List`).
         let slot = format!("_{id}_VALUE");
         code.push_str(&format!(
             "{}fn {id}() -> {} {{\n    thread_local! {{\n        static {slot}: {} = {};\n    }}\n    {slot}.with(|value| value.clone())\n}}\n\n",
@@ -61,7 +60,7 @@ pub fn collect(g: &mut Generator<'_>, constants: &[&ast::TopConst]) -> Result<St
     Ok(code)
 }
 
-/// `import icon from "../assets/icon.png"` (WP-5.6 `assets.zig`).
+/// `import icon from "../assets/icon.png"`.
 pub fn assets(
     g: &mut Generator<'_>,
     module: &ast::Module,
@@ -88,7 +87,7 @@ pub fn assets(
     Ok(String::new())
 }
 
-/// Whether an import names an image asset (Zig `assets.isAsset`).
+/// Whether an import names an image asset.
 pub fn is_asset(source: &str) -> bool {
     let lower = source.to_ascii_lowercase();
     [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"]

@@ -1,5 +1,5 @@
 #!/bin/bash
-# End-to-end test of the prebuilt native library path (WP-6.6):
+# End-to-end test of the prebuilt native library path:
 #
 #   scripts/release/prebuilt-check.sh
 #

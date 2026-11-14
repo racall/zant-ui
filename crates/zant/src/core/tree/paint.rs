@@ -1,4 +1,4 @@
-//! Port of `src/core/tree.zig` — WP-1.3: painting the retained tree.
+//! Painting the retained tree.
 #![forbid(unsafe_code)]
 
 use crate::core::geometry::Rect;
@@ -189,9 +189,8 @@ impl Tree {
             }
             NodeKind::RichText => {
                 if let NodeData::RichText(data) = &mut self.nodes[index].data {
-                    // selection highlight first, behind the paragraph (Zig
-                    // `paintRichText` used `zant_text_layout_range_rects` on the
-                    // rich layout's paragraph handle the same way)
+                    // selection highlight first, behind the paragraph
+                    // (range rects come from the rich layout's paragraph)
                     if let Some(range) = text_sel
                         && let Some(layout) = data.ensure_layout(rect.width)
                     {

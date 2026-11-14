@@ -1,17 +1,15 @@
-//! Port of `src/components/toggle.zig` — WP-2.2: antd checkbox / switch / radio
-//! paint, measure and transitions.
+//! The antd checkbox / switch / radio: paint, measure and transitions.
 //!
 //! Measures and paints the indicator (16px box or 40×22 track), the checkmark /
 //! dot / handle, the keyboard focus ring and the label. The transition values
 //! (`hover_t`, `press_t`, `check_t`, `mark_t`) are animated by the runtime
 //! through [`animate`]; painting never starts a transition.
 //!
-//! Runtime-side (not in this module, Zig keeps it in `ui_runtime.zig`):
-//! hover / press / focus state changes and `Tree::toggle_set` / `toggle_flip`
-//! on click or Space / Enter (`core/tree/input_ops.rs`). The runtime must reset
-//! `hovered` / `pressed` / `hover` / `press` when a toggle becomes disabled the
-//! same way `ui_runtime.zig:applyCommon` does (there is no Zig `setEnabled`
-//! helper for toggles, unlike buttons).
+//! Runtime-side (not in this module): hover / press / focus state changes and
+//! `Tree::toggle_set` / `toggle_flip` on click or Space / Enter
+//! (`core/tree/input_ops.rs`). The runtime must reset `hovered` / `pressed` /
+//! `hover` / `press` when a toggle becomes disabled (toggles have no
+//! `set_enabled` helper, unlike buttons).
 #![forbid(unsafe_code)]
 
 use crate::core::geometry::Rect;
@@ -21,19 +19,19 @@ use crate::renderer::canvas::Canvas;
 use crate::theme::tokens;
 use crate::theme::tokens::Theme;
 
-/// Zig: `checkbox_size`.
+/// Side of the checkbox / radio indicator.
 pub const CHECKBOX_SIZE: f32 = 16.0;
-/// Zig: `switch_width`.
+/// Width of the switch track.
 pub const SWITCH_WIDTH: f32 = 40.0;
-/// Zig: `switch_height`.
+/// Height of the switch track.
 pub const SWITCH_HEIGHT: f32 = 22.0;
-/// Zig: `label_gap`.
+/// Gap between the indicator and the label.
 pub const LABEL_GAP: f32 = 8.0;
-/// Zig: `control_height`.
+/// The antd control height of a toggle row.
 pub const CONTROL_HEIGHT: f32 = 24.0;
 
-/// Zig: `labelColor` (the label colour and the colour the layout is shaped
-/// with; measuring and painting must agree or every frame re-shapes).
+/// The label colour and the colour the layout is shaped with; measuring and
+/// painting must agree or every frame re-shapes.
 pub fn label_color(enabled: bool, theme: Theme) -> u32 {
     if enabled {
         theme.color_text
@@ -42,7 +40,7 @@ pub fn label_color(enabled: bool, theme: Theme) -> u32 {
     }
 }
 
-/// The antd control height of a toggle row (Zig: the `control_height` const).
+/// The antd control height of a toggle row ([`CONTROL_HEIGHT`]).
 pub fn control_height() -> f32 {
     CONTROL_HEIGHT
 }
@@ -52,7 +50,7 @@ pub fn font_size(data: &ToggleData) -> f32 {
     data.font_size
 }
 
-/// Zig `measureWidth`: the indicator plus the label's longest line, 8px apart.
+/// The indicator plus the label's longest line, 8px apart.
 pub fn measure_width(
     data: &mut ToggleData,
     style: &FlexStyle,
@@ -81,7 +79,7 @@ pub fn measure_width(
     indicator + LABEL_GAP + if line.is_finite() { line } else { 0.0 }
 }
 
-/// Zig `measureHeight`.
+/// The style height, else the control height.
 pub fn measure_height(style: &FlexStyle) -> f32 {
     style.height.unwrap_or(CONTROL_HEIGHT)
 }
@@ -576,7 +574,7 @@ mod tests {
     fn measure_width_and_height_follow_the_label_and_style() {
         let theme = ant_light();
         let style = FlexStyle::default();
-        // no label: just the indicator (Zig special-cases the empty paragraph)
+        // no label: just the indicator (the empty paragraph is special-cased)
         let mut bare = ToggleData {
             kind: ToggleKind::Checkbox,
             ..Default::default()

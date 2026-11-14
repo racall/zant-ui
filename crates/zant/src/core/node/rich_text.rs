@@ -1,10 +1,10 @@
-//! Port of `src/core/node.zig` — WP-1.3: `RichTextData` and its layout caches.
+//! `RichTextData` and its layout caches.
 //!
 //! Same current + alternate width caching as [`TextData`](super::text::TextData),
 //! with a separate unwrapped-width cache (`natural_width`) used by the layout's
 //! max-content pass. Inline embeds (inline math) are placeholder boxes in the
-//! paragraph; they are owned through `Rc<Drawing>` in Rust, so spans can simply
-//! be cloned (the Zig `embed_arena` deep copy is unnecessary — plan.md §4).
+//! paragraph; they are owned through `Rc<Drawing>`, so spans can simply be
+//! cloned without a deep copy.
 #![forbid(unsafe_code)]
 
 use crate::core::node::data::RichSpan;
@@ -15,7 +15,7 @@ use crate::ui::actions::TextAction;
 
 const WIDTH_EPSILON: f32 = 0.25;
 
-/// Zig `RichTextData`.
+/// A rich text node: styled spans plus their paragraph layout caches.
 pub struct RichTextData {
     pub spans: Vec<RichSpan>,
     pub line_height: f32,

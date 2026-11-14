@@ -1,5 +1,3 @@
-//! Port of `src/pdf/annotations.zig` — WP-3.8.
-//!
 //! PDF annotations made in the viewer (EmbedPDF annotation plugin model):
 //! text markup (highlight, underline, strikeout, squiggly) on selected text,
 //! ink strokes, and sticky notes. The viewer keeps the list (with undo /
@@ -8,10 +6,8 @@
 //!
 //! Coordinates are points of the displayed page (top-left origin, y down).
 //!
-//! Ownership: Zig uses arena / allocator clones and an explicit `free`; Rust
-//! annotations own their `Vec`s and `String`s (`Clone` replaces the custom
-//! `clone`, `Drop` replaces `free`). `Store` calls that could only fail with
-//! OOM (`!u64`, `!void`) return their value or `()` here.
+//! Annotations own their `Vec`s and `String`s, and the `Store` calls are
+//! infallible.
 
 pub use crate::pdf::text::Rect;
 
@@ -66,7 +62,6 @@ impl Default for Annotation {
             color: 0,
             rects: Vec::new(),
             strokes: Vec::new(),
-            // Zig: `width: f32 = 2`
             width: 2.0,
             contents: String::new(),
             text: String::new(),

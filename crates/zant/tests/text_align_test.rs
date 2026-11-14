@@ -1,4 +1,4 @@
-//! Port of `tests/text_align_test.zig` — centred / right-aligned text that
+//! Centred / right-aligned text that
 //! does not wrap stays inside its box (it used to be centred within a 1e9px
 //! layout width, i.e. off screen).
 

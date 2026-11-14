@@ -1,5 +1,4 @@
-//! Port of `tools/zant/sources.zig`: inputs watched by `zant run --watch`,
-//! independent of the project language. `stamp` is the fingerprint the watch
+//! Inputs watched by `zant run --watch`. `stamp` is the fingerprint the watch
 //! loop uses; the `notify` watcher only triggers a re-check, so regenerated
 //! files that end up unchanged do not restart the app.
 

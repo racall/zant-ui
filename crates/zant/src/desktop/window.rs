@@ -1,10 +1,10 @@
 //! Windows of the app: the main window and the extra windows opened with
-//! [`open_window`] (port of `src/desktop.zig`'s "windows" section).
+//! [`open_window`].
 //!
 //! Every window renders the same application state (see
 //! [`crate::runtime::window::SharedApp`]): an action in one window asks all of
-//! them to rebuild. Zig's [`desktop.Window`] wrapped a raw `*Runtime`; Rust
-//! keeps the runtime in an `Rc<RefCell<…>>` and this handle holds only a weak
+//! them to rebuild. The runtime lives in an `Rc<RefCell<…>>` and this handle
+//! holds only a weak
 //! reference to the native window, so the plain window operations never borrow
 //! the runtime (an app hook that hides its window from `on_close_request` must
 //! not panic on a `RefCell` already borrowed by the dispatcher).
@@ -23,20 +23,19 @@ use crate::ui::RunOptions;
 use crate::ui::commands::CommandKind;
 
 /// Where [`Window::place`] puts a window, in the work area of the screen under
-/// the pointer (Zig `desktop.Place` = `platform.Place`).
+/// the pointer.
 pub use crate::platform::platform::Place;
 
-/// `true` on macOS (Zig `zant.desktop.is_macos`).
+/// `true` on macOS.
 pub const IS_MACOS: bool = platform::IS_MACOS;
 
 /// Hooks of a window opened with [`open_window`]; `render` is required.
 pub use crate::runtime::window::WindowHooks;
 
-/// Options of a window opened with [`open_window`] (Zig
-/// `desktop.OpenOptions`).
+/// Options of a window opened with [`open_window`].
 #[derive(Clone, Debug)]
 pub struct OpenOptions {
-    /// Window title (Zig `[:0]const u8 = "Zant UI"`).
+    /// Window title (default "Zant UI").
     pub title: String,
     /// Platform window options (style, size, hidden, …).
     pub window: WindowOptions,
@@ -74,12 +73,11 @@ struct MainWindow {
 }
 
 thread_local! {
-    /// The main window on the UI thread (Zig `desktop.main_runtime`).
+    /// The main window on the UI thread.
     static MAIN: RefCell<Option<MainWindow>> = const { RefCell::new(None) };
 }
 
-/// Registers the window `ui::app::run` created (Zig
-/// `desktop.setMainRuntime`); `None` when the app ends.
+/// Registers the window `ui::app::run` created; `None` when the app ends.
 ///
 /// The app state handle is read here once: `main_window()` and
 /// `open_window()` must work from inside a callback whose window is currently
@@ -96,8 +94,7 @@ pub fn set_main_runtime(runtime: Option<Rc<RefCell<Runtime>>>) {
     });
 }
 
-/// The app's main window, `None` before `ui::app::run` created it (Zig
-/// `desktop.mainWindow`).
+/// The app's main window, `None` before `ui::app::run` created it.
 pub fn main_window() -> Option<Window> {
     MAIN.with(|main| {
         let main = main.borrow();
@@ -111,7 +108,7 @@ pub fn main_window() -> Option<Window> {
 }
 
 /// One window of the app: the main window ([`main_window`]) or a window
-/// opened with [`open_window`] (Zig `desktop.Window`).
+/// opened with [`open_window`].
 pub struct Window {
     core: Rc<RefCell<Runtime>>,
     /// Weak: the runtime owns the last strong reference, so closing a window
@@ -250,7 +247,7 @@ pub fn open_window(hooks: WindowHooks, options: OpenOptions) -> Result<Window, P
         .with(|main| main.borrow().as_ref().map(|state| state.app.clone()))
         .ok_or(PlatformError::UnsupportedPlatform)?;
     let mut runtime = Runtime::init_window(app, hooks, options.run_options());
-    // Zig `openWindow`: the ZANT_FRAME_STATS labels of extra windows are
+    // The ZANT_FRAME_STATS labels of extra windows are
     // ":2", ":3", … (the main window enabled the layout statistics)
     if crate::ui::app::env_flag("ZANT_FRAME_STATS") {
         let label = runtime_window::next_frame_stats_label();
@@ -330,14 +327,14 @@ mod tests {
         let core = headless_runtime();
         set_main_runtime(Some(Rc::clone(&core)));
         // the runtime has no native window yet (headless), so there is no main
-        // window handle, exactly like Zig's `mainWindow` before `run`
+        // window handle, as before `run`
         assert!(main_window().is_none());
         set_main_runtime(None);
         assert!(main_window().is_none());
     }
 
     #[test]
-    fn open_options_default_to_the_zig_values() {
+    fn open_options_have_the_documented_defaults() {
         let options = OpenOptions::default();
         assert_eq!(options.title, "Zant UI");
         assert_eq!(options.window.width, 560.0);

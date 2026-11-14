@@ -1,8 +1,8 @@
 //! The code generation entry point, module validation, state collection and
-//! component emission. Translation of `tools/tsx/codegen/codegen.zig`.
+//! component emission.
 //!
-//! [`generate`] turns one parsed module into a complete Rust source file in the
-//! shape frozen by `docs/rust-port/tsx-codegen.md` §5/§6:
+//! [`generate`] turns one parsed module into a complete Rust source file in
+//! this shape:
 //!
 //! - the root component is a plain struct with its state as fields, a
 //!   hand-written `impl Default` (the `useState` initial values), inherent
@@ -14,19 +14,14 @@
 //!   are emitted before the components.
 //!
 //! The output is validated with [`crate::codegen::parse_and_format`] (`syn` +
-//! `prettyplease`); a parse failure panics with the generated source, exactly
-//! like the Zig compiler's AST re-parse.
+//! `prettyplease`); a parse failure panics with the generated source.
 //!
-//! # Extension points still owned by other work packages
+//! # Extension points
 //!
-//! `imports.zig` (module paths, WP-5.6), `windows.zig` (WP-5.6),
-//! `app_hooks.zig` (WP-5.6), `native_specs.zig` (WP-5.8) and the JSX / event
-//! modules `jsx.zig`, `events.zig`, `list.zig`, `jsx_fields.zig`,
-//! `jsx_values.zig` (WP-5.4) are hooks on [`Extensions`]. Until WP-5.4 lands,
-//! [`install`] cannot fill `emit_jsx`, `scan_body`, `scan_expr` and
-//! `emit_setter`; a component that renders JSX fails with
-//! `"JSX code generation is implemented by WP-5.4"`. Filling them in is the
-//! single-line merge action reported by WP-5.5.
+//! `imports` (module paths), `windows`, `app_hooks` and the JSX / event
+//! modules (`jsx`, `events`, `list`, `jsx_values`) are reached through hooks
+//! on [`Extensions`], which [`install`] fills in before generation. Native
+//! module specs (`native/<name>.ts`) are compiled by [`crate::native_specs`].
 
 use crate::ast;
 use crate::tags;
@@ -45,8 +40,7 @@ use super::stores;
 use super::types::{self, Type};
 use super::{Diag, Generator, Result, fail, parse_and_format};
 
-/// The fixed file header (`docs/rust-port/tsx-codegen.md` §1) plus the module
-/// imports every generated file uses.
+/// The fixed file header plus the module imports every generated file uses.
 ///
 /// `non_snake_case` is inherent to the generated code: TSX props keep their
 /// camelCase names (`onIncrement`) and the handler methods derive from them.
@@ -60,14 +54,14 @@ pub const PREAMBLE: &str = "#[allow(unused_imports)]\nuse zant::nodes;\n#[allow(
 pub struct Options<'a> {
     /// The file path for the `@generated` marker and diagnostics.
     pub source_name: &'a str,
-    /// The project's parsed files, for relative imports (WP-5.6 fills this).
+    /// The project's parsed files, for relative imports.
     pub project: &'a [stateful::ModuleSource<'a>],
     /// A file without a root component (only child components) is an error
     /// unless false (library files of a project).
     pub require_root: bool,
-    /// The file's path in a project build (asset imports, WP-5.6).
+    /// The file's path in a project build (asset imports).
     pub source_path: Option<&'a str>,
-    /// A native module spec (`native/<name>.ts`), compiled by WP-5.8.
+    /// A native module spec (`native/<name>.ts`), compiled by `native_specs`.
     pub native: bool,
 }
 
@@ -101,8 +95,6 @@ pub struct GeneratedFile {
     pub source: String,
 }
 
-/// Fill in the hooks this work package owns. WP-5.4 / 5.6 / 5.8 replace the
-/// `None` entries with their module functions at merge time.
 /// `expr` sends every JSX element through this hook: child components first
 /// (they emit `Child::build(..)`), then the `ui::*` tags (`jsx::emit`).
 pub(crate) fn emit_jsx(
@@ -125,7 +117,7 @@ pub fn install(g: &mut Generator<'_>) {
     g.extensions.hooks.ref_read = Some(hooks::ref_read);
     g.extensions.hooks.ref_write = Some(hooks::ref_write);
     g.extensions.hooks.bare_ref = Some(hooks::bare_ref);
-    // WP-5.6's dispatcher chains app hooks, desktop hooks and `useEffect`
+    // this dispatcher chains app hooks, desktop hooks and `useEffect`
     g.extensions.hooks.hook_statement = Some(super::app_hooks::statement);
     g.extensions.hooks.hook_declaration = Some(super::app_hooks::declaration);
     g.extensions.hooks.cleanup_return = Some(hooks::cleanup_return);
@@ -134,7 +126,7 @@ pub fn install(g: &mut Generator<'_>) {
     g.extensions.hooks.captures_read = Some(super::captures::read);
     g.extensions.hooks.nested = Some(super::captures::nested);
     g.extensions.array_methods = Some(super::array_methods::emit);
-    // Zig `expr.callValue`'s dispatch order: components, .rs functions,
+    // dispatch order of `expr::call_value`: components, .rs functions,
     // stores, windows
     g.extensions.call_before_functions = vec![
         components::try_call,
@@ -142,10 +134,10 @@ pub fn install(g: &mut Generator<'_>) {
         stores::try_call,
         super::windows::try_call,
     ];
-    // Zig `expr.callValue`: `zant_api` before the JS builtins
+    // `zant_api` goes before the JS builtins
     g.extensions.call_before_builtins = vec![
         super::zant_api::try_call,
-        // `setTimeout` / `clearTimeout` (the unowned `timers.zig` lives here)
+        // `setTimeout` / `clearTimeout`
         super::events::timer_call,
     ];
     g.extensions.is_app_hook = super::app_hooks::is_app_hook;
@@ -154,22 +146,20 @@ pub fn install(g: &mut Generator<'_>) {
     g.extensions.hooks.key_event_type = Some(super::app_hooks::key_event_type);
     g.extensions.hooks.image_type = Some(super::jsx::image_type);
     g.extensions.hooks.imported_type = Some(super::imports::named);
-    g.extensions.hooks.zig_type = Some(super::rust_imports::named);
+    g.extensions.hooks.rust_type = Some(super::rust_imports::named);
     g.extensions.hooks.external_name = Some(super::imports::external_name);
-    // WP-5.6 (one line each):
+    // imports, windows and the app lifecycle
     g.extensions.process_imports = Some(super::imports::process);
     g.extensions.collect_windows = Some(super::windows::collect);
     g.extensions.app_lifecycle = Some(super::app_hooks::lifecycle);
     g.extensions.is_window_const = Some(super::windows::is_create);
-    // WP-5.4 (one line each):
+    // JSX and events
     g.extensions.hooks.emit_jsx = Some(emit_jsx);
     g.extensions.hooks.scan_body = Some(super::events::scan_body);
     g.extensions.hooks.scan_expr = Some(super::events::scan_expr);
     g.extensions.hooks.emit_setter = Some(super::events::emit_setter);
     g.extensions.hooks.method_param = Some(super::events::method_param_type);
     g.extensions.hooks.parameter_type = Some(super::events::parameter_type);
-    // WP-5.8:
-    // (native module specs): g.extensions.native_spec = Some(super::native_specs::emit);
 }
 
 /// Validate the module, register state and handlers, then emit a complete
@@ -183,8 +173,8 @@ pub fn generate(
 }
 
 /// [`generate`] with one extra hook-installation step, run after [`install`].
-/// Tests inject the not-yet-landed WP-5.4 JSX / event emitters through it; the
-/// production entry point passes `None`.
+/// Tests replace individual hooks through it; the production entry point
+/// passes `None`.
 pub fn generate_with(
     source_name: &str,
     module: &ast::Module,
@@ -206,7 +196,7 @@ fn generate_inner(
 ) -> Result<GeneratedFile> {
     if options.native {
         // `native/<name>.ts`: the spec compiles to `pub mod <name> { … }` of
-        // `native/spec.rs` (WP-5.8); the project's specs resolve its imports.
+        // `native/spec.rs`; the project's specs resolve its imports.
         let name = options
             .source_path
             .map(|path| path.rsplit(['/', '\\']).next().unwrap_or(path))
@@ -344,7 +334,7 @@ fn generate_inner(
     })
 }
 
-/// Imports come from `"zant"`, `"react"`, a relative `.tsx` / `.zig` file or a
+/// Imports come from `"zant"`, `"react"`, a relative file or a
 /// `native/<module>` spec; imported names must be known.
 fn validate_imports(g: &mut Generator<'_>, module: &ast::Module) -> Result<()> {
     for import in &module.imports {
@@ -356,7 +346,7 @@ fn validate_imports(g: &mut Generator<'_>, module: &ast::Module) -> Result<()> {
             return fail(
                 g,
                 import.source_loc,
-                "imports come from \"zant\", \"react\", \"native/<module>\" or a relative .tsx / .zig file",
+                "imports come from \"zant\", \"react\", \"native/<module>\" or a relative .tsx / .rs file",
             );
         }
         for name in &import.names {
@@ -391,7 +381,7 @@ fn validate_imports(g: &mut Generator<'_>, module: &ast::Module) -> Result<()> {
                     format!("unknown import `{imported}`; this name is not supported by Zant"),
                 );
             }
-            // Zig `codegen.zig`: `import type {u16 as Small} from "zant"`
+            // `import type {u16 as Small} from "zant"`
             // aliases the numeric type; tags cannot be renamed.
             if imported != local {
                 if tag {
@@ -654,7 +644,7 @@ fn state_fields(g: &mut Generator<'_>) -> Result<String> {
         let id = rust_text::id_at(g, field.name.as_bytes(), 0)?;
         out.push_str(&format!("    {id}: {},\n", field.rust_type));
     }
-    // `<List>` scroll state (WP-5.4 `list.zig` registers `_listN` fields).
+    // `<List>` scroll state (`list` registers `_listN` fields).
     let lists = g.lists.clone();
     for info in &lists {
         out.push_str(&format!(
@@ -711,7 +701,7 @@ pub fn emit_method(g: &mut Generator<'_>, m: &super::Method) -> Result<String> {
             None => fail(
                 g,
                 0,
-                "setter adapter methods are implemented by WP-5.4 (`events.emitSetter`)",
+                "setter adapter methods need the event emitter installed",
             ),
         };
     }
@@ -756,7 +746,7 @@ pub fn method(
                         g,
                         p.name.loc,
                         format!(
-                            "parameter `{}` needs a type (event parameter inference is WP-5.4)",
+                            "parameter `{}` needs a type (event parameter inference needs the event emitter installed)",
                             String::from_utf8_lossy(&p.name.name)
                         ),
                     );
@@ -765,7 +755,7 @@ pub fn method(
         };
         let binding = scope::bind(g, &mut c, &p.name.name, ty, false)?;
         c.params.push(binding);
-        let id = c.bindings[binding].zig.clone();
+        let id = c.bindings[binding].rust.clone();
         // `ui::TextAction` passes `&str`; the TSX parameter is a string
         if m.action == Some(tags::Kind::TextAction) && ty == Type::String {
             params.push(format!(", {id}: &str"));
@@ -1027,8 +1017,7 @@ pub fn collect_state(
     Ok(())
 }
 
-/// Emit a `ui::*` action for method `index` (the Zig `ui.action(receiver,
-/// method)` of `events.zig` / `components.zig`), capturing render locals when
+/// Emit a `ui::*` action for method `index`, capturing render locals when
 /// the method needs them.
 pub fn action_value(
     g: &mut Generator<'_>,
@@ -1041,7 +1030,7 @@ pub fn action_value(
             g,
             0,
             "callback props whose signature is not a ui event need the runtime `ActionCx`; \
-             this is an open design question (see the WP-5.5 report)",
+             this is not supported yet",
         );
     };
     let (constructor, closure_params, call_argument) = match kind {
@@ -1137,8 +1126,7 @@ pub fn action_value(
 
 /// A callback prop whose signature is not a ui event (`(id: u32) => void`):
 /// `std::rc::Rc<dyn Fn(&mut ui::ActionCx<'_>, …)>` calling the generated
-/// handler with the runtime context (the Rust equivalent of the Zig
-/// `tsx.callback(fn (…) void, self, Class.method)`).
+/// handler with the runtime context.
 pub fn callback_value(
     g: &mut Generator<'_>,
     c: &mut scope::Context,

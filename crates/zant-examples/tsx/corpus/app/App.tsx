@@ -1,6 +1,6 @@
-// A TS + TSX app as `zant create` makes it: no Zig to write. The build
-// (`addTsxApp`) compiles every .tsx here and generates the entry from this
-// file's default export and app_config.zig. Run it with `zig build run-tsx-app`.
+// A TS + TSX app as `zant create` makes it: no Rust to write for the UI. The
+// build script compiles every .tsx here and generates the entry from this
+// file's default export. The runnable copy is `../../tsx-demo`.
 import { createStore, createWindow, useState, useStore, useKeyDown, View, Row, Heading, Paragraph, Button } from "zant";
 import { clipboard, keyLabel, useTray, useAppExit, app, mainWindow, isMacos } from "zant";
 import type { KeyEvent } from "zant";

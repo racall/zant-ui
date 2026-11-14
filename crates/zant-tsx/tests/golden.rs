@@ -1,11 +1,10 @@
-//! WP-5.9 golden cases: the 31 Rust outputs of the TSX corpus, and
-//! the first real proof that the generated code compiles against the runtime.
+//! Golden cases: the 31 Rust outputs of the TSX corpus, and the proof that
+//! the generated code compiles against the runtime.
 //!
 //! - [`golden_outputs_match_the_compiler`] regenerates every `.rs` with
 //!   [`compile::compile`] and compares it to the committed
-//!   `testdata/<name>.rs` byte for byte (the Zig `golden_test.zig` contract;
-//!   the files were generated once and human-reviewed against the design doc
-//!   and the Zig golden, see `docs/rust-port/status.md`).
+//!   `testdata/<name>.rs` byte for byte (the files are the human-reviewed
+//!   contract of the generated code).
 //! - [`generated_goldens_compile_against_the_runtime`] writes all goldens into
 //!   one temporary, workspace-external crate whose `zant` dependency is this
 //!   repository's `crates/zant`, and runs `cargo check`. All goldens go into a
@@ -17,18 +16,17 @@
 //! One corpus file cannot be a golden yet; the test documents why instead of
 //! silently skipping it:
 //! - `entities`: `zant::Str` is UTF-8 and cannot hold an unpaired surrogate
-//!   (`crates/zant-tsx/testdata/tsx/entities.tsx` has `&#xD800;`; the Zig
-//!   compiler used
-//!   WTF-8 bytes); replacing it with U+FFFD would change the data, so the
-//!   compiler reports a diagnostic and the golden stays excluded.
+//!   (`crates/zant-tsx/testdata/tsx/entities.tsx` has `&#xD800;`); replacing
+//!   it with U+FFFD would change the data, so the compiler reports a
+//!   diagnostic and the golden stays excluded.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use zant_tsx::compile;
 
-/// The 32 corpus names in the old Zig golden order; the generated ones are
-/// below. The corpus moved from `tools/tsx/testdata/` at M8.
+/// The 32 corpus names (`testdata/tsx/<name>.tsx`); the generated ones are
+/// below.
 const CORPUS: &[&str] = &[
     "counter",
     "layout",
@@ -90,8 +88,8 @@ fn read_corpus(name: &str) -> String {
 }
 
 #[test]
-fn the_corpus_and_the_goldens_are_the_32_zig_cases() {
-    // the 32 inputs are exactly the Zig golden list (nothing silently dropped)
+fn the_corpus_and_the_goldens_are_the_32_listed_cases() {
+    // every listed input exists (nothing silently dropped)
     for name in CORPUS {
         assert!(
             corpus_dir().join(format!("{name}.tsx")).is_file(),
@@ -161,8 +159,8 @@ fn the_compiler_is_deterministic() {
 
 #[test]
 fn entities_reports_its_documented_limitation() {
-    // `entities`: no Rust `str` for an unpaired surrogate (`&#xD800;`); unlike
-    // the Zig compiler (WTF-8 bytes) the Rust compiler reports a diagnostic.
+    // `entities`: no Rust `str` for an unpaired surrogate (`&#xD800;`), so
+    // the compiler reports a diagnostic.
     let entities = read_corpus("entities");
     let error = compile::compile(&entities, "entities.tsx").expect_err("entities is blocked");
     assert!(error.msg.contains("unpaired surrogate"), "{}", error.msg);

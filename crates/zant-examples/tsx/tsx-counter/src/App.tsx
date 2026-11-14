@@ -1,6 +1,6 @@
 // The TSX counter, compiled to Rust at build time (`docs/tsx.md`).
-// Run it with `cargo run -p zant-tsx-counter` (WP-5.10 port of
-// `examples/tsx/counter.tsx`; same component, keys and window).
+// Run it with `cargo run -p zant-tsx-counter`. State, derived values,
+// handlers and inputs in one component.
 import { useState, View, Row, Text, Button, Input, Switch, Checkbox } from "zant";
 import type { u32 } from "zant";
 

@@ -1,4 +1,4 @@
-// A row: its props use a type imported from Zig (data.zig).
+// A row: its props use a type imported from Rust (data.rs).
 import { Button } from "zant";
 import type { i64 } from "zant";
 import type { Data } from "./data.rs";

@@ -1,10 +1,9 @@
 //! `tsx::List<T>`: the Rust type of a TypeScript array (`T[]`) in generated
-//! code (docs/rust-port/tsx-codegen.md §2).
+//! code.
 //!
-//! The Zig runtime had no array type: generated Zig code used `[]const T`
-//! slices and copied on write. The Rust target is `Rc<Vec<T>>` with copy-on-
-//! write mutation, so cloning an array (which generated code does constantly,
-//! §3 "every read of a non-Copy variable clones") is a refcount bump and
+//! It is an `Rc<Vec<T>>` with copy-on-write mutation, so cloning an array
+//! (which generated code does constantly: every read of a non-`Copy` variable
+//! clones) is a refcount bump and
 //! `push` / `pop` / `splice` only copy when another handle is alive, exactly
 //! like mutating a TS array does not affect a snapshot taken before.
 //!

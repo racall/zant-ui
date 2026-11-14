@@ -1,8 +1,6 @@
 //! Tokenizer for the TSX subset. JS tokens come from `next`; the parser
 //! switches to `jsx_tag_token`, `jsx_text` and `template_part` where TSX's
 //! grammar is context sensitive.
-//!
-//! Direct translation of `tools/tsx/lexer.zig`.
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {
@@ -47,7 +45,7 @@ const PUNCTS: [&str; 20] = [
 ];
 const SINGLE_PUNCTS: &str = "{}()[];,<>+-*/%=!?:.&|^~@#";
 
-/// Failure of [`cook`] / [`decode_string`] (Zig `error.BadEscape`).
+/// Failure of [`cook`] / [`decode_string`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum LexError {
     #[error("bad escape")]
@@ -101,8 +99,8 @@ impl<'a> Lexer<'a> {
         true
     }
 
-    // Named `next` to mirror the Zig lexer; it is not an `Iterator` (it
-    // never returns `Option<Token>`).
+    // Named `next` like a lexer's usual entry point; it is not an `Iterator`
+    // (it never returns `Option<Token>`).
     #[allow(clippy::should_implement_trait)]
     pub fn next(&mut self) -> Token {
         let before = self.pos;

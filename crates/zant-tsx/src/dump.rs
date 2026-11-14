@@ -1,6 +1,4 @@
-//! Deterministic AST dump, for parser tests and the M4 golden comparison
-//! (plan.md §5 M4 acceptance). The Zig compiler has no `--dump-ast` tool yet;
-//! WP-5.x will add one and align it byte-for-byte with this format.
+//! Deterministic AST dump, for parser tests and golden comparisons.
 //!
 //! Format rules:
 //! - one node per line, two spaces per nesting level;
@@ -18,7 +16,7 @@ use crate::ast::{
     TypeDetail, TypeField, TypeRef,
 };
 
-/// The AST root. Zig calls it `ast.Module`; the M4 brief calls it a program.
+/// The AST root: a whole module.
 pub type Program = Module;
 
 /// A deterministic, human-readable dump of a whole module.
@@ -716,7 +714,7 @@ module
   declared
 ";
 
-    /// The pinned shape: byte-for-byte dump of a component (M4 golden form).
+    /// The pinned shape: byte-for-byte dump of a component (the golden form).
     #[test]
     fn dump_program_pins_a_component_shape() {
         let m = crate::parser::parse_ok(PINNED_SRC);

@@ -1,4 +1,4 @@
-//! Port of `src/core/tree.zig` — WP-1.3: scrolling (wheel offsets and the
+//! Scrolling (wheel offsets and the
 //! scroll container under the pointer).
 #![forbid(unsafe_code)]
 

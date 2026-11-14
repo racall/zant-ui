@@ -1,9 +1,8 @@
 //! Typed JS built-ins, isolated from JSX and the general expression emitter.
-//! Translation of `tools/tsx/codegen/builtins.zig`; the runtime helpers are
-//! `tsx::builtins` (WP-5.7).
+//! The runtime helpers are `tsx::builtins`.
 //!
-//! Zig's comptime `enum` arguments become Rust enum values:
-//! `tsx.builtins.unary(.floor, x)` → `tsx::builtins::unary(Unary::Floor, x)`.
+//! The operation is passed as an enum value:
+//! `Math.floor(x)` → `tsx::builtins::unary(Unary::Floor, x)`.
 
 use crate::ast;
 

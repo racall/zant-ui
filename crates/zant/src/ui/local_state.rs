@@ -1,5 +1,4 @@
-//! `ui::local_state` / `ui::local_slot` / `ui::child_id` — WP-2.4 (drawn early
-//! so the ui builders and the TSX compiler can use it).
+//! `ui::local_state` / `ui::local_slot` / `ui::child_id`.
 //!
 //! Component-local state that lives while the instance keeps being built: the
 //! slot for `id` is created from `initial` on the first build and freed after
@@ -19,8 +18,7 @@ use crate::core::local_state::{Slot, Store};
 use super::context;
 
 thread_local! {
-    /// Fallback store for builds outside a runtime (tests, previews), like the
-    /// Zig `default_states`.
+    /// Fallback store for builds outside a runtime (tests, previews).
     static FALLBACK: RefCell<Store> = RefCell::new(Store::new());
 }
 
@@ -31,13 +29,13 @@ fn with_store<R>(f: impl FnOnce(&mut Store) -> R) -> R {
     }
 }
 
-/// Component-local state (`ui.localState`): the slot for `id`, created from
+/// Component-local state (`ui::local_state`): the slot for `id`, created from
 /// `init` on the first build of the instance.
 pub fn local_state<T: 'static>(id: u64, init: impl FnOnce() -> T) -> Rc<RefCell<T>> {
     with_store(|store| store.slot(id, init).value)
 }
 
-/// `local_state` without discarding `fresh` (`ui.localSlot`): the caller can
+/// `local_state` without discarding `fresh` (`ui::local_slot`): the caller can
 /// initialise the value only on the first build.
 pub fn local_slot<T: 'static>(id: u64, init: impl FnOnce() -> T) -> Slot<T> {
     with_store(|store| store.slot(id, init))

@@ -1,4 +1,4 @@
-//! Port of `tests/antd_components_test.zig` — the antd composite components:
+//! The antd composite components:
 //! icons, dropdown menu, segmented, dismiss layer, modal, shortcut list,
 //! message, focus scope, clickable rows, hotkey recorder, image thumbnails and
 //! button icon metrics.

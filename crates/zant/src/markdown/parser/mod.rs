@@ -1,5 +1,3 @@
-//! Port of `src/markdown/parser/mod.zig` — WP-3.2.
-//!
 //! Markdown → `ast.Document`.
 
 pub mod block;

@@ -1,4 +1,4 @@
-//! Port of `src/layout/flex.zig`: CSS-style single-line flex distribution
+//! CSS-style single-line flex distribution
 //! (grow / shrink with min/max clamping, gaps, margins, justification).
 #![forbid(unsafe_code)]
 

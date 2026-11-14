@@ -1,11 +1,10 @@
-//! Port of the two inline tests of `tests/all.zig` (the Zig test harness
-//! smoke test and the `zant.unicode` helper assertions).
+//! Test harness smoke test and the `zant::core::unicode` helper assertions.
 
 use zant::core::unicode;
 
 #[test]
 fn test_harness_starts() {
-    // Zig: `try std.testing.expect(true)`; a trivially true check here too.
+    // a trivially true check
     assert_eq!(1 + 1, 2);
 }
 

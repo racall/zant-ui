@@ -1,13 +1,13 @@
 //! Structured statement control flow. Targets stay lexical and never cross
-//! callback boundaries. Translation of `tools/tsx/codegen/loops.zig`.
+//! callback boundaries.
 //!
 //! Rust has labels on `loop`, `for`, `while` and plain blocks, so break and
 //! continue map directly. A C-style `for` becomes a `loop` that runs the update
 //! expression at the top of every iteration after the first — that way
-//! `continue` still executes the update, like Zig's `while … : (update)`.
+//! `continue` still executes the update.
 //! `switch` remains a labeled if/else chain: case tests are arbitrary
 //! expressions with side effects, so a Rust `match` cannot represent the
-//! evaluation order (registered in the status report).
+//! evaluation order.
 
 use crate::ast;
 
@@ -156,9 +156,8 @@ fn for_of(
     } else {
         String::new()
     };
-    // `let` loop bindings are only mutable when the body assigns them; Zig's
-    // `scope.finish` picks `var`/`const` the same way, and an unused `mut`
-    // would warn in Rust.
+    // `let` loop bindings are only mutable when the body assigns them
+    // (`scope::finish` decides the same way): an unused `mut` would warn.
     let mutable = if c.bindings[binding].assigned {
         "mut "
     } else {
@@ -168,7 +167,7 @@ fn for_of(
         "{{\nlet {source}: {} = {};\n{prefix}for {mutable}{} in {source}.iter().cloned() {{\n{body}\n}}\n}}\n",
         iterable.ty.rust(g),
         iterable.code,
-        c.bindings[binding].zig
+        c.bindings[binding].rust
     ))
 }
 
@@ -189,8 +188,7 @@ fn while_statement(
         return Ok(format!("{prefix}while {} {body}\n", cond.code));
     }
     // The first flag is set at the start of the body, so `continue` re-checks
-    // the condition (Zig's post-test `while (first or cond) : (first = false)`
-    // has the same effect).
+    // the condition.
     let first = aggregate::temporary(g, c, b"_first")?;
     Ok(format!(
         "{{\nlet mut {first} = true;\n{prefix}while {first} || ({}) {{\n{first} = false;\n{body}\n}}\n}}\n",

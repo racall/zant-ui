@@ -1,10 +1,10 @@
-//! The build context: the thread-local state of `src/ui.zig:94-470`.
+//! The build context: the thread-local state of a build.
 //!
-//! Zig had ~18 separate `threadlocal var`s (theme, frame clock, display scale,
-//! queued effects / portals, pending document flag, …). Rust keeps them in one
-//! [`BuildCx`] behind a single `RefCell`.
+//! The per-build values (theme, frame clock, display scale, queued effects /
+//! portals, pending document flag, …) are kept in one [`BuildCx`] behind a
+//! single `RefCell`.
 //!
-//! **Hard rule (plan §4): release the `CX` borrow before calling user code**
+//! **Hard rule: release the `CX` borrow before calling user code**
 //! (`render`, a memo build closure, any `Action`). Those call `ui::*`
 //! functions, which borrow `CX` again, and a nested `borrow_mut()` panics.
 //! [`with_cx`] borrows only for the duration of the closure it is given; keep
@@ -43,7 +43,7 @@ pub struct BuildCx {
 }
 
 impl Default for BuildCx {
-    /// Zig module-level defaults: light theme, scale 1, native window style.
+    /// Light theme, scale 1, native window style.
     fn default() -> Self {
         BuildCx {
             theme: Theme::default(),
@@ -83,7 +83,7 @@ pub fn set_build_theme(theme: Theme) {
     with_cx(|build| build.theme = theme);
 }
 
-/// Active theme while building a frame (`ui::currentTheme`).
+/// Active theme while building a frame (`ui::current_theme`).
 pub fn current_theme() -> Theme {
     with_cx(|build| build.theme)
 }
@@ -94,12 +94,12 @@ pub fn display_scale() -> f32 {
     with_cx(|build| build.display_scale)
 }
 
-/// Set by the runtime before every build; values <= 0 are ignored (Zig).
+/// Set by the runtime before every build; values <= 0 fall back to 1.
 pub fn set_display_scale(scale: f32) {
     with_cx(|build| build.display_scale = if scale > 0.0 { scale } else { 1.0 });
 }
 
-/// Timestamp (ms, monotonic) of the current frame or event (`ui::nowMs`).
+/// Timestamp (ms, monotonic) of the current frame or event (`ui::now_ms`).
 pub fn now_ms() -> i64 {
     with_cx(|build| build.now_ms)
 }
@@ -144,7 +144,7 @@ pub fn run_effects(action_cx: &mut ActionCx<'_>) -> bool {
 }
 
 /// Renders `node` as the last child of the window root instead of here (a
-/// React portal); the storage half of WP-2.4's `ui::portal`.
+/// React portal); the storage half of `ui::portal`.
 pub fn push_portal(node: Node) {
     with_cx(|build| build.portals.push(node));
 }
@@ -193,8 +193,8 @@ pub fn titlebar_insets() -> TitlebarInsets {
     platform::titlebar_insets(with_cx(|build| build.window_style))
 }
 
-/// Starts a build: clears the per-frame queues (Zig `beginFrame` resets its
-/// frame arena; Rust nodes own their data, so there is nothing to free).
+/// Starts a build: clears the per-frame queues (nodes own their data, so
+/// there is nothing else to free).
 pub fn begin_frame() {
     with_cx(|build| {
         build.effects.clear();
@@ -213,8 +213,7 @@ pub fn is_frame_active() -> bool {
     with_cx(|build| build.frame_active)
 }
 
-/// Copies a runtime `&str` for storage in a node (Zig `ui.frameString` copied
-/// into the frame arena; Rust strings are shared `Str`s).
+/// Copies a runtime `&str` into a shared `Str` for storage in a node.
 pub fn frame_string(value: &str) -> Str {
     Str::copy(value)
 }
@@ -241,7 +240,7 @@ pub fn key_bounds(key: &str) -> Option<crate::core::geometry::Rect> {
     hook(key)
 }
 
-/// Thread-safe: asks the UI thread to wake up and redraw (Zig: `ui.postWake`).
+/// Thread-safe: asks the UI thread to wake up and redraw.
 /// Called by background work (PDF tiles, image decoding) after `post_wake` was
 /// wired to a window.
 pub fn post_wake() {

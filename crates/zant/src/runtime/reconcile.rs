@@ -1,13 +1,12 @@
-//! Port of `src/ui_runtime.zig:384-621`: reconciling the declarative tree into
-//! the retained tree.
+//! Reconciling the declarative tree into the retained tree.
 //!
-//! Matching rules (unchanged from Zig): keyed specs only match a node with the
+//! Matching rules: keyed specs only match a node with the
 //! same key and kind; unkeyed specs match the next unused unkeyed node in
 //! order (nodes playing an exit transition are never reused); unmatched live
 //! nodes are freed, or play their presence exit transition first and are freed
 //! by the frame tick when it ends.
 //!
-//! New nodes are created here as well (`createNode`), including the
+//! New nodes are created here as well (`create_node`), including the
 //! `ui::memo` expansion and the local-state recording that keeps the state of
 //! skipped memo subtrees alive.
 #![forbid(unsafe_code)]
@@ -20,13 +19,13 @@ use crate::ui::memo::resolve_memo;
 use super::Runtime;
 use super::patch::apply_selection;
 
-/// Zig `kindCompatible`: the retained node must have the same kind as the spec.
+/// The retained node must have the same kind as the spec.
 fn kind_compatible(node_kind: NodeKind, spec_kind: NodeKind) -> bool {
     node_kind == spec_kind
 }
 
 impl Runtime {
-    /// Zig `reconcileChildren`: reconciles `specs` into `parent_id`'s children.
+    /// Reconciles `specs` into `parent_id`'s children.
     /// Returns true when the layout has to run again.
     pub(crate) fn reconcile_children(&mut self, parent_id: NodeId, specs: &[Node]) -> bool {
         let old: Vec<NodeId> = self.tree.get(parent_id).children.clone();
@@ -156,7 +155,7 @@ impl Runtime {
         changed_layout
     }
 
-    /// Zig's inline match search: the index of the old child `spec` reuses.
+    /// The match search: the index of the old child `spec` reuses.
     fn find_match(
         &self,
         old: &[NodeId],
@@ -199,7 +198,7 @@ impl Runtime {
         None
     }
 
-    /// Zig `createMemo`: creates the node of a child spec, expanding (and
+    /// Creates the node of a child spec, expanding (and
     /// recording the local-state ids of) a memo.
     fn create_memo(&mut self, spec: Node) -> Option<NodeId> {
         if spec.element().memo_build.is_none() {
@@ -213,7 +212,7 @@ impl Runtime {
         Some(id)
     }
 
-    /// Zig `setMemo`: stores the memo hash and the local-state ids its build
+    /// Stores the memo hash and the local-state ids its build
     /// touched.
     fn set_memo(&mut self, id: NodeId, hash: Option<u64>, states: Vec<u64>) {
         let node = self.tree.get_mut(id);
@@ -221,7 +220,7 @@ impl Runtime {
         node.memo_states = if hash.is_some() { states } else { Vec::new() };
     }
 
-    /// Zig `createNode`: allocates the retained node and fills in its
+    /// Allocates the retained node and fills in its
     /// kind-specific data.
     fn create_node(&mut self, spec: Node) -> Option<NodeId> {
         let element = spec.element();
@@ -337,9 +336,8 @@ impl Runtime {
                             element.image_id,
                         );
                     } else {
-                        // Zig's `Tree.addImage` loaded the file; the Rust tree
-                        // does no I/O, so the runtime loads it here (outside
-                        // `render`), exactly where the Zig reconcile arm did.
+                        // the tree does no I/O, so the runtime loads the
+                        // file here (outside `render`).
                         crate::components::image::load(data);
                     }
                 }
@@ -360,7 +358,7 @@ impl Runtime {
         Some(id)
     }
 
-    /// Starts a freshly mounted node's enter transition (`beginEnter`).
+    /// Starts a freshly mounted node's enter transition.
     fn begin_enter(&mut self, id: NodeId) {
         let (presence, motion_on) = {
             let node = self.tree.get(id);
@@ -379,7 +377,7 @@ impl Runtime {
     }
 
     /// Starts the exit transition: the node stops taking input right away and
-    /// is freed by `tick` when the transition ends (`beginExit`).
+    /// is freed by `tick` when the transition ends.
     fn begin_exit(&mut self, id: NodeId) {
         self.tree.get_mut(id).exiting = true;
         self.forget_subtree(id);
@@ -395,7 +393,7 @@ impl Runtime {
     }
 
     /// A node re-added while its exit transition ran plays the enter
-    /// transition again (`reviveNode`).
+    /// transition again.
     fn revive_node(&mut self, id: NodeId) {
         self.tree.get_mut(id).exiting = false;
         let presence = self.tree.get(id).motion.presence;
@@ -410,7 +408,7 @@ impl Runtime {
     /// Clears every runtime reference to `id` (hover, press, drag, focus,
     /// tooltip, open select, link press, text selection). Any new field that
     /// keeps a `NodeId` across frames must be cleared here too, because ids are
-    /// recycled (Zig `forgetNode`).
+    /// recycled.
     pub(crate) fn forget_node(&mut self, id: NodeId) {
         if self.hovered == Some(id) {
             self.hovered = None;
@@ -457,7 +455,7 @@ impl Runtime {
         }
     }
 
-    /// `forgetSubtree`: clears the references of the whole subtree.
+    /// Clears the runtime references of the whole subtree.
     pub(crate) fn forget_subtree(&mut self, id: NodeId) {
         if !self.tree.get(id).alive {
             return;
@@ -469,8 +467,7 @@ impl Runtime {
         self.forget_node(id);
     }
 
-    /// Removes a node that left the UI: clears references, frees the subtree
-    /// (`removeSubtree`).
+    /// Removes a node that left the UI: clears references, frees the subtree.
     pub(crate) fn remove_subtree(&mut self, id: NodeId) {
         self.forget_subtree(id);
         self.tree.free_subtree(id);

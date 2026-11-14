@@ -1,6 +1,6 @@
-// The heavy stateful page of the TSX frame benchmark (`zig build bench-tsx`
-// uses it as its 40-switch case). WP-5.10 port: the same component as
-// `examples/tsx/settings.tsx`, built as a workspace app (the compile-time
+// The heavy stateful page of the TSX frame benchmark (`zant-tsx-frame-bench`
+// uses it as its 40-switch case): the same component as
+// `../../corpus/settings.tsx`, built as a workspace app (the compile-time
 // benchmark is the separate `zant-tsx-bench` binary).
 import { useState, View, Row, Text, Switch } from "zant";
 

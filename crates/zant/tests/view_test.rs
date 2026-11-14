@@ -1,4 +1,4 @@
-//! Port of `tests/view_test.zig` — `ui::view`: RN `View` / HTML `div`
+//! `ui::view`: RN `View` / HTML `div`
 //! defaults, box-option passthrough, shadow, style override, layout and clicks.
 
 use zant::components::view::{ViewOptions, view};
@@ -344,7 +344,7 @@ impl App for Wrap {
                 ),
                 with_key(
                     zant::ui::paragraph(
-                        "Every component on this page is written in TSX and compiled to native Zig.",
+                        "Every component on this page is written in TSX and compiled to native Rust.",
                         Default::default()
                     ),
                     "para"

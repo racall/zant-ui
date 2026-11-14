@@ -1,12 +1,10 @@
-//! Child components call their callback props synchronously (`WP-TSX-BUGS`).
+//! Child components call their callback props synchronously.
 //!
 //! `zant-tsx` generates a child handler that runs a parent callback prop inside
 //! the same action, passing the runtime context through
 //! (`fn _on_click1(&mut self, cx: &mut ui::ActionCx<'_>)` →
-//! `(self.props.onDelete)(cx, id)`). Zig's `tsx.Callback` carried the component
-//! pointer and called the callback directly; the `ui::effect` queue cannot be
-//! used from an event handler because `ui::begin_frame` clears it before
-//! `run_effects`.
+//! `(self.props.onDelete)(cx, id)`). The `ui::effect` queue cannot be used from
+//! an event handler because `ui::begin_frame` clears it before `run_effects`.
 //!
 //! This drives the generated shape end to end (hand-written, mirroring
 //! `NoteCard.tsx` from the notes example): the click must change the root

@@ -2,11 +2,10 @@
 //! state, the module, functions, types and statements. Expressions live in
 //! `expr_parser`, JSX in `jsx_parser` (text rules in `jsx_text`).
 //!
-//! Direct translation of `tools/tsx/parser.zig`. Shape follows esbuild's
-//! parser: one token of lookahead (`cur`, with the lexer positioned right
-//! after it) and explicit mode switches for JSX tags, JSX text and template
-//! literals. Zig's arena allocator is gone; nodes are `Box`ed and lists are
-//! `Vec`s, while AST string leaves stay `Vec<u8>` (see `ast.rs`).
+//! Shape follows esbuild's parser: one token of lookahead (`cur`, with the
+//! lexer positioned right after it) and explicit mode switches for JSX tags,
+//! JSX text and template literals. Nodes are `Box`ed and lists are `Vec`s,
+//! while AST string leaves are `Vec<u8>` (see `ast.rs`).
 
 use crate::ast::{
     self, Body, Decl, Expr, ExprData, Function, Import, Module, Name, ObjectBinding, Param,
@@ -20,9 +19,9 @@ use crate::loop_parser;
 use crate::react_compat;
 use crate::type_parser;
 
-/// Zig `std.mem` prints `[]const u8` with `{s}`; `String` cannot hold the
-/// WTF-8 byte escapes a decoded string may produce, so diagnostics use the
-/// lossy form (identifiers and type names are always valid UTF-8).
+/// AST bytes as text for diagnostics. `String` cannot hold the WTF-8 byte
+/// escapes a decoded string may produce, so diagnostics use the lossy form
+/// (identifiers and type names are always valid UTF-8).
 pub(crate) fn bytes_lossy(bytes: &[u8]) -> String {
     String::from_utf8_lossy(bytes).into_owned()
 }
@@ -70,7 +69,7 @@ impl<'a> Parser<'a> {
         self.cur.text(self.src)
     }
 
-    /// A slice of the source between two byte offsets (Zig `src[from..to]`).
+    /// A slice of the source between two byte offsets.
     pub fn src_slice(&self, from: u32, to: u32) -> &'a str {
         &self.src[from as usize..to as usize]
     }
@@ -155,8 +154,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    /// Zig `Parser.new`: allocate a node. Zig takes the arena-allocated
-    /// pointer; Rust boxes the value (kept for API parity with the Zig file).
+    /// Allocates a node: boxes the value.
     #[allow(clippy::new_ret_no_self)] // allocates a node, it is not a constructor
     pub fn new<T>(&self, value: T) -> Box<T> {
         Box::new(value)
@@ -681,7 +679,7 @@ impl<'a> Parser<'a> {
 }
 
 // The builder lives outside `impl` because Rust does not allow a nested struct
-// there; Zig declares it inside `Parser`.
+// there.
 #[derive(Default)]
 struct ModuleBuilder {
     imports: Vec<Import>,
@@ -741,7 +739,6 @@ mod tests {
         std::str::from_utf8(value).expect("text is UTF-8")
     }
 
-    // Ported from `tools/tsx/parser_test.zig`, "parses a component".
     #[test]
     fn parses_a_component() {
         let m = parse_ok(
@@ -815,7 +812,6 @@ export default function App() {
         }
     }
 
-    // Ported from `tools/tsx/parser_test.zig`, "syntax errors carry a location".
     #[test]
     fn syntax_errors_carry_a_location() {
         let mut p = Parser::init("function App() { return <View></Text>; }");
@@ -825,7 +821,6 @@ export default function App() {
         assert_eq!(32, d.loc);
     }
 
-    // Ported from `tools/tsx/parser_test.zig`, "arrow function components".
     #[test]
     fn arrow_function_components() {
         let m = parse_ok(
@@ -846,8 +841,6 @@ export default Box;"#,
         assert!(m.functions[1].exported && !m.functions[1].default);
     }
 
-    // Ported from `tools/tsx/parser_test.zig`,
-    // "statements end at `;`, `}`, the end or a line break (tsc's ASI)".
     #[test]
     fn statements_end_at_semicolon_brace_end_or_line_break_tscs_asi() {
         // no semicolons at all is fine
@@ -865,8 +858,6 @@ export default Box;"#,
         );
     }
 
-    // Ported from `tools/tsx/parser_test.zig`,
-    // "postfix ++ needs the operand on the same line".
     #[test]
     fn postfix_increment_needs_the_operand_on_the_same_line() {
         let m = parse_ok("function f() {\n  a\n  ++b\n}");
@@ -882,8 +873,6 @@ export default Box;"#,
         ));
     }
 
-    // Ported from `tools/tsx/parser_test.zig`,
-    // "destructured props and optional parameters".
     #[test]
     fn destructured_props_and_optional_parameters() {
         let m = parse_ok(
@@ -903,8 +892,8 @@ function g(a: number, b?: string) {}"#,
         );
     }
 
-    // Not a Zig test: the TSX the Zig compiler accepts must parse here too.
-    // The M4 acceptance compares AST dumps of these files (WP-5.x).
+    // Every TSX file of the repository (the golden corpus, the fixtures and
+    // the examples) must parse.
     #[test]
     fn parser_accepts_the_repository_tsx_corpus() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");

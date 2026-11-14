@@ -2,9 +2,8 @@
 //! (`parseInt`, `toFixed`, `toPrecision`): exact decimal conversion of binary
 //! floating-point values and of long integer prefixes.
 //!
-//! Zig used `u1024` / `u256` built-ins in `tsx_builtins.zig` /
-//! `tsx_builtins_format.zig`; Rust has no big integer types and the workspace
-//! has no `num-bigint` dependency, so this module carries the few operations
+//! Rust has no big integer types and the workspace has no `num-bigint`
+//! dependency, so this module carries the few operations
 //! the helpers need (multiply by a small value, shift left by bits, decimal
 //! conversion). It stays internal to `tsx`.
 

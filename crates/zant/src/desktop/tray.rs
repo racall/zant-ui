@@ -1,5 +1,5 @@
-//! Tray icon / status bar item and its menu (port of `src/desktop.zig`'s
-//! "tray" section and the PNG scaling of `core/png.zig`).
+//! Tray icon / status bar item and its menu, including the PNG scaling of the
+//! icons.
 //!
 //! The icons are PNG byte slices (8-bit, non-interlaced, square — the scaffold
 //! ships one per platform); they are decoded, scaled to the system icon size
@@ -10,8 +10,8 @@
 use crate::image::Image;
 use crate::platform::platform;
 
-/// Errors of [`set_tray`] / [`set_tray_icon`] (Zig `error.TrayUnavailable` plus
-/// the PNG decode failures).
+/// Errors of [`set_tray`] / [`set_tray_icon`]: the tray is unavailable, or the
+/// PNG could not be decoded.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum TrayError {
     /// The platform has no tray / status bar (or did not create the icon).
@@ -22,7 +22,7 @@ pub enum TrayError {
     InvalidIcon,
 }
 
-/// One entry of the tray menu (Zig `desktop.TrayItem`).
+/// One entry of the tray menu.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct TrayItem<'a> {
     pub id: u32,
@@ -32,7 +32,7 @@ pub struct TrayItem<'a> {
     pub separator: bool,
 }
 
-/// The tray icon and menu of [`set_tray`] (Zig `desktop.TrayOptions`).
+/// The tray icon and menu of [`set_tray`].
 #[derive(Clone, Copy, Debug)]
 pub struct TrayOptions<'a> {
     /// PNG (8-bit, non-interlaced), square; resized to the system size. On
@@ -49,7 +49,7 @@ pub struct TrayOptions<'a> {
     pub items: &'a [TrayItem<'a>],
 }
 
-/// Icon and tooltip only (Zig `desktop.TrayIconOptions`).
+/// Icon and tooltip only.
 #[derive(Clone, Copy, Debug)]
 pub struct TrayIconOptions<'a> {
     pub icon: &'a [u8],
@@ -87,7 +87,7 @@ struct TrayPixels {
     scale: f32,
 }
 
-/// Zig `trayPixels`: decode both icons and scale them to the system size (the
+/// Decodes both icons and scales them to the system size (the
 /// height is the platform's tray icon size, the width keeps the aspect ratio).
 fn tray_pixels(icon_png: &[u8], light_png: Option<&[u8]>) -> Result<TrayPixels, TrayError> {
     let decoded = Decoded::from_png(icon_png)?;
@@ -125,8 +125,7 @@ fn tray_pixels(icon_png: &[u8], light_png: Option<&[u8]>) -> Result<TrayPixels, 
 }
 
 /// Area-average resize (each output pixel averages the source area it covers),
-/// in premultiplied alpha so transparent edges do not darken (port of
-/// `core/png.zig:resize`).
+/// in premultiplied alpha so transparent edges do not darken.
 fn resize_rgba(
     source: &[u8],
     source_width: u32,
@@ -241,7 +240,7 @@ pub fn set_tray_icon(options: TrayIconOptions<'_>) -> Result<(), TrayError> {
     }
 }
 
-/// Removes the tray / status bar item (Zig `desktop.removeTray`).
+/// Removes the tray / status bar item.
 pub fn remove_tray() {
     platform::remove_tray();
 }
@@ -318,7 +317,7 @@ mod tests {
         assert_eq!(pixels.width, system, "a square icon stays square");
         assert_eq!(pixels.scale, if platform::IS_MACOS { 2.0 } else { 1.0 });
         assert_eq!(pixels.icon.len(), system as usize * system as usize * 4);
-        // a non-square icon keeps its aspect ratio (Zig: width from the height)
+        // a non-square icon keeps its aspect ratio (width from the height)
         let wide = png(4, 2, &[0u8; 4 * 4 * 2]);
         let pixels = tray_pixels(&wide, None).expect("pixels");
         assert_eq!(pixels.width, system * 2);

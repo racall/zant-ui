@@ -1,7 +1,6 @@
-# Pins the Rust toolchain for the Rust port (docs/rust-port/plan.md M0).
+# Pins the Rust toolchain of the workspace.
 #
-# The workspace targets the latest stable channel (1.94.1 at M0) with
-# edition 2024; `rust-version` in the workspace manifest enforces the minimum.
+# The workspace targets the stable channel with edition 2024; `rust-version` in the workspace manifest enforces the minimum.
 [toolchain]
 channel = "stable"
 components = ["rustfmt", "clippy"]

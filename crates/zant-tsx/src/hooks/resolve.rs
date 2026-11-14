@@ -4,9 +4,9 @@
 //! declaration, or the name itself when both are one file. A name the
 //! component's file already uses for something else gets an alias.
 //!
-//! Direct translation of `tools/tsx/hooks/resolve.zig`. The path helpers it
-//! used from `tools/tsx/assets.zig` (`isAsset`, `path`) live here for now:
-//! the Rust crate has no `assets` module yet (WP-4.4 / WP-6.2).
+//! The byte-slice path helpers at the end of this file (`is_asset`,
+//! `asset_path`) repeat the `&str` ones of `crate::assets`.
+//! TODO: share them with `crate::assets`.
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -31,9 +31,8 @@ pub fn is_hook_name(name: &[u8]) -> bool {
     name.len() > 3 && name.starts_with(b"use") && name[3].is_ascii_uppercase()
 }
 
-/// The names a component declares at its top level (Zig
-/// `*const StringHashMapUnmanaged(void)`): shared by `expand.rs`, which adds
-/// the names it inlines, and this module, which reads them.
+/// The names a component declares at its top level: shared by `expand.rs`,
+/// which adds the names it inlines, and this module, which reads them.
 pub type Locals = Rc<RefCell<HashSet<Vec<u8>>>>;
 
 /// Inlining one hook call: from the hook's file into the caller's.
@@ -45,9 +44,9 @@ pub struct Context<'a> {
     pub component: Vec<u8>,
     /// Names the component declares at its top level.
     pub locals: Locals,
-    /// The caller's added imports (Zig `caller.added`), written here.
+    /// The caller's added imports (its unit's `added`), written here.
     pub caller_added: &'a mut Vec<ast::Import>,
-    /// Names the hook's file must export (Zig `from.exported`), applied by
+    /// Names the hook's file must export (its unit's `exported`), applied by
     /// `expand.rs` after the component is done so expansion can read units.
     pub pending_exports: &'a mut Vec<(usize, Vec<u8>)>,
     pub cache: HashMap<Vec<u8>, Vec<u8>>,
@@ -195,11 +194,7 @@ fn import_key(importer: &[u8], source: &[u8], what: &[u8]) -> Vec<u8> {
     }
     // project files are named by their stems
     let base = basename(source);
-    let kind = if base.ends_with(b".zig") {
-        "zig"
-    } else {
-        "tsx"
-    };
+    let kind = if base.ends_with(b".rs") { "rs" } else { "tsx" };
     let stem = if base.ends_with(b".tsx") {
         &base[..base.len() - 4]
     } else {
@@ -370,8 +365,7 @@ fn normalized(path: &[u8]) -> Vec<u8> {
     resolve_posix(&slashes)
 }
 
-/// A path with `.` and `..` resolved lexically (Zig
-/// `std.fs.path.resolvePosix` on one path).
+/// A path with `.` and `..` resolved lexically (POSIX separators only).
 fn resolve_posix(path: &[u8]) -> Vec<u8> {
     let is_abs = path.starts_with(b"/");
     let mut negative: usize = 0;
@@ -527,7 +521,7 @@ pub fn unit_of(units: &[Unit], source: &[u8]) -> Option<usize> {
     if !source.starts_with(b"./") && !source.starts_with(b"../") {
         return None;
     }
-    if is_asset(source) || source.ends_with(b".zig") {
+    if is_asset(source) || source.ends_with(b".rs") {
         return None;
     }
     let base = basename(source);
@@ -539,7 +533,7 @@ pub fn unit_of(units: &[Unit], source: &[u8]) -> Option<usize> {
     units.iter().position(|u| u.name.as_slice() == stem)
 }
 
-// ── path helpers (Zig `std.fs.path.*` + `tools/tsx/assets.zig`) ─────────
+// ── path helpers (POSIX semantics, on byte slices) ──────────────────────
 
 fn basename(path: &[u8]) -> &[u8] {
     for part in path.rsplit(|&b| b == b'/') {
@@ -593,8 +587,8 @@ fn join_paths(dir: &[u8], source: &[u8]) -> Vec<u8> {
     out
 }
 
-/// `tools/tsx/assets.zig`: a relative import with an extension other than
-/// .tsx / .ts / .zig / .jsx / .js names a file whose bytes are embedded.
+/// A relative import with an extension other than a source file's names a
+/// file whose bytes are embedded.
 fn is_asset(source: &[u8]) -> bool {
     if !source.starts_with(b"./") && !source.starts_with(b"../") {
         return false;
@@ -606,15 +600,14 @@ fn is_asset(source: &[u8]) -> bool {
     ![
         b".tsx".as_slice(),
         b".ts".as_slice(),
-        b".zig".as_slice(),
+        b".rs".as_slice(),
         b".jsx".as_slice(),
         b".js".as_slice(),
     ]
     .contains(&ext)
 }
 
-/// `tools/tsx/assets.zig`: the asset's path on disk, relative to the
-/// importing file.
+/// The asset's path on disk, relative to the importing file.
 fn asset_path(importer: &[u8], source: &[u8]) -> Vec<u8> {
     let dir = dirname(importer).unwrap_or(b".");
     join_paths(dir, source)
@@ -624,8 +617,6 @@ fn asset_path(importer: &[u8], source: &[u8]) -> Vec<u8> {
 mod tests {
     use super::*;
 
-    // Ported from `tools/tsx/hooks/resolve.zig`,
-    // "relative paths between directories".
     #[test]
     fn relative_paths_between_directories() {
         assert_eq!("../assets/x.png", text(&relative(b"src", b"assets/x.png")));
@@ -653,9 +644,9 @@ mod tests {
         );
     }
 
-    // The path helpers `resolve.zig` calls (Zig `std.fs.path` semantics).
+    // `basename` / `dirname` follow POSIX semantics (trailing slashes, root).
     #[test]
-    fn path_helpers_match_the_zig_ones() {
+    fn path_helpers_follow_posix_semantics() {
         assert_eq!(b"basename.ext", basename(b"/dir/basename.ext"));
         assert_eq!(b"aaa", basename(b"/aaa/"));
         assert_eq!(b"", basename(b"/"));

@@ -1,4 +1,3 @@
-//! Port of `src/math/symbols.zig` — WP-3.5.
 //! TeX command tables (subset of KaTeX's `symbols.js` / `functions`).
 
 /// TeX atom classes (KaTeX `groupTypes`), used for inter-atom spacing.
@@ -21,7 +20,7 @@ pub struct Symbol {
     pub class: Class,
 }
 
-// Ported verbatim, one entry per line like the Zig table literal.
+// One entry per line.
 #[rustfmt::skip]
 pub const TABLE: &[Symbol] = &[
     // Greek lowercase (rendered italic like KaTeX)
@@ -367,7 +366,7 @@ pub struct BigOp {
     pub integral: bool,
 }
 
-// Ported verbatim, one entry per line like the Zig table literal.
+// One entry per line.
 #[rustfmt::skip]
 pub const BIG_OPS: &[BigOp] = &[
     BigOp { name: "sum", text: "∑", limits: true, integral: false },
@@ -405,7 +404,7 @@ pub struct Function {
 
 /// Named operators (`\sin`, `\lim`, ...). `limits` ones take scripts above
 /// and below in display style.
-// Ported verbatim, one entry per line like the Zig table literal.
+// One entry per line.
 #[rustfmt::skip]
 pub const FUNCTIONS: &[Function] = &[
     Function { name: "sin", text: "sin", limits: false },
@@ -461,7 +460,7 @@ pub struct Accent {
     pub wide: bool,
 }
 
-// Ported verbatim, one entry per line like the Zig table literal.
+// One entry per line.
 #[rustfmt::skip]
 pub const ACCENTS: &[Accent] = &[
     Accent { name: "hat", glyph: "^", wide: false },
@@ -557,7 +556,7 @@ pub fn char_class(cp: char) -> Class {
 mod tests {
     use super::*;
 
-    /// Counts match the Zig table literals in `symbols.zig`.
+    /// Pins the number of entries of each table.
     #[test]
     fn table_counts() {
         assert_eq!(TABLE.len(), 321);
@@ -566,8 +565,8 @@ mod tests {
         assert_eq!(ACCENTS.len(), 14);
     }
 
-    /// `lookup` returns the first table entry with the given name; the Zig
-    /// table has no duplicate names.
+    /// `lookup` returns the first table entry with the given name; the table
+    /// has no duplicate names.
     #[test]
     fn table_names_are_unique() {
         for (i, sym) in TABLE.iter().enumerate() {

@@ -1,6 +1,6 @@
-//! Hand-written React Native compatibility layer (Zig
-//! `tools/tsx/tag_aliases.zig`). Names here override the generated props;
-//! native fields and new enum spellings continue to come from `ui_tags`.
+//! Hand-written React Native compatibility layer. Names here override the
+//! generated props; native fields and new enum spellings continue to come from
+//! `ui_tags`.
 //!
 //! `tags::all` merges this list into the generated table: alias props replace
 //! same-named native props and extra aliases are appended, while
@@ -10,8 +10,7 @@ use std::sync::LazyLock;
 
 use crate::tags::{self, Content, Kind, Prop, Sides, Value};
 
-/// A React Native / CSS compatibility patch for one native tag (Zig
-/// `tag_aliases.Alias`).
+/// A React Native / CSS compatibility patch for one native tag.
 #[derive(Clone, Debug, Default)]
 pub struct Alias {
     pub name: &'static str,
@@ -43,9 +42,9 @@ fn enum_values(tag_name: &str, field: &str, extra: &[Value]) -> Vec<Value> {
     result
 }
 
-/// A `.ts` / `.zig` value list (Zig array literal of `tags.Value`).
+/// A list of `(ts, rust)` spelling pairs as [`Value`]s.
 fn values(items: &[(&'static str, &'static str)]) -> Vec<Value> {
-    items.iter().map(|(ts, zig)| Value { ts, zig }).collect()
+    items.iter().map(|(ts, rust)| Value { ts, rust }).collect()
 }
 
 fn prop(name: &'static str, field: &'static str, kind: Kind) -> Prop {

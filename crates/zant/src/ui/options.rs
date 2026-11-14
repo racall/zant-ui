@@ -1,13 +1,11 @@
-//! Option structs of the `ui::*` builders (port of `src/ui.zig`).
+//! Option structs of the `ui::*` builders.
 //!
-//! Every struct keeps the Zig field names and order, derives `Clone` +
-//! `zant_macros::TsxProps` (the TSX compiler reflects on them) and its
-//! `Default` matches Zig's field defaults field by field — Zig has many
-//! non-zero defaults, so most `Default` impls are hand-written.
+//! Every struct derives `Clone` + `zant_macros::TsxProps` (the TSX compiler
+//! reflects on them). Many defaults are non-zero, so most `Default` impls are
+//! hand-written.
 //!
-//! WP-1.2 implements the `column` / `row` / `text` / `button` builders only;
-//! the option structs of the other builders are declared here so later WPs
-//! (WP-2.1 / 2.3 / 2.5) can add the builder bodies without inventing types.
+//! The option structs of every builder are declared here; the builder bodies
+//! live in `ui::builders` and `components/`.
 #![forbid(unsafe_code)]
 
 use std::rc::Rc;
@@ -117,7 +115,6 @@ impl Default for PointerAreaOptions {
             r#box: BoxOptions::default(),
             on_pointer: PointerAction::new(|_, _| false),
             capture_scroll: false,
-            // Zig: `.clicks = true`
             clicks: true,
             cursor: None,
             focusable: false,
@@ -146,7 +143,6 @@ impl Default for ClickableOptions {
             on_click: None,
             index_action: None,
             index: 0,
-            // Zig: `.pointing_hand`
             cursor: Cursor::PointingHand,
         }
     }
@@ -287,8 +283,8 @@ impl Default for ButtonOptions {
             disabled: false,
             width: None,
             font_size: None,
-            // Zig: `.text_align = .center` (the button's own default; the
-            // generic text style default is `.left`).
+            // The button's own default; the generic text style default is
+            // left-aligned.
             text_align: text::Align::Center,
             label_padding: 0.0,
             text_color: None,
@@ -416,7 +412,6 @@ impl Default for RadioGroupOptions {
             key: None,
             options: Vec::new(),
             selected: 0,
-            // Zig: `.direction = .column`
             direction: flex::Direction::Column,
             gap: 8.0,
             on_change: None,
@@ -587,7 +582,6 @@ pub struct DismissLayerOptions {
 impl Default for DismissLayerOptions {
     fn default() -> Self {
         DismissLayerOptions {
-            // Zig: `.key = "dismiss-layer"`
             key: Some(Str::Static("dismiss-layer")),
             on_dismiss: None,
             background: None,
@@ -764,7 +758,6 @@ impl Default for AvatarOptions {
     fn default() -> Self {
         AvatarOptions {
             key: None,
-            // Zig: `.text = "?"`
             text: Str::Static("?"),
             size: 32.0,
             background: None,
@@ -795,28 +788,26 @@ impl Default for ProgressOptions {
     }
 }
 
-/// Compile-time reflection metadata for the TSX compiler (WP-5.2).
+/// Compile-time reflection metadata for the TSX compiler.
 ///
 /// `#[derive(TsxProps)]` emits an `impl TsxProps` for each option struct; the
 /// `zant-tsx-tags` generator reads [`TSX_REGISTRY`] and writes
 /// `crates/zant-tsx/src/ui_tags.rs`. A `proc-macro` crate cannot export these
 /// types itself, so they live here, next to the structs they describe.
 ///
-/// This replaces the comptime `@typeInfo(ui)` reflection of
-/// `tools/tsx/manifest/reflect.zig`; field *classification* (integer / enum /
-/// color / nested options …) stays in the generator because Rust cannot
-/// enumerate an enum's variants at run time.
+/// Field *classification* (integer / enum / color / nested options …) stays
+/// in the generator because Rust cannot enumerate an enum's variants at run
+/// time.
 pub mod tsx_props {
     /// One field of an option struct.
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub struct TsxField {
-        /// Rust field name with the `r#` prefix stripped (`type` for `r#type`,
-        /// matching the Zig field name `reflect.zig` saw).
+        /// Rust field name with the `r#` prefix stripped (`type` for `r#type`).
         pub name: &'static str,
         /// Rust type as token text (`Option<TextAction>`); the generator
         /// re-parses and classifies it.
         pub ty: &'static str,
-        /// The TSX prop must be given (Zig field without a default value).
+        /// The TSX prop must be given (the field has no default value).
         pub required: bool,
         /// `#[tsx(default = "..")]` as written; `None` means `Default::default()`.
         pub default: Option<&'static str>,
@@ -825,7 +816,7 @@ pub mod tsx_props {
     /// One reflected option struct.
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub struct TsxStruct {
-        /// Rust type name (`ButtonOptions`); Zig `@typeName(T)`.
+        /// Rust type name (`ButtonOptions`).
         pub name: &'static str,
         /// The struct's doc comment, lines joined with `\n`.
         pub doc: &'static str,
@@ -843,12 +834,11 @@ pub mod tsx_props {
 }
 
 /// Every `#[derive(TsxProps)]` option struct of this module, in declaration
-/// order (Zig `src/ui.zig` declaration order), for `zant-tsx-tags`.
+/// order, for `zant-tsx-tags`.
 ///
 /// Keep it in sync when adding an option struct: the generator reports a
 /// builder whose options type is missing here. `ui::Styled`'s `Style` lives in
-/// `ui/styled.rs` and is not a builder option (the Zig generator omitted
-/// `ui.view.style` as an unsupported type), so it is not registered.
+/// `ui/styled.rs` and is not a builder option, so it is not registered.
 pub static TSX_REGISTRY: &[&tsx_props::TsxStruct] = &[
     &<BoxOptions as tsx_props::TsxProps>::TSX,
     &<PointerAreaOptions as tsx_props::TsxProps>::TSX,
@@ -888,7 +878,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn box_defaults_match_the_zig_struct() {
+    fn box_options_have_the_expected_defaults() {
         let options = BoxOptions::default();
         assert_eq!(options.gap, 0.0);
         assert_eq!(options.wrap, flex::Wrap::Nowrap);
@@ -910,7 +900,7 @@ mod tests {
     }
 
     #[test]
-    fn text_and_button_defaults_match_the_zig_struct() {
+    fn text_and_button_options_have_the_expected_defaults() {
         let text = TextOptions::default();
         assert_eq!(text.size, 14.0);
         assert_eq!(text.weight, text::Weight::Regular);
@@ -951,7 +941,7 @@ mod tests {
         assert_eq!(
             PdfOptions::default().width,
             320.0,
-            "Zig PdfOptions width / height / toolbar defaults"
+            "PdfOptions width / height / toolbar defaults"
         );
         assert_eq!(PdfOptions::default().height, 420.0);
         assert!(PdfOptions::default().show_toolbar);

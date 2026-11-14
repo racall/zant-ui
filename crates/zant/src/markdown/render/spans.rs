@@ -1,11 +1,8 @@
-//! Port of `src/markdown/render/spans.zig` — WP-3.3.
-//!
 //! Inline spans → rich text runs (links, inline code, inline math embeds,
 //! highlights, footnote references, the streaming caret).
 //!
-//! Zig allocated the runs and the inline math drawings in the render arena;
-//! the Rust `RichSpan`s own `Str`s and `Rc<Drawing>`s, so the result lives as
-//! long as the node that holds it (block caches included).
+//! The `RichSpan`s own `Str`s and `Rc<Drawing>`s, so the result lives as long
+//! as the node that holds it (block caches included).
 
 use std::rc::Rc;
 
@@ -31,7 +28,7 @@ pub struct Base {
 }
 
 impl Default for Base {
-    /// Zig `Base` has no defaults for `size` / `color`; the neutral values keep
+    /// `size` / `color` have no meaningful default; the neutral values keep
     /// `..Default::default()` usable (the render path always sets both).
     fn default() -> Self {
         Base {
@@ -137,9 +134,8 @@ pub fn to_rich(ctx: &Ctx, spans: &[ast::Span], base: Base, with_caret: bool) -> 
     out
 }
 
-/// Zig `math/mod.zig:inlineDrawing`: an inline (text-style) formula for
-/// embedding in rich text. (The Zig helper lives in `math/mod.zig`, whose Rust
-/// UI wrapper arrives with WP-3.11; the renderer needs it now.)
+/// An inline (text-style) formula for embedding in rich text (also exported
+/// as `math::inline_drawing`).
 pub fn inline_drawing(source: &str, options: layout::Options) -> DrawingRef {
     let opts = layout::Options {
         display: false,

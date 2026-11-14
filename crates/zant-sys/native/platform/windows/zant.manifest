@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <!-- Application manifest for Zant UI apps on Windows (embedded by
-     zant-build; formerly zant_ui.configureApp in build.zig): per-monitor DPI v2, the UTF-8
+     zant-build): per-monitor DPI v2, the UTF-8
      code page for narrow APIs, Common Controls v6 (TaskDialog) and
      Windows 10/11 compatibility. -->
 <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">

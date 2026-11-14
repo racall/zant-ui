@@ -1,4 +1,4 @@
-//! Port of `src/ui_runtime.zig` — WP-1.4: the application runtime.
+//! The application runtime.
 //!
 //! [`Runtime`] owns the retained tree, the application state, the frame clock
 //! and every pointer / keyboard / IME / focus / selection / overlay state of one
@@ -15,15 +15,10 @@
 //! [`Runtime::rebuild_for_test`] / [`Runtime::render_frame`] on a raster canvas
 //! and inject a fake clock through [`Runtime::clock`].
 //!
-//! Multi-window support (Zig's `open_runtimes` list, `openWindow` /
-//! `closeWindow` / `invalidateAll`, the shared app state and the wake fan-out)
-//! lives in [`window`]: one [`Runtime`] per window, all of them cloning the
-//! same [`SharedApp`].
-//!
-//! Deviations from Zig (see the WP-1.4 / WP-2.8 reports in
-//! docs/rust-port/status.md): Windows caption buttons (`ui.windowControls`) to
-//! WP-2.5; the select popup paint / hit test and the input / toggle / select
-//! component animation to WP-2.1 / WP-2.2.
+//! Multi-window support (the list of open windows, opening / closing /
+//! invalidating them, the shared app state and the wake fan-out) lives in
+//! [`window`]: one [`Runtime`] per window, all of them cloning the same
+//! [`SharedApp`].
 #![forbid(unsafe_code)]
 
 pub mod animate;
@@ -61,11 +56,10 @@ use crate::ui::app::{App, RunOptions};
 use self::debug::FrameStats;
 use self::window::{SharedApp, WindowHooks};
 
-/// Zig `Runtime.Config`; the same struct the application entry point takes.
+/// The runtime configuration: the same struct the application entry point takes.
 pub type Config = RunOptions;
 
-/// How a multi-click pointer press extends the selection (Zig's anonymous
-/// `enum { char, word, block }`).
+/// How a multi-click pointer press extends the selection.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SelMode {
     #[default]
@@ -74,28 +68,25 @@ pub enum SelMode {
     Block,
 }
 
-/// The clock sampled once per frame / event (Zig `monotonicMs`); tests inject
-/// a fake one.
+/// The clock sampled once per frame / event; tests inject a fake one.
 pub type Clock = fn() -> i64;
 
 /// One window's runtime: tree, application state, frame loop and input state.
 ///
-/// Field names follow the Zig `Runtime` (the struct is split across the
-/// submodules of this directory but keeps the same state).
+/// The methods are split across the submodules of this directory; the state
+/// lives here.
 pub struct Runtime {
     pub config: RunOptions,
-    /// The application state, shared with the app's other windows (Zig handed
-    /// every runtime the same `userdata` pointer).
+    /// The application state, shared with the app's other windows.
     pub app: SharedApp,
     /// Hooks of a window opened with `desktop::open_window`; `None` for the
     /// main window, which renders through `App::render` and uses the `App`
     /// trait's event hooks.
     pub window_hooks: Option<WindowHooks>,
     pub theme: Theme,
-    /// The retained tree (`runtime.tree` in Zig).
+    /// The retained tree.
     pub tree: Tree,
-    /// `ui::local_state` slots of this window's components (Zig
-    /// `local_states`).
+    /// `ui::local_state` slots of this window's components.
     pub local_states: Rc<RefCell<Store>>,
     pub needs_build: bool,
     /// Greater than 0 while an event is being dispatched. Callbacks can run a
@@ -167,15 +158,14 @@ pub struct Runtime {
     /// The native window while `ui::app::run` drives the loop (`None` in
     /// headless tests and before the native window exists).
     pub window: Option<Rc<Window>>,
-    /// Previous-frame boxes of keyed nodes (the `ui::key_bounds` hook; Zig
-    /// pointed at the live tree — a snapshot avoids re-borrowing the tree from
-    /// user code).
+    /// Previous-frame boxes of keyed nodes (the `ui::key_bounds` hook; a
+    /// snapshot avoids re-borrowing the tree from user code).
     pub key_bounds: Rc<RefCell<HashMap<crate::Str, Rect>>>,
 }
 
 impl Runtime {
-    /// Creates a runtime for `app` (`Runtime.init` in Zig). No native window is
-    /// created; `ui::app::run` attaches one and registers the window.
+    /// Creates a runtime for `app`. No native window is created;
+    /// `ui::app::run` attaches one and registers the window.
     pub fn init(app: impl App, config: RunOptions) -> Runtime {
         Runtime::with_shared(SharedApp::new(app), None, config)
     }
@@ -258,7 +248,7 @@ impl Runtime {
         }
     }
 
-    /// Zig `Runtime.deinit`: Rust frees on `Drop`.
+    /// Rust frees on `Drop`.
     pub fn deinit(&mut self) {}
 
     /// Rebuilds the UI on the next frame (`Runtime.invalidate`).
@@ -292,7 +282,7 @@ impl Runtime {
     }
 
     /// A stable per-runtime address used as the owner of queued
-    /// `ui::focus` / `ui::scroll_into_view` commands (Zig passed `self`).
+    /// `ui::focus` / `ui::scroll_into_view` commands.
     /// Only compared as an opaque pointer, never dereferenced.
     pub fn owner_ptr(&self) -> *const () {
         self as *const Runtime as *const ()
@@ -301,8 +291,8 @@ impl Runtime {
     /// The application state, downcast to the concrete `App` type (tests and
     /// code that needs to inspect or mutate the state from outside the frame).
     ///
-    /// The state is shared between windows, so the guard is a `RefMut` (Zig
-    /// handed out `*State`); it must be dropped before the next frame.
+    /// The state is shared between windows, so the guard is a `RefMut`; it
+    /// must be dropped before the next frame.
     pub fn app_state_mut<S: 'static>(&self) -> RefMut<'_, S> {
         RefMut::map(self.app.borrow_mut(), |app| {
             let app: &mut dyn App = app.as_mut();
@@ -313,17 +303,19 @@ impl Runtime {
     }
 
     /// Window-drag hit test for app-drawn title bars: interactive widgets stay
-    /// clickable, the rest of the bar moves the window. The maximize-button
-    /// special case (`ui.caption_maximize_key`) lands with WP-2.5.
+    /// clickable, the rest of the bar moves the window. The app-drawn maximize
+    /// button answers `MAXIMIZE`, so Windows 11 shows its snap layouts over it.
     pub fn titlebar_hit(&mut self, x: f32, y: f32) -> i32 {
-        if self.tree.hit_test(x, y).is_some() {
-            return platform::hit::CLIENT;
+        let Some(id) = self.tree.hit_test(x, y) else {
+            return platform::hit::CAPTION;
+        };
+        if self.tree.get(id).key.as_deref() == Some(crate::ui::CAPTION_MAXIMIZE_KEY) {
+            return platform::hit::MAXIMIZE;
         }
-        platform::hit::CAPTION
+        platform::hit::CLIENT
     }
 
-    /// Runs one rebuild + reconcile without painting (tests; Zig
-    /// `rebuildForTest`).
+    /// Runs one rebuild + reconcile without painting (tests).
     pub fn rebuild_for_test(&mut self) {
         self.rebuild();
     }
@@ -335,7 +327,7 @@ impl Runtime {
     }
 
     /// Rebuilds the `ui::key_bounds` snapshot from the laid-out tree (called
-    /// after every layout; Zig read the live tree).
+    /// after every layout).
     pub fn refresh_key_bounds(&mut self) {
         let mut bounds = self.key_bounds.borrow_mut();
         bounds.clear();
@@ -357,7 +349,7 @@ impl Runtime {
     }
 
     /// The host's wake callback: the app takes results published by background
-    /// work, then every window rebuilds (Zig `wakeCallback`).
+    /// work, then every window rebuilds.
     pub fn handle_wake(&mut self) {
         self.app.borrow_mut().on_wake();
         self.needs_build = true;
@@ -368,7 +360,7 @@ impl Runtime {
 }
 
 /// Builds the runtime context of a callback: the root application state of
-/// `action` / `text_action` / … closures (Zig handed around a `*anyopaque`).
+/// `action` / `text_action` / … closures.
 ///
 /// Takes `&mut Box<dyn App>` instead of `&mut Runtime` so the borrow only
 /// covers the `app` field and the caller can keep using the tree around it.

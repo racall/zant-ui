@@ -1,5 +1,4 @@
-//! The UI tree of `zant-components` (Zig `render` / `section` / `label` /
-//! `listRow` of `examples/components.zig`).
+//! The UI tree of `zant-components`.
 #![forbid(unsafe_code)]
 
 use std::rc::Rc;
@@ -23,7 +22,7 @@ use zant::ui::{
 
 use super::{ComponentsApp, DISPLAY_ICONS, shortcut_groups};
 
-/// `ui.card` section with a title (Zig `section`).
+/// A `ui::card` section with a title.
 fn section(title: &str, children: Vec<ui::Node>) -> ui::Node {
     ui::card(CardOptions {
         title: Some(Str::copy(title)),
@@ -44,7 +43,7 @@ fn row(gap: f32, children: Vec<ui::Node>) -> ui::Node {
     })
 }
 
-/// Zig `State.listRow`: one row of the virtual list.
+/// One row of the virtual list.
 fn list_row(i: usize) -> ui::Node {
     let theme = ui::current_theme();
     ui::row(BoxOptions {
@@ -75,7 +74,7 @@ fn list_row(i: usize) -> ui::Node {
     })
 }
 
-/// Zig `render`.
+/// The whole window tree.
 pub(crate) fn render(app: &mut ComponentsApp) -> ui::Node {
     if app.autoplay {
         app.autoplay_tick();
@@ -579,8 +578,7 @@ pub(crate) fn render(app: &mut ComponentsApp) -> ui::Node {
                     ..Default::default()
                 },
             ),
-            // Zig `ui.pdfViewer(0x2002, ...)`: the framework widget
-            // (`crate::components::widgets`, exported as `ui::pdf_viewer`).
+            // The framework's PDF reader widget (`ui::pdf_viewer`).
             pdf_viewer(
                 0x2002,
                 PdfViewerOptions {

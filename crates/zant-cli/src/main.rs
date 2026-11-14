@@ -1,11 +1,11 @@
-//! The `zant` command line tool (port of `tools/zant/main.zig`).
+//! The `zant` command line tool.
 //!
-//! Commands and their output text are kept from the Zig CLI; `zig build` /
-//! `zig-out` become `cargo build` / `target/{debug,release}/<name>`.
+//! Apps are built with `cargo build`; their binaries are
+//! `target/{debug,release}/<name>`.
 //!
 //! File layout: this file has the shared helpers and command dispatch;
 //! `create.rs` / `run.rs` / `update.rs` / `bundle.rs` / `generate.rs` hold the
-//! parts of the 1,318-line `main.zig`, split to stay under ~500 lines each.
+//! commands, split to stay under ~500 lines each.
 
 mod app_config;
 mod bundle;
@@ -34,11 +34,11 @@ pub const COLOR_RED: &str = "\x1b[31m";
 pub const COLOR_DIM: &str = "\x1b[2m";
 pub const COLOR_RESET: &str = "\x1b[0m";
 
-/// The platform this zant runs on (`is_windows` in `main.zig`).
+/// The platform this zant runs on.
 pub const IS_WINDOWS: bool = cfg!(windows);
 
 /// `zant-icon`'s exit code 2 usage print is in `icon.rs`; the CLI usage text
-/// prints when zant is called without a command, like the Zig version.
+/// prints when zant is called without a command.
 pub const USAGE: &str = "用法: zant <命令>
   create <项目名>       生成项目（TSX + Rust）
   run [--watch]         编译并运行（--watch 热更新）
@@ -59,13 +59,13 @@ pub fn ok(text: &str) {
     eprintln!("  {COLOR_GREEN}✓{COLOR_RESET} {text}");
 }
 
-/// A dim hint line (`m.Color.dim` blocks in the Zig CLI).
+/// A dim hint line.
 pub fn dim_line(text: &str) {
     eprintln!("  {COLOR_DIM}{text}{COLOR_RESET}");
 }
 
 /// `zant build` removes temporary key files / keychains through this hook
-/// when it fails (`on_fail` in `main.zig`).
+/// when it fails.
 static ON_FAIL: Mutex<Option<Box<dyn FnOnce() + Send>>> = Mutex::new(None);
 
 pub fn set_on_fail(callback: Box<dyn FnOnce() + Send>) {
@@ -91,7 +91,7 @@ pub fn fail(message: impl std::fmt::Display) -> ! {
 
 // ---- files ----
 
-/// Zig `writeFile`: creates the parent directory, writes the bytes.
+/// Creates the parent directory, then writes the bytes.
 pub fn write_file(path: &Path, data: &[u8]) -> std::io::Result<()> {
     if let Some(parent) = path.parent()
         && !parent.as_os_str().is_empty()
@@ -101,7 +101,7 @@ pub fn write_file(path: &Path, data: &[u8]) -> std::io::Result<()> {
     std::fs::write(path, data)
 }
 
-/// Zig `readFile`, with its 8 MiB limit.
+/// Reads a whole file; anything over 8 MiB is an error.
 pub fn read_file(path: &Path) -> std::io::Result<Vec<u8>> {
     let data = std::fs::read(path)?;
     if data.len() > 8 * 1024 * 1024 {
@@ -121,8 +121,8 @@ pub fn path_exists(path: &Path) -> bool {
     std::fs::metadata(path).is_ok()
 }
 
-/// Zig `loadConfig`: reads `app.config.json` and turns its errors into the
-/// same messages `zant` printed before.
+/// Reads `app.config.json`, exiting with a readable message when it is
+/// missing or invalid.
 pub fn load_config(root: &str) -> std::io::Result<app_config::AppConfig> {
     let path = Path::new(root).join("app.config.json");
     let data =
@@ -160,8 +160,7 @@ fn base_command(program: &str) -> Proc {
     command
 }
 
-/// Runs a command with the terminal, exiting on spawn / wait / exit failure
-/// like `runInherit`.
+/// Runs a command with the terminal, exiting on spawn / wait / exit failure.
 pub fn run_inherit(argv: &[String], cwd: &str) {
     let mut command = base_command(&argv[0]);
     command.args(&argv[1..]).current_dir(cwd);
@@ -183,7 +182,7 @@ pub struct Captured {
     pub success: bool,
 }
 
-/// Zig `runCapture`: captured stdout / stderr, no failure exit.
+/// Runs a command and captures its stdout / stderr; no failure exit.
 pub fn run_capture(argv: &[String]) -> std::io::Result<Captured> {
     let output = base_command(&argv[0]).args(&argv[1..]).output()?;
     Ok(Captured {
@@ -207,9 +206,8 @@ pub fn run_ok(argv: &[String], cwd: &str) -> bool {
 
 static CARGO_EXE: OnceLock<String> = OnceLock::new();
 
-/// The cargo to build apps with: `$ZANT_CARGO`, else `cargo` from PATH.
-/// (Replaces `zigExe()`; the Zig build could pin the Zig that built zant,
-/// cargo always comes from the environment that ran zant.)
+/// The cargo to build apps with: `$ZANT_CARGO`, else `cargo` from PATH (it
+/// always comes from the environment that ran zant).
 pub fn cargo_exe() -> &'static str {
     CARGO_EXE.get_or_init(|| match std::env::var("ZANT_CARGO") {
         Ok(value) if !value.is_empty() => value,
@@ -218,7 +216,7 @@ pub fn cargo_exe() -> &'static str {
 }
 
 /// Checks that cargo is usable, with a clear error instead of a spawn
-/// failure (`zigExe()`'s availability checks become this).
+/// failure.
 pub fn require_cargo() -> &'static str {
     let cargo = cargo_exe();
     match run_capture(&[cargo.to_string(), "--version".to_string()]) {
@@ -229,8 +227,7 @@ pub fn require_cargo() -> &'static str {
     }
 }
 
-/// `cargo build` / `cargo build --release` for the app (Zig: `zig build` /
-/// `zig build -Doptimize=ReleaseFast`).
+/// `cargo build` / `cargo build --release` for the app.
 pub fn build_args(release: bool) -> Vec<String> {
     let mut args = vec![require_cargo().to_string(), "build".to_string()];
     if release {
@@ -239,7 +236,7 @@ pub fn build_args(release: bool) -> Vec<String> {
     args
 }
 
-/// Builds the app in `root` without exiting; `false` on failure (`buildOnce`).
+/// Builds the app in `root` without exiting; `false` on failure.
 pub fn build_once(root: &str, release: bool) -> bool {
     if ensure_rust_project(root).is_err() {
         return false;
@@ -248,8 +245,8 @@ pub fn build_once(root: &str, release: bool) -> bool {
 }
 
 /// `zant run` / `compile` / `package` build with `cargo build`, so the project
-/// needs the Rust application template (Cargo.toml + build.rs, WP-6.3). A TSX
-/// app's `build.rs` calls `zant_build::tsx_app()` (WP-6.2), which compiles
+/// needs the Rust application template (Cargo.toml + build.rs). A TSX
+/// app's `build.rs` calls `zant_build::tsx_app()`, which compiles
 /// `src/**/*.tsx` into `$OUT_DIR`; without that build script cargo would fail
 /// with a confusing "file not found for module app_config" / missing `App`
 /// error. Plain-Rust-app projects build normally.
@@ -341,7 +338,7 @@ fn parse_cargo_metadata(json: &str, manifest: &Path) -> Option<AppTarget> {
 }
 
 /// Tiny `[package] name` / `[[bin]] name` scan used when `cargo metadata`
-/// cannot run (same spirit as the Zig `zonString` helper).
+/// cannot run.
 fn fallback_app_name(manifest: &str) -> Option<String> {
     let text = std::fs::read_to_string(manifest).ok()?;
     let mut section = "";
@@ -378,7 +375,7 @@ pub fn app_exe_path(root: &str, release: bool) -> PathBuf {
     target.target_dir.join(profile).join(exe)
 }
 
-/// CLI-generated files live under `target/` (Zig wrote `zig-out/`).
+/// CLI-generated files live under `target/`.
 pub fn out_dir(root: &str, rel: &str) -> PathBuf {
     Path::new(root).join("target").join(rel)
 }
@@ -390,8 +387,7 @@ pub fn is_tty() -> bool {
     std::io::stdin().is_terminal()
 }
 
-/// One line of input (without the line break), "" on error (like the Zig
-/// console helper, which returns an empty slice when reading fails).
+/// One line of input (without the line break), "" on error.
 pub fn read_line() -> String {
     let mut line = String::new();
     if std::io::stdin().read_line(&mut line).is_err() {
@@ -400,9 +396,9 @@ pub fn read_line() -> String {
     line.trim_end_matches(['\n', '\r']).to_string()
 }
 
-/// A line typed without echo (a password); used for this run only. Zig turns
-/// off the tty echo with termios / SetConsoleMode; the port uses `stty` on
-/// Unix (no unsafe) and PowerShell's secure prompt on Windows.
+/// A line typed without echo (a password); used for this run only. The echo
+/// is turned off with `stty` on Unix (no unsafe) and PowerShell's secure
+/// prompt on Windows.
 pub fn read_secret() -> String {
     if !is_tty() {
         return read_line();
@@ -508,7 +504,7 @@ fn filter_stderr(stderr: std::process::ChildStderr) {
     }
 }
 
-/// Spawns the app the same way `zant run` does (`spawnApp`).
+/// Spawns the app the same way `zant run` does.
 pub fn spawn_app(exe: &Path, root: &str) -> std::io::Result<std::process::Child> {
     let mut command = base_command(&exe.to_string_lossy());
     command
@@ -675,7 +671,7 @@ enum Command {
         /// 不提问（CI 用）
         #[arg(long, short = 'y')]
         yes: bool,
-        /// Zig 时代的参数，现在会提示改用 zant compile
+        /// 旧用法（zant build --release），现在会提示改用 zant compile
         #[arg(long, hide = true)]
         release: bool,
     },
@@ -762,7 +758,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn json_escaping_matches_the_zig_helper() {
+    fn json_escaping_covers_quotes_and_backslashes() {
         assert_eq!(escape_json("plain"), "plain");
         assert_eq!(escape_json("a\"b"), "a\\\"b");
         assert_eq!(escape_json("a\\b"), "a\\\\b");

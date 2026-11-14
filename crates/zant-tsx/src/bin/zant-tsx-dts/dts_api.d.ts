@@ -1,4 +1,4 @@
-// Handwritten runtime declarations included by dts.zig inside module "zant".
+// Handwritten runtime declarations included by zant-tsx-dts inside module "zant".
   export type u8 = number;
   export type u16 = number;
   export type u32 = number;
@@ -92,7 +92,7 @@
   }
   export function createWindow(component: () => JSX.Element, options: WindowOptions): WindowHandle;
 
-  // Desktop functions (src/tsx_platform.zig); the setters run in handlers and effects.
+  // Desktop functions (crates/zant/src/tsx/platform.rs); the setters run in handlers and effects.
   export const clipboard: {
     text(): string;
     setText(text: string): boolean;

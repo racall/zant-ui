@@ -1,4 +1,4 @@
-//! Zoom of the PDF viewer — `src/pdf/viewer.zig`'s zoom section (WP-3.9).
+//! Zoom of the PDF viewer.
 //!
 //! Fit width / fit page recompute the zoom from the viewport and the largest
 //! page; manual zoom steps through EmbedPDF's presets. A zoom change keeps the

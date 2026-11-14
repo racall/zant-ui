@@ -5,8 +5,8 @@
 #   ZANT_DRY_RUN=1 scripts/release/package.sh dev dist    # list what it would package
 #
 # Run from a clean checkout after scripts/fetch_skia.sh, with Rust on PATH
-# (or $CARGO): rustup installs the toolchain pinned in rust-toolchain.toml, so
-# the build machine needs no Zig any more. WP-6.6: apps in the archive link the
+# (or $CARGO): rustup installs the toolchain pinned in rust-toolchain.toml.
+# Apps in the archive link the
 # prebuilt native layer instead of compiling C++/ObjC, so this needs
 # scripts/release/prebuilt.sh to have run (or $ZANT_NATIVE_PREBUILT set to a
 # directory made by it); `ZANT_ALLOW_NO_PREBUILT=1` packages without it.
@@ -18,7 +18,7 @@
 #                             crates/zant-sys/native/platform)
 #   zant-ui/third_party/      the pinned Skia libraries and headers
 #   zant-ui/third_party/zant-native-prebuilt/
-#                             libzant_native.a + metadata.txt (WP-6.6): app builds
+#                             libzant_native.a + metadata.txt: app builds
 #                             link this instead of compiling the native layer;
 #                             build.rs falls back to compiling if it is stale
 #   zant-ui/.zant-version     (not VERSION: the root is an include path, and
@@ -43,7 +43,7 @@ die() {
 [ -f third_party/skia-headers/include/core/SkSurface.h ] ||
   die "run scripts/fetch_skia.sh first"
 
-# WP-6.6: the prebuilt native library the archive ships. $ZANT_NATIVE_PREBUILT
+# The prebuilt native library the archive ships. $ZANT_NATIVE_PREBUILT
 # is the same variable build.rs reads, so setting it here also makes the
 # packaging build skip the C++ compile. Otherwise use the directory
 # scripts/release/prebuilt.sh wrote by default.
@@ -130,8 +130,8 @@ if [ "${ZANT_DRY_RUN:-0}" = 1 ]; then
   exit 0
 fi
 
-# Rust targets the baseline of the architecture by default, so the machine's
-# own CPU features would not run everywhere; Zig needed -Dcpu=baseline here.
+# Rust targets the baseline of the architecture by default, so the binary does
+# not depend on the build machine's own CPU features.
 # --locked keeps the release on the committed Cargo.lock.
 "$CARGO" build --release --locked -p zant-cli --bin zant
 

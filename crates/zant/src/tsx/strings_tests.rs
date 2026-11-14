@@ -1,5 +1,4 @@
-//! Ported tests of `src/tsx_strings_test.zig` (plus the inline tests of
-//! `src/tsx_strings.zig`): same names, same assertions.
+//! Tests of the JavaScript string methods.
 
 use super::*;
 use crate::tsx::List;
@@ -161,8 +160,7 @@ fn chars_iterates_by_code_point() {
     eq("b", got[2].clone());
     eq("😀", got[3].clone());
     assert_eq!(chars("").len(), 0);
-    // the Zig test also covered a raw invalid byte (0xff) on the byte-slice
-    // side; Rust `Str` is always valid UTF-8, so there is no such element.
+    // `Str` is always valid UTF-8, so there is no invalid-byte element to cover.
 }
 
 #[test]

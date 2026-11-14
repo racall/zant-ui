@@ -19,7 +19,7 @@ zant = { path = "__ZANT_PATH__/crates/zant" }
 # `build.rs`: TSX → Rust in OUT_DIR, icons, Windows manifest / .ico, pdfium.dll.
 zant-build = { path = "__ZANT_PATH__/crates/zant-build" }
 
-# The workspace `[profile.release]` is not inherited by an app: keep Zig's
+# The workspace `[profile.release]` is not inherited by an app: keep the
 # "integer overflow panics" semantics, like the Zant UI workspace does.
 [profile.release]
 overflow-checks = true

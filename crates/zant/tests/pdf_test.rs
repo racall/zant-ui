@@ -1,15 +1,7 @@
-//! PDF document layer tests — WP-3.8.
-//!
-//! Ported from `tests/pdf_test.zig` (the `ui.pdfPreview` helpers) and
-//! `tests/pdf_viewer_test.zig`'s text test (the viewer-level tests stay in
-//! WP-3.9). The committed `tests/fixtures/widgets.pdf` fixture stands in for
-//! the minimal PDF the Zig test generates at runtime.
-//!
-//! Extra coverage without a Zig counterpart (no Zig test targets
-//! `document.zig` / `renderer.zig` / `annotations.zig` directly): the
+//! PDF document layer tests: the preview helpers, page text geometry, the
 //! `Document` cache API, the render worker, the annotation store and the
-//! annotated export; they mirror the assertions of the parts of
-//! `tests/pdf_viewer_test.zig` that do not need the viewer.
+//! annotated export, on the committed `tests/fixtures/widgets.pdf` fixture.
+//! The viewer-level tests are in `pdf_viewer_test.rs`.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -42,9 +34,9 @@ fn tmp_path(name: &str) -> PathBuf {
     dir.join(name)
 }
 
-// ---- tests/pdf_test.zig ------------------------------------------------
+// ---- preview helpers ---------------------------------------------------
 
-/// `test "pdf: page count, rendered page and page text"`: one page, a rendered
+/// One page, a rendered
 /// PNG temp file that exists, and the page text.
 #[test]
 fn pdf_page_count_rendered_page_and_page_text() {
@@ -64,7 +56,7 @@ fn pdf_page_count_rendered_page_and_page_text() {
     assert!(text.contains("Zant TSX Reader"));
 }
 
-// ---- tests/pdf_viewer_test.zig: "pdf text: ..." ------------------------
+// ---- page text ---------------------------------------------------------
 
 fn blank_glyph() -> Glyph {
     Glyph {
@@ -119,7 +111,6 @@ fn line(buf: &mut [Glyph], start: usize, s: &str, y: f32) -> usize {
     start + s.len()
 }
 
-/// `test "pdf text: runs, hit testing, rects, words, lines, search"`.
 #[test]
 fn pdf_text_runs_hit_testing_rects_words_lines_search() {
     let mut raw = vec![blank_glyph(); 64];
@@ -155,7 +146,7 @@ fn pdf_text_runs_hit_testing_rects_words_lines_search() {
     assert_eq!(found[0].to, 17);
 }
 
-// ---- document.zig coverage (no Zig test targets it) --------------------
+// ---- document ----------------------------------------------------------
 
 #[test]
 fn document_opens_fixture_with_sizes_text_links_outline_and_tiles() {
@@ -194,7 +185,7 @@ fn document_opens_fixture_with_sizes_text_links_outline_and_tiles() {
     assert!(doc.render_tile(0, 360, 480, 0, 0, 0, 64).is_none());
 }
 
-// ---- renderer.zig coverage (no Zig test targets it) --------------------
+// ---- render worker -----------------------------------------------------
 
 #[test]
 fn render_worker_renders_the_base_tile_and_page_height() {
@@ -230,7 +221,7 @@ fn render_worker_renders_the_base_tile_and_page_height() {
     assert!(renderer.any_page_image(1, 720).is_none());
 }
 
-// ---- annotations.zig coverage (the viewer tests stay in WP-3.9) --------
+// ---- annotation store --------------------------------------------------
 
 #[test]
 fn annotation_store_undo_redo_bounds_and_hit_testing() {
@@ -297,7 +288,7 @@ fn annotation_store_undo_redo_bounds_and_hit_testing() {
     assert_eq!(store.all().len(), 2);
 
     // Editing contents records a step; unchanged values are no-ops (the
-    // revision is bumped on every change, like Zig's `revision`).
+    // revision is bumped on every change).
     store.set_contents(id, "remember this");
     assert_eq!(store.get(id).expect("annotation").contents, "remember this");
     let after_edit = store.revision;
@@ -314,7 +305,7 @@ fn annotation_store_undo_redo_bounds_and_hit_testing() {
     assert!(!store.can_undo() && !store.can_redo());
 }
 
-// ---- annotated export (the tail of the Zig viewer annotation test) -----
+// ---- annotated export --------------------------------------------------
 
 #[test]
 fn annotated_copy_writes_a_valid_pdf() {

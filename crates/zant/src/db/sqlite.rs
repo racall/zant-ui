@@ -1,8 +1,4 @@
-//! Port of `src/db/sqlite.zig` — WP-3.10.
-//!
-//! A small, high-level SQLite wrapper for Zant UI apps. `rusqlite` replaces the
-//! hand-written C declarations of `src/db/sqlite_c.zig`; the public surface
-//! mirrors the Zig module:
+//! A small, high-level SQLite wrapper for Zant UI apps, built on `rusqlite`:
 //!
 //! ```ignore
 //! let db = Database::open("app.sqlite")?;
@@ -15,16 +11,13 @@
 //! }
 //! ```
 //!
-//! There is no `Statement` wrapper: Zig's `Statement` was a thin façade over
-//! `sqlite3_stmt`, so [`Database::prepare`] hands out rusqlite's own
-//! `Statement`. The error type is [`DbError`]; it has to live here because the
-//! crate root does not define `zant::Error` yet (see docs/rust-port/plan.md §4).
+//! There is no `Statement` wrapper: [`Database::prepare`] hands out rusqlite's
+//! own `Statement`. The error type is [`DbError`].
 
 use crate::db::table::{Table, row_value};
 
-// The ORM helpers live next to the schema code in `db::table`, but the Zig
-// module exposed them all from `sqlite.zig`; re-export so the generated code
-// (and applications) can keep using the `db::sqlite` path.
+// The ORM helpers live next to the schema code in `db::table`; re-export them
+// so the generated code (and applications) use the single `db::sqlite` path.
 pub use crate::db::table::{
     SqlEnum, TableModel, column_bool, column_enum, column_float, column_int, column_opt_bool,
     column_opt_float, column_opt_int, column_opt_text, column_text,
@@ -35,8 +28,7 @@ use rusqlite::{Connection, Params};
 pub use rusqlite::types::Value;
 pub use rusqlite::{Error as SqliteError, Result as SqliteResult, Row as SqliteRow};
 
-/// Port of Zig `sqlite.Error`. The rusqlite error is kept as the source (Zig
-/// only had the error tag), and maps to the same tags the Zig version used.
+/// Database errors. The rusqlite error is kept as the source.
 #[derive(Debug, thiserror::Error)]
 pub enum DbError {
     #[error("failed to open the database: {0}")]
@@ -73,11 +65,11 @@ impl From<SqliteError> for DbError {
     }
 }
 
-/// A single result row (Zig `sqlite.Row`).
+/// A single result row.
 ///
-/// Zig's row borrowed a live `sqlite3_stmt`, which safe Rust cannot store next
-/// to the statement that owns it. The wrapper therefore snapshots the column
-/// values; the accessors keep the Zig names and the SQLite-style coercion.
+/// A row borrowing the live statement cannot be stored next to the statement
+/// that owns it in safe Rust. The wrapper therefore snapshots the column
+/// values; the accessors apply the SQLite-style coercion.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Row {
     values: Vec<Value>,
@@ -92,17 +84,17 @@ impl Row {
         Ok(Row { values })
     }
 
-    /// Number of columns (Zig `count`).
+    /// Number of columns.
     pub fn count(&self) -> usize {
         self.values.len()
     }
 
-    /// True for SQL NULL (and for an out-of-range column), like Zig `isNull`.
+    /// True for SQL NULL (and for an out-of-range column).
     pub fn is_null(&self, index: usize) -> bool {
         matches!(self.values.get(index), None | Some(Value::Null))
     }
 
-    /// Integer column, coerced like Zig's `sqlite3_column_int64`: NULL and
+    /// Integer column, coerced like `sqlite3_column_int64`: NULL and
     /// blobs read as 0, real values are truncated, text is parsed.
     pub fn int(&self, index: usize) -> i64 {
         match self.values.get(index) {
@@ -113,7 +105,7 @@ impl Row {
         }
     }
 
-    /// Real column, coerced like Zig's `sqlite3_column_double`.
+    /// Real column, coerced like `sqlite3_column_double`.
     pub fn float(&self, index: usize) -> f64 {
         match self.values.get(index) {
             Some(Value::Real(value)) => *value,
@@ -123,7 +115,7 @@ impl Row {
         }
     }
 
-    /// Text column; NULL reads as "" like Zig `row.text`.
+    /// Text column; NULL reads as "".
     pub fn text(&self, index: usize) -> &str {
         match self.values.get(index) {
             Some(Value::Text(text)) => text,
@@ -132,7 +124,7 @@ impl Row {
         }
     }
 
-    /// Blob column; NULL reads as "" like Zig `row.blob`.
+    /// Blob column; NULL reads as "".
     pub fn blob(&self, index: usize) -> &[u8] {
         match self.values.get(index) {
             Some(Value::Blob(bytes)) => bytes,
@@ -141,15 +133,15 @@ impl Row {
         }
     }
 
-    /// The dynamic value of a column (Zig `value`).
+    /// The dynamic value of a column.
     pub fn value(&self, index: usize) -> Value {
         self.values.get(index).cloned().unwrap_or(Value::Null)
     }
 }
 
-/// Query result cursor (Zig `sqlite.Rows`).
+/// Query result cursor.
 ///
-/// `Database::query` fetches the rows; `next` then mirrors the Zig cursor. (A
+/// `Database::query` fetches the rows; `next` then walks them like a cursor. (A
 /// lazily stepping wrapper would have to own rusqlite's `Rows` together with
 /// its `Statement`, i.e. be self-referential, which safe Rust forbids.)
 pub struct Rows {
@@ -169,8 +161,8 @@ impl Rows {
         }
     }
 
-    /// Returns true when a row is available, false when done (Zig `next`).
-    #[allow(clippy::should_implement_trait)] // Zig shape: `try rows.next()`
+    /// Returns true when a row is available, false when done.
+    #[allow(clippy::should_implement_trait)] // fallible cursor: `rows.next()?`
     pub fn next(&mut self) -> Result<Option<&Row>, DbError> {
         if self.done {
             return Ok(None);
@@ -185,24 +177,24 @@ impl Rows {
         Ok(None)
     }
 
-    /// The row last returned by [`Rows::next`] (Zig `rows.stmt.row()`).
+    /// The row last returned by [`Rows::next`].
     pub fn row(&self) -> &Row {
         let index = self.current.expect("Rows::row called before Rows::next");
         &self.rows[index]
     }
 
-    /// No-op: Rust drops the rows automatically (Zig `deinit`).
+    /// No-op: the rows are dropped automatically.
     pub fn deinit(self) {}
 }
 
-/// An opened SQLite database (Zig `sqlite.Database`).
+/// An opened SQLite database.
 pub struct Database {
     conn: Connection,
 }
 
 impl Database {
     /// Opens (or creates) the database at `path`; `":memory:"` is a scratch
-    /// database (Zig `open`).
+    /// database.
     pub fn open(path: &str) -> Result<Database, DbError> {
         let conn = Connection::open(path).map_err(DbError::OpenFailed)?;
         Ok(Database { conn })
@@ -214,7 +206,7 @@ impl Database {
         Ok(Database { conn })
     }
 
-    /// Closes the database; dropping has the same effect (Zig `close`).
+    /// Closes the database; dropping has the same effect.
     pub fn close(self) {}
 
     pub fn last_insert_id(&self) -> i64 {
@@ -225,18 +217,17 @@ impl Database {
         self.conn.changes()
     }
 
-    /// Runs one or more statements, ignoring results (Zig `exec`).
+    /// Runs one or more statements, ignoring results.
     pub fn exec(&self, sql: &str) -> Result<(), DbError> {
         self.conn.execute_batch(sql).map_err(DbError::StepFailed)
     }
 
-    /// Prepares a statement; rusqlite's `Statement` takes the place of Zig's
-    /// `sqlite.Statement`.
+    /// Prepares a statement (rusqlite's own `Statement`).
     pub fn prepare(&self, sql: &str) -> Result<rusqlite::Statement<'_>, DbError> {
         self.conn.prepare(sql).map_err(DbError::PrepareFailed)
     }
 
-    /// Executes a statement with positional `?` parameters (Zig `run`).
+    /// Executes a statement with positional `?` parameters.
     pub fn run<P: Params>(&self, sql: &str, params: P) -> Result<(), DbError> {
         let mut stmt = self.prepare(sql)?;
         let mut rows = stmt.query(params).map_err(DbError::BindFailed)?;
@@ -244,7 +235,7 @@ impl Database {
         Ok(())
     }
 
-    /// Runs a query and returns its rows (Zig `query`).
+    /// Runs a query and returns its rows.
     pub fn query<P: Params>(&self, sql: &str, params: P) -> Result<Rows, DbError> {
         let mut stmt = self.prepare(sql)?;
         let column_count = stmt.column_count();
@@ -256,7 +247,7 @@ impl Database {
         Ok(Rows::new(rows))
     }
 
-    /// Single scalar result; an empty result returns `None` (Zig `queryOne`).
+    /// Single scalar result; an empty result returns `None`.
     pub fn query_one<T: FromSql, P: Params>(
         &self,
         sql: &str,
@@ -283,7 +274,7 @@ impl Database {
     }
 
     /// Runs `callback` inside a transaction, rolling back when it (or the
-    /// commit) fails (Zig `transaction`).
+    /// commit) fails.
     pub fn transaction<E, F>(&self, callback: F) -> Result<(), E>
     where
         E: From<DbError>,
@@ -300,12 +291,12 @@ impl Database {
         result
     }
 
-    /// CRUD facade for one model (Zig `table`).
+    /// CRUD facade for one model.
     pub fn table<T: TableModel>(&self) -> Table<'_, T> {
         Table::new(self)
     }
 
-    /// `query_row` convenience used by `db::Store` (Zig returned `Rows` here).
+    /// `query_row` convenience used by `db::Store`.
     pub(crate) fn query_row_optional<T, P, F>(
         &self,
         sql: &str,

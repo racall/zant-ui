@@ -1,13 +1,11 @@
-//! Port of `src/components/select.zig` — WP-2.2: the closed antd select
-//! control (field, selected label, chevron) plus the data helpers the runtime
-//! needs for its overlay: the popup geometry / paint and the tooltip layer.
+//! The closed antd select control (field, selected label, chevron) plus the
+//! data helpers the runtime needs for its overlay: the popup geometry / paint
+//! and the tooltip layer.
 //!
-//! The popup and tooltip *layers* are owned by the runtime (`ui_runtime.zig`:
-//! `paintSelectPopup` / `showTooltip` / `paintTooltip`, WP-1.4/2.5). This
-//! module only provides the component-side helpers (mirroring the Zig module /
-//! runtime split 1:1): [`popup_rect`], [`option_at`], [`paint_popup`],
-//! [`animate`] and the [`tooltip`] helpers. The runtime still has to own the
-//! open/popup `NodeId`, the hovered option pointer handling, keyboard
+//! The popup and tooltip *layers* are owned by the runtime. This module only
+//! provides the component-side helpers: [`popup_rect`], [`option_at`],
+//! [`paint_popup`], [`animate`] and the [`tooltip`] helpers. The runtime owns
+//! the open/popup `NodeId`, the hovered option pointer handling, keyboard
 //! navigation and the tooltip's delay / layout / transition state.
 #![forbid(unsafe_code)]
 
@@ -19,16 +17,16 @@ use crate::renderer::text::{self, TextLayout};
 use crate::theme::tokens;
 use crate::theme::tokens::Theme;
 
-/// Zig: `field_height` (the antd middle control height).
+/// Height of the closed field (the antd middle control height).
 pub const FIELD_HEIGHT: f32 = 32.0;
-/// Zig: `padding_x`.
+/// Horizontal padding of the field.
 pub const PADDING_X: f32 = 11.0;
-/// Zig: `row_height`.
+/// Height of one option row in the popup.
 pub const ROW_HEIGHT: f32 = 30.0;
-/// Zig: `popup_padding`.
+/// Padding between the popup edge and its rows.
 pub const POPUP_PADDING: f32 = 4.0;
 
-/// The antd control height of the closed field (`field_height`).
+/// The antd control height of the closed field.
 pub fn control_height() -> f32 {
     FIELD_HEIGHT
 }
@@ -43,17 +41,17 @@ pub fn font_size(data: &SelectData) -> f32 {
     data.font_size
 }
 
-/// Zig `measureWidth`.
+/// The styled width, or the default 220px.
 pub fn measure_width(style: &FlexStyle) -> f32 {
     style.width.unwrap_or(220.0)
 }
 
-/// Zig `measureHeight`.
+/// The styled height, or the field height.
 pub fn measure_height(style: &FlexStyle) -> f32 {
     style.height.unwrap_or(FIELD_HEIGHT)
 }
 
-/// Zig `selectedLabel`: the option at `selected`, or the "Select…" placeholder.
+/// The option at `selected`, or the "Select…" placeholder.
 pub fn selected_label(data: &SelectData) -> &str {
     if data.selected < data.options.len() {
         data.options[data.selected].label.as_str()
@@ -62,9 +60,9 @@ pub fn selected_label(data: &SelectData) -> &str {
     }
 }
 
-/// Zig `ensureLayout`: the selected label's layout and one layout per option
-/// (the popup paints without re-shaping). Rebuilds per colour, like the Zig
-/// cache; the label and the option set are keyed by colour / count.
+/// Ensures the selected label's layout and one layout per option (the popup
+/// paints without re-shaping). Rebuilds per colour; the label and the option
+/// set are keyed by colour / count.
 pub fn ensure_layout(data: &mut SelectData, color: u32, option_color: u32) -> Option<&TextLayout> {
     let label_ok = !data.layout_dirty && data.layout.is_some() && data.layout_color == color;
     let options_ok =
@@ -114,7 +112,7 @@ fn select_data(node: &RetainedNode) -> Option<&SelectData> {
     }
 }
 
-/// Zig `popupRect`: dropdown size / position below the field, flipped above
+/// Dropdown size / position below the field, flipped above
 /// near the window bottom, clamped to 8px margins.
 pub fn popup_rect(node: &RetainedNode, viewport: Size) -> Rect {
     let Some(data) = select_data(node) else {
@@ -136,7 +134,7 @@ pub fn popup_rect(node: &RetainedNode, viewport: Size) -> Rect {
     rect
 }
 
-/// Zig `optionAt`: the option index under a window-space point, if any.
+/// The option index under a window-space point, if any.
 pub fn option_at(node: &RetainedNode, x: f32, y: f32, viewport: Size) -> Option<usize> {
     let data = select_data(node)?;
     let rect = popup_rect(node, viewport);
@@ -236,7 +234,7 @@ pub fn paint(node: &mut RetainedNode, canvas: Canvas, theme: Theme) {
     );
 }
 
-/// Zig `paintPopup`: the antd slide-up dropdown, painted by the runtime above
+/// Paints the antd slide-up dropdown, painted by the runtime above
 /// the tree (it is not a tree node). Kept here so the transition and the row
 /// layout stay next to the closed control's paint.
 pub fn paint_popup(node: &RetainedNode, canvas: Canvas, theme: Theme, viewport: Size) {
@@ -349,16 +347,15 @@ pub fn animate(data: &mut SelectData, now: i64, theme: Theme) -> bool {
 
 /// Component-side helpers for the runtime's tooltip overlay.
 ///
-/// Port of the tooltip half of `ui_runtime.zig` (`showTooltip` /
-/// `paintTooltip` / `clearTooltip`): the layout style, the centred-below /
-/// flipped-above rectangle, the enter / exit transitions and the paint. The
-/// real layer — the tooltip target `NodeId`, the 450ms delay timer, keeping
-/// the layout alive through the zoom-out, and calling this after the tree
-/// paint — lives in the runtime (WP-1.4/2.5), not here.
+/// The layout style, the centred-below / flipped-above rectangle, the enter /
+/// exit transitions and the paint. The real layer — the tooltip target
+/// `NodeId`, the 450ms delay timer, keeping the layout alive through the
+/// zoom-out, and calling this after the tree paint — lives in the runtime,
+/// not here.
 pub mod tooltip {
     use super::{Canvas, Rect, Size, TextLayout, motion, text};
 
-    /// Hover delay before the tooltip appears (`ui_runtime.zig:showTooltip`).
+    /// Hover delay before the tooltip appears.
     pub const DELAY_MS: i64 = 450;
     pub const FONT_SIZE: f32 = 12.0;
     pub const PADDING_X: f32 = 8.0;

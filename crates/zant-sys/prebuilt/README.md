@@ -1,4 +1,4 @@
-# Prebuilt native library (WP-6.6)
+# Prebuilt native library
 
 `crates/zant-sys/build.rs` normally compiles Zant UI's native layer — the Skia
 bridge (`crates/zant-sys/native/skia/*.cpp`, `skia_bridge_mac.mm` /
@@ -6,16 +6,14 @@ bridge (`crates/zant-sys/native/skia/*.cpp`, `skia_bridge_mac.mm` /
 on every clean app build. That is the slow part of a first build (tens of seconds to a few
 minutes), and on Windows it needs Visual Studio's C++ tools.
 
-WP-6.6 removes that cost from installed apps: the release workflow builds the
+Installed apps do not pay that cost: the release workflow builds the
 native objects once per platform, links them into one static archive and ships
 it inside `zant-ui/third_party/zant-native-prebuilt/`. When `build.rs` finds
 that archive it links it instead of compiling; Skia itself was already
 prebuilt, so nothing gets compiled in C++ at all.
 
-The design follows the old Zig `third_party/zant-skia-prebuilt` /
-`hasPrebuiltBridge()` mechanism, with one difference: the archive only
-contains the objects build.rs would compile, so the build must prove it
-matches the tree — not just check that a file exists.
+The archive only contains the objects build.rs would compile, so the build
+must prove it matches the tree — not just check that a file exists.
 
 ## Contents
 
@@ -27,7 +25,7 @@ matches the tree — not just check that a file exists.
 `metadata.txt` is `key=value`, no dependencies (build.rs has no serde):
 
 ```text
-# Built by crates/zant-sys/build.rs (WP-6.6); see crates/zant-sys/prebuilt/README.md.
+# Built by crates/zant-sys/build.rs; see crates/zant-sys/prebuilt/README.md.
 format=1
 platform=macos
 source_hash=6c4c…  # see below
@@ -69,7 +67,7 @@ the Rust implementation independently):
    `zant-sys: ignoring the prebuilt native library: <reason>; compiling the
    native sources instead` and does the normal compile. A stale archive can
    never silently change behaviour.
-5. With no archive present, the build behaves exactly like before WP-6.6.
+5. With no archive present, the build compiles the native sources as usual.
 
 `ZANT_NATIVE_PREBUILT_OUT=<dir>` makes `build.rs` run the normal compile *and*
 write `<dir>/libzant_native.a` (plus `zant_native.lib` on MSVC) and

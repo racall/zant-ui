@@ -1,7 +1,6 @@
 //! Plain top-level functions (not components): a lowercase name, typed
 //! parameters and a return type, like React's convention that only
-//! capitalized functions are components. Translation of
-//! `tools/tsx/codegen/functions.zig`.
+//! capitalized functions are components.
 //!
 //! ```tsx
 //! export function bytes(n: number): string { … }
@@ -10,9 +9,9 @@
 //! becomes `pub fn bytes(n: f64) -> zant::Str`, callable from components, from
 //! other functions (also recursively) and from other files.
 //!
-//! The `defaults.zig` helpers (`paramType`, `required`, `missing`, `prop`) are
-//! ported here as well because this module and [`super::expr`] are their only
-//! WP-5.3 users.
+//! The parameter-default helpers ([`param_type`], [`required`], [`missing`],
+//! [`prop`]) live here as well: this module and [`super::expr`] are their main
+//! users.
 
 use crate::ast;
 
@@ -36,9 +35,9 @@ pub struct Function {
     pub external: bool,
 }
 
-// ── defaults.zig ─────────────────────────────────────────────────────
+// ── parameter defaults ───────────────────────────────────────────────
 
-/// The default as a value of `ty` (Zig `defaults.value`).
+/// The default as a value of `ty`.
 pub fn default_value(g: &mut Generator<'_>, e: &ast::Expr, ty: Type) -> Result<Value> {
     let mut c = scope::Context {
         render: true,
@@ -50,8 +49,7 @@ pub fn default_value(g: &mut Generator<'_>, e: &ast::Expr, ty: Type) -> Result<V
     types::coerce(g, value, ty, e.loc)
 }
 
-/// A parameter's type: its annotation, else its default's (Zig
-/// `defaults.paramType`).
+/// A parameter's type: its annotation, else its default's.
 pub fn param_type(g: &mut Generator<'_>, p: &ast::Param, owner: &[u8]) -> Result<Option<Type>> {
     if let Some(reference) = p.ty.as_ref() {
         return Ok(Some(types::type_ref(g, reference, false)?));
@@ -90,8 +88,7 @@ pub fn required(params: &[ast::Param]) -> usize {
     params.len()
 }
 
-/// The argument code for a parameter the call left out (Zig
-/// `defaults.missing`).
+/// The argument code for a parameter the call left out.
 pub fn missing(g: &mut Generator<'_>, p: &ast::Param, ty: Type) -> Result<String> {
     let Some(default) = p.default.as_deref() else {
         // an optional parameter
@@ -100,8 +97,7 @@ pub fn missing(g: &mut Generator<'_>, p: &ast::Param, ty: Type) -> Result<String
     Ok(default_value(g, default, ty)?.code)
 }
 
-/// `{ size = 14 }`: reading `size` gives `props.size.unwrap_or(14)` (Zig
-/// `defaults.prop`).
+/// `{ size = 14 }`: reading `size` gives `props.size.unwrap_or(14)`.
 pub fn prop(
     g: &mut Generator<'_>,
     name: &ast::Name,
@@ -128,7 +124,7 @@ pub fn prop(
     })
 }
 
-// ── functions.zig ────────────────────────────────────────────────────
+// ── functions ────────────────────────────────────────────────────────
 
 /// Components start with a capital letter; everything else is a function.
 pub fn is_function(f: &ast::Function) -> bool {
@@ -300,7 +296,7 @@ fn emit(g: &mut Generator<'_>, index: usize) -> Result<String> {
     for (param, ty) in function.func.params.iter().zip(function.params.iter()) {
         let binding = scope::bind(g, &mut c, &param.name.name, *ty, false)?;
         c.params.push(binding);
-        params.push(format!("{}: {}", c.bindings[binding].zig, ty.rust(g)));
+        params.push(format!("{}: {}", c.bindings[binding].rust, ty.rust(g)));
     }
     let body = match &function.func.body {
         ast::Body::Block(ss) => {

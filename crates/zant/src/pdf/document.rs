@@ -1,23 +1,19 @@
-//! Port of `src/pdf/document.zig` — WP-3.8.
-//!
 //! An open PDF document: page sizes, text geometry, links and outline,
 //! backed by PDFKit (macOS) or PDFium (Windows).
 //!
-//! Text, links and the outline are loaded lazily and cached; in Zig they are
-//! for the UI thread while `renderTile` is thread-safe (the viewer's render
-//! worker calls it).
+//! Text, links and the outline are loaded lazily and cached; `render_tile`
+//! is thread-safe (the viewer's render worker calls it).
 //!
 //! Threading choice: `Document` is `Send + Sync`. The native handle is
 //! immutable after `open` and the C header documents every call as
 //! thread-safe (the bridge serialises per backend: PDFKit with an NSLock,
 //! PDFium with its global lock), so `render_tile` needs no lock of ours.
-//! The lazy caches are a `Mutex<Cache>` only because Zig's `*Document` +
-//! `[]?PageText` lazy mutation becomes `&self` here; the mutex is not needed
-//! for the native calls themselves and never wraps `render_tile`.
+//! The lazy caches are a `Mutex<Cache>` only because they are filled through
+//! `&self`; the mutex is not needed for the native calls themselves and never
+//! wraps `render_tile`.
 //!
-//! Zig `!Document` errors are [`OpenError`]; OOM disappears (Rust aborts).
-//! Zig returns borrowed slices into an arena; Rust returns owned `String`s
-//! and `Arc<[T]>` snapshots so the caches can sit behind a mutex.
+//! Accessors return owned `String`s and `Arc<[T]>` snapshots so the caches can
+//! sit behind a mutex.
 
 use std::sync::{Arc, Mutex, MutexGuard};
 
@@ -53,8 +49,7 @@ pub struct OutlineEntry {
     pub title: String,
 }
 
-/// Errors of [`Document::open`] (Zig: `error.FileNotFound`,
-/// `error.PasswordRequired`, `error.OutOfMemory`).
+/// Errors of [`Document::open`].
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum OpenError {
     #[error("PDF file not found or cannot be opened")]
@@ -63,14 +58,14 @@ pub enum OpenError {
     PasswordRequired,
 }
 
-/// Lazy per-page caches (Zig: `texts`, `links`, `outline_items`, `strings`).
+/// Lazy per-page caches.
 struct Cache {
     texts: Vec<Option<Arc<PageText>>>,
     links: Vec<Option<Arc<[Link]>>>,
     outline: Option<Arc<[OutlineEntry]>>,
 }
 
-/// An open PDF document. Closed on drop (Zig: `Document.close`).
+/// An open PDF document. Closed on drop.
 pub struct Document {
     handle: native::Doc,
     sizes: Vec<Size>,
@@ -79,7 +74,7 @@ pub struct Document {
 
 fn lock(cache: &Mutex<Cache>) -> MutexGuard<'_, Cache> {
     // A panic while a cache update is in flight cannot corrupt the handle;
-    // keep the cache usable like Zig's plain (lock-free) struct.
+    // keep the cache usable after a poisoned lock.
     cache
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())

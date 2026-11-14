@@ -1,7 +1,6 @@
-//! Port of `src/ui_runtime.zig:1598-1757`: text selection inside `selectable`
-//! containers.
+//! Text selection inside `selectable` containers.
 //!
-//! The hit testing / copying helpers are `core::text_select` (WP-1.3); this
+//! The hit testing / copying helpers are `core::text_select`; this
 //! module owns the runtime state (anchor, focus, drag, double / triple click
 //! word / block expansion), marks the selected byte ranges on the text nodes
 //! (`RetainedNode::text_sel`) and copies through the platform clipboard.
@@ -15,7 +14,7 @@ use crate::platform::platform;
 use super::{Runtime, SelMode};
 
 impl Runtime {
-    /// Zig `clearTextSelection`: drops the marks and the selection state.
+    /// Drops the marks and the selection state.
     pub fn clear_text_selection(&mut self) {
         for &id in &self.sel_marked {
             if (id as usize) < self.tree.nodes.len() {
@@ -32,8 +31,7 @@ impl Runtime {
         self.sel_dragging = false;
     }
 
-    /// The selected text (empty when nothing is selected); Zig
-    /// `selectedText(allocator)`.
+    /// The selected text (empty when nothing is selected).
     pub fn selected_text(&mut self) -> String {
         let Some(root) = self.sel_root else {
             return String::new();
@@ -46,7 +44,7 @@ impl Runtime {
         text_select::copy_text(&self.tree, &nodes, anchor, focus)
     }
 
-    /// Zig `applyTextSelection`: marks the selected range on each text node
+    /// Marks the selected range on each text node
     /// (painted behind the text).
     fn apply_text_selection(&mut self) {
         for &id in &self.sel_marked {
@@ -92,7 +90,7 @@ impl Runtime {
         }
     }
 
-    /// Zig `unitAt`: the word / whole node a multi-click selection grows by.
+    /// The word / whole node a multi-click selection grows by.
     fn unit_at(&mut self, point: Point) -> [Point; 2] {
         match self.sel_mode {
             SelMode::Char => [point, point],
@@ -191,7 +189,7 @@ impl Runtime {
         true
     }
 
-    /// Zig `dragTextSelection`: extends the selection (auto-scrolls the
+    /// Extends the selection (auto-scrolls the
     /// enclosing scroll container past its edges).
     pub(crate) fn drag_text_selection(&mut self, p: PointerEvent) {
         let Some(root) = self.sel_root else {
@@ -246,7 +244,7 @@ impl Runtime {
         self.apply_text_selection();
     }
 
-    /// Zig `selectAllText`: selects every text node of `root`.
+    /// Selects every text node of `root`.
     pub(crate) fn select_all_text(&mut self, root: NodeId) {
         let mut nodes: Vec<NodeId> = Vec::new();
         text_select::collect(&self.tree, root, &mut nodes);
@@ -266,7 +264,7 @@ impl Runtime {
         self.apply_text_selection();
     }
 
-    /// Zig `copyTextSelection`: copies the selected text to the clipboard.
+    /// Copies the selected text to the clipboard.
     pub(crate) fn copy_text_selection(&mut self) -> bool {
         let value = self.selected_text();
         if value.is_empty() {
@@ -291,7 +289,7 @@ mod tests {
     impl App for Doc {
         fn render(&mut self) -> Node {
             column(BoxOptions {
-                // `ui.paragraph` (WP-2.3) is not needed: plain text nodes join
+                // `ui::paragraph` is not needed: plain text nodes join
                 // into a multi-node selection.
                 selectable: true,
                 width: Some(400.0),

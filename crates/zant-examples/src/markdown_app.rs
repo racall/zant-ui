@@ -1,10 +1,7 @@
-//! `zant-markdown`: port of `examples/markdown.zig` (WP-3.11).
+//! `zant-markdown`: the Markdown (Streamdown) gallery.
 //!
-//! The Markdown (Streamdown) gallery: the repository documentation sample
-//! rendered with `markdown::streamdown`, `ZANT_DARK=1` for dark. The node tree,
-//! window title/size and the markdown theme (`md.theme.light/dark`) are the
-//! ones of the Zig example; the block cache is owned by the app like
-//! `md.Cache` is in Zig.
+//! The repository documentation sample rendered with `markdown::streamdown`,
+//! `ZANT_DARK=1` for dark. The block cache is owned by the app.
 #![forbid(unsafe_code)]
 
 use zant::core::geometry::Edges;
@@ -16,8 +13,7 @@ use zant::platform::platform::WindowOptions;
 use zant::theme::tokens::{self, Theme};
 use zant::ui::{self, BoxOptions, RunOptions};
 
-/// `examples/markdown.zig: sample` verbatim (multiline string, no trailing
-/// newline).
+/// The sample document (no trailing newline).
 pub const SAMPLE: &str = r#"# Streamdown for Zant
 
 Native Markdown with **bold**, *italic*, ~~strike~~, ==highlight==, `inline code`, [links](https://github.com/vercel/streamdown), autolinks like https://zant.dev, footnotes[^1] and inline math $$e^{i\pi} + 1 = 0$$ that sits on the baseline.
@@ -48,10 +44,10 @@ $$
 
 ## Code
 
-```zig
-const std = @import("std");
-pub fn main() void {
-    std.debug.print("hello {s}\n", .{"zant"}); // greet
+```rust
+use std::env;
+fn main() {
+    println!("hello {}", env::args().count()); // greet
 }
 ```
 
@@ -71,7 +67,7 @@ graph LR
 
 [^1]: Footnotes render at the end of the document."#;
 
-/// Zig `State`: the block cache and the dark flag.
+/// The block cache and the dark flag.
 pub struct MarkdownApp {
     cache: Cache,
     dark: bool,
@@ -85,7 +81,7 @@ impl MarkdownApp {
         }
     }
 
-    /// Zig `render`: the root node never scrolls itself, the content column
+    /// The window tree: the root node never scrolls itself, the content column
     /// does, wide enough for a 720 px document.
     fn build(&mut self) -> ui::Node {
         let theme = if self.dark {
@@ -136,8 +132,7 @@ impl ui::App for MarkdownApp {
     }
 }
 
-/// Zig `launch.run(.., .{ .title = "Zant Markdown", .window = .{ .width = 860,
-/// .height = 1500 }, .theme = if (dark) antDark() else antLight() })`.
+/// Window title, size (860×1500) and theme of the example.
 pub fn run_options(dark: bool) -> RunOptions {
     RunOptions {
         title: String::from("Zant Markdown"),
@@ -150,7 +145,7 @@ pub fn run_options(dark: bool) -> RunOptions {
     }
 }
 
-/// Zig `launch.run` `.theme` argument.
+/// The Ant Design light or dark theme.
 pub fn app_theme(dark: bool) -> Theme {
     if dark {
         tokens::ant_dark()

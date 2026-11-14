@@ -1,4 +1,4 @@
-# The TSX todo app (port of examples/tsx/todos.tsx) (WP-5.10b).
+# The TSX todo app.
 #
 # The app is a Cargo workspace member: `build.rs` calls
 # `zant_build::try_tsx_app()` (the template's TSX → Rust step) and writes

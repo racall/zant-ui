@@ -1,5 +1,4 @@
-//! Port of `src/components/list.zig` — WP-2.6: the virtual list (`ui.list`) and
-//! the app-owned [`ListState`].
+//! The virtual list ([`list`]) and the app-owned [`ListState`].
 //!
 //! Only the items in and near the viewport are built and laid out, so a list of
 //! thousands of rows — or a chat with long messages — opens and scrolls at the
@@ -14,20 +13,18 @@
 //! - [`Alignment::Bottom`] + `follow_tail` for chats: new content stays in view
 //!   until the user scrolls up, and following resumes at the end.
 //!
-//! ## Rust shape
+//! ## Ownership
 //!
-//! Zig stores an allocator and a `*anyopaque` + function pointer pair in
-//! [`ListOptions`]; Rust closures replace both (`Rc<dyn Fn(usize) -> Node>`).
-//! Zig's `ui.list(&state, ..)` passes a mutable state pointer and the event
-//! callbacks keep it; a Rust `Fn` callback cannot capture `&mut ListState`, so
-//! the app owns `Rc<RefCell<ListState>>` and [`list`] clones that `Rc` into the
-//! pointer / key / resize callbacks. `ListState`'s methods themselves are the
-//! literal `*ListState` methods (receiver `&mut self`).
+//! [`ListOptions`] takes the item builder as a closure
+//! (`Rc<dyn Fn(usize) -> Node>`). The event callbacks need the state, and a
+//! `Fn` callback cannot capture `&mut ListState`, so the app owns
+//! `Rc<RefCell<ListState>>` and [`list`] clones that `Rc` into the pointer /
+//! key / resize callbacks. `ListState`'s methods themselves take `&mut self`.
 //!
 //! ## Runtime integration points (the runtime needs no list-specific code)
 //!
-//! The list is built out of the ordinary declarative pieces ported in WP-1.4 /
-//! WP-2.3, exactly like Zig. The runtime paths it relies on are:
+//! The list is built out of the ordinary declarative pieces. The runtime
+//! paths it relies on are:
 //!
 //! - **wheel / trackpad**: the outer `pointer_area` sets `capture_scroll`, so
 //!   `runtime::dispatch::Runtime::handle_scroll` (`wheel_target_at`) delivers
@@ -93,15 +90,14 @@ pub enum ScrollPosition {
     End,
 }
 
-/// A `scroll_to_item` request applied by the next build (Zig's anonymous
-/// `pending_scroll` struct).
+/// A `scroll_to_item` request applied by the next build.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PendingScroll {
     pub index: usize,
     pub position: ScrollPosition,
 }
 
-/// A scroll-bar drag in progress (Zig's anonymous `bar_drag` struct).
+/// A scroll-bar drag in progress.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BarDrag {
     /// `window_y` at the press.
@@ -113,9 +109,9 @@ pub struct BarDrag {
 /// Scroll position, heights and follow state of one list (app-owned).
 ///
 /// Own it as `Rc<RefCell<ListState>>` and pass it to [`list`]; methods take
-/// `&mut self` (the literal Zig `*ListState` receiver). Height bookkeeping is
-/// the Zig implementation: a Fenwick tree over measured heights plus a second
-/// one over measured counts, so prefix sums and `index_at` are O(log n).
+/// `&mut self`. Height bookkeeping is a Fenwick tree over measured heights
+/// plus a second one over measured counts, so prefix sums and `index_at` are
+/// O(log n).
 pub struct ListState {
     /// Measured height per item (< 0: not measured yet).
     pub heights: Vec<f32>,
@@ -147,8 +143,7 @@ pub struct ListState {
 }
 
 impl ListState {
-    /// Creates an empty state (Zig `ListState.init(allocator)`; Rust has no
-    /// allocator and frees the vectors on `Drop` — Zig's `deinit`).
+    /// Creates an empty state.
     pub fn new() -> ListState {
         ListState {
             heights: Vec::new(),
@@ -200,7 +195,7 @@ impl ListState {
         }
     }
 
-    /// Zig `fenAdd`: adds `dh` / `dc` for `index` into both Fenwick trees and
+    /// Adds `dh` / `dc` for `index` into both Fenwick trees and
     /// the measured totals.
     fn fen_add(&mut self, index: usize, dh: f64, dc: i32) {
         self.measured_total += dh;
@@ -213,7 +208,7 @@ impl ListState {
             self.fen_sum[i - 1] += dh;
             self.fen_cnt[i - 1] =
                 u32::try_from(i64::from(self.fen_cnt[i - 1]) + i64::from(dc)).expect("int cast");
-            // Zig `i += i & (~i + 1)` (the lowest set bit).
+            // Advance by the lowest set bit.
             i += i & i.wrapping_neg();
         }
     }
@@ -446,7 +441,7 @@ impl ListState {
 
     // ---- events ---------------------------------------------------------
 
-    /// Zig `onPointer`: wheel / trackpad scrolling (the list takes only the
+    /// Wheel / trackpad scrolling (the list takes only the
     /// wheel; presses reach the rows).
     fn on_pointer(&mut self, info: PointerInfo) -> Handled {
         match info.phase {
@@ -461,7 +456,7 @@ impl ListState {
         }
     }
 
-    /// Zig `onKey`: Up / Down / Page Up / Page Down / Home / End / Space.
+    /// Keyboard scrolling: Up / Down / Page Up / Page Down / Home / End / Space.
     fn on_key(&mut self, k: KeyEvent) -> Handled {
         let page = (self.viewport.height * 0.9).max(40.0);
         match k.key {
@@ -485,7 +480,7 @@ impl ListState {
         Handled::new(true, self.on_scroll.clone())
     }
 
-    /// Zig `onBar`: dragging the scroll-bar thumb.
+    /// Dragging the scroll-bar thumb.
     fn on_bar(&mut self, info: PointerInfo) -> Handled {
         let content = self.content_height();
         if content <= self.viewport.height {
@@ -528,7 +523,7 @@ impl Default for ListState {
     }
 }
 
-/// Result of one Fenwick prefix query (Zig's anonymous return struct).
+/// Result of one Fenwick prefix query.
 struct Prefix {
     sum: f64,
     cnt: usize,
@@ -537,9 +532,9 @@ struct Prefix {
 /// What an event handler wants its closure to do after the `ListState` borrow
 /// is released.
 ///
-/// Zig calls `scrolled()` (the app's `on_scroll`) inside the handler; Rust must
-/// not run user code while the `RefCell` is borrowed (plan §4), so the handler
-/// returns the callback and the closure calls it after `borrow_mut()` ends.
+/// User code (the app's `on_scroll`) must not run while the `RefCell` is
+/// borrowed, so the handler returns the callback and the closure calls it
+/// after `borrow_mut()` ends.
 struct Handled {
     handled: bool,
     on_scroll: Option<Action>,
@@ -586,7 +581,7 @@ fn run_bar(state: &Rc<RefCell<ListState>>, cx: &mut ActionCx<'_>, info: PointerI
 /// ("the runtime must be able to ask: total height, first / last visible index,
 /// paint rows").
 ///
-/// [`list`] paints its own rows declaratively (like Zig), so the current
+/// [`list`] paints its own rows declaratively, so the current
 /// runtime never needs this; it exists for a runtime that scrolls and paints
 /// lists itself. Get it with [`ListState::view`].
 ///
@@ -598,7 +593,7 @@ pub struct List<'a> {
 }
 
 impl List<'_> {
-    /// Height of the whole content (Zig `ListState.contentHeight`).
+    /// Height of the whole content.
     pub fn total_height(&self) -> f32 {
         self.state.content_height()
     }
@@ -642,7 +637,7 @@ impl List<'_> {
     }
 }
 
-/// Options of [`list`] (Zig `ListOptions`; field order unchanged).
+/// Options of [`list`].
 #[derive(Clone, zant_macros::TsxProps)]
 pub struct ListOptions {
     /// Key of the list's viewport (node keys of items derive from it).
@@ -682,8 +677,8 @@ pub struct ListOptions {
 }
 
 impl Default for ListOptions {
-    /// Zig `ListOptions` field defaults; `count` / `item` are required in Zig
-    /// and get neutral values so `..Default::default()` works here.
+    /// `count` / `item` have no meaningful default and get neutral values so
+    /// `..Default::default()` works.
     fn default() -> Self {
         ListOptions {
             key: "list".into(),
@@ -1073,7 +1068,7 @@ mod tests {
         );
     }
 
-    // ---- ported from `tests/list_test.zig` ------------------------------
+    // ---- whole-app list behaviour ---------------------------------------
 
     struct Uniform {
         state: Rc<RefCell<ListState>>,
@@ -1313,7 +1308,7 @@ mod tests {
         assert_eq!(state.borrow().count(), 2);
     }
 
-    // ---- WP-2.6 additions ------------------------------------------------
+    // ---- options, viewport and callbacks ---------------------------------
 
     fn viewport_hook(height: f32) -> KeyBoundsHook {
         Rc::new(move |key: &str| match key {
@@ -1323,7 +1318,7 @@ mod tests {
     }
 
     #[test]
-    fn list_defaults_match_the_zig_options() {
+    fn list_option_defaults() {
         let options = ListOptions::default();
         assert_eq!(options.key.as_str(), "list");
         assert_eq!(options.count, 0);

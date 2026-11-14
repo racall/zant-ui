@@ -1,9 +1,9 @@
 //! Shared parser types: upstream `ParserOutput` items, `Match`/`Mv`/`Ret`, and
-//! the parser buffer. Port of `src/math/mhchem.zig` (types section) — WP-3.7.
+//! the parser buffer.
 
 use super::MhchemError;
 
-/// Owned byte string, standing in for Zig's arena-backed `[]const u8`.
+/// Owned byte string (the parser works on bytes, not on `str`).
 pub type Str = Vec<u8>;
 pub type Items = Vec<Item>;
 
@@ -21,7 +21,7 @@ pub struct Chemfive {
 /// `ParserOutput` entry: a bare string or a `{ type_: ... }` object.
 ///
 /// A few variants (`Space`, `Up`, `V`) are never produced by the current tables
-/// but exist upstream (`ParserOutput`), so they stay for parity.
+/// but exist upstream (`ParserOutput`), so they stay to mirror it.
 #[allow(dead_code)]
 pub enum Item {
     /// A bare string pushed into the output array.
@@ -147,7 +147,7 @@ pub struct Match {
 /// Parser buffer. a == amount, o == element, b == left-side superscript,
 /// p == left-side subscript, q == right-side subscript, d == right-side
 /// superscript, r == arrow, rdt/rd == arrow script above (type, content),
-/// rqt/rq == arrow script below. `None` == JS `undefined`. `text` is Zig's
+/// rqt/rq == arrow script below. `None` == JS `undefined`. `text` is upstream's
 /// `text_`.
 #[derive(Clone, Default)]
 pub struct Buffer {

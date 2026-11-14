@@ -3,10 +3,8 @@
 //! typical heavy scenarios. Deterministic, so runs before / after a change
 //! (and on macOS / Windows) are comparable.
 //!
-//! 1:1 port of the Zig `examples/bench.zig` (`zant-bench`, WP-2.11):
-//! same scenarios, iteration counts, warm-ups and output format. The whole
-//! frame is timed with `platform::monotonic_us`; the final summary prints
-//! `frames`, average, p95 (index `len*95/100` after sorting, like Zig) and max.
+//! The whole frame is timed with `platform::monotonic_us`; the final summary
+//! prints `frames`, average, p95 (index `len*95/100` after sorting) and max.
 //!
 //! Scenarios: open (first frame of a long chat), stream (reply streaming into
 //! it), typing (an input above a long document), hover (pointer moving over a
@@ -42,8 +40,8 @@ use zant::ui::{
     ParagraphOptions, RunOptions, TextOptions,
 };
 
-/// `fake_now: i64 = 1_000_000` in Zig: the runtime clock injected into every
-/// scenario (motion is off, so this only drives the caret / wake timers).
+/// The runtime clock injected into every scenario (motion is off, so this
+/// only drives the caret / wake timers).
 static FAKE_NOW: AtomicI64 = AtomicI64::new(1_000_000);
 
 fn fake_clock() -> i64 {
@@ -54,8 +52,8 @@ fn advance_clock(ms: i64) {
     FAKE_NOW.fetch_add(ms, AtomicOrdering::Relaxed);
 }
 
-/// Zig `message_template`, already through `std.fmt` (`{{` / `}}` unescaped;
-/// `{d}` stays as the per-copy placeholder used by [`format_messages`]).
+/// One chat message; `{d}` is the per-copy placeholder filled in by
+/// [`format_messages`].
 const MESSAGE_TEMPLATE: &str = r#"## 第 {d} 条：二次函数的最值
 
 设 $f(x) = ax^2 + bx + c$（$a \neq 0$），配方得 $f(x) = a\left(x + \frac{b}{2a}\right)^2 + \frac{4ac-b^2}{4a}$。当 $a > 0$ 时在顶点取得**最小值**，当 $a < 0$ 时取得**最大值**；这一段文字比较长，用来测试长段落在不同宽度下的换行与排版性能，包含中文、English words 和 `inline code`。
@@ -81,8 +79,8 @@ for x in range(0, 6):
 ```
 "#;
 
-/// Zig `std.fmt.allocPrint(gpa, template ** N, values)`: one copy of the
-/// template per value, both `{d}` placeholders of a copy get that value.
+/// One copy of the template per value; both `{d}` placeholders of a copy
+/// get that value.
 fn format_messages(values: &[usize]) -> String {
     let mut out = String::new();
     for &value in values {
@@ -91,9 +89,9 @@ fn format_messages(values: &[usize]) -> String {
     out
 }
 
-/// Zig `Chat`: the long conversation, the streaming reply and the input above
-/// it. The app owns it through an `Rc<RefCell<..>>` so the virtual list's item
-/// closure can build messages while the scenario mutates the reply buffer.
+/// The long conversation, the streaming reply and the input above it. The
+/// app owns it through an `Rc<RefCell<..>>` so the virtual list's item closure
+/// can build messages while the scenario mutates the reply buffer.
 pub struct Chat {
     texts: Vec<String>,
     caches: Vec<Cache>,
@@ -106,8 +104,8 @@ pub struct Chat {
 }
 
 impl Chat {
-    /// Zig `Chat.init`: `n` messages of ~5 KB each (`message_template` four
-    /// times, like real assistant replies).
+    /// `n` messages of ~5 KB each (the template four times, like real
+    /// assistant replies).
     fn new(n: usize, use_list: bool) -> Chat {
         let mut texts = Vec::with_capacity(n);
         let mut caches = Vec::with_capacity(n);
@@ -127,14 +125,13 @@ impl Chat {
         }
     }
 
-    /// Zig `Chat.onInput` (`ui.textAction` target).
+    /// Change callback of the input above the chat.
     fn on_input(&mut self, value: &str) {
         self.input_value.clear();
         self.input_value.push_str(value);
     }
 
-    /// The Markdown body of history message `i` (Zig `md.streamdown` call of
-    /// `Chat.render` / `Chat.message` without the bubble).
+    /// The Markdown body of history message `i`, without the bubble.
     fn history_content(&mut self, i: usize) -> ui::Node {
         let key = format!("m{i}");
         let caches = &mut self.caches;
@@ -154,8 +151,8 @@ impl Chat {
         )
     }
 
-    /// The Markdown body of the streaming reply (Zig `.mode = .streaming`,
-    /// `is_animating = true`, block caret).
+    /// The Markdown body of the streaming reply (streaming mode, animating,
+    /// block caret).
     fn reply_content(&mut self) -> ui::Node {
         markdown::streamdown(
             &mut self.reply,
@@ -175,7 +172,7 @@ impl Chat {
         )
     }
 
-    /// Zig `Chat.message`: one virtual-list item (history bubble or reply).
+    /// One virtual-list item (history bubble or reply).
     fn message(&mut self, i: usize) -> ui::Node {
         if i == self.texts.len() {
             return ui::column(BoxOptions {
@@ -206,7 +203,7 @@ impl ChatApp {
         ChatApp { chat }
     }
 
-    /// The input above the chat (Zig `ui.input` with `ui.textAction`).
+    /// The input above the chat.
     fn input_node(chat: &Rc<RefCell<Chat>>) -> ui::Node {
         let value = chat.borrow().input_value.clone();
         ui::input(InputOptions {
@@ -222,7 +219,6 @@ impl ChatApp {
 }
 
 impl App for ChatApp {
-    /// Zig `Chat.render`.
     fn render(&mut self) -> ui::Node {
         let chat = Rc::clone(&self.chat);
         let (use_list, with_input, n, reply_len) = {
@@ -310,7 +306,7 @@ impl App for ChatApp {
     }
 }
 
-/// Zig `Rows`: 400 rows (text, paragraph, button) in a scroll container, for
+/// 400 rows (text, paragraph, button) in a scroll container, for
 /// the pointer-hover scenario.
 struct Rows;
 
@@ -364,7 +360,7 @@ impl App for Rows {
     }
 }
 
-/// Zig `Stats`: per-scenario frame samples, sorted for the p95.
+/// Per-scenario frame samples, sorted for the p95.
 struct Stats {
     samples: Vec<f64>,
 }
@@ -380,7 +376,7 @@ impl Stats {
         self.samples.push(ms);
     }
 
-    /// Zig `Stats.report`: `"{s: <8} frames={d: >5}  avg={d: >7.2} ms  p95=…"`.
+    /// Prints the `<name> frames=…  avg=… ms  p95=…` summary line.
     fn report(&mut self, name: &str) {
         let s = &mut self.samples;
         if s.is_empty() {
@@ -402,8 +398,8 @@ impl Stats {
 const W: f32 = 900.0;
 const H: f32 = 900.0;
 
-/// Zig `frame`: advance the fake clock, then time one full frame
-/// (`r.begin` → `renderFrame` → `r.end`) in milliseconds.
+/// Advances the fake clock, then times one full frame
+/// (`begin` → `render_frame` → `end`) in milliseconds.
 fn frame(rt: &mut Runtime, renderer: &mut Renderer, w: f32, h: f32) -> f64 {
     advance_clock(16);
     let t0 = platform::monotonic_us();
@@ -413,7 +409,7 @@ fn frame(rt: &mut Runtime, renderer: &mut Renderer, w: f32, h: f32) -> f64 {
     (platform::monotonic_us() - t0) as f64 / 1000.0
 }
 
-/// Zig `newRuntime`: a headless runtime at 900×900 with the fake clock.
+/// A headless runtime at 900×900 with the fake clock.
 fn new_runtime(app: impl App) -> Runtime {
     let mut rt = Runtime::init(
         app,
@@ -427,29 +423,28 @@ fn new_runtime(app: impl App) -> Runtime {
         },
     );
     rt.clock = fake_clock;
-    // Zig `zant-bench` never calls `Runtime.run` (which reads the env var), so
-    // the port wires `ZANT_FRAME_STATS=1` in here: the per-second `[frames]` /
+    // The benchmark never calls `Runtime::run` (which reads the env var), so
+    // `ZANT_FRAME_STATS=1` is wired in here: the per-second `[frames]` /
     // `[slow-frame]` lines are the phase breakdown used to investigate a
-    // scenario over budget (plan §4 / §7.3).
+    // scenario over budget.
     if frame_stats_enabled() {
         rt.enable_frame_stats();
     }
     rt
 }
 
-/// Zig `want`: with no scenario arguments, run all of them.
+/// Whether to run scenario `name`: with no scenario arguments, all of them.
 fn want(args: &[String], name: &str) -> bool {
     args.is_empty() || args.iter().any(|arg| arg == name)
 }
 
-/// Zig `init.environ_map.get("ZANT_FRAME_STATS")` then `v[0] == '1'`.
+/// `ZANT_FRAME_STATS` set to a value starting with `1`.
 fn frame_stats_enabled() -> bool {
     std::env::var("ZANT_FRAME_STATS")
         .map(|value| value.starts_with('1'))
         .unwrap_or(false)
 }
 
-/// Zig `main`.
 pub fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let n = std::env::var("ZANT_BENCH_MESSAGES")
@@ -542,7 +537,7 @@ pub fn main() {
         }
         let _ = frame(&mut rt, &mut renderer, W, H);
         for _ in 0..100 {
-            // one blink (Zig: `fake_now += 530`)
+            // one blink
             advance_clock(530);
             st.add(frame(&mut rt, &mut renderer, W, H));
         }
@@ -606,17 +601,17 @@ pub fn main() {
 mod tests {
     use super::*;
 
-    /// The template is the Zig one through `std.fmt`: four `{d}` copies per
-    /// message, Chinese + English + math + table + code block all present.
+    /// Four template copies per message, Chinese + English + math + table +
+    /// code block all present.
     #[test]
-    fn message_template_matches_the_zig_text() {
+    fn message_template_is_filled_in_per_copy() {
         let message = format_messages(&[7, 8, 9, 10]);
         assert_eq!(message.matches("## 第 ").count(), 4);
         assert!(message.contains("第 7 条"));
         assert!(message.contains("第 8 条"));
         assert!(message.contains("第 9 条"));
         assert!(message.contains("第 10 条"));
-        // `{{` / `}}` of the Zig format string come out as single braces
+        // braces in the template are literal (no `{{` / `}}` escapes)
         assert!(message.contains(r"\frac{b}{2a}"));
         assert!(message.contains(r"\begin{cases}"));
         assert!(message.contains("# value 10"));
@@ -624,9 +619,9 @@ mod tests {
         assert!(!message.contains("{d}"));
     }
 
-    /// Zig `p95 = s[@min(s.len - 1, (s.len * 95) / 100)]` on the sorted list.
+    /// p95 is `s[min(len - 1, len * 95 / 100)]` on the sorted list.
     #[test]
-    fn p95_uses_the_zig_index() {
+    fn p95_uses_the_clamped_95_percent_index() {
         let mut stats = Stats::new();
         for i in 1..=100 {
             stats.add(f64::from(i));

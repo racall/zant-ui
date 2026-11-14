@@ -1,5 +1,5 @@
-// A 10 000-row virtual list in TSX for `zig build bench-tsx` (scenario
-// `list`); `list_manual.zig` is the same list written by hand in Zig.
+// A 10 000-row virtual list in TSX for the TSX frame benchmark (scenario
+// `list`), which compares it with the same list written by hand in Rust.
 import { useState, useTheme, List, View, Row, Text, Button } from "zant";
 import type { u32 } from "zant";
 

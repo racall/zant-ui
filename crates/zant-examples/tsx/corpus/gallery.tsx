@@ -1,5 +1,5 @@
-// Zant components written in TSX and compiled to Zig at build time
-// (docs/tsx.md). Run it with `zig build run-tsx-gallery`.
+// Zant components written in TSX and compiled to Rust at build time
+// (docs/tsx.md). The runnable copy is `../tsx-gallery`.
 import { useState, useTheme } from "zant";
 import type { usize } from "zant";
 
@@ -27,7 +27,7 @@ export default function Gallery() {
     <View flex={1}>
       <View key="page" padding={24} gap={16} overflow="scroll" height="100%" alignItems="flex-start">
         <Heading level={2}>TSX component gallery</Heading>
-        <Paragraph>Every component on this page is written in TSX and compiled to native Zig.</Paragraph>
+        <Paragraph>Every component on this page is written in TSX and compiled to native Rust.</Paragraph>
         <Row gap={16} alignItems="flex-start">
           <Card key="inputs" title="Inputs" width={420} gap={12}>
             <Input key="name" value={name} placeholder="Your name" onChange={setName} />

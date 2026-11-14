@@ -1,7 +1,5 @@
-//! `zant-bench`: headless frame benchmark, port of the Zig `zant-bench`
-//! (`examples/bench.zig`, WP-2.11). The benchmark lives in the bin-local
-//! [`bench_app`] module so the executable keeps the Zig binary name while the
-//! app / scenario code stays readable.
+//! `zant-bench`: headless frame benchmark. The benchmark lives in the
+//! bin-local [`bench_app`] module so this file stays a thin entry point.
 //!
 //! ```text
 //! cargo build --release -p zant-examples --bin zant-bench

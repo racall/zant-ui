@@ -1,7 +1,7 @@
-//! Port of `src/platform/` — WP-1.1d.
+//! Platform layer: windows, native dialogs and the path-based PDF helpers.
 
 pub mod dialog;
 pub mod pdf;
-// The Zig module keeps its own name (`renderer.zig` inside `renderer/`).
+// The module keeps the name of its directory (`platform::platform`).
 #[allow(clippy::module_inception)]
 pub mod platform;

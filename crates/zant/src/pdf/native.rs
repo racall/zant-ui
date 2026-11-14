@@ -1,12 +1,10 @@
-//! Port of `src/pdf/native.zig` — WP-3.8.
-//!
 //! The C ABI of the native PDF backends (`src/platform/pdf.h`): PDFKit on
 //! macOS, PDFium on Windows. All functions are thread-safe (the bridge
 //! serialises per backend), so a render worker may call [`Doc::render`] while
 //! the UI thread reads text geometry through the safe layer above
 //! (`pdf::document`, `pdf::text`).
 //!
-//! This is one of the few modules allowed to use `unsafe` (plan.md §3 rule 5);
+//! This is one of the few modules allowed to use `unsafe`;
 //! `pdf/document.rs`, `pdf/text.rs`, `pdf/renderer.rs` and
 //! `pdf/annotations.rs` are safe code built on top of it.
 //!
@@ -72,8 +70,8 @@ pub mod annot_kind {
 
 /// An open native document (`ZantPdfDocument *`). Closed on drop.
 ///
-/// The Zig side stores the bare `*native.Doc`; Rust keeps it in this wrapper
-/// so `Document` can be safe code and so the close cannot be forgotten.
+/// The raw handle stays inside this wrapper so `Document` can be safe code
+/// and so the close cannot be forgotten.
 pub struct Doc {
     raw: *mut ffi::ZantPdfDocument,
 }
@@ -87,8 +85,8 @@ unsafe impl Sync for Doc {}
 
 impl Doc {
     /// Opens a PDF file; `password` unlocks encrypted documents. `locked` is
-    /// set when a (different) password is needed (Zig: the `locked` out param
-    /// of `zant_pdf_open`).
+    /// set when a (different) password is needed (the `locked` out param of
+    /// `zant_pdf_open`).
     pub fn open(path: &str, password: Option<&str>, locked: &mut bool) -> Option<Doc> {
         let path = std::ffi::CString::new(path).ok()?;
         let password = password.and_then(|value| std::ffi::CString::new(value).ok());
@@ -167,8 +165,8 @@ impl Doc {
         result == 0
     }
 
-    /// Text glyphs of a page in reading order (Zig: the count call followed by
-    /// the fill call in `document.loadText`). Empty when the page has no text
+    /// Text glyphs of a page in reading order (the count call followed by
+    /// the fill call). Empty when the page has no text
     /// layer or cannot be read.
     pub fn glyphs(&self, page: i32) -> Vec<Glyph> {
         // SAFETY: live document handle; a NULL `out` asks for the count.
@@ -316,8 +314,7 @@ pub fn save_annotated(
 }
 
 /// Bytes of a NUL-terminated C string buffer up to the first NUL
-/// (`std.mem.sliceTo` on the Zig side). The whole buffer is returned when it
-/// has no NUL.
+/// The whole buffer is returned when it has no NUL.
 pub fn bytes_until_nul(buf: &[c_char]) -> &[u8] {
     // SAFETY: `c_char` is exactly one readable byte; the slice covers the
     // array's memory, which the backend owns.

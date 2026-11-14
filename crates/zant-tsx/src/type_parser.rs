@@ -5,8 +5,6 @@
 //!
 //! Like tsc, a `(` starts a function type when the matching `)` is followed
 //! by `=>`, and a parenthesized type otherwise.
-//!
-//! Direct translation of `tools/tsx/type_parser.zig`.
 
 use crate::ast::{FuncType, Name, TypeDetail, TypeField, TypeRef};
 use crate::lexer::{self, Kind};
@@ -252,8 +250,6 @@ mod tests {
         std::str::from_utf8(value).expect("text is UTF-8")
     }
 
-    // Ported from `tools/tsx/parser_test.zig`,
-    // "phase 2 types: interfaces, unions, arrays, function types".
     #[test]
     fn phase_2_types_interfaces_unions_arrays_function_types() {
         let m = parse_ok(

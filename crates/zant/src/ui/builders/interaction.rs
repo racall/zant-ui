@@ -1,12 +1,11 @@
-//! Pointer-target and overlay builders of `src/ui.zig`: `pointerArea`,
-//! `clickable`, `tooltip`, `dismissLayer` (WP-2.3).
+//! Pointer-target and overlay builders: `pointer_area`, `clickable`,
+//! `tooltip`, `dismiss_layer`.
 //!
-//! `pointerArea` / `clickable` are ordinary `column` containers plus a
-//! [`PointerArea`] handler, so the runtime (WP-1.4 / WP-2.1) can deliver raw
-//! pointer input without the app touching the tree. `clickable` wraps
-//! `pointerArea` with the "released over the area" rule of the Zig
-//! `ClickTarget`. `tooltip` / `dismissLayer` are the small declarative wrappers
-//! popovers are built from.
+//! `pointer_area` / `clickable` are ordinary `column` containers plus a
+//! [`PointerArea`] handler, so the runtime can deliver raw pointer input
+//! without the app touching the tree. `clickable` wraps `pointer_area` with
+//! the "released over the area" rule. `tooltip` / `dismiss_layer` are the
+//! small declarative wrappers popovers are built from.
 #![forbid(unsafe_code)]
 
 use crate::Str;
@@ -22,7 +21,7 @@ use super::super::options::{
 use super::super::styled::{Style, styled};
 use super::{button, hover_from, layout_from, visual_from};
 
-/// `ui::pointerArea`: a column container that handles raw pointer input.
+/// `ui::pointer_area`: a column container that handles raw pointer input.
 pub fn pointer_area(options: PointerAreaOptions) -> Node {
     let direction = options
         .r#box
@@ -54,7 +53,7 @@ pub fn pointer_area(options: PointerAreaOptions) -> Node {
 /// `ui::clickable`: a container clicked as a whole (list row, card).
 ///
 /// A press that is dragged away cancels the click; `index_action` wins over
-/// `on_click` (Zig `ClickTarget.onPointer`).
+/// `on_click`.
 pub fn clickable(options: ClickableOptions) -> Node {
     let on_click = options.on_click;
     let index_action = options.index_action;

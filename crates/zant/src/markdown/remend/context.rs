@@ -1,9 +1,8 @@
-//! Port of `src/markdown/remend/context.zig`: shared state for one `remend`
-//! call and the single-entry scan memo of `scan.ts` (`getScan`).
+//! Shared state for one `remend` call and the single-entry scan memo of
+//! `scan.ts` (`getScan`).
 //!
-//! The Zig version allocates from an arena and keys the memo on pointer
-//! identity; without an arena the Rust port owns the scan (and its text) and
-//! compares content, which yields exactly the same scans.
+//! The memo owns the scan (and its text) and compares content, which yields
+//! exactly the same scans as keying on string identity.
 
 use super::scan::Scan;
 

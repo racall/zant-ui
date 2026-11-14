@@ -1,12 +1,10 @@
 //! `mhchemParser.patterns.patterns`: the pattern table and the dispatcher for
 //! the hand-written matchers in `patterns_{token,word,group}.rs`.
-//!
-//! Port of `src/math/mhchem.zig` (pattern table + `Parser.match`).
 
 use super::MhchemError;
 use super::types::Match;
 
-/// `mhchemParser.patterns.patterns` keys (the Zig enum member is noted in the
+/// `mhchemParser.patterns.patterns` keys (the upstream key is noted in the
 /// trailing comment).
 #[derive(Clone, Copy)]
 pub enum Pat {

@@ -1,6 +1,4 @@
 //! Loop and switch syntax, kept separate from the module and expression parsers.
-//!
-//! Direct translation of `tools/tsx/loop_parser.zig`.
 
 use crate::ast::{Case, Decl, ExprData, For, ForOf, Name, Pattern, Stmt, StmtData, Switch, While};
 use crate::expr_parser;
@@ -220,8 +218,6 @@ mod tests {
         std::str::from_utf8(value).expect("text is UTF-8")
     }
 
-    // Ported from `tools/tsx/parser_test.zig`,
-    // "loop headers, single statements and switch groups".
     #[test]
     fn loop_headers_single_statements_and_switch_groups() {
         let m = parse_ok(
@@ -285,8 +281,6 @@ mod tests {
         assert!(cases[3].value.is_none());
     }
 
-    // Ported from `tools/tsx/parser_test.zig`,
-    // "loop syntax diagnostics and jump ASI".
     #[test]
     fn loop_syntax_diagnostics_and_jump_asi() {
         expect_syntax_error(

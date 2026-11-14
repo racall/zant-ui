@@ -1,14 +1,20 @@
 # zant-examples
 
-Runnable Zant UI examples, ported from the Zig `examples/` / `src/` entry
-points (docs/rust-port/plan.md WP-2.9). The binaries keep the Zig executable
-names so `scripts/parity/` and the Windows desktop scripts find them.
+Runnable Zant UI examples written in Rust against the `zant` crate. The TSX
+example apps live in [`tsx/`](tsx/README.md).
 
-| binary | Zig source | Rust source |
+| binary | source | what it shows |
 |---|---|---|
-| `zant-demo` | `examples/declarative.zig` | `src/bin/zant-demo.rs` (WP-1.5) |
-| `zant-components` | `examples/components.zig` | `src/components_app/` + `src/bin/zant-components.rs` |
-| `zant-gallery` | `src/main.zig` + `src/app.zig` + `src/gallery.zig` (`examples/gallery.zig` re-exports `zant.gallery.GalleryState`) | `src/gallery_app/` + `src/bin/zant-gallery.rs` |
+| `zant-demo` | `src/bin/zant-demo.rs` | a small declarative `ui::App` |
+| `zant-components` | `src/components_app/` + `src/bin/zant-components.rs` | the component showcase (inputs, menus, modal, list, PDF viewer, …) |
+| `zant-gallery` | `src/gallery_app/` + `src/bin/zant-gallery.rs` | the retained-mode gallery: a hand-built `core::tree::Tree` with its own event loop |
+| `zant-markdown` | `src/markdown_app.rs` + `src/bin/zant-markdown.rs` | Markdown rendering |
+| `zant-math` | `src/math_app.rs` + `src/bin/zant-math.rs` | math typesetting |
+| `zant-md-stream` | `src/stream_app.rs` + `src/bin/zant-md-stream.rs` | streaming Markdown (frame-rate benchmark, `--sse` replays real SSE) |
+| `zant-pdf` | `src/pdf_app.rs` + `src/bin/zant-pdf.rs` | the PDF reader |
+| `zant-bench` | `src/bin/zant_bench/` + `src/bin/zant-bench.rs` | headless frame benchmark (`scripts/bench.sh`) |
+| `zant-tsx-bench` | `src/bin/zant-tsx-bench.rs` | TSX compile benchmark (`scripts/tsx/examples-check.sh`) |
+| `zant-tsx-frame-bench` | `src/bin/zant_tsx_frame_bench/` + `src/bin/zant-tsx-frame-bench.rs` | TSX vs hand-written frame benchmark (`scripts/tsx/bench-tsx.sh`) |
 
 Build and run:
 
@@ -18,66 +24,24 @@ Build and run:
 ./target/release/zant-gallery
 ```
 
-`ZANT_*` automation switches are the Zig ones: `ZANT_DARK`, `ZANT_AUTOPLAY`
+`ZANT_*` automation switches: `ZANT_DARK` / `ZANT_THEME`, `ZANT_AUTOPLAY`
 (`quiet`: no `[event]` stderr lines), `ZANT_SNAPSHOT` / `ZANT_SNAPSHOT_EXIT`,
 `ZANT_LAYOUT_FILE` (declarative runtime), `ZANT_WINDOW_SIZE`, `ZANT_FRAME_STATS`,
 `ZANT_NO_MOTION`.
 
-## Parity with the Zig baseline
+## Notes
 
-```bash
-cargo build --release -p zant-examples
-ZANT_ZIG_BIN=/path/to/zig-out-baseline/bin scripts/parity/compare.sh zant-demo
-```
-
-`zant-demo` passes `compare.sh` 6/6 (light/dark × 600x620 / 900x640 /
-1200x800; 8 layout keys, 0 pixels differ).
-
-For the two WP-2.9 binaries `compare.sh` cannot report a full pass on its own,
-for reasons on the Zig side plus one unported widget:
-
-- `zant-components`: the Zig `ui.pdfViewer` writes its outer layout key
-  `pdf-2002` **twice**, and `scripts/parity/layoutdiff.py` rejects duplicate
-  keys, so the layout check never runs (`.../layout.txt:78: duplicate key
-  'pdf-2002'`). The PDF viewer itself is WP-3.9 and is still a stub in Rust, so
-  the example renders a placeholder in its slot (same key / size / border).
-  `parity/components_parity.sh` compares what is portable: the screenshot with
-  `imgdiff.py` (6/6 pass, 0 pixels differ) and the layout dump with the
-  duplicate and the `pdf-2002*` keys filtered out (6/6 pass, 74 keys identical
-  in every combination).
-- `zant-gallery`: the Zig imperative app never writes `ZANT_LAYOUT_FILE` (that
-  is declarative-runtime code) and its hand-built tree has no keys, so
-  `capture.sh` fails with "produced no layout.txt". The screenshots are
-  compared directly: `parity/gallery_image_parity.sh` (6/6 pass, 0 pixels
-  differ in every combination). The gallery has no dark mode in the Zig app,
-  so its `dark-*` combinations capture the same light UI on both sides;
-  `ZANT_DARK` / `ZANT_THEME` are ignored by both, exactly like Zig.
-
-Both scripts take the Zig baseline directory from `ZANT_ZIG_BIN` (default
-`<repo>/zig-out-baseline/bin`, a migration-era artifact; the Zig toolchain was
-removed at M8, see `docs/rust-port/m8-cutover.md`).
-
-## Deviations from the Zig sources
-
-- `zant-components`: `ui.pdfViewer` is not ported yet (WP-3.9; `pdf/viewer/` is
-  a stub on this branch). The documents section keeps the widget's slot as a
-  bordered placeholder and the `on_change` callback that logs "pdf changed" is
-  omitted until the widget lands.
-- `zant-components`: Zig stores the last event in a fixed 96-byte buffer with
-  `bufPrint` and drops over-long messages entirely; the port keeps that rule.
-  `ui.textFmt` has no Rust counterpart, so call sites format with `format!`.
-- `zant-gallery`: the app keeps the Zig imperative shape (hand-built retained
-  tree, own event loop) instead of `ui::App` / `runtime::Runtime`, because the
-  declarative runtime rebuilds the tree from `render()` and would free the
-  manually built nodes. It implements `platform::HostHandler` itself, like the
-  Zig `makeHost`.
-- `zant-gallery`: the app holds the window only weakly (`Rc<Window>` behind a
-  `Weak`) because the host handler owns the `Rc<RefCell<GalleryApp>>`; Zig kept
-  a raw `*Window`.
-- `zant-gallery`: Zig's `onChange` callback receives the node id; Rust's
-  `TextAction` has no node-id parameter, so each input's action captures its
-  own id when the callbacks are wired after the tree is built.
-- `zant-gallery`: the Rust tree only changes input state, the runtime notifies
-  the input's `text_action` after a successful edit
-  (`runtime/keyboard.rs:notify_text_action`); the gallery app does the same
-  after insert / delete / paste, like Zig `Tree.inputChanged`.
+- `zant-components` keeps the last event in a 96-byte budget and drops
+  over-long messages entirely.
+- `zant-gallery` is imperative on purpose (hand-built retained tree, own event
+  loop) instead of `ui::App` / `runtime::Runtime`: the declarative runtime
+  rebuilds the tree from `render()` and would free the manually built nodes.
+  It implements `platform::HostHandler` itself and holds the window only
+  weakly (`Rc<Window>` behind a `Weak`), because the host handler owns the
+  `Rc<RefCell<GalleryApp>>`.
+- `zant-gallery` has no keyed layout dump (`ZANT_LAYOUT_FILE` is
+  declarative-runtime code) and no dark mode.
+- `zant-gallery`: `TextAction` has no node-id parameter, so each input's action
+  captures its own id when the callbacks are wired after the tree is built; the
+  tree only changes input state and the app notifies the input's `text_action`
+  after insert / delete / paste, like `runtime/keyboard.rs:notify_text_action`.

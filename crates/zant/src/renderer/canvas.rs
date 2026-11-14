@@ -1,7 +1,5 @@
-//! Port of `src/renderer/canvas.zig` — WP-1.1c.
-//!
 //! `Canvas` is a thin handle over the Skia canvas the native host hands to the
-//! frame callback. It is `Copy` like the Zig struct: the native canvas outlives
+//! frame callback. It is `Copy`: the native canvas outlives
 //! every handle used during one frame.
 
 use crate::core::geometry::Rect;

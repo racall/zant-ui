@@ -1,6 +1,5 @@
-//! Conformance suite for the remend port: every `expect(remend(x)).toBe(y)`
-//! case from Streamdown's `packages/remend/__tests__` (same fixture as
-//! `tests/remend_test.zig`).
+//! Conformance suite for `remend`: every `expect(remend(x)).toBe(y)` case
+//! from Streamdown's `packages/remend/__tests__`.
 
 use zant::markdown::remend::{Options, remend};
 

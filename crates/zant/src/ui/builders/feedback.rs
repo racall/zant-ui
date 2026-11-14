@@ -1,5 +1,4 @@
-//! Status / display builders of `src/ui.zig`: `alert`, `avatar`,
-//! `progress` (WP-2.3).
+//! Status / display builders: `alert`, `avatar`, `progress`.
 //!
 //! Antd status surfaces: a translucent tint + border for alerts, a round label
 //! chip for avatars, and a track + filled bar for progress.
@@ -221,7 +220,7 @@ mod tests {
         assert_eq!(element.visual.radius, 16.0);
         assert!(element.visual.clip);
         let label = element.children[0].element();
-        assert_eq!(label.content, "?", "the Zig default label");
+        assert_eq!(label.content, "?", "the default label");
         assert!(
             (label.text_style.font_size - 12.8).abs() < 0.001,
             "40% of the size, min 12"

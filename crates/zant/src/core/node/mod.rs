@@ -1,21 +1,19 @@
 //! Retained nodes: data of every node kind plus the per-node state the tree,
-//! layout and painting share (port of `src/core/node.zig`, WP-1.3).
+//! layout and painting share.
 //!
 //! The node arena itself lives in `core::tree`; this module only describes a
-//! node. A `RetainedNode` is stored by value in `Tree::nodes` (Zig keeps
-//! `*Node` pointers so they stay valid across slots; a `Vec<RetainedNode>`
-//! with `NodeId = u32` indices gives the same addressing without pointers).
+//! node. A `RetainedNode` is stored by value in `Tree::nodes`: a
+//! `Vec<RetainedNode>` with `NodeId = u32` indices gives stable addressing
+//! without pointers.
 //!
 //! Data types that the retained node owns (`ContainerData`, `ButtonData`,
 //! `InputData`, `ToggleData`, `ImageData`, `SelectData`, `VectorData`) live
-//! here because Zig declares them in `node.zig`; the painting and measuring
+//! here; the painting and measuring
 //! behaviour of the components stays in `components/*`. `TextData` and
 //! `RichTextData` (with the layout caches described in AGENTS.md) are in the
 //! sibling modules.
 //!
-//! Deviation from Zig: the legacy `Callback` (`*anyopaque` + function pointer)
-//! fields of `ButtonData` / `InputData` are not ported — the Rust tree stores
-//! the typed `ui::actions` callbacks instead (plan.md §4 "Action").
+//! `ButtonData` / `InputData` store the typed `ui::actions` callbacks.
 #![forbid(unsafe_code)]
 
 use crate::Str;
@@ -218,8 +216,7 @@ impl ButtonData {
 
 /// `InputData`: the editing state of a single- or multi-line input.
 ///
-/// Deviation: Zig uses `ArrayListUnmanaged(u8)` for the text buffers; the port
-/// uses `String` (all edits happen on UTF-8 boundaries).
+/// The text buffers are `String`s: all edits happen on UTF-8 boundaries.
 pub struct InputData {
     pub text: String,
     pub placeholder: Str,
@@ -325,7 +322,7 @@ impl InputData {
         self.layout_width = -1.0;
     }
 
-    /// Port of `components/input.zig:rebuildDisplay`: the text as painted
+    /// Rebuilds `display_text`: the text as painted
     /// (masked when `password`, composition text at the caret).
     pub fn rebuild_display(&mut self) {
         self.display_text.clear();
@@ -355,8 +352,8 @@ impl InputData {
     }
 }
 
-/// Largest char boundary `<= at` (Zig works on raw bytes; the Rust text is
-/// UTF-8, so never split a code point when rendering).
+/// Largest char boundary `<= at` (the text is UTF-8, so never split a code
+/// point when rendering).
 fn floor_char_boundary(text: &str, at: usize) -> usize {
     let mut at = at.min(text.len());
     while at > 0 && !text.is_char_boundary(at) {
@@ -451,8 +448,7 @@ impl ToggleData {
 /// `ImageData`: an image source and how it fills its box.
 pub struct ImageData {
     pub path: Str,
-    /// In-memory source (Zig kept a retained native handle + `source_id`); the
-    /// Rust tree shares the loaded `Image` through `Rc`.
+    /// In-memory source; the tree shares the loaded `Image` through `Rc`.
     pub handle: Option<std::rc::Rc<crate::image::Image>>,
     pub source_id: u64,
     pub intrinsic_width: i32,
@@ -547,10 +543,10 @@ pub struct VectorData {
     pub copy: Str,
 }
 
-/// Zig `Data` (`union(NodeKind)`): what a retained node paints and lays out.
+/// What a retained node paints and lays out, by [`NodeKind`].
 ///
-/// The variants deliberately differ a lot in size (Zig stores the same union
-/// inline); boxing one would add an allocation per node of that kind.
+/// The variants deliberately differ a lot in size; boxing one would add an
+/// allocation per node of that kind.
 #[allow(clippy::large_enum_variant)]
 pub enum NodeData {
     Root,
@@ -582,7 +578,7 @@ impl NodeData {
     }
 }
 
-/// Zig `Node`: one slot of the retained tree.
+/// One slot of the retained tree.
 pub struct RetainedNode {
     pub id: NodeId,
     pub parent: Option<NodeId>,
@@ -615,7 +611,7 @@ pub struct RetainedNode {
 }
 
 impl RetainedNode {
-    /// A live node slot with Zig's field defaults.
+    /// A live node slot with default field values.
     pub fn new(id: NodeId, data: NodeData) -> RetainedNode {
         RetainedNode {
             id,
@@ -642,7 +638,7 @@ impl RetainedNode {
         }
     }
 
-    /// A freed slot: Zig resets the whole node to its defaults with
+    /// A freed slot: the whole node is reset to its defaults with
     /// `alive = false` and a container payload.
     pub fn tombstone(id: NodeId) -> RetainedNode {
         let mut node = RetainedNode::new(id, NodeData::Container(ContainerData::default()));

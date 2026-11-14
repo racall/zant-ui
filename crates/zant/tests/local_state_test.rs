@@ -1,4 +1,4 @@
-//! Port of `tests/local_state_test.zig` — `ui::local_state` slots live while
+//! `ui::local_state` slots live while
 //! their instance keeps being built, are freed on the rebuild that drops it
 //! and survive `ui::memo` skips.
 
@@ -57,7 +57,7 @@ impl Inner {
 }
 
 /// Builds one frame from the shared inner state (the memo build needs an `Rc`
-/// to the same state; Zig passed a raw context pointer).
+/// to the same state).
 fn build(inner: &Rc<RefCell<Inner>>) -> Node {
     let mut children = Vec::new();
     let (in_memo, memo_hash) = {

@@ -1,8 +1,7 @@
 //! Declarative UI contract: elements, options, callbacks and builders.
 //!
-//! Port of `src/ui.zig` — WP-1.2 (the frozen API of docs/rust-port/api.md).
-//! WP-2.4 added the memo / portal / command builders (`memo`, `portals`,
-//! `commands`) and the local-state wrappers.
+//! Besides the element builders it holds the memo / portal / command
+//! builders (`memo`, `portals`, `commands`) and the local-state wrappers.
 //!
 //! Type ownership: the option structs live in [`options`], the node/element
 //! pair and the [`nodes!`] macro in [`element`], callbacks in [`actions`],
@@ -49,8 +48,7 @@ pub use local_state::{child_id, local_slot, local_state};
 pub use memo::{memo, memo_build, memo_hash, resolve_memo};
 pub use portals::portal;
 
-/// Zig `ui.LocalSlot` / `ui.LocalStateStore`: the local-state types the runtime
-/// holds (`core::local_state`).
+/// The local-state types the runtime holds (`core::local_state`).
 pub use crate::core::local_state::{Slot as LocalSlot, Store as LocalStateStore};
 pub use options::{
     AlertOptions, AlertType, AvatarOptions, BoxOptions, ButtonOptions, CardOptions,
@@ -65,15 +63,15 @@ pub use styled::{Style, inset, inset_xy, styled};
 pub use crate::core::node::Icon;
 pub use crate::platform::platform::Cursor;
 
-/// Virtual list (`docs/components/list.md`) — WP-2.6. Zig `ui.list`,
-/// `ui.ListState`, `ui.ListOptions`, `ui.listItem` / `ui.listItemId` (Rust
-/// closures replace those wrappers), `ui.ListAlignment`.
+/// Virtual list (`docs/components/list.md`): `ui::list`, `ui::ListState`,
+/// `ui::ListOptions`, the item builder / item id closures and
+/// `ui::ListAlignment`.
 pub use crate::components::list::{
     Alignment as ListAlignment, ItemBuilder as ListItemBuilder, ItemId as ListItemId, List,
     ListOptions, ListState, ScrollPosition as ListScrollPosition, list,
 };
 
-// Composition components (they live in `components/` like the Zig sources).
+// Composition components (they live in `components/`).
 pub use crate::components::hotkey_input::{
     HotkeyAction, HotkeyInputOptions, hotkey_action, hotkey_input,
 };
@@ -89,18 +87,17 @@ pub use crate::components::window_controls::{
     CAPTION_MAXIMIZE_KEY, WindowControlsOptions, window_controls,
 };
 
-/// Document widgets with runtime-owned per-instance state (Zig
-/// `ui.markdown` / `ui.pdfViewer`). WP-M3 moved the full PDF reader widget
-/// into the framework; its options and slot state are exported alongside the
-/// builder.
+/// Document widgets with runtime-owned per-instance state (`ui::markdown` /
+/// `ui::pdf_viewer`). The PDF reader's options and slot state are exported
+/// alongside the builder.
 pub use crate::components::widgets::{
     MarkdownOptions, PdfViewerOptions, PdfViewerState, markdown, pdf_viewer,
 };
 
 #[cfg(test)]
 mod contract_tests {
-    //! The call shapes frozen by docs/rust-port/api.md §4, as the TSX codegen
-    //! will emit them (state closures, `nodes!` children, `styled`).
+    //! The public call shapes, as the TSX codegen emits them (state closures,
+    //! `nodes!` children, `styled`).
 
     use super::*;
     use crate::Str;

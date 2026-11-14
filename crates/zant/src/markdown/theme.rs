@@ -1,5 +1,3 @@
-//! Port of `src/markdown/theme.zig` — WP-3.3.
-//!
 //! Visual tokens for rendered Markdown (Streamdown's typography classes and
 //! shadcn-style CSS variables), with light and dark presets. Code colours
 //! follow Streamdown's default Shiki themes: github-light / github-dark.
@@ -75,8 +73,8 @@ pub struct Theme {
 }
 
 impl Default for Theme {
-    /// Zig: every caller passes `theme_mod.light()` or `.dark()`; `Default`
-    /// has to pick one, and the light preset is the reference rendering.
+    /// Callers normally pass [`light`] or [`dark`]; `Default` has to pick
+    /// one, and the light preset is the reference rendering.
     fn default() -> Theme {
         light()
     }
@@ -211,9 +209,8 @@ pub fn dark() -> Theme {
 }
 
 impl Theme {
-    /// Structural hash of every field in declaration order (Zig
-    /// `hashValue(theme)` inside `Options.hash`). Zig hashes enums by tag and
-    /// `bool` as a byte; the Rust port hashes the same information.
+    /// Structural hash of every field in declaration order (part of
+    /// `Options::hash`); `bool`s are hashed as a byte.
     pub(crate) fn hash_into(&self, h: &mut Wyhash) {
         h.update(&[self.dark as u8]);
         for value in [
@@ -289,7 +286,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn light_and_dark_presets_match_the_zig_constants() {
+    fn light_and_dark_preset_constants() {
         let light = light();
         assert!(!light.dark);
         assert_eq!(light.background, 0xffffffff);

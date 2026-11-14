@@ -1,6 +1,3 @@
-//! Port of `src/core/vector.zig` — WP-1.3 (drawn early so the ui builders and
-//! math layout can use it).
-//!
 //! Retained vector drawings: glyph runs, rules, lines and paths positioned
 //! relative to a baseline origin. Used by `ui::vector` nodes (math blocks,
 //! diagrams) and by rich-text inline embeds (inline math).
@@ -70,7 +67,7 @@ pub enum Command {
 
 impl Command {
     fn tag(&self) -> u8 {
-        // Zig union(enum) declaration order: text, rect, line, path.
+        // Declaration order: text, rect, line, path.
         match self {
             Command::Text(_) => 0,
             Command::Rect(_) => 1,
@@ -98,9 +95,9 @@ impl Drawing {
         self.ascent + self.descent
     }
 
-    /// Content hash (cached in `hash`). Zig hashed the raw struct bytes with
-    /// Wyhash; the Rust port hashes field by field in the same order (the exact
-    /// byte stream is internal to the framework, so only stability matters).
+    /// Content hash (cached in `hash`): Wyhash over the fields in declaration
+    /// order (the exact byte stream is internal to the framework, so only
+    /// stability matters).
     pub fn content_hash(&self) -> u64 {
         if self.hash != 0 {
             return self.hash;
@@ -170,7 +167,7 @@ impl Drawing {
         }
     }
 
-    /// Deep copy with the content hash pinned (Zig: `clone(allocator)`).
+    /// Deep copy with the content hash pinned.
     pub fn deep_clone(&self) -> Drawing {
         Drawing {
             width: self.width,
@@ -263,7 +260,7 @@ pub fn paint(canvas: Canvas, drawing: &Drawing, x: f32, baseline: f32) {
                 line.width,
             ),
             Command::Path(path) => {
-                // Zig painted at most 128 points per path (a stack buffer).
+                // At most 128 points per path are painted.
                 let count = path.points.len().min(128);
                 let points: Vec<Point> = path.points[..count]
                     .iter()

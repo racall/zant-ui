@@ -1,6 +1,5 @@
-//! Which elements may contain which (`docs/tsx.md`, "嵌套规则"). Translation
-//! of `tools/tsx/codegen/nesting.zig`. Every tag has a content model, like
-//! HTML's:
+//! Which elements may contain which (`docs/tsx.md`, "嵌套规则"). Every tag
+//! has a content model, like HTML's:
 //!
 //! - containers (`View`, `Row`, `Card`, `Clickable`, …): any elements;
 //!   text must be inside `<Text>`;

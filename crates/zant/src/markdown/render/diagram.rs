@@ -1,5 +1,3 @@
-//! Port of `src/markdown/render/diagram.zig` — WP-3.3.
-//!
 //! Mermaid diagram block (Streamdown `mermaid/*`) with copy/download of the
 //! source. Unsupported diagram types fall back to a code block.
 

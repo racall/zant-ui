@@ -1,4 +1,3 @@
-//! Port of `src/math/fonts.zig` — WP-3.5.
 //! Math alphabets (`\mathbb`, `\mathcal`, ...) mapped to Unicode
 //! Mathematical Alphanumeric Symbols, which STIX Two Math covers. This is
 //! how KaTeX's font commands look without loading extra font files.

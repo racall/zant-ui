@@ -1,17 +1,16 @@
 #!/usr/bin/env bash
-# TSX frame benchmark gate (WP-5.10c, plan.md §5 M5):
+# TSX frame benchmark gate:
 #
-#   bench-tsx 中 TSX 生成代码不慢于手写 Rust 对照组 1.2 倍
+#   TSX 生成代码不慢于手写 Rust 对照组 1.2 倍
 #
 # `zant-tsx-frame-bench` (`crates/zant-examples/src/bin/`) runs each TSX
-# benchmark page of the Zig `bench-tsx` (`examples/tsx/bench.zig`) against a
-# hand-written `ui::App` control with the same UI tree, through the same
-# headless frame loop:
+# benchmark page against a hand-written `ui::App` control with the same UI
+# tree, through the same headless frame loop:
 #
-#   counter   counter.tsx        vs counter_manual.zig (ported)     clicks + typing
-#   todos     todos.tsx          vs todos_manual.zig (ported)       add + toggle + filter
-#   list      list_bench.tsx*    vs list_manual.zig (ported)        scroll + row clicks
-#   local     local_bench.tsx    vs local_manual.zig (ported)       mount + counter clicks
+#   counter   counter.tsx        vs hand-written counter control    clicks + typing
+#   todos     todos.tsx          vs hand-written todos control      add + toggle + filter
+#   list      list_bench.tsx*    vs hand-written list control       scroll + row clicks
+#   local     local_bench.tsx    vs hand-written local-state rows   mount + counter clicks
 #   markdown  markdown_bench.tsx vs hand-held Streamdown cache      streaming frames
 #   settings  settings.tsx       vs hand-written settings control   2000 switch clicks
 #
@@ -19,7 +18,7 @@
 # see the file header of `tsx_views/ListBench.tsx` and `docs/tsx.md`.
 #
 # The TSX side is not a stub: this script builds the Release binary, whose
-# `build.rs` compiles the real `examples/tsx/*.tsx` inputs with
+# `build.rs` compiles the real `crates/zant-examples/tsx/corpus/*.tsx` inputs with
 # `zant_build::tsx_app_in` (the same step a Zant app's build script runs) and
 # includes the generated modules; the hand-written controls live in
 # `src/bin/zant_tsx_frame_bench/controls/`. One binary measures both sides with
@@ -32,7 +31,7 @@
 #
 # Each side runs `ZANT_BENCH_REPEAT` (default 3) timed rounds, alternating which
 # side goes first; the best round per side (lowest average frame time) is
-# compared, like `scripts/parity/bench.sh`, so shared-machine load does not
+# compared, like `scripts/bench.sh`, so shared-machine load does not
 # decide the gate. The gate applies to every app row and every scenario row:
 # ratio ≤ `ZANT_BENCH_MAX_RATIO` (default 1.2). When a row is over budget,
 # rerun with `ZANT_FRAME_STATS=1` to get the runtime's per-second `[frames]` /
@@ -52,7 +51,7 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 
 if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
-    sed -n '2,54p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,48p' "$0" | sed 's/^# \{0,1\}//'
     exit 0
 fi
 
@@ -86,7 +85,7 @@ mkdir -p "$outdir"
 if [ "$build" = 1 ]; then
     echo "bench-tsx.sh: building the Release benchmark (TSX pages are compiled by build.rs)" >&2
     # Both sides live in this binary: `build.rs` compiles
-    # `examples/tsx/*.tsx` through zant-build, the controls are hand-written Rust.
+    # `tsx/corpus/*.tsx` through zant-build, the controls are hand-written Rust.
     "$root/scripts/cargo.sh" build --release -p zant-examples --bin zant-tsx-frame-bench
     # The TSX side really was generated (not a stale / missing build script run):
     # one generated `main.rs` per benchmark page under $OUT_DIR.

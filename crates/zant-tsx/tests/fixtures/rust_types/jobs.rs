@@ -1,6 +1,5 @@
-//! A native module with a background thread (Rust mirror of the Zig fixture
-//! `tests/tsx/zig_types/jobs.zig`): `start` runs work on a thread that posts a
-//! wake; `take` returns the result on the UI thread.
+//! A native module with a background thread: `start` runs work on a thread
+//! that posts a wake; `take` returns the result on the UI thread.
 
 use std::sync::atomic::{AtomicU32, Ordering};
 

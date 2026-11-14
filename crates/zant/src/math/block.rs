@@ -1,12 +1,8 @@
-//! UI layer of `src/math/mod.zig` — moved into the framework by WP-M3.
+//! Display formulas as UI nodes.
 //!
 //! The pure layout engine lives in [`crate::math::layout`]; [`block`] and
-//! [`render`] are the `ui`-dependent half of the Zig module (a display formula
-//! as a centred full-width row with one `ui.vector` retained drawing).
-//!
-//! `inlineDrawing` was ported earlier as
-//! `crate::markdown::render::spans::inline_drawing` (WP-3.3), and
-//! `inlineText` has no caller in the Zig tree, so neither is duplicated here.
+//! [`render`] wrap it in a centred full-width row with one `ui::vector`
+//! retained drawing.
 
 use std::rc::Rc;
 
@@ -15,8 +11,7 @@ use crate::layout::flex;
 use crate::math::layout::{self, Options};
 use crate::ui::{self, BoxOptions, VectorOptions};
 
-/// Zig `math/mod.zig: block`: a centred display formula (KaTeX
-/// `.katex-display`: 1em vertical margin).
+/// A centred display formula (KaTeX `.katex-display`: 1em vertical margin).
 pub fn block(source: &str, options: Options) -> ui::Node {
     let options = Options {
         display: true,
@@ -39,9 +34,7 @@ pub fn block(source: &str, options: Options) -> ui::Node {
     })
 }
 
-/// Zig `math/mod.zig: render`: the backwards-compatible display formula with
-/// default options (the Zig signature took an allocator, which Rust does not
-/// need).
+/// A display formula with default options.
 pub fn render(source: &str) -> ui::Node {
     block(source, Options::default())
 }

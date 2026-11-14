@@ -1,4 +1,4 @@
-//! Entry of the TSX showcase app (WP-5.10).
+//! Entry of the TSX showcase app.
 //!
 //! Same shape as `scaffold/template-ts/src/main.rs`: `build.rs` compiles
 //! `src/**/*.tsx` and the native specs into `$OUT_DIR`, this file includes the
@@ -19,11 +19,11 @@
 // (`return` statements, `'static` on constants, redundant field names,
 // derivable `Default`, …). The generated files allow a few of those in their
 // own header; the crate-level allowance here covers the rest until `zant-tsx`
-// emits a clippy-clean preamble (reported by WP-5.10). This crate has no
+// emits a clippy-clean preamble. This crate has no
 // hand-written code besides this entry.
 #![allow(clippy::all)]
 // `import icon from "…png"` keeps the TSX name (`statusbar`, `trayDark`); the
-// generated asset constants trigger `non_upper_case_globals` (WP-5.10 report).
+// generated asset constants trigger `non_upper_case_globals`.
 #![allow(non_upper_case_globals)]
 
 mod app_config;

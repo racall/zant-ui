@@ -1,6 +1,6 @@
 // A todo app in TSX, written the React way (immutable state updates).
-// The Zig frame benchmark compares it with the hand-written `todos_manual`;
-// this is the WP-5.10b port of `examples/tsx/todos.tsx`. Run it with
+// The TSX frame benchmark (`zant-tsx-frame-bench`) compares the same page
+// (`../../corpus/todos.tsx`) with a hand-written control. Run it with
 // `cargo run -p zant-tsx-todos`.
 import { useState, View, Row, Heading, Input, Button, Segmented, Checkbox, IconButton, Text } from "zant";
 import type { u32, usize } from "zant";

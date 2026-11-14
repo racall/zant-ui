@@ -1,5 +1,3 @@
-//! Port of `src/markdown/render/link_modal.zig` — WP-3.3.
-//!
 //! Streamdown's link-safety dialog: shows the URL with Open / Copy / Cancel.
 //! Render it as the last child of the window root while a link is pending.
 

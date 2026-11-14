@@ -1,5 +1,4 @@
-//! Port of `src/motion/motion.zig`: motion primitives (Ant Design motion
-//! specs, Framer-Motion-style concepts).
+//! Motion primitives (Ant Design motion specs, Framer-Motion-style concepts).
 //!
 //! * `Animated`: a time-stamped tween. It never accumulates per-frame deltas,
 //!   so dropped frames don't slow it down and it can be sampled at any time.
@@ -19,12 +18,12 @@ pub use crate::motion::easing::Easing;
 /// every transition completes immediately.
 static ENABLED: AtomicBool = AtomicBool::new(true);
 
-/// Port of the Zig `motion.enabled` global.
+/// Whether animations run (process-wide; `ZANT_NO_MOTION=1` turns them off).
 pub fn enabled() -> bool {
     ENABLED.load(Ordering::Relaxed)
 }
 
-/// Port of `motion.enabled = value` (the Zig module-level `var`).
+/// Turns animations on or off for the whole process.
 pub fn set_enabled(value: bool) {
     ENABLED.store(value, Ordering::Relaxed);
 }

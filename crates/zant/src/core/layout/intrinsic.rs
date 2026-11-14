@@ -1,14 +1,13 @@
-//! Port of `src/core/layout.zig` — WP-1.3: intrinsic (min/max-content) sizes.
+//! Intrinsic (min/max-content) sizes.
 //!
 //! `intrinsic_width` / `intrinsic_height` measure a subtree without laying it
 //! out at its final size. Text nodes use their per-width measure caches
 //! (`TextData::measure_width`, `RichTextData::natural_width`), which never
 //! replace the laid-out paragraph with a narrower one.
 //!
-//! Component measures (`measureWidth` / `measureHeight` of
-//! `src/components/{button,input,toggle,image,select}.zig`) live in their
+//! Component measures (`measure_width` / `measure_height`) live in their
 //! component modules (`components::{button,input,toggle,image,select}`); this
-//! file only dispatches to them, exactly like Zig `core/layout.zig:113-166`.
+//! file only dispatches to them.
 #![forbid(unsafe_code)]
 
 use crate::core::layout::Nodes;
@@ -16,7 +15,7 @@ use crate::core::node::{FlexStyle, NodeData, NodeId, NodeKind};
 use crate::layout::flex;
 use crate::theme::tokens::Theme;
 
-/// Zig `clampDim`: applies a node's min / max size.
+/// Applies a node's min / max size.
 pub(crate) fn clamp_dim(style: &FlexStyle, value: f32, width: bool) -> f32 {
     if width {
         let lo = style.min_width.unwrap_or(0.0);
@@ -29,7 +28,7 @@ pub(crate) fn clamp_dim(style: &FlexStyle, value: f32, width: bool) -> f32 {
     }
 }
 
-/// Zig `resolveWidth`: percentage width wins over a fixed width.
+/// Percentage width wins over a fixed width.
 pub(crate) fn resolve_width(style: &FlexStyle, available: f32) -> Option<f32> {
     if let Some(percent) = style.width_percent {
         return Some(available.max(0.0) * percent / 100.0);
@@ -37,7 +36,7 @@ pub(crate) fn resolve_width(style: &FlexStyle, available: f32) -> Option<f32> {
     style.width
 }
 
-/// Zig `effectiveAlign`: `align-self` of the child wins over the parent's
+/// `align-self` of the child wins over the parent's
 /// `align-items`.
 pub(crate) fn effective_align(parent: &FlexStyle, child: &FlexStyle) -> flex::Align {
     match child.align_self {
@@ -49,7 +48,7 @@ pub(crate) fn effective_align(parent: &FlexStyle, child: &FlexStyle) -> flex::Al
     }
 }
 
-/// Zig `gapMain`: the gap along the container's main axis.
+/// The gap along the container's main axis.
 pub(crate) fn gap_main(style: &FlexStyle) -> f32 {
     if style.direction == flex::Direction::Row {
         style.column_gap.unwrap_or(style.gap)
@@ -58,7 +57,7 @@ pub(crate) fn gap_main(style: &FlexStyle) -> f32 {
     }
 }
 
-/// Zig `gapCross`: the gap along the container's cross axis.
+/// The gap along the container's cross axis.
 pub(crate) fn gap_cross(style: &FlexStyle) -> f32 {
     if style.direction == flex::Direction::Row {
         style.row_gap.unwrap_or(style.gap)
@@ -67,7 +66,7 @@ pub(crate) fn gap_cross(style: &FlexStyle) -> f32 {
     }
 }
 
-/// Zig `finite`: `fallback` when `v` is not a positive finite number.
+/// `fallback` when `v` is not a positive finite number.
 fn finite(v: f32, fallback: f32) -> f32 {
     if v.is_finite() && v > 0.0 {
         v
@@ -78,19 +77,19 @@ fn finite(v: f32, fallback: f32) -> f32 {
 
 // ── component measures (see the module docs) ───────────────────────────────
 
-/// `input.zig:measureWidth` (`components::input` owns the port).
+/// Intrinsic width of an input (implemented by `components::input`).
 pub(crate) fn input_measure_width(style: &FlexStyle) -> f32 {
     crate::components::input::measure_width(style)
 }
 
-/// `input.zig:measureHeight` (`components::input` owns the port).
+/// Intrinsic height of an input (implemented by `components::input`).
 pub(crate) fn input_measure_height(style: &FlexStyle) -> f32 {
     crate::components::input::measure_height(style)
 }
 
 // ── intrinsic sizes ────────────────────────────────────────────────────────
 
-/// Zig `intrinsicWidth`: the width a node wants without being told one.
+/// The width a node wants without being told one.
 pub(crate) fn intrinsic_width(
     nodes: &mut Nodes<'_>,
     id: NodeId,
@@ -188,7 +187,7 @@ pub(crate) fn intrinsic_width(
     clamp_dim(&style, value, true)
 }
 
-/// Zig `intrinsicHeight`: the height a node wants at `width`.
+/// The height a node wants at `width`.
 pub(crate) fn intrinsic_height(nodes: &mut Nodes<'_>, id: NodeId, width: f32, theme: Theme) -> f32 {
     let style = nodes[id].style;
     if let Some(height) = style.height {

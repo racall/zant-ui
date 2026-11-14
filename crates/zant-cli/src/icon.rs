@@ -1,17 +1,15 @@
-//! Port of `tools/zant/icon.zig`: the build-time icon tool that turns
-//! `assets/icons/app-windows.png` into the Windows app `.ico`.
+//! The icon tool that turns `assets/icons/app-windows.png` into the Windows
+//! app `.ico`.
 //!
 //!   zant-icon ico <app-windows.png> <out.ico>
 //!
-//! The Zig build runs this as a separate `zant-icon` executable from
-//! `configureApp`; in the Rust port the app build script (`zant-build`,
-//! WP-6.2) owns that step, so `zant-cli` keeps the same read/validate/write
-//! logic here for tests and for the build script to call once the dependency
-//! direction allows it.
+//! The app build script (`zant-build`) builds the executable's `.ico` while
+//! compiling; this module has the same read / validate / write logic with the
+//! command-line error messages, and is only exercised by its tests.
 
 pub const USAGE: &str = "用法: zant-icon ico <in.png> <out.ico>";
 
-/// Failure of `zant-icon`, with the same messages as `tools/zant/icon.zig`.
+/// Failure of `zant-icon`, with the message it prints.
 #[derive(Debug)]
 pub enum IconError {
     /// Nothing usable on the command line; exit code 2.

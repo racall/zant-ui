@@ -2,8 +2,8 @@
 # Windows default): runs `zant create` for the Rust + TSX template, types a
 # Chinese title, a window style and an app identifier (an invalid one first)
 # with Unicode key events, screenshots the console, checks the generated Rust
-# project (Cargo.toml / build.rs / src/App.tsx / native/*.ts+*.rs, no Zig
-# files), then builds it with cargo and runs it headless to a snapshot.
+# project (Cargo.toml / build.rs / src/App.tsx / native/*.ts+*.rs), then
+# builds it with cargo and runs it headless to a snapshot.
 # Run in the logged-in session:
 #   powershell -File scripts/win/run-desktop.ps1 -Exe powershell.exe `
 #     -Arguments "-NoProfile -ExecutionPolicy Bypass -File <repo>\scripts\win\scaffold-check.ps1" -Wait 600
@@ -119,7 +119,6 @@ $expected = @(
 )
 $missing = @($expected | Where-Object { !(Test-Path (Join-Path $app $_)) })
 Result ($missing.Count -eq 0) ("Rust TSX template files ({0})" -f ($expected -join ", "))
-Result (!(Test-Path "$app\src\main.zig") -and !(Test-Path "$app\build.zig")) "no Zig entry or build files"
 Result ((Get-Content -Raw -Encoding UTF8 (Join-Path $app "Cargo.toml")) -match "crates/zant") "Cargo.toml depends on the zant path"
 # build the generated app (the real scaffold contract) and render it headless
 $build = Start-Process -Wait -PassThru -NoNewWindow -FilePath "cargo" `

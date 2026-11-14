@@ -1,10 +1,9 @@
-//! Port of the parts of `src/core/png.zig` the CLI needs: PNG read / write
-//! (delegated to the `png` crate), the area-average resize and the Windows
-//! `.ico` builder, used for the app icons `zant package` / `zant build`
-//! generate. The resize algorithm is a 1:1 port so icons match the Zig CLI.
+//! The PNG helpers the CLI needs: PNG read / write (delegated to the `png`
+//! crate), the area-average resize and the Windows `.ico` builder, used for
+//! the app icons `zant package` / `zant build` generate.
 
-/// Errors of `src/core/png.zig`: not a PNG, an unsupported PNG (bit depth /
-/// interlacing) or corrupt data.
+/// Decode errors: not a PNG, an unsupported PNG (bit depth / interlacing) or
+/// corrupt data.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Error {
     NotPng,

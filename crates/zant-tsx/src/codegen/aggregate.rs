@@ -1,9 +1,8 @@
 //! Immutable array/object values, spreads, indexing, and optional member
-//! access. Translation of `tools/tsx/codegen/aggregate.zig`.
+//! access.
 //!
-//! Zig's frame-arena arrays/spreads become `tsx::List::from_vec(..)` plus a
-//! `Vec` block for spreads; `orelse` / `if (x) |v|` become
-//! `unwrap_or_else` / `.map(..)`.
+//! Arrays become `tsx::List::from_vec(..)`, with a `Vec` block for spreads;
+//! `??` and optional member access become `unwrap_or_else` / `.map(..)`.
 
 use crate::ast;
 
@@ -15,7 +14,7 @@ use super::scope;
 use super::types::{self, Type, Value};
 use super::{Generator, Result, fail};
 
-/// General arrays become `tsx::List` values (Zig `aggregate.array`).
+/// General arrays become `tsx::List` values.
 pub fn array(
     g: &mut Generator<'_>,
     c: &mut scope::Context,
@@ -225,7 +224,7 @@ pub fn unwrap(g: &Generator<'_>, ty: Type) -> Type {
 pub fn temporary(g: &mut Generator<'_>, c: &mut scope::Context, base: &[u8]) -> Result<String> {
     let binding = scope::bind(g, c, base, Type::Void, false)?;
     c.bindings[binding].name.clear();
-    Ok(c.bindings[binding].zig.clone())
+    Ok(c.bindings[binding].rust.clone())
 }
 
 pub fn non_null(
@@ -348,7 +347,7 @@ pub fn member(g: &mut Generator<'_>, c: &mut scope::Context, m: &ast::Member) ->
 }
 
 /// A member read of a value whose expression is already parenthesized to
-/// suffix precedence (`operand`; Zig `memberValue`).
+/// suffix precedence (`operand`).
 fn member_read(
     g: &mut Generator<'_>,
     object_ty: Type,
@@ -393,7 +392,7 @@ fn member_read(
 }
 
 /// Numeric indexes are checked by `tsx::index` before Rust's own slice bounds
-/// check (Zig `aggregate.index`).
+/// check.
 pub fn index(
     g: &mut Generator<'_>,
     c: &mut scope::Context,

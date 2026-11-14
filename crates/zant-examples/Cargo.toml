@@ -9,16 +9,14 @@ description = "Runnable examples for Zant UI (zant-demo, zant-components, zant-g
 [build-dependencies]
 # `build.rs` compiles the TSX benchmark pages of `zant-tsx-frame-bench` into
 # `$OUT_DIR` with the same TSX → Rust step a Zant app's build script uses
-# (`zant_build::tsx_app_in`, WP-5.10c).
+# (`zant_build::tsx_app_in`).
 zant-build.workspace = true
 
 [dependencies]
 zant.workspace = true
-# `zant-md-stream --sse` parses the same SSE JSON events as the Zig example
-# (`std.json.parseFromSlice`).
+# `zant-md-stream --sse` parses SSE JSON events.
 serde_json.workspace = true
-# `zant-tsx-bench` (WP-5.10) drives the TSX compiler in process; the Zig
-# compiler baseline was removed at M8 (see docs/rust-port/status.md).
+# `zant-tsx-bench` drives the TSX compiler in process.
 zant-tsx.workspace = true
 
 [[bin]]
@@ -49,27 +47,23 @@ path = "src/bin/zant-md-stream.rs"
 name = "zant-pdf"
 path = "src/bin/zant-pdf.rs"
 
-# Headless frame benchmark (port of `examples/bench.zig`, WP-2.11); the app and
-# scenarios live in the bin-local `zant_bench` module.
+# Headless frame benchmark; the app and scenarios live in the bin-local
+# `zant_bench` module. `scripts/bench.sh` gates its numbers.
 [[bin]]
 name = "zant-bench"
 path = "src/bin/zant-bench.rs"
 
-# TSX compile benchmark (port of the compile-time half of the old Zig
-# `examples/tsx/bench.zig`, WP-5.10): every `crates/zant-tsx/testdata/tsx/*.tsx`
-# through `zant_tsx::compile`, warm-up + iterations, in the old Zig frame
-# benchmark's statistics format. `scripts/tsx/examples-check.sh` runs it
-# Rust-only since the Zig compiler was removed at M8 (recorded pre-M8 ratio
-# 1.08-1.10x, docs/rust-port/status.md WP-5.10).
+# TSX compile benchmark: every `crates/zant-tsx/testdata/tsx/*.tsx` through
+# `zant_tsx::compile`, warm-up + iterations, in the frame benchmark's
+# statistics format. `scripts/tsx/examples-check.sh` runs it.
 [[bin]]
 name = "zant-tsx-bench"
 path = "src/bin/zant-tsx-bench.rs"
 
-# TSX frame benchmark (WP-5.10c): the Rust port of the Zig `bench-tsx`
-# (`examples/tsx/bench.zig`). It builds each TSX page's generated app against a
+# TSX frame benchmark. It runs each TSX page's generated app against a
 # hand-written `ui::App` control through the same headless frame loop and gates
-# the TSX/manual ratio at 1.2× (plan.md §5 M5). The TSX → Rust step happens for
-# this whole crate in `build.rs`.
+# the TSX/manual ratio at 1.2× (`scripts/tsx/bench-tsx.sh`). The TSX → Rust
+# step happens for this whole crate in `build.rs`.
 [[bin]]
 name = "zant-tsx-frame-bench"
 path = "src/bin/zant-tsx-frame-bench.rs"

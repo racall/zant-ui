@@ -1,4 +1,4 @@
-//! Port of `src/core/tree.zig` — WP-1.3: node allocation, builders, tombstones,
+//! Node allocation, builders, tombstones,
 //! the key index and dirty-state bookkeeping.
 #![forbid(unsafe_code)]
 
@@ -223,9 +223,8 @@ impl Tree {
         id
     }
 
-    /// Adds an image node. Loading the file happens in `components::image`
-    /// (WP-2.2): Zig synchronously loaded it here; the Rust tree stores the
-    /// path and lets the component load / decode.
+    /// Adds an image node. Loading the file happens in `components::image`:
+    /// the tree stores the path and lets the component load / decode.
     pub fn add_image(
         &mut self,
         parent: Option<NodeId>,
