@@ -106,7 +106,7 @@
 | 5.3 | codegen 核心（types/scope/expr/stmt/rust_text/builtins/narrowing/functions/loops/aggregate） | — | 待领取 | |
 | 5.4 | JSX 生成（jsx/jsx_values/jsx_children/rich_text/list/events） | — | 待领取 | |
 | 5.5 | 组件与状态（codegen/components/model/stateful/hooks/stores/array_methods/local_state） | wp-5-5 | 完成（分支 rust/wp-5.5） | 入口 `codegen::generate::generate(source_name, &Module, &Options)`（另有 `generate_with(.., install_extra)`）→ `GeneratedFile { source }`（syn + prettyplease 校验/格式化，头部 `@generated` 注释在格式化后拼回）。新增 `generate/components/stateful/hooks/stores/array_methods/string_methods/captures/callbacks/free_names/globals/spread/nesting` 模块；`mod.rs` 加 Generator 生产字段与 WP-5.4/5.6/5.8 扩展钩子。测试：lib 114（+5：free_names 2、nesting 2、string_methods 2、stateful 2、stores 2、globals 2、array 1 等）、集成 `tests/codegen_components.rs` 7 条黄金用例。5.4 未落地：JSX/事件用测试桩注入（`install_extra`），合并时按 `generate::install` 里的注释逐行填 `emit_jsx/scan_body/scan_expr/emit_setter/method_param/...`；细节见待决问题 |
-| 5.6 | 应用层（imports/rust_imports/windows/desktop_hooks/zant_api/assets/entry/compile/main） | — | 待领取 | |
+| 5.6 | 应用层（imports/rust_imports/windows/desktop_hooks/zant_api/assets/entry/compile/main） | wp-5-6 | 完成（worktree wp-5.6，待并入） | 分支 `rust/wp-5.6`。新增 `codegen/{imports,rust_imports,windows,desktop_hooks,zant_api,app_hooks,app_state}`、`{assets,entry,compile}`、CLI `main.rs`；`projects` 级 API：`compile::{compile,compile_project,compile_project_with,compile_project_root(_with),BuildOutput,ProjectOptions,ConfigSpec}`（给 WP-6.2：`compile_project_root` 读 `<root>/src/**`、`<root>/native/*.ts`、`app.config.json`，返回各模块 + `main.rs` + assets + dep file，`BuildOutput::write` 落盘）。测试：lib 125（+7：assets 3、imports 4、rust_imports 3 等）、`tests/codegen_app.rs` 27（工程导入/跨文件类型、createWindow + window 组件、useTray/useHotkey、app hooks → impl ui::App、zant API 路径、assets、entry、rust 导入、仓库语料、5 个快照）。5.4 未落地：JSX/事件用 test-only 桩（`install_extra`）注入，**合并时不用改测试**；生产 `install()` 里 5.4 的 7 行注释照旧。见「待决问题 WP-5.6」 |
 | 5.7 | src/tsx*.zig → zant/src/tsx/ | — | 待领取 | |
 | 5.8 | native 模块（trait 化） | — | 待领取 | ★★★ |
 | 5.9 | 黄金用例换成 .rs | — | 待领取 | |
@@ -225,6 +225,53 @@
   如需交互断言，需要给 gallery 加 debug layout dump（未做，非必需）。
 
 ## 待决问题
+
+### WP-5.6 提出（2026-11-14）
+
+1. **跨文件 `use` 路径与模块树（给 WP-6.2）**：Rust 没有 Zig 的 `@import("X.zig")`，相对导入
+   生成 `crate::<模块名>::…` 路径（模块名 = 文件 stem 的 snake_case，`TodoRow` → `todo_row`），
+   生成的 `main.rs` 用 `#[path = "TodoRow.rs"] pub mod todo_row;` 声明它们；`#[path]` 相对
+   `main.rs` 自己所在目录解析（实测 `include!` 后仍如此），所以 `zant_build::tsx_app` 把模块写进
+   OUT_DIR、应用 `src/main.rs` `include!(concat!(env!("OUT_DIR"), "/main.rs"))` 即可。**手写 `.rs`
+   模块（`./format.rs`）不在生成的 `main.rs` 里声明**：应用 crate 根自己 `mod format;`，再声明一次
+   会重复定义。6.2 需要按这个约定接线。
+2. **`Uint8Array` 的类型映射冲突（需 5.3/5.7 负责人裁定）**：`types.rs` 把 `Uint8Array` 映射成
+   `tsx::List<u8>`（WP-5.3），而 WP-5.7 的运行时把字节缓冲叫 `tsx::Bytes`（`Rc<[u8]>`）、
+   静态资源/托盘图标是 `&'static [u8]`。本 WP 给**资源导入**与 tray icon 定了 `&'static [u8]`
+   类型（`include_bytes!` 需要），于是 `const icon: Uint8Array = [...]`（`testdata/desktop.tsx`）
+   传给 `useTray({ icon })` 会报 `cannot convert tsx::List<u8> to &'static [u8]`。建议：5.3 把
+   `Uint8Array` 改成字节类型（`tsx::Bytes` 或静态切片），或给 `TrayOptions.icon` 加接受 `Bytes`
+   的入口。在裁定前 `testdata/desktop.tsx` / `platform.tsx` 不进入语料通过集（见报告）。
+3. **必需的跨文件小改（本 WP 已做，均为 1–3 行、不影响既有行为）**：
+   (a) `import_parser.rs` 的 `is_asset` 排除 `.rs`（否则 `./format.rs` 被当成资源文件，rust 导入无法解析）；
+   (b) `stores.rs` 的 `Store` 加 `declared` 字段（`import { prefs as shared }` 时访问器名必须用
+   声明文件的名字，否则生成 `crate::store::shared_read()` 找不到函数）；
+   (c) `stores::imported` 不再转义 alias（alias 已是 `crate::store` 这样的 Rust 路径，转义会把 `::`
+   变成 `__`）。
+4. **`generate.rs` 的接线超出 `install()`**：除 `install()` 的单行赋值外，还需要
+   (a) `generate_inner` 把 `globals::assets` 换成 `assets::process`（assets 现在是真实现，
+   `globals.rs` 的占位会报错）；(b) `collect()` 里两处 WP-5.6 占位（app hooks collect、desktop
+   hooks collect）换成真调用，并删掉已被 `app_hooks::{statement,declaration}` 取代的
+   `statement_hook`/`declaration_hook`。均已在 `generate.rs` 内，diff 约 40 行。
+5. **`--dump-ast` 没有做**：计划 M4 验收里提到「WP-4.1 给 Zig 版加只读 `--dump-ast`」，但
+   `tools/tsx/main.zig` 并没有这个开关（`dump.rs` 注释也写明了），按任务要求不自行发明；
+   Rust 侧只保留 `dump::dump_program` 库函数。`--os` 标志也没移植：生成的 entry 直接内联
+   `zant::tsx::app::Config`，不再生成 `app_config.zig`（平台相关字段由 6.2 决定）。
+6. **窗口组件的 `tsx::window::Component` 形态**：设计文档 §6.2 的 `Local` 类型（`PanelLocal`）与
+   WP-5.5 生成的子组件形态（状态是 `Panel` 的扁平字段 + `Weak<RefCell<Panel>>`）不一致。本 WP
+   为窗口组件生成了一个持有 `Rc<RefCell<Panel>>` 的包装 `PanelWindow`（`type Local = Panel`），
+   render / hooks 都转发给内部实例；行为一致，但 5.9 审阅生成代码时要知道这个包装。
+7. **语料通过集**：`tools/tsx/testdata` 32 个文件里，本 worktree 通过 7 个
+   （`app_hooks`、`builtins`、`entities`、`functions`、`loops`、`text`、`windows`），
+   已知缺失 25 个：21 个要 WP-5.4 的 JSX prop/事件/children lowering（`object literal needs a
+   type annotation`、`conditions must be boolean`、`event parameter inference is WP-5.4` 等），
+   `timers` 要无归属的 `codegen/timers.zig`，`desktop`/`platform` 是 `Uint8Array`↔bytes 类型冲突
+   （见上一条），`strings` 是 **WP-5.3 的 bug**：`string_methods`/`aggregate` 生成
+   `label: { … }.clone()`（带标签块当方法接收者，不是合法 Rust，生成器 panic）。
+   清单在 `tests/codegen_app.rs` 的 `KNOWN_MISSING`，测试断言「已知缺失集合 == 语料里的失败集合」；
+   `tests/tsx/**` 的 `.zig` 导入项目（`zig_types`/`crossfile`）要等 `.rs` 迁移后再测。
+8. **`zant-tsx --help`**：Zig CLI 没有 `--help`（未知参数按用法退出 2）；Rust 侧加了
+   `--help`/`-h`（打印用法、退出 0），其余参数与退出码照搬。
 
 ### WP-5.5 提出（2026-11-14）
 

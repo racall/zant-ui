@@ -31,6 +31,9 @@ use super::{Generator, Result, fail};
 pub struct Store {
     /// The TSX name in this file.
     pub name: String,
+    /// The name the declaring file's accessors use (differs from [`name`] when
+    /// the store was imported under an alias, `import { prefs as shared }`).
+    pub declared: String,
     /// The Rust accessor prefix: empty in the declaring file, `_store::` when
     /// imported from another file.
     pub module: String,
@@ -44,7 +47,7 @@ impl Store {
 
     /// The accessor path without the call parenthesis.
     fn accessor_fn(&self, operation: &str) -> String {
-        format!("{}{}_{operation}", self.module, self.name)
+        format!("{}{}_{operation}", self.module, self.declared)
     }
 
     /// The `thread_local!` static of a store declared in this file.
@@ -122,6 +125,7 @@ pub fn collect(g: &mut Generator<'_>, constants: &[ast::TopConst]) -> Result<Str
         initial = types::coerce(g, initial, ty, call.args[0].loc)?;
         let store = Store {
             name: name.clone(),
+            declared: name.clone(),
             module: String::new(),
             ty,
         };
@@ -164,9 +168,13 @@ pub fn imported(
     ty: Type,
 ) -> Result<()> {
     let _ = imported;
-    let module = format!("{}::", rust_text::id_at(g, alias.as_bytes(), 0)?);
+    // `alias` is already a Rust module path (`crate::store`, WP-5.6's
+    // `imports`): escaping it would turn the `::` into `__`.
+    let _ = g;
+    let module = format!("{alias}::");
     g.stores.push(Store {
         name: local.to_owned(),
+        declared: imported.to_owned(),
         module,
         ty,
     });
