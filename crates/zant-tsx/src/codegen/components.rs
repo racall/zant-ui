@@ -406,43 +406,33 @@ pub fn try_call(
     for (arg, ty) in call.args.iter().zip(&entry.params) {
         args.push(expr::emit(g, c, arg, Some(*ty), false)?.code);
     }
+    // The callback runs synchronously, like the Zig `{callee}.func(ctx, …)`:
+    // the runtime `ActionCx` of this handler is passed straight through (the
+    // handler takes it because it calls a callback prop — see `action_cx`).
+    let Some(cx) = c.cx_var.clone() else {
+        return fail(
+            g,
+            loc,
+            "a callback prop can only be called in an event handler",
+        );
+    };
     let kind = action_kind(&entry.params);
+    let mut joined = cx.clone();
+    for (value, ty) in args.iter().zip(&entry.params) {
+        // `ui::text_action` hands the handler `&str`
+        let value = if kind == Some(tags::Kind::TextAction) && *ty == Type::String {
+            format!("({value}).as_str()")
+        } else {
+            value.clone()
+        };
+        joined.push_str(", ");
+        joined.push_str(&value);
+    }
     Ok(Some(Value {
         ty: Type::Void,
         code: match kind {
-            Some(kind) => {
-                // A state-driving callback needs the runtime `ActionCx`; queue it
-                // through `ui::effect`, which runs with one (>= 1 frame later).
-                let mut action = callee.code.clone();
-                for (index, value) in args.iter().enumerate() {
-                    let ty = entry.params[index].rust(g).to_owned();
-                    let call = format!("callback.call(cx, {value})");
-                    let _ = ty;
-                    action = format!(
-                        "ui::Action::new({{\n    let callback = {action};\n    move |cx| {call}\n}})"
-                    );
-                }
-                let _ = kind;
-                format!("ui::effect({action})")
-            }
-            None => {
-                // The callback needs the runtime context: queue it through
-                // `ui::effect`, which runs with one (>= 1 frame later). The
-                // arguments are read now, before the `'static` closure.
-                let mut setup = String::new();
-                let mut joined: Vec<String> = Vec::new();
-                for (index, (value, ty)) in args.iter().zip(&entry.params).enumerate() {
-                    setup.push_str(&format!("    let _arg{index}: {} = {value};\n", ty.rust(g)));
-                    joined.push(format!("_arg{index}"));
-                }
-                let joined = joined.join(", ");
-                format!(
-                    "ui::effect(ui::Action::new({{\n    let callback = {};\n{setup}    move |cx| (callback)(cx{}{})\n}}))",
-                    callee.code,
-                    if joined.is_empty() { "" } else { ", " },
-                    joined
-                )
-            }
+            Some(_) => format!("({}).call({joined})", callee.code),
+            None => format!("({})({joined})", callee.code),
         },
         ..Value::default()
     }))

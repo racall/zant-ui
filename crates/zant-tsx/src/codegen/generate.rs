@@ -431,6 +431,7 @@ fn reset_component(g: &mut Generator<'_>) {
     g.effects.clear();
     g.cleanups.clear();
     g.capture_scope = None;
+    g.handler_state = None;
     g.loop_depth = 0;
     g.scroll_depth = 0;
 }
@@ -727,6 +728,9 @@ pub fn method(
     let Some(f) = m.func.clone() else {
         return fail(g, 0, format!("method `{}` has no function body", m.name));
     };
+    // a handler that calls a callback prop needs the runtime context (see
+    // `action_cx`): it is the first parameter, before the event parameters
+    let needs_cx = super::action_cx::needs_cx(g, &f);
     let mut c = scope::Context {
         render: false,
         ret: m.ret,
@@ -734,9 +738,13 @@ pub fn method(
         capture_method: index,
         effect_field: m.effect_field.clone(),
         cleanup: m.cleanup,
+        cx_var: needs_cx.then(|| super::action_cx::CX.to_owned()),
         ..scope::Context::default()
     };
     let mut params: Vec<String> = Vec::new();
+    if needs_cx {
+        params.push(format!(", {}: &mut ui::ActionCx<'_>", super::action_cx::CX));
+    }
     let mut text_parameter: Option<String> = None;
     for (i, p) in f.params.iter().enumerate() {
         let ty = match g.extensions.hooks.method_param {
@@ -1066,6 +1074,11 @@ pub fn action_value(
         super::captures::prepare(g, c, index)?;
     }
     let method = g.methods[index].clone();
+    // handlers that call a callback prop take the runtime context
+    let needs_cx = method
+        .func
+        .as_deref()
+        .is_some_and(|function| super::action_cx::needs_cx(g, function));
     let capture = if method.captures.is_empty() {
         None
     } else {
@@ -1079,12 +1092,15 @@ pub fn action_value(
     if let Some(capture) = &capture {
         prefix.push_str(&format!("let _capture = {capture};\n"));
     }
-    let mut arguments: Vec<&str> = Vec::new();
+    let mut arguments: Vec<String> = Vec::new();
     if capture.is_some() {
-        arguments.push("&_capture");
+        arguments.push("&_capture".to_owned());
+    }
+    if needs_cx {
+        arguments.push(super::action_cx::CX.to_owned());
     }
     if !call_argument.is_empty() {
-        arguments.push(call_argument.trim_start_matches(", "));
+        arguments.push(call_argument.trim_start_matches(", ").to_owned());
     }
     let child_arguments = arguments.join(", ");
     let arguments = if child_arguments.is_empty() {
@@ -1104,8 +1120,14 @@ pub fn action_value(
         }
         return Ok(format!("{builder}({{\n{prefix}{closure}\n}})"));
     }
+    // A `<List>` row closure cannot borrow `self`: it upgrades the state slot
+    // hoisted into a local instead (`list.rs`).
+    let state = match &g.handler_state {
+        Some(local) => format!("{local}.clone()"),
+        None => "self._state.clone()".to_owned(),
+    };
     Ok(format!(
-        "{constructor}::new({{\n{prefix}let _state = self._state.clone();\n\
+        "{constructor}::new({{\n{prefix}let _state = {state};\n\
          move |_cx{closure_params}| {{\n\
          if let Some(state) = _state.upgrade() {{\n\
          state.borrow_mut().{name}({child_arguments});\n\
@@ -1128,6 +1150,11 @@ pub fn callback_value(
         super::captures::prepare(g, c, index)?;
     }
     let method = g.methods[index].clone();
+    // handlers that call a callback prop take the runtime context
+    let needs_cx = method
+        .func
+        .as_deref()
+        .is_some_and(|function| super::action_cx::needs_cx(g, function));
     let capture = if method.captures.is_empty() {
         None
     } else {
@@ -1146,6 +1173,9 @@ pub fn callback_value(
     if capture.is_some() {
         call_args.push("&_capture".to_owned());
     }
+    if needs_cx {
+        call_args.push(super::action_cx::CX.to_owned());
+    }
     for (index, ty) in params.iter().enumerate() {
         closure_params.push_str(&format!(", _a{index}: {}", ty.rust(g)));
         call_args.push(format!("_a{index}"));
@@ -1163,8 +1193,14 @@ pub fn callback_value(
              {root_name}::{name}(_root{call_args})\n}}\n}})"
         ));
     }
+    // A `<List>` row closure cannot borrow `self`: it upgrades the state slot
+    // hoisted into a local instead (`list.rs`).
+    let state = match &g.handler_state {
+        Some(local) => format!("{local}.clone()"),
+        None => "self._state.clone()".to_owned(),
+    };
     Ok(format!(
-        "std::rc::Rc::new({{\n{prefix}let _state = self._state.clone();\n\
+        "std::rc::Rc::new({{\n{prefix}let _state = {state};\n\
          move |_cx: &mut ui::ActionCx<'_>{closure_params}| {{\n\
          if let Some(state) = _state.upgrade() {{\n\
          state.borrow_mut().{name}({})\n\

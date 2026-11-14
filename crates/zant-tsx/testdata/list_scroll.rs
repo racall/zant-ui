@@ -84,12 +84,12 @@ impl ui::App for App {
                 ._on_click3())), ..Default::default() })], ..Default::default() }), { let
                 _data = rows.clone(); let _rows = _data.clone(); let _ids = _data
                 .clone(); self._list4.borrow_mut().follow(tsx::list_key(self.epoch),
-                tsx::list_index(self.selected), ui::ListScrollPosition::Center);
-                ui::list(& self._list4, ui::ListOptions { key : zant::Str::from("list"),
-                item_height : Some(24.0f32), grow : 1.0f32, count : _data.len(), item :
-                std::rc::Rc::new(move | _index : usize | -> ui::Node { let n : f64 =
-                _rows[_index]; return ui::text(zant::Str::copy(& format!("Row {}",
-                tsx::builtins::string(n))), ui::TextOptions { key :
+                tsx::list_index(self.selected), ui::ListScrollPosition::Center); let
+                _list = self._list4.clone(); ui::list(& _list, ui::ListOptions { key :
+                zant::Str::from("list"), item_height : Some(24.0f32), grow : 1.0f32,
+                count : _data.len(), item : std::rc::Rc::new(move | _index : usize | ->
+                ui::Node { let n : f64 = _rows[_index]; return ui::text(zant::Str::copy(&
+                format!("Row {}", tsx::builtins::string(n))), ui::TextOptions { key :
                 Some(zant::Str::copy(& format!("row-{}", tsx::builtins::string(n)))),
                 ..Default::default() }); }), item_id : Some(std::rc::Rc::new(move |
                 _index : usize | -> u64 { let n : f64 = _ids[_index]; return (n) as u64;

@@ -74,16 +74,16 @@ impl ui::App for Feed {
                 tsx::builtins::string(self.picked))), ui::TextOptions {
                 ..Default::default() }), { let _data = visible.clone(); let _rows = _data
                 .clone(); let _ids = _data.clone(); let _cap_theme :
-                zant::theme::tokens::Theme = theme; ui::list(& self._list1,
-                ui::ListOptions { key : zant::Str::from("feed"), estimated_height :
-                40.0f32, gap : 4.0f32, count : _data.len(), item : std::rc::Rc::new(move
-                | _index : usize | -> ui::Node { let item : Item = _rows[_index].clone();
-                let index : usize = _index; return ui::row(ui::BoxOptions { key :
-                Some(zant::Str::copy(& format!("row-{}", tsx::builtins::string(item
-                .clone().id)))), gap : 8.0f32, background : Some(if index % 2usize ==
-                0usize { _cap_theme.color_fill_quaternary } else { _cap_theme
-                .color_bg_container }), children : nodes![ui::text(item.clone().title
-                .clone(), ui::TextOptions { ..Default::default() }),
+                zant::theme::tokens::Theme = theme; let _list = self._list1.clone();
+                ui::list(& _list, ui::ListOptions { key : zant::Str::from("feed"),
+                estimated_height : 40.0f32, gap : 4.0f32, count : _data.len(), item :
+                std::rc::Rc::new(move | _index : usize | -> ui::Node { let item : Item =
+                _rows[_index].clone(); let index : usize = _index; return
+                ui::row(ui::BoxOptions { key : Some(zant::Str::copy(& format!("row-{}",
+                tsx::builtins::string(item.clone().id)))), gap : 8.0f32, background :
+                Some(if index % 2usize == 0usize { _cap_theme.color_fill_quaternary }
+                else { _cap_theme.color_bg_container }), children : nodes![ui::text(item
+                .clone().title.clone(), ui::TextOptions { ..Default::default() }),
                 ui::button(ui::ButtonOptions { key : Some(zant::Str::copy(&
                 format!("pick-{}", tsx::builtins::string(item.clone().id)))), text :
                 zant::Str::from("Pick"), on_click : Some(ui::action({ let _capture =
@@ -94,9 +94,9 @@ impl ui::App for Feed {
                 (item.clone().id) as u64; })), ..Default::default() }) }, { let _data =
                 tsx::List::from_vec(vec![zant::Str::from("Ada"),
                 zant::Str::from("Grace")]); let _rows = _data.clone(); let _ids = _data
-                .clone(); ui::list(& self._list3, ui::ListOptions { key :
-                zant::Str::from("names"), count : _data.len(), item :
-                std::rc::Rc::new(move | _index : usize | -> ui::Node { let name :
+                .clone(); let _list = self._list3.clone(); ui::list(& _list,
+                ui::ListOptions { key : zant::Str::from("names"), count : _data.len(),
+                item : std::rc::Rc::new(move | _index : usize | -> ui::Node { let name :
                 zant::Str = _rows[_index].clone(); return ui::text(name.clone(),
                 ui::TextOptions { ..Default::default() }); }), item_id :
                 Some(std::rc::Rc::new(move | _index : usize | -> u64 { let name :

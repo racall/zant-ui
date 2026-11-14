@@ -595,6 +595,24 @@ pub fn call_value(
         return fail(g, loc, format!("`{name}` is not a function"));
     };
     let function = function.clone();
+    // a called function that calls a callback prop takes the runtime context;
+    // only a handler (which has one) can call it
+    let cx = if super::action_cx::needs_cx(g, &function) {
+        match c.cx_var.clone() {
+            Some(cx) => Some(cx),
+            None => {
+                return fail(
+                    g,
+                    loc,
+                    format!(
+                        "`{name}` calls a callback prop, so it only runs from an event handler"
+                    ),
+                );
+            }
+        }
+    } else {
+        None
+    };
     let required = functions::required(&function.params);
     if call.args.len() < required || call.args.len() > function.params.len() {
         return fail(
@@ -611,6 +629,9 @@ pub fn call_value(
         if receiver != "self" {
             arguments.push(format!("&({receiver})"));
         }
+    }
+    if let Some(cx) = &cx {
+        arguments.push(cx.clone());
     }
     for (param_index, param) in function.params.iter().enumerate() {
         let parameter_type = match g.extensions.hooks.method_param {

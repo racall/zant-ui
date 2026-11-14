@@ -79,34 +79,22 @@ impl TodoRow {
                 label : self.props.todo.clone().title.clone(), checked : self.props.todo
                 .clone().done, on_change : Some(ui::BoolAction::new({ let _state = self
                 ._state.clone(); move | _cx, value : bool | { if let Some(state) = _state
-                .upgrade() { state.borrow_mut()._on_change1(value); } } })),
+                .upgrade() { state.borrow_mut()._on_change1(_cx, value); } } })),
                 ..Default::default() }), ui::button(ui::ButtonOptions { key :
                 Some(zant::Str::copy(& format!("remove-{}", tsx::builtins::string(self
                 .props.todo.clone().id)))), text : zant::Str::from("Remove"), on_click :
                 Some(ui::Action::new({ let _state = self._state.clone(); move | _cx | {
-                if let Some(state) = _state.upgrade() { state.borrow_mut()._on_click2();
-                } } })), ..Default::default() })
+                if let Some(state) = _state.upgrade() { state.borrow_mut()
+                ._on_click2(_cx); } } })), ..Default::default() })
             ],
             ..Default::default()
         });
     }
-    fn _on_change1(&mut self, _: bool) {
-        ui::effect(
-            ui::Action::new({
-                let callback = self.props.onToggle.clone();
-                let _arg0: u32 = self.props.todo.clone().id;
-                move |cx| (callback)(cx, _arg0)
-            }),
-        );
+    fn _on_change1(&mut self, _cx: &mut ui::ActionCx<'_>, _: bool) {
+        (self.props.onToggle.clone())(_cx, self.props.todo.clone().id);
     }
-    fn _on_click2(&mut self) {
-        ui::effect(
-            ui::Action::new({
-                let callback = self.props.onRemove.clone();
-                let _arg0: u32 = self.props.todo.clone().id;
-                move |cx| (callback)(cx, _arg0)
-            }),
-        );
+    fn _on_click2(&mut self, _cx: &mut ui::ActionCx<'_>) {
+        (self.props.onRemove.clone())(_cx, self.props.todo.clone().id);
     }
 }
 pub struct Panel {
