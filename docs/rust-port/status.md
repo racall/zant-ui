@@ -49,8 +49,8 @@
 |---|---|---|---|---|
 | 2.1 | input + runtime 键盘 / IME / 焦点 / 文本选择 | — | 待领取 | |
 | 2.2 | toggle、select、image + select 弹层、tooltip | — | 待领取 | |
-| 2.3 | ui.zig 其余构建器、core/icons | wp-2-3a（icons 部分）| icons 进行中；其余构建器等 1.2 | |
-| 2.4 | memo、localState、portals、effects、commands | — | 待领取 | |
+| 2.3 | ui.zig 其余构建器、core/icons | wp-2-3a（icons 完成）/ lead（其余）| icons 已并入（2 测试，3317/3321 坐标逐位一致，4 个 1ulp 差来自 sin/cos 实现）；其余构建器等 1.2 |
+| 2.4 | memo、localState、portals、effects、commands | lead（local_state 已提前完成） | 进行中 | `core/local_state.rs`（Store/Slot/child_id，Rc<RefCell<T>> + TypeId panic）已完成并测试；memo/portals/effects/commands 等 1.2 |
 | 2.5 | menu、modal、segmented、message、shortcut_list、hotkey_input、view、window_controls | — | 待领取 | |
 | 2.6 | components/list（虚拟列表）+ ListState | — | 待领取 | |
 | 2.7 | 动效接入：presence、FLIP、layout_transition、runtime tick | — | 待领取 | |
@@ -64,13 +64,13 @@
 | WP | 内容 | 负责人 | 状态 | 备注 |
 |---|---|---|---|---|
 | 3.1 | markdown/remend（522 条夹具） | wp-3-1 | 完成（已并入） | 522/522 夹具通过；5 个 Zig 测试移植 |
-| 3.2 | markdown/parser + blocks/cache/html/safety/highlight | wp-3-2 | 进行中（worktree wp-3.2） | remend 已并入；core/hash 已并入 |
+| 3.2 | markdown/parser + blocks/cache/html/safety/highlight | wp-3-2 | 完成（已并入） | 23 个内联测试 + 6/12 个 markdown_test（余 6 个需 render/editor → 3.3）；与 Zig 逐字节差分 15.2MB 输出 sha256 一致 |
 | 3.3 | markdown/render、editor/edit、widgets 的 markdown 部分 | — | 待领取 | |
 | 3.4 | markdown/mermaid | — | 待领取 | 依赖 1.3 |
 | 3.5 | math/{parser,symbols,fonts} | wp-3-5 | phase 1 完成（symbols+fonts，11 测试）；phase 2（parser）已通知继续 | mhchem API：`to_tex(&str, Machine) -> Result<String, MhchemError>` |
 | 3.6 | math/layout | — | 待领取 | 依赖 1.3 |
 | 3.7 | math/mhchem（823 条夹具，逐字节对齐） | wp-3-7 | 完成（已并入） | 823/823；207 条状态机转移与 Zig 逐条对照；拆成 15 个文件；`to_tex(&str, Machine) -> Result<String, MhchemError>` |
-| 3.8 | pdf/{document,text,renderer,annotations,native}、platform/pdf | wp-3-8 | 进行中（worktree wp-3.8） | 依赖 1.1（已并入） |
+| 3.8 | pdf/{document,text,renderer,annotations,native}、platform/pdf | wp-3-8 | 完成（已并入） | `Document` Send+Sync（原生层已串行化）；渲染 worker 的 wake 用注入回调（3.9 传 `ui::post_wake`）；缓存返回 `Arc` 快照；Windows PDFium 待验证 |
 | 3.9 | pdf/viewer、ui.pdfPreview | — | 待领取 | |
 | 3.10 | db/sqlite → rusqlite + derive(Table) | wp-3-10 | 完成（已并入） | 生成的 SQL 与 Zig 逐字节一致（含迁移 ALTER）；Zig 建的库 Rust 可读已实测；fallback 表名差异登记见待决问题 |
 | 3.11 | examples/{markdown,math,markdown_stream,pdf} | — | 待领取 | |
