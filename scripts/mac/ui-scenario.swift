@@ -110,10 +110,46 @@ func resize(_ w: Win, _ width: Double, _ height: Double) {
     contentHeight = height
 }
 
+/// The static texts / values of the window (AX): the readable state of an app
+/// whose layout has no keyed controls (generated TSX apps).
+func axDump(pid: pid_t) {
+    let app = AXUIElementCreateApplication(pid)
+    var value: CFTypeRef?
+    guard AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value) == .success,
+          let windows = value as? [AXUIElement], let window = windows.first
+    else { print("ax: no window"); return }
+
+    func attribute(_ element: AXUIElement, _ name: String) -> String? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else { return nil }
+        if let text = value as? String { return text }
+        return nil
+    }
+
+    var visited = 0
+    func walk(_ element: AXUIElement, _ depth: Int) {
+        if visited > 400 || depth > 40 { return }
+        visited += 1
+        let role = attribute(element, kAXRoleAttribute) ?? "?"
+        let title = attribute(element, kAXTitleAttribute) ?? ""
+        let desc = attribute(element, kAXDescriptionAttribute) ?? ""
+        let text = attribute(element, kAXValueAttribute) ?? ""
+        if !title.isEmpty || !text.isEmpty || !desc.isEmpty {
+            print("ax \(role) title=\(title) value=\(text) desc=\(desc)")
+        }
+        var children: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &children) == .success,
+           let list = children as? [AXUIElement] {
+            for child in list { walk(child, depth + 1) }
+        }
+    }
+    walk(window, 0)
+}
+
 // wait for the window and its first layout
 var win: Win? = nil
 for _ in 0..<100 {
-    if let w = window(), !layout().isEmpty { win = w; break }
+    if let w = window() { if !layout().isEmpty { win = w; break } else if win == nil { win = w } }
     usleep(100_000)
 }
 guard let first = win else { print("window of \(owner) not found"); exit(1) }
@@ -146,6 +182,16 @@ for raw in steps.split(separator: "\n") {
     case "type": typeText(rest)
     case "key": pressKey(rest)
     case "cmdkey": pressKey(rest, flags: .maskCommand)
+    case "dumpax":
+        if let w = window() { axDump(pid: w.pid) } else { print("ax: no window"); failures += 1 }
+    case "clickpoint":
+        // logical content coordinates (origin top-left of the window content)
+        let a = rest.split(separator: " ").compactMap { Double($0) }
+        guard a.count >= 2, let w = window() else { print("bad clickpoint \(line)"); failures += 1; break }
+        let o = origin(w)
+        let p = CGPoint(x: o.x + a[0], y: o.y + a[1])
+        mouse(.mouseMoved, p); mouse(.leftMouseDown, p); usleep(10_000); mouse(.leftMouseUp, p)
+        usleep(120_000)
     case "resizefast":
         // resize repeatedly with no settle wait: continuous-resize frame test
         let a = rest.split(separator: " ").compactMap { Double($0) }

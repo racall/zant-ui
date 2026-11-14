@@ -19,7 +19,7 @@ impl Default for App {
     fn default() -> Self {
         Self {
             sync: true,
-            hotkey: "ctrl+cmd+v".into(),
+            hotkey: zant::Str::copy("ctrl+cmd+v"),
             clips: 0.0f64,
             _hotkey5: Default::default(),
         }
@@ -31,7 +31,7 @@ impl App {
         self.clips = clips + 1.0f64;
     }
     fn _root_on_reopen(&mut self) {
-        self.hotkey = "".into();
+        self.hotkey = zant::Str::copy("");
     }
     fn _desktop1(&mut self) {
         self.clips = 0.0f64;
@@ -52,16 +52,16 @@ impl App {
 impl ui::App for App {
     fn render(&mut self) -> ui::Node {
         let label: zant::Str = if self.sync {
-            "Pause sync".into()
+            zant::Str::copy("Pause sync")
         } else {
-            "Resume sync".into()
+            zant::Str::copy("Resume sync")
         };
         let shown: bool = tsx::desktop::update(tsx::desktop::TrayOptions {
             icon: trayIcon,
             template: true,
-            tooltip: "Clips".into(),
+            tooltip: zant::Str::copy("Clips"),
             items: vec![
-                tsx::desktop::TrayItem { title : "Open".into(), on_select :
+                tsx::desktop::TrayItem { title : zant::Str::copy("Open"), on_select :
                 Some(ui::action(move | s : & mut App | App::_desktop1(s))),
                 ..Default::default() }, tsx::desktop::TrayItem { separator : true,
                 ..Default::default() }, tsx::desktop::TrayItem { title : label.clone(),

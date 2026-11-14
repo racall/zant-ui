@@ -127,7 +127,7 @@ impl App {
     fn _on_click4(&mut self) {
         panel_with(|window| window.place(zant::desktop::Place::TrayCorner, 12.0f32));
         panel_with(|window| window.activate());
-        panel_with(|window| window.focus("count".into().as_str()));
+        panel_with(|window| window.focus(zant::Str::copy("count").as_str()));
     }
     fn _on_click5(&mut self) {
         panel_with(|window| window.toggle());
@@ -135,7 +135,7 @@ impl App {
     fn _on_click6(&mut self) {
         panel_with(|window| window.place(zant::desktop::Place::TrayCorner, 12.0f32));
         panel_with(|window| window.activate());
-        panel_with(|window| window.focus("count".into().as_str()));
+        panel_with(|window| window.focus(zant::Str::copy("count").as_str()));
     }
 }
 impl ui::App for App {

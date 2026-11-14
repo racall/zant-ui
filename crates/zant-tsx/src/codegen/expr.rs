@@ -45,7 +45,8 @@ pub fn emit(
         ast::ExprData::Number(n) => number(n),
         ast::ExprData::String(s) => Value {
             ty: Type::String,
-            code: format!("{}.into()", rust_text::quote_at(g, s, e.loc)?),
+            // explicit `Str`: the target may be `impl Into<Str>` (ui::text …)
+            code: format!("zant::Str::copy({})", rust_text::quote_at(g, s, e.loc)?),
             text: Some(s.clone()),
             ..Value::default()
         },
@@ -424,7 +425,7 @@ pub fn template(g: &mut Generator<'_>, c: &mut scope::Context, t: &ast::Template
         let text = t.quasis.first().cloned().unwrap_or_default();
         return Ok(Value {
             ty: Type::String,
-            code: format!("{}.into()", rust_text::quote_at(g, &text, 0)?),
+            code: format!("zant::Str::copy({})", rust_text::quote_at(g, &text, 0)?),
             text: Some(text),
             ..Value::default()
         });

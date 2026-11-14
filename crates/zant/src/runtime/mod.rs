@@ -373,7 +373,11 @@ impl Runtime {
 /// Takes `&mut Box<dyn App>` instead of `&mut Runtime` so the borrow only
 /// covers the `app` field and the caller can keep using the tree around it.
 pub(crate) fn action_cx(app: &mut Box<dyn App>) -> ActionCx<'_> {
-    let app: &mut dyn App = app.as_mut();
-    let root: &mut dyn std::any::Any = app;
+    // Two calls: the first only asks whether the app redirects the root, so
+    // its borrow ends before the second hands the root to the context.
+    if app.as_mut().action_root().is_some() {
+        return ActionCx::new(app.as_mut().action_root().expect("checked above"));
+    }
+    let root: &mut dyn std::any::Any = app.as_mut();
     ActionCx::new(root)
 }

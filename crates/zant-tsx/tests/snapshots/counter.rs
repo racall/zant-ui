@@ -16,7 +16,7 @@ impl Default for Counter {
     fn default() -> Self {
         Self {
             count: 0u32,
-            name: "App".into(),
+            name: zant::Str::copy("App"),
         }
     }
 }

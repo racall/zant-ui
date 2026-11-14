@@ -77,6 +77,14 @@ pub trait App: std::any::Any {
     /// it must return a container (`column` / `row` / `card`).
     fn render(&mut self) -> Node;
 
+    /// The state `ui::action` / `text_action` / … closures see. The runtime
+    /// root is normally `self`; the TSX shell wraps the app's root component
+    /// (`Shell<App>`), so it returns the inner component and generated
+    /// `ui::action(|s: &mut App| …)` matches without the shell in the way.
+    fn action_root(&mut self) -> Option<&mut dyn std::any::Any> {
+        None
+    }
+
     /// Theme of the next frame (e.g. return `Some(ant_dark())`); `None` keeps
     /// the runtime's current theme (`RunOptions::theme` initially).
     fn theme(&self) -> Option<Theme> {

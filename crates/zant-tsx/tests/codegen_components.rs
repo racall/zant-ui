@@ -251,7 +251,7 @@ fn counter_matches_the_design_doc_snippet() {
     assert_eq!(
         vec![
             "count: 0u32".to_owned(),
-            "name: \"Zant\".into()".to_owned(),
+            "name: zant::Str::copy(\"Zant\")".to_owned(),
             "notify: false".to_owned(),
         ],
         default_fields(source, "Counter"),

@@ -16,7 +16,7 @@ pub struct App {
 impl Default for App {
     fn default() -> Self {
         Self {
-            draft: "".into(),
+            draft: zant::Str::copy(""),
             copied: 0.0f64,
             until: 0.0f64,
         }

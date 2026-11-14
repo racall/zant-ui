@@ -194,6 +194,11 @@ impl<A: crate::ui::App> Shell<A> {
 }
 
 impl<A: crate::ui::App> crate::ui::App for Shell<A> {
+    /// Generated TSX actions target the app's root component, not the shell.
+    fn action_root(&mut self) -> Option<&mut dyn Any> {
+        Some(&mut self.root)
+    }
+
     fn render(&mut self) -> Node {
         self.root.render()
     }

@@ -167,7 +167,7 @@ return zant::Str::copy(&format!("{}:{}", label.clone(), tsx::builtins::string(n)
 #[test]
 fn string_equality_names_the_static_str_variant() {
     // `zant::Str` has several `PartialEq` implementations, so a bare
-    // `"a".into()` would leave Rust's inference ambiguous.
+    // `zant::Str::copy("a")` would leave Rust's inference ambiguous.
     let compiled = generated(r#"function same(name: string): boolean { return name === "zant"; }"#);
     assert_contains(
         &compiled.functions,
@@ -245,7 +245,7 @@ function spread(p: Pair): Pair { return { ...p, a: 2 }; }"#,
         &compiled.functions,
         r#"return Pair {
     a: 1.0f64,
-    b: "x".into(),
+    b: zant::Str::copy("x"),
 };"#,
     );
     assert_contains(
@@ -268,7 +268,7 @@ function copy(o: Opt): string { return o.b ?? "none"; }"#,
     assert_contains(&compiled.declarations, "pub b: Option<zant::Str>,");
     assert_contains(
         &compiled.functions,
-        r#"return o.clone().b.clone().unwrap_or_else(|| "none".into());"#,
+        r#"return o.clone().b.clone().unwrap_or_else(|| zant::Str::copy("none"));"#,
     );
 }
 
@@ -285,7 +285,7 @@ function nul(x: number | null): number { return x === null ? 0 : x; }"#,
     assert_contains(&compiled.functions, "return name.clone().unwrap();");
     assert_contains(
         &compiled.functions,
-        r#"return name.clone().unwrap_or_else(|| "none".into());"#,
+        r#"return name.clone().unwrap_or_else(|| zant::Str::copy("none"));"#,
     );
     assert_contains(
         &compiled.functions,
