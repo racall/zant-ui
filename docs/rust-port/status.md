@@ -69,7 +69,7 @@
 | 2.7 | 动效接入：presence、FLIP、layout_transition、runtime tick | — | 待领取 | |
 | 2.8 | desktop、store、多窗口 | wp-2-8 | 完成（worktree wp-2.8，待并入） | `desktop/{mod,app,app_event,clipboard,hotkey,tray,window}.rs` + `runtime/window.rs`（共享 `SharedApp`、窗口注册表、`open_window` / 延迟关窗、`invalidateAll`）；`store.rs` 已在基线完成；34 个新测试（lib 346 → 380，全部 headless；真实托盘 / 热键 / 多窗口为手测项）；跨文件小改 3 处：`platform` 安全 app-event 蹦床、`Image::read_rgba`（托盘图标）、`FrameStats::for_window`，见待决问题 4；另 `hotkey_input` 的 `Shortcut` 重复待合并（待决问题 5） |
 | 2.9 | examples/{declarative,components,gallery}、gallery.zig、app.zig | — | 待领取 | |
-| 2.10 | tests/*_test.zig 对应测试移植 | — | 待领取 | |
+| 2.10 | tests/*_test.zig 对应测试移植 | wp-2-10 | 完成（worktree wp-2.10） | 分支 `rust/wp-2.10`。13 个新文件（`crates/zant/tests/{all,antd_components,component,lifecycle,local_state,mhchem_render,pointer,selection,store,text,text_align,ui,view}_test.rs`），新增 52 个测试；`tests/` 的 Rust 集成测试 72 → 124，全 crate `test -p zant` 585 passed / 0 failed；`clippy -p zant --all-targets -- -D warnings` 通过。Zig 侧非 TSX 测试已全部覆盖：`list_test.zig` 3 条已由 WP-2.6 在 `src/components/list.rs` 内同名移植，`motion_test.zig` 剩余 6 条归 WP-2.7。未移植 2 条（见「WP-2.10 补充待办」）：`component_test.zig` 的 gallery 用例（等 WP-2.9 的 `zant::app`）、`pointer_test.zig` 的 pointer_area 用例（`on_resize` 内读 `ui::key_bounds`，见待决问题 7） |
 | 2.11 | examples/bench.zig → zant-bench；性能闸门 | — | 待领取 | |
 
 ### M3 内容模块
@@ -154,6 +154,26 @@
 - `tests/motion_test.zig` 后 6 个用例依赖 `ui` / `ui_runtime` / renderer / button / segmented
   （WP-1.2 / 1.3 / 1.4 / 1.1c），前 4 个纯 motion 用例已随 1.1a 移植。
 
+### WP-2.10 完成情况（wp-2-10，2026-11-13）
+
+- 已移植 52 条（13 个新文件）：`view_test` 7、`selection_test` 6、`lifecycle_test` 6、
+  `ui_test` 5、`component_test` 4、`antd_components_test` 12、`local_state_test` 2、
+  `pointer_test` 2、`text_test` 3、`text_align_test` 1、`store_test` 1、
+  `mhchem_render_test` 1、`all_test` 2（`tests/all.zig` 的 2 条内联用例）。
+- 已由其他 WP 覆盖、未重复移植：`flex_test.zig` 24（WP-1.3）、`list_test.zig` 3（WP-2.6，
+  在 `src/components/list.rs` 内同名移植）、`motion_test.zig` 前 4 条（WP-1.1a）、
+  `markdown_test` / `markdown_render_test` / `math_test` / `pdf*_test` / `db_test` / `remend_test`。
+- 仍不能移植（2 条）：
+  1. `component_test.zig`「gallery button click, input editing, composition and focus」：
+     需要 `zant::app::App`（Zig `src/app.zig` 的 gallery 应用，WP-2.9 未移植）与
+     `App::create` / `handle` / `tree` 这套命令式接口。
+  2. `pointer_test.zig`「pointer area: capture, local coordinates, clicks, wheel and keys」：
+     断言 `BoxOptions::on_resize` 里 `ui::key_bounds("area")` 能读到新布局；Rust
+     `runtime::build_tree` 在 build 末尾 `set_key_bounds_hook(None)`，而 `notify_resizes`
+     在之后的 `render_frame` 里跑，此时 hook 已清空，`ui::key_bounds` 返回 `None`（见待决问题 7）。
+     其余 pointer_area 行为（捕获、局部坐标、多击、滚轮、按键）待该 hook 生命周期修好后即可补测。
+- 仍归其他 WP：`motion_test.zig` 后 6 条（WP-2.7）、`tsx*_test.zig`（M4/M5）。
+
 ## 已并入 feat/rust-port 的内容（按时间）
 
 1. M0.2 骨架 + 模块树桩、M0.3 `zant-sys`、M0.4 对照工具、M0.5 文档。
@@ -203,6 +223,14 @@
    `process_pending_closes`（避免在窗口自己的事件回调里销毁原生窗口）。`close()` 立即生效的时机
    是"当前事件回调返回后的下一个事件循环轮次"；`open_window` 在没有 `ui::app::run` 主窗口时返回
    `PlatformError::UnsupportedPlatform`（Zig 是编译期就必须在 run 之后调用）。
+7. **`ui::key_bounds` 在 `on_resize` 里返回 `None`**（WP-2.10 提出）：Zig 的 `ui.keyBounds` 读活树，
+   所以 `BoxOptions::on_resize` 回调里能拿到控件的新 bounds；Rust `runtime::build_tree` 在 build
+   末尾 `set_key_bounds_hook(None)`，而 `notify_resizes`（触发 `on_resize`）在随后的
+   `render_frame` 里才跑，此时 hook 已清空。`docs` 里「on_resize 可以通过 key_bounds 读新布局」
+   的承诺在 Rust 侧因此不成立，`tests/pointer_test.zig` 的 pointer_area 用例卡在这里没有移植。
+   建议裁定（任选其一，lead 统一改）：(a) `render_frame` 的 layout + `notify_resizes` 期间临时
+   装回本窗口的 `key_bounds` 快照 hook（改动最小，语义与 Zig 最接近）；(b) `notify_resizes` 直接
+   把新 `Rect` 作为参数传给 `on_resize`（改 API 契约，需要同步两版）；推荐 (a)。
 
 4. **组合组件未从 `ui::*` 导出**（WP-2.5 提出）：8 个组件按计划落在 `crates/zant/src/components/*.rs`，
    `components/mod.rs` 已预先声明模块；但 `crates/zant/src/ui/mod.rs` 属于 WP-1.x 的文件，WP-2.5 不改。
