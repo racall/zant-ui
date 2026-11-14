@@ -78,7 +78,7 @@
 |---|---|---|---|---|
 | 3.1 | markdown/remend（522 条夹具） | wp-3-1 | 完成（已并入） | 522/522 夹具通过；5 个 Zig 测试移植 |
 | 3.2 | markdown/parser + blocks/cache/html/safety/highlight | wp-3-2 | 完成（已并入） | 23 个内联测试 + 6/12 个 markdown_test（余 6 个需 render/editor → 3.3）；与 Zig 逐字节差分 15.2MB 输出 sha256 一致 |
-| 3.3 | markdown/render、editor/edit、widgets 的 markdown 部分 | — | 待领取 | |
+| 3.3 | markdown/render、editor/edit、widgets 的 markdown 部分 | wp-3-3 | 完成（worktree wp-3.3，待并入） | 分支 `rust/wp-3.3`。render/12 文件 + editor/edit/theme + widgets 的 markdown 部分；Zig `edit.zig` 3/3 测试同名移植，`tests/markdown_test.zig` 剩余 6 个渲染/编辑器用例已补，另加 11 个模块单测与 5 个 headless 冒烟（README + 1 万行文档 + memo 跳过）。偏差见执行报告：editor 的模式切换暂用 `ui::button` 组合（`ui::segmented` 属 WP-2.5，缺失）；widgets 的 PDF 半（含其 1 个测试）留给 WP-3.9；`math/mod.zig:inlineDrawing` 暂落在 `render::spans`；`safety::Policy` 缺 `Clone` 由 render/options 补 impl；crate 根 `markdown/mod.rs` 的 re-export 需 lead 统一补 |
 | 3.4 | markdown/mermaid | wp-3-4 | 完成（已并入） | 8 测试（Zig 2）；flowchart/sequence/pie + fallback 逐段移植 |
 | 3.5 | math/{parser,symbols,fonts} | wp-3-5 | 完成（已并入） | 16 个 Rust 测试（Zig 2）；`parse(&str) -> Result<Vec<Node>, ParseError>`，Node 为 owned enum；symbols/fonts 数据逐条对照 |
 | 3.6 | math/layout | wp-3-6 | 完成（已并入） | 6 测试（Zig 6）；入口 `layout(&str, Options) -> Drawing`；18 个示例公式排版非空；`math/mod.zig` 的 UI 层（block/render）留给 2.10/3.11 |
