@@ -40,7 +40,7 @@ pub const IS_WINDOWS: bool = cfg!(windows);
 /// `zant-icon`'s exit code 2 usage print is in `icon.rs`; the CLI usage text
 /// prints when zant is called without a command, like the Zig version.
 pub const USAGE: &str = "用法: zant <命令>
-  create <项目名>       生成项目（--lang zig|ts，默认 Zig）
+  create <项目名>       生成项目（--lang ts|zig，默认 TS）
   run [--watch]         编译并运行（--watch 热更新）
   compile [--release]   只编译
   package               生成本机测试用的 .app / 程序目录
@@ -255,7 +255,7 @@ pub fn build_once(root: &str, release: bool) -> bool {
 pub fn ensure_rust_project(root: &str) -> std::io::Result<()> {
     if !Path::new(root).join("Cargo.toml").is_file() {
         fail(format!(
-            "{root} 没有 Cargo.toml：zant run/compile/package 用 cargo build 构建 Rust 应用；当前模板还是 Zig 版，Rust 模板（Cargo.toml + build.rs）由 WP-6.3 提供"
+            "{root} 没有 Cargo.toml：zant run/compile/package 用 cargo build 构建 Cargo 应用；`--lang zig` 的旧模板只保留到 M8（没有 Cargo.toml，不能构建）"
         ));
     }
     if project::detect(root)? == project::Language::Ts {
@@ -613,8 +613,8 @@ enum Command {
         /// 覆盖已存在的目录
         #[arg(long)]
         force: bool,
-        /// 语言：zig 或 ts
-        #[arg(long, value_name = "zig|ts")]
+        /// 语言：ts（默认）或 zig（旧模板）
+        #[arg(long, value_name = "ts|zig")]
         lang: Option<String>,
         /// 应用标题
         #[arg(long)]

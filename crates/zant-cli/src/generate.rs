@@ -3,7 +3,6 @@
 //! and the XML / JSON escaping helpers.
 
 use crate::app_config::{self, AppConfig};
-use crate::project::{self, Language};
 use crate::{escape_json, fail, ok, read_text, write_file};
 use std::path::Path;
 
@@ -129,12 +128,10 @@ pub fn entitlements_plist(cfg: &AppConfig, store_team: Option<&str>) -> String {
     out
 }
 
-/// `src/app_config.rs` (both platforms) for Zig/Rust projects; a TS project's
-/// build generates it from app.config.json itself (`zant_build::tsx_app`).
+/// `src/app_config.rs` (both platforms) for every Rust project, including TSX
+/// apps: their `src/main.rs` reads the generated constants, while
+/// `zant_build::tsx_app()` only compiles `src/**/*.tsx` into `OUT_DIR`.
 pub fn write_config_source(root: &str, cfg: &AppConfig) -> std::io::Result<()> {
-    if project::detect(root)? == Language::Ts {
-        return Ok(());
-    }
     let source = app_config::source(cfg);
     write_generated(
         &Path::new(root).join("src/app_config.rs"),

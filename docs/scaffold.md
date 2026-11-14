@@ -17,14 +17,16 @@ curl -fsSL https://raw.githubusercontent.com/racall/zant-ui/main/install.sh | ba
 irm https://raw.githubusercontent.com/racall/zant-ui/main/install.ps1 | iex
 ```
 
-安装脚本第一步检查 Zig（没有 Zig 0.17.1 就下载官方版本到安装目录），然后下载最新的发布包：
-编译好的 `zant`、Zant UI 框架和预编译依赖（Skia；Windows 还有 PDFium 和编译好的 Skia 桥接库），
-放到 `~/.zant`（Windows `%LOCALAPPDATA%\zant`）并加到 PATH。不需要克隆源码，也不需要编译；
-Windows 不需要 Visual Studio，macOS 需要 Xcode 命令行工具。详细说明和环境变量见 README「安装 zant」。
+安装脚本第一步检查 Rust（没有 rustup 就装 rustup，并安装 Zant UI 固定的工具链），然后下载最新的发布包：
+编译好的 `zant`、Zant UI 框架（`zant-ui/`，Rust workspace）和预编译依赖（Skia；Windows 还有 PDFium），
+放到 `~/.zant`（Windows `%LOCALAPPDATA%\zant`）并加到 PATH。不需要克隆源码，也不需要编译框架；
+Windows 需要 Visual Studio 2022+ / Build Tools 的 C++ 工作负载（链接 Skia），macOS 需要 Xcode 命令行工具。
+详细说明和环境变量见 README「安装 zant」。
 
 用源码开发 Zant UI 本身时，在源码目录运行 `scripts/fetch_skia.sh`（Windows
-`scripts/fetch_skia_windows.ps1`，并需要 Visual Studio 2022+ / Build Tools 的 C++ 工作负载）和
-`zig build`，再把 `zig-out/bin` 里的 `zant` 放到 PATH。
+`scripts/fetch_skia_windows.ps1`，并需要 Visual Studio 的 C++ 工作负载）和
+`cargo build -p zant-cli`，再把 `target/debug/zant` 放到 PATH。Rust 版与 Zig 版并存期间，
+原来的 `zig build` 仍可构建 Zig 版作为行为对照。
 
 macOS 与 Windows 用法相同。`zant create` 只问两端通用的设置，生成的项目在两端都能直接 `zant run`。平台专属的设置和文件
 由 `zant run` / `build` / `package` 在当前平台按需补充：macOS 上补 `app.config.json` 的
@@ -39,7 +41,7 @@ zant create my-app
 
 会询问（都是两端通用的）：
 
-1. 语言：Zig / TypeScript + TSX（默认 Zig）
+1. 语言：TypeScript + TSX（Rust 应用，默认）/ Zig（旧模板，只保留到 M8）
 2. 应用标题
 3. 窗口风格：原生标题栏 / 隐藏标题栏 / 无边框
 4. 应用标识（反向域名，如 `com.xx.test`）：macOS 的 Bundle ID，也是 Windows 上
@@ -67,7 +69,7 @@ Windows 的命令行窗口（包括代码页 936 的中文系统）中文显示�
 非交互：
 
 ```bash
-/path/to/zant-ui/zig-out/bin/zant create my-app \
+/path/to/zant/target/debug/zant create my-app \
   --yes \
   --title "My App" \
   --style hidden-titlebar \
@@ -78,29 +80,44 @@ Windows 的命令行窗口（包括代码页 936 的中文系统）中文显示�
 
 `--sandbox`、`--sign` 可选：给出时直接写入 `macos` 段。
 
-语言也可以用 `--lang zig|ts` 指定；`--yes` 不指定时仍生成 Zig 项目：
+语言也可以用 `--lang ts|zig` 指定；`--yes` 不指定时仍生成 TypeScript + TSX 项目：
 
 ```bash
 zant create my-ts-app --lang ts --yes
 ```
 
-TS 项目使用 `src/App.tsx` 的默认导出作为根组件，`src/components/*.tsx` 放业务组件；不需要手写
-`src/main.zig`。`build.zig` 使用 `addTsxApp` 和 `configureApp`，TSX 在编译期转成原生 Zig。
-Zig 写的底层代码放在 `native/`：`<名字>.ts` 是接口规范，`<名字>.zig` 是实现，`lib.zig` 登记，
-模板带一个示例模块 `native/system`，`zig build test` 运行它的测试，见 [TS 应用的原生模块](tsx-native.md)。
-两种模板共用默认图标和窗口配置。Zig 项目由 `zant sync` 生成 `src/app_config.zig`；TS 项目在构建时生成，项目里没有这个文件。
-TS 模板还带 `zant.d.ts` / `tsconfig.json`，为 `import … from "zant"` 提供补全和严格类型检查，
-不需要 npm 或 React。详见 [TSX：新建 TS 项目与编辑器类型](tsx.md#新建-ts-项目)。
+TS 项目是一个 Rust 应用：`Cargo.toml` + `build.rs` + `rust-toolchain.toml`，TSX 在编译期
+（`build.rs` 调用 `zant_build::tsx_app()`）转成 Rust，没有 JS 运行时：
+
+```text
+src/App.tsx                 根组件（默认导出），界面和业务逻辑都用 TSX
+src/components/*.tsx        业务组件
+src/main.rs                 入口：include 生成的组件树、注册原生模块、启动
+src/app_config.rs           由 zant 从 app.config.json 生成，不要手改
+native/<名字>.ts            原生模块的规范（类型 + export declare function）
+native/<名字>.rs            原生模块的 Rust 实现
+native/lib.rs               原生模块清单与注册
+build.rs                    zant_build::tsx_app()：TSX → OUT_DIR/app.rs
+Cargo.toml                  单个 Cargo package；zant / zant-build 是相对路径依赖
+rust-toolchain.toml         stable 工具链
+assets/icons/               默认图标
+zant.d.ts / tsconfig.json   import … from "zant" 的类型与补全
+```
+
+`zant create` 把 `Cargo.toml` 里的 `__ZANT_PATH__` 换成项目到 Zant UI 的相对路径，
+所以项目可以放在任意目录。项目和 Zant UI 不在同一个盘时（Windows），`zant create`
+用目录联接 `.zant/zant-ui` 引用 Zant UI，依赖路径变成 `.zant/zant-ui`。
+模板带一个示例原生模块 `native/system`（平台、CPU 核数、Rust 版本）。
 
 ## 运行
 
 ```bash
 cd my-app
-/path/to/zant-ui/zig-out/bin/zant run
+/path/to/zant/target/debug/zant run
 ```
 
-`zant run` 会读取 `app.config.json`、生成 `src/app_config.zig`、
-调用 `zig build`，然后启动应用。无需手动执行 `zig build`。
+`zant run` 会读取 `app.config.json`、生成 `src/app_config.rs`、
+调用 `cargo build`，然后启动应用。无需手动执行 `cargo build`。
 
 常用命令：
 
@@ -108,16 +125,16 @@ cd my-app
 zant run
 zant run --watch      # 热更新：改动后自动重编译并重启（重启式）
 zant run --release
-zant compile          # 只编译（--release 用 ReleaseFast）
+zant compile          # 只编译（--release 用 release profile）
 zant package          # 本机测试用的 .app / 程序目录
 zant build            # 发布构建：签名、DMG、公证、安装包或提交商店，见「发布构建」
-zant sync             # 只重新生成 src/app_config.zig、Info.plist（沙盒或设了 macos.entitlements 时还有 app.entitlements）
+zant sync             # 只重新生成 src/app_config.rs、Info.plist（沙盒或设了 macos.entitlements 时还有 app.entitlements）
 zant update           # 安装版：更新到最新发布包；源码版：git pull（工作区干净且有远程分支时）、
-                      # 检查依赖和 Zig 版本、重新编译 zant（Windows 上先把运行中的 zant.exe 改名为 zant.old.exe）
+                      # 检查依赖和 Rust 工具链、重新编译 zant
 ```
 
 `zant run` / `zant compile` 默认 Debug 构建（Windows 上是控制台程序）；`--release`、`zant package` 与 `zant build`
-用 ReleaseFast（Windows 为 GUI 子系统）。
+用 release profile（`zant package` / `zant build` 在 Windows 上为 GUI 子系统）。
 
 ## 热更新
 
@@ -127,9 +144,10 @@ zant run --watch
 
 监听：
 
-- `src/` 下所有 `.zig`、`.tsx`（任意深度）
+- `src/` 下所有 `.rs`、`.tsx`、`.ts`（任意深度）
+- `native/` 下的原生模块规范与实现
 - `app.config.json`
-- `build.zig`、`build.zig.zon`
+- `Cargo.toml`、`build.rs`
 
 TSX 编译错误会直接显示原始文件、行、列，不被应用的 macOS 日志过滤器隐藏。
 
@@ -146,14 +164,14 @@ TSX 编译错误会直接显示原始文件、行、列，不被应用的 macOS 
 zant package
 ```
 
-总是用 ReleaseFast 编译。
+总是用 release profile 编译。
 
-Windows：生成 `zig-out/<应用标题>/` 目录（`<应用标题>.exe`、`zant_skia.dll`、`pdfium.dll`、
+Windows：生成 `target/<应用标题>/` 目录（`<应用标题>.exe`、`pdfium.dll`、
 MSVC 运行库 `vcruntime140*.dll` / `msvcp140.dll`），GUI 子系统，压缩即可分发；不签名。
 exe 内带应用图标（`assets/icons/app-windows.png`）。项目和 Zant UI 不在同一个盘时，`zant create`
-用目录联接 `.zant/zant-ui` 引用 Zant UI（`build.zig.zon` 只接受相对路径）。
+用目录联接 `.zant/zant-ui` 引用 Zant UI（`Cargo.toml` 的 path 依赖只接受相对路径）。
 
-macOS：生成 `zig-out/<应用标题>.app`：
+macOS：生成 `target/<应用标题>.app`：
 
 - 读取应用标识（Bundle ID）、版本、窗口配置；缺少签名账号时先询问
 - 用 `assets/icons/app-macos.png` 生成 `AppIcon.icns`（见「图标」）
@@ -180,43 +198,47 @@ macOS：生成 `zig-out/<应用标题>.app`：
 | 文件 | 用途与规范 |
 |---|---|
 | `app-macos.png` | macOS 应用图标，1024×1024；苹果图标网格：主体 824×824 居中（四周留 100 px）、连续圆角、底部投影。`zant package` 生成 10 种尺寸的 `AppIcon.icns`；`zant run` 开发运行时显示在程序坞 |
-| `app-windows.png` | Windows 应用图标，256×256（正方形，至少 256）；铺满画布、不加投影、笔画加粗。编译时自动生成含 16、20、24、32、40、48、64、256 的 `.ico` 编进 exe（资管器图标、窗口与任务栏图标） |
+| `app-windows.png` | Windows 应用图标，256×256（正方形，至少 256）；铺满画布、不加投影、笔画加粗。编译时 `zant_build` 自动生成含 16、20、24、32、40、48、64、256 的 `.ico` 编进 exe（资管器图标、窗口与任务栏图标） |
 | `tray-dark.png` / `tray-light.png` | Windows 通知区域（托盘）图标，64×64，单色（白色给深色任务栏、黑色给浅色任务栏），同 Windows 11 系统托盘图标；按系统小图标尺寸缩放（100% 时 16 px，125–200% 时 20/24/32），任务栏切换深浅色时框架自动换图；实心形状、标志镂空，16 px 下依然清楚 |
 | `statusbar.png` | macOS 菜单栏（状态栏）图标，36×36（18 pt @2x），图形约 15 pt、线宽 1.5 pt（与菜单栏里的 SF Symbols 一致）；模板图：只用黑色 + 透明度，系统按深浅色菜单栏和高亮状态着色 |
 
-代码里用 `@embedFile` 按名字引用（不依赖运行时文件，打包后也可用）：
-`icon_app_macos`、`icon_app_windows`、`icon_tray_dark`、`icon_tray_light`、`icon_statusbar`，例如
-`zant.desktop.setTray(.{ .icon = if (zant.keys.is_macos) @embedFile("icon_statusbar") else @embedFile("icon_tray_dark"), .icon_light = if (zant.keys.is_macos) null else @embedFile("icon_tray_light"), .template = zant.keys.is_macos })`。
-这些由 Zant UI 的 `configureApp`（模板 `build.zig` 已调用）在文件存在时加入，测试代码也能引用。
-`assets/icons/` 里的每个 PNG 都按同样的规则加入：`icon_` 加文件名（`-` 换成 `_`），所以应用自己的图标
-（例如同步中的托盘图标 `statusbar-sync.png`）放进来就能 `@embedFile("icon_statusbar_sync")`。
+Rust 应用直接用 `include_bytes!` 引用：
+
+```rust
+const TRAY_DARK: &[u8] = include_bytes!("../assets/icons/tray-dark.png");
+```
+
+路径相对引用它的源文件（图标因此编进可执行文件，不依赖运行时文件）。Windows 的
+`.ico` 由 `zant_build` 在编译时生成，macOS 的 `.icns` 由 `zant package` 生成。
+
 PNG 要求 8 位、非隔行扫描（常见导出工具的默认格式）。
 
 ## 组件与状态示例
 
-生成项目包含完整的最小示例：
+生成的 TS 项目包含完整的最小示例（Rust + TSX）：
 
 ```text
-src/state.zig                   共享状态 AppState 与动作
-src/components/stat_card.zig    自定义展示组件（props）
-src/components/counter_card.zig 自定义子组件（props + 事件回调）
-src/components/dashboard.zig    自定义父组件（组合子组件）
-src/main.zig                    持有状态并渲染 dashboard
+src/App.tsx                  根组件，持有名称与点击次数
+src/components/Dashboard.tsx 自定义父组件（组合子组件，读取原生模块）
+src/components/StatCard.tsx   自定义展示组件（props）
+src/components/CounterCard.tsx 自定义子组件（props + 事件回调）
+native/system.ts             原生模块规范（平台、CPU、Rust 版本）
+native/system.rs             原生模块的 Rust 实现
 ```
 
 数据流：
 
 ```text
-main 持有 AppState
-  → dashboard 读取 state.clicks
-  → counter_card 接收 count / on_increment / on_reset
+App.tsx 持有 useState 状态
+  → Dashboard 读取 count
+  → CounterCard 接收 count / onIncrement / onReset
   → 子组件按钮触发回调
-  → AppState 修改
-  → Runtime 重绘所有读取该状态的组件
+  → App 的状态更新
+  → Runtime 重绘读取该状态的组件
 ```
 
 这是最简单的跨组件状态和事件传递方式。需要全局或异步状态时，再使用
-`zant.store.Store(T)`，见 [状态管理](state.md)。
+`createStore` / `useStore`，见 [状态管理](state.md)。
 
 ## AI Coding Agent 文件
 
@@ -225,7 +247,7 @@ main 持有 AppState
 - `DESIGN.md`：UI/UX 设计指导原则（与框架同一份），**优先级最高**：所有界面与交互的设计、
   实现和评审都必须遵循它，与其他约定冲突时以它为准。
 - `AGENTS.md`：开头声明 DESIGN.md 的最高优先级；之后是项目介绍、目录、命令、状态与组件
-  规范（通用组件用框架 `ui.*`，应用只写业务组件）、沙盒/签名规则。
+  规范（通用组件用框架 `ui.*`，应用只写业务组件）、原生模块、沙盒/签名规则。
 - `CLAUDE.md`：Claude Code 入口，同样先声明 DESIGN.md，再引用 `AGENTS.md`。
 
 这些文件让 Codex / Claude Code 在修改项目前先理解约定，减少误改。

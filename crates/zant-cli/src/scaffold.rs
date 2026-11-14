@@ -4,14 +4,18 @@
 use crate::project::Language;
 use std::path::Path;
 
-/// The template `zant create` copies for a Zig project. WP-6.3 removes this
-/// pure-Zig template and keeps only the TS one; until then create keeps both
-/// languages selectable.
+/// The legacy pure-Zig template (`--lang zig`). It is only kept so the old
+/// language stays selectable until M8 (plan.md): the CLI builds apps with
+/// `cargo build` since WP-6.1, so a Zig-template project does not compile
+/// any more. WP-6.3 does not delete it because `scripts/tsx/create-smoke.sh`
+/// and the Windows scaffold check still reference it; removing it is M8
+/// cleanup.
 pub const TEMPLATE_ZIG: &str = "scaffold/template";
 
-/// The TSX template. It is still the Zig-build template in this worktree
-/// (build.zig + native/*.zig); WP-6.3 replaces it with a Cargo.toml + build.rs
-/// template, so this path constant is the only thing `create` needs to change.
+/// The TSX template: a Rust application (`Cargo.toml` + `build.rs` +
+/// `rust-toolchain.toml`). `src/` holds only TS/TSX, `native/` the Rust native
+/// modules, and `zant_build::tsx_app()` (WP-6.2) compiles the TSX in `build.rs`.
+/// This is the default (and future only) `zant create` template.
 pub const TEMPLATE_TS: &str = "scaffold/template-ts";
 
 /// The template directory of a language (the constant a later WP updates).
@@ -36,11 +40,11 @@ pub struct Options {
 pub fn write(options: &Options) -> std::io::Result<()> {
     let source = Path::new(&options.framework).join(template_dir(options.language));
     copy_tree(&source, Path::new(&options.target), options, true)?;
-    // Both languages ship the same editable icons and design rules.
     if options.language == Language::Ts {
-        let icons = Path::new(&options.framework).join("scaffold/template/assets");
-        let assets = Path::new(&options.target).join("assets");
-        copy_tree(&icons, &assets, options, false)?;
+        // The TSX template ships its own icons (`assets/`), and both
+        // languages show the same design rules, so only DESIGN.md is shared
+        // with the Zig template. The editor type declarations of the `zant`
+        // module are the same file the TSX compiler uses.
         let design = Path::new(&options.framework).join("scaffold/template/DESIGN.md");
         let dest = Path::new(&options.target).join("DESIGN.md");
         let data = crate::read_file(&design)?;
@@ -218,17 +222,105 @@ mod tests {
     }
 
     #[test]
-    fn copies_the_ts_template_with_shared_assets_and_types() {
+    fn copies_the_rust_ts_template_and_substitutes_metadata() {
         let dir = temp_dir("scaffold-ts");
         let target = dir.join("my-ts-app");
         write(&options(&target, Language::Ts)).expect("scaffold");
-        assert!(target.join("src/App.tsx").is_file());
-        assert!(target.join("zant.d.ts").is_file());
-        assert!(target.join("DESIGN.md").is_file());
-        assert!(target.join("assets/icons/app-windows.png").is_file());
+        // A complete Rust application: Cargo manifest + build script, the TSX
+        // sources, the Rust native modules and the shared icons / types.
+        for file in [
+            "Cargo.toml",
+            "build.rs",
+            "rust-toolchain.toml",
+            ".gitignore",
+            "src/main.rs",
+            "src/App.tsx",
+            "src/components/Dashboard.tsx",
+            "native/lib.rs",
+            "native/system.rs",
+            "native/system.ts",
+            "assets/icons/app-macos.png",
+            "assets/icons/tray-dark.png",
+            "zant.d.ts",
+            "DESIGN.md",
+        ] {
+            assert!(target.join(file).is_file(), "{file} missing");
+        }
+        // The Zig build files are gone from the TS template.
+        for file in [
+            "build.zig",
+            "build.zig.zon",
+            "src/main.zig",
+            "native/lib.zig",
+            "native/system.zig",
+        ] {
+            assert!(!target.join(file).exists(), "{file} should not be copied");
+        }
+        // app.config.json is written by create, not copied from the template
         assert!(!target.join("app.config.json").exists());
-        // TSX string literals get JSON-escaped titles.
+        let manifest = std::fs::read_to_string(target.join("Cargo.toml")).expect("Cargo.toml");
+        assert!(manifest.contains("name = \"my_app\""), "{manifest}");
+        assert!(
+            manifest.contains("path = \"../zant-ui/crates/zant\""),
+            "{manifest}"
+        );
+        assert!(
+            manifest.contains("path = \"../zant-ui/crates/zant-build\""),
+            "{manifest}"
+        );
+        assert!(manifest.contains("[workspace]"), "{manifest}");
+        let build_rs = std::fs::read_to_string(target.join("build.rs")).expect("build.rs");
+        assert!(build_rs.contains("zant_build::tsx_app()"), "{build_rs}");
+        let main = std::fs::read_to_string(target.join("src/main.rs")).expect("main.rs");
+        assert!(
+            main.contains("include!(concat!(env!(\"OUT_DIR\"), \"/app.rs\"))"),
+            "{main}"
+        );
+        assert!(main.contains("app_config::window"), "{main}");
+        let readme = std::fs::read_to_string(target.join("README.md")).expect("readme");
+        assert!(readme.contains("com.acme.myapp"), "{readme}");
+        assert!(readme.contains("My \"App\""), "{readme}");
+        // Only substitutes in text files, not in the binary icon assets.
+        let icon = std::fs::read(target.join("assets/icons/app-macos.png")).expect("icon");
+        let original = std::fs::read(
+            Path::new(&repo_root()).join("scaffold/template-ts/assets/icons/app-macos.png"),
+        )
+        .expect("original icon");
+        assert_eq!(icon, original);
+        // TSX string literals get JSON-escaped titles; hidden-titlebar
+        // projects get the title-bar padding.
         let app = std::fs::read_to_string(target.join("src/App.tsx")).expect("App.tsx");
         assert!(app.contains("My \\\"App\\\""), "{app}");
+        assert!(app.contains("top: 56"), "{app}");
+        assert_no_placeholders(&target);
+    }
+
+    /// No `zant create` placeholder may survive in a generated project.
+    fn assert_no_placeholders(dir: &Path) {
+        let mut pending = vec![dir.to_path_buf()];
+        while let Some(path) = pending.pop() {
+            for entry in std::fs::read_dir(&path).expect("read dir") {
+                let entry = entry.expect("dir entry");
+                let path = entry.path();
+                if path.is_dir() {
+                    pending.push(path);
+                    continue;
+                }
+                let data = std::fs::read(&path).expect("read file");
+                for needle in [
+                    "__APP_NAME_SNAKE__",
+                    "__APP_FINGERPRINT__",
+                    "__ZANT_PATH__",
+                    "__APP_TITLE__",
+                    "__BUNDLE_ID__",
+                    "__TOP_PADDING__",
+                ] {
+                    let found = data
+                        .windows(needle.len())
+                        .any(|window| window == needle.as_bytes());
+                    assert!(!found, "{} still contains {needle}", path.display());
+                }
+            }
+        }
     }
 }

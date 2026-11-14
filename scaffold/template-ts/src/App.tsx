@@ -1,7 +1,7 @@
 import { useState, useTheme, View, Heading, Paragraph, Input, Text } from "zant";
 import { Dashboard } from "./components/Dashboard";
 
-// 状态只有一个来源；子组件通过回调发事件。
+// 状态只有一个来源；子组件通过回调发事件。TSX 在编译期转成 Rust。
 export default function App() {
   const [name, setName] = useState("__APP_TITLE__");
   const [clicks, setClicks] = useState(0);
