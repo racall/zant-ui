@@ -7,8 +7,7 @@ use zant::core::node::NodeData;
 use zant::renderer::renderer::Renderer;
 use zant::runtime::Runtime;
 use zant::theme::tokens;
-use zant::ui::BoxOptions;
-use zant_examples::components_app::pdf_viewer::{PdfViewerOptions, pdf_viewer};
+use zant::ui::{BoxOptions, PdfViewerOptions, pdf_viewer};
 use zant_examples::components_app::{ComponentsApp, run_options};
 
 const WIDTH: f32 = 1100.0;
