@@ -79,7 +79,7 @@
 
 | WP | 内容 | 负责人 | 状态 | 备注 |
 |---|---|---|---|---|
-| 4.1 | lexer、ast、jsx_text、jsx_entities | agent-8 | 待领取 | |
+| 4.1 | lexer、ast、jsx_text、jsx_entities | wp-4-1 | 完成 | `rust/wp-4.1`；10/10 Rust 测试（Zig 可移植 10 个）；AST 字符串用 `Vec<u8>`（见待决问题）；`jsx_entities_test.zig` 另 2 个依赖 parser/compile 的测试待 4.2/4.3 补 |
 | 4.2 | parser、expr_parser、jsx_parser、type_parser、loop_parser、import_parser、react_compat | — | 待领取 | 依赖 4.1 |
 | 4.3 | hooks/{expand,rewrite,resolve,leftover} | — | 待领取 | 依赖 4.2 |
 | 4.4 | tags、tag_aliases、string_method_names、诊断 | — | 待领取 | |
@@ -128,7 +128,12 @@
 
 > 执行者遇到计划没写清的设计问题，登记在这里并停下来等负责人裁定，不要自行发明方案。
 
-（暂无）
+- **AST 字符串表示（WP-4.1，待 lead 裁定）**：`ast.zig` 的 `[]const u8` 在 Rust 里一律映射为 `Vec<u8>`。
+  原因：解码后的 JS 字符串、模板 quasis 和 JSX 文本可能是 WTF-8（孤立代理项 `&#xD800;`、`\xFF` 转义），
+  Rust `String` 无法表示，而 `jsx_entities_test.zig` / M4 的 AST dump 要求逐字节一致。
+  代价：WP-4.2 构造 AST 时源码切片用 `.as_bytes().to_vec()`，诊断格式化用 `String::from_utf8_lossy`。
+  候选：① 保持 `Vec<u8>`（推荐，已实现）；② 统一 `String`，解码时把非法字节替换为 U+FFFD（偏离 Zig 测试与 dump 对照）；
+  ③ 在 `zant-tsx` 内引入 `Wtf8Str` 包装类型（更贴合语义，但新增类型、WP-4.2+ 都要跟着改）。
 
 ## Zig 变更日志
 
