@@ -175,9 +175,12 @@ fn project(out_dir: &str, rest: &[String]) -> ExitCode {
         entry: None,
         assets: compiled.assets,
         dep_file: dep_source,
+        // `native/*.ts` specs (WP-5.8): one combined `spec.rs` in the output
+        // directory, like the Zig compiler's `spec.zig`.
+        spec_root: compiled.spec_root,
     };
     for (index, file) in files.iter().enumerate() {
-        if file.is_rust() {
+        if file.is_rust() || file.native {
             continue;
         }
         output.files.push(compile::OutputFile {

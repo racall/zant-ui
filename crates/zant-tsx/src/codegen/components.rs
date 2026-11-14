@@ -756,13 +756,19 @@ pub fn emit_call(
         None
     };
     let builder = component.builder.clone();
+    // The props argument is the props struct of the target module, not the
+    // component struct: a child component's `pub type Props = <Name>Props`
+    // (or the unit `Props` when it takes no parameter). The resolved type is
+    // already the right path in either module (`DashboardProps` at home,
+    // `crate::dashboard::DashboardProps` across files), so the call site does
+    // not depend on the alias.
+    let props = match component.props {
+        Some(ty) => format!("{} {{\n{}}}", ty.rust(g), parts.join("")),
+        None => "Default::default()".to_owned(),
+    };
     let mut node = match id {
-        Some(id) => format!(
-            "{builder}({} {{\n{}}}, {id})",
-            component.name,
-            parts.join("")
-        ),
-        None => format!("{builder}({} {{\n{}}})", component.name, parts.join("")),
+        Some(id) => format!("{builder}({props}, {id})"),
+        None => format!("{builder}({props})"),
     };
     if let Some(key) = key {
         node = format!("ui::with_key({node}, {key})");

@@ -92,8 +92,9 @@ src/main.rs                 入口：include 生成的组件树、注册原生�
 src/app_config.rs           由 zant 从 app.config.json 生成，不要手改
 native/<名字>.ts            原生模块的规范（类型 + export declare function）
 native/<名字>.rs            原生模块的 Rust 实现
-native/lib.rs               原生模块清单与注册
-build.rs                    zant_build::tsx_app()：TSX → OUT_DIR/app.rs
+native/lib.rs               原生模块清单与注册（含 `pub mod spec;`）
+native/spec.rs              由 build.rs 生成（native/*.ts 的类型与 trait），已 gitignore，不要手改
+build.rs                    zant_build::tsx_app()：TSX → OUT_DIR，native/*.ts → native/spec.rs
 Cargo.toml                  单个 Cargo package；zant / zant-build 是相对路径依赖
 rust-toolchain.toml         stable 工具链
 assets/icons/               默认图标
@@ -230,8 +231,9 @@ src/components/Dashboard.tsx 自定义父组件（组合子组件，读取原生
 src/components/StatCard.tsx   自定义展示组件（props）
 src/components/CounterCard.tsx 自定义子组件（props + 事件回调）
 native/system.ts             原生模块规范（平台、CPU、Rust 版本）
-native/system.rs             原生模块的 Rust 实现
-native/lib.rs                原生模块清单与注册
+native/system.rs             原生模块的 Rust 实现（impl SystemSpec for Native）
+native/lib.rs                原生模块清单与注册（含 `pub mod spec;`）
+native/spec.rs               由 build.rs 从 native/*.ts 生成，已 gitignore
 ```
 
 数据流：

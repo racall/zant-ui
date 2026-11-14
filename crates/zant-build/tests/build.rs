@@ -392,3 +392,92 @@ fn a_project_without_the_generated_config_warns_about_zant_sync() {
     let _ = std::fs::remove_dir_all(&root);
     let _ = std::fs::remove_dir_all(&out);
 }
+
+// ── native module specs (WP-5.8) ───────────────────────────────────────
+
+/// The fixture app plus one `native/*.ts` spec, in a temp directory.
+fn app_with_native_spec(prefix: &str) -> PathBuf {
+    let root = temp_dir(prefix);
+    copy_tree(&fixture_root(), &root);
+    std::fs::write(
+        root.join("native/clip.ts"),
+        "export interface Clip { row: number; preview: string }\n\
+         export declare function list(query: string): Clip[];\n",
+    )
+    .expect("native/clip.ts");
+    root
+}
+
+#[test]
+fn native_specs_become_the_apps_generated_spec_module() {
+    let root = app_with_native_spec("native-spec");
+    let out = temp_dir("native-spec-out");
+    let report = zant_build::tsx_app_in(&root, &out).expect("compile the app");
+
+    // One combined `native/spec.rs` is written into the app (next to the
+    // handwritten `native/<name>.rs` implementations), not into `$OUT_DIR`:
+    // the app declares `pub mod spec;` in `native/lib.rs`.
+    let spec_path = report.spec_module.clone().expect("the spec module path");
+    assert_eq!(root.join("native/spec.rs"), spec_path);
+    let spec = read(&spec_path);
+    assert!(spec.contains("pub mod clip"), "{spec}");
+    assert!(spec.contains("pub struct Clip"), "{spec}");
+    assert!(spec.contains("pub trait ClipSpec"), "{spec}");
+    assert!(
+        spec.contains("fn list(query: zant::Str) -> tsx::List<Clip>;"),
+        "{spec}"
+    );
+    assert!(spec.contains("use zant::tsx;"), "{spec}");
+    parse(&spec, "native/spec.rs");
+
+    // The module list is the .tsx modules only: `native/spec.rs` is declared
+    // by `native/lib.rs`, and no per-spec generated file remains in OUT_DIR.
+    let entry = read(&out.join("main.rs"));
+    assert!(!entry.contains("spec"), "{entry}");
+    assert!(
+        !report.outputs.iter().any(|output| output
+            .file_name()
+            .is_some_and(|name| name.to_string_lossy().starts_with("_spec_"))),
+        "{:?}",
+        report.outputs
+    );
+
+    // The spec is a compiler input (rerun and diagnostics) and the generated
+    // file is in the rerun set so deleting it rebuilds the app.
+    assert!(
+        report
+            .sources
+            .iter()
+            .any(|source| source == Path::new("native/clip.ts")),
+        "{:?}",
+        report.sources
+    );
+    let directives = zant_build::cargo_directives(&report, &root);
+    assert!(
+        directives
+            .iter()
+            .any(|line| line.contains(&spec_path.display().to_string())),
+        "{directives:?}"
+    );
+
+    // The write is idempotent in content: a stale file is regenerated, and a
+    // second build reproduces the same bytes.
+    std::fs::write(&spec_path, "stale").expect("stale spec");
+    zant_build::tsx_app_in(&root, &out).expect("second build");
+    assert_eq!(read(&spec_path), spec);
+
+    let _ = std::fs::remove_dir_all(&root);
+    let _ = std::fs::remove_dir_all(&out);
+}
+
+#[test]
+fn an_app_without_native_specs_gets_no_spec_module() {
+    let root = temp_dir("no-native-spec");
+    copy_tree(&fixture_root(), &root);
+    let out = temp_dir("no-native-spec-out");
+    let report = zant_build::tsx_app_in(&root, &out).expect("compile the app");
+    assert!(report.spec_module.is_none(), "{:?}", report.spec_module);
+    assert!(!root.join("native/spec.rs").exists());
+    let _ = std::fs::remove_dir_all(&root);
+    let _ = std::fs::remove_dir_all(&out);
+}

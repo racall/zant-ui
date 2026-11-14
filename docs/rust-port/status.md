@@ -490,6 +490,42 @@ Release、窗口模式（Metal），`ZANT_FRAME_STATS=1 ZANT_STREAM_CHARS=6 ZANT
    `zant-gallery` 的 Zig 基线不写 `layout.txt`（imperative 树没有 key），`compare.sh zant-gallery`
    在 capture 阶段就失败；与 3.11 无关，留给 lead 决定是否给 gallery 加 key 或换对照方式。
 
+## WP-E2E 记录（2026-11-14，`rust/wp-e2e-tsx`）
+
+模板应用（`scaffold/template-ts`）现在端到端可编译并运行：
+`./scripts/tsx/build-template-check.sh` 通过（`cargo build` + `ZANT_SNAPSHOT` 快照），
+`./scripts/tsx/build-check.sh`（WP-6.2 fixture）保持通过。本 WP 的设计决定（按 Zig 行为取最接近者）：
+
+1. **`native/spec.rs` 的落点**：`zant-tsx` 的 `GeneratedProject::spec_root` 产出合并后的 spec 根
+   （`native_specs::spec_root`；`compile_project` 在解析完 spec 后生成）。`zant-build` 把它写进
+   **`<app>/native/spec.rs`**，模板的 `native/lib.rs` 声明 `pub mod spec;`，模板 `.gitignore` 忽略它。
+   写文件是幂等的（内容相同不重写），并加进 `rerun-if-changed`，这样删掉生成文件也会重建而不是
+   `pub mod spec;` 报错；`$OUT_DIR` 里不再写每 spec 一个 `_spec_<名字>.rs`。`zant-tsx --out` 把同一份
+   内容写成 `<out>/spec.rs`（Zig 的 `spec.zig` 行为）。选择写进应用而不是 `OUT_DIR` + `include!`：
+   与模板/文档里的 `native/spec.rs` 名称、以及 IDE 里的模块跳转一致；代价是 build.rs 会写源码树
+   （与 `zant sync` 生成 `src/app_config.rs` 同类）。
+2. **跨文件组件调用**：调用点是 `crate::<模块>::<组件>::build(<props 结构体>)`，props 结构体用解析后的
+   类型路径（`crate::<模块>::<Name>Props`；无 props 时传 `Default::default()`），不再用组件结构体
+   `Component { … }` 当字面量。每模块仍生成 `pub type Props = <Name>Props;`（`build` 的签名用它），
+   但跨文件调用不依赖这个别名，同一文件多个组件时不会撞名。
+3. **子组件回调 prop**：props 字段类型是 `ui::*Action` 族；默认值从 `std::rc::Rc::new(|| ())` 改成匹配的
+   构造器（`ui::Action::new(|_| ())` / `ui::TextAction::new(|_, _| ())` …，见 `model::callback_default`）。
+   根组件给子组件回调 prop 的内联箭头仍用 `ui::action(|s: &mut App| …)`（`generate::action_value` 的
+   根状态形态）；转发自己的回调 prop 时直接 clone（`self.props.x.clone()`）。子组件为自己的局部状态
+   生成的内联箭头仍走 `ActionCx` + `Weak<RefCell<Child>>` 形态（`ActionCx` 不暴露局部状态，
+   WP-5.5 待决问题 2 的语义缺口仍在，模板未用到）。
+4. **`zant::theme::Theme`**：`crates/zant/src/theme/mod.rs` 增加 `pub use tokens::Theme;`
+   （`useTheme()` 生成的 `let theme: zant::theme::Theme` 需要它）。
+5. **生成代码的 lint**：`HEADER_ALLOWS` 增加 `#![allow(non_snake_case)]`（TSX 的 camelCase props /
+   handler 名本来就不合法）；`native_specs` 只在确实生成 `tsx::List` 等类型时才写 `use zant::tsx;`；
+   根状态回调的 `ui::action` 不再套多余的 `{ … }`（去掉 `unused_braces`）。
+6. **剩余告警**：模板构建只剩 `src/app_config.rs` 里 `version` / `sandbox` / `signing_identity`
+   三个 `dead_code` 告警。该文件由 `zant-cli` 的 `app_config::source` 生成，正确修法是给这几个常量加
+   `#[allow(dead_code)]`（属 `crates/zant-cli`，不在本 WP 范围）；模板 `src/main.rs` 暂以
+   `let _ = (…)` 引用它们保持新项目零告警。
+7. **Windows**：本机不可达，未验证；新增代码只有平台无关的路径/文件写入，
+   `#[cfg(windows)]` 分支未改动。
+
 ## Zig 变更日志
 
 > Zig 版冻结功能开发，只修 bug；每一条都要同步到已移植的 Rust 模块。

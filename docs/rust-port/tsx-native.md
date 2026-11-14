@@ -182,8 +182,10 @@ native/clips.ts:1:60: error: name an object type the Rust side uses: `export typ
 | `app_spec_path` / `app_trait_path` / `app_impl_path` / `app_type_path` | 生成代码里的路径：`crate::native::spec::clips`、`…::clips::ClipsSpec`、`crate::native::clips::Native`、`…::clips::ListEntry` |
 
 `native/spec.rs` 的模块路径固定为 `crate::native::spec::<module_ident>`，
-实现模块固定为 `crate::native::<module_ident>`；`native/lib.rs`（模块清单）与
-`native/spec.rs` 的写入由 WP-5.6 的 `compile` / `entry` 接。
+实现模块固定为 `crate::native::<module_ident>`；`native/lib.rs`（模块清单）由应用写，
+`native/spec.rs` 由 WP-6.2 的 `zant_build::tsx_app()` 写进应用的 `native/` 目录
+（`GeneratedProject::spec_root`，内容不变时不重写；模板已 gitignore，`native/lib.rs` 声明
+`pub mod spec;`）。`zant-tsx --out` 则把同一份内容写成输出目录里的 `spec.rs`（Zig 的 `spec.zig`）。
 
 ## 与 Zig 版的差异
 
@@ -208,6 +210,7 @@ native/clips.ts:1:60: error: name an object type the Rust side uses: `export typ
 
 ## 构建与测试
 
-`zant-tsx` 生成 `native/spec.rs` 后由应用的 `build.rs` / `zant-build` 写进 `OUT_DIR`
-（WP-6.2）；`zant run --watch` 监视 `native/` 下的 `.ts` / `.rs`（WP-6.1）。
+`zant-tsx` 生成 `native/spec.rs` 的内容后，应用的 `build.rs`（`zant_build::tsx_app()`）
+把它写进 `<app>/native/spec.rs`；应用把它当普通模块编译（`native/lib.rs` 的 `pub mod spec;`），
+不进 `$OUT_DIR`，也不提交到 git。`zant run --watch` 监视 `native/` 下的 `.ts` / `.rs`（WP-6.1）。
 `cargo test -p zant-tsx` 覆盖生成器本身。

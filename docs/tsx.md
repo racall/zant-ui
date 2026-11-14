@@ -82,16 +82,24 @@ zant-tsx --out <目录> a.tsx b.tsx …    # 多文件项目（每个 .tsx 一�
 ```
 
 **整个应用用 TS + TSX 写**时由应用的 `build.rs` 调用 `zant_build::tsx_app()`：
-`src/**/*.tsx` 编译进 `$OUT_DIR/app.rs`，`src/main.rs` 用 `include!` 引入；图标、Windows manifest、
-`pdfium.dll` 也在这一步处理，并打印 `cargo:rerun-if-changed`（`.tsx`、`native/`、`app.config.json`）。
+`src/**/*.tsx` 生成到 `$OUT_DIR`（每个文件一个 `<文件名>.rs`，另写成 `main.rs` 声明这些模块的
+`#[path] mod …;`），`src/main.rs` 在 crate 根 `include!` 那个 `main.rs`，所以
+`src/App.tsx` 就是 `crate::app`。`native/*.ts` 规范生成 `native/spec.rs`（写进应用的 `native/` 目录，
+生成文件、已 gitignore；`native/lib.rs` 声明 `pub mod spec;`），TSX 里的 `native/<名字>` 调用编译成
+对 `native/<名字>.rs` 实现的 trait 方法调用。图标、Windows manifest、`pdfium.dll` 也在这一步处理，
+并打印 `cargo:rerun-if-changed`（`.tsx`、`native/`、`app.config.json`）。
 窗口标题、尺寸等配置来自 `app.config.json`（`zant` 生成 `src/app_config.rs`），项目里不用手写入口。
 主题默认跟随系统，`ZANT_THEME=light|dark` 可以固定。
 
 ```rust
 // src/main.rs（模板生成，通常不用改）
-mod app {
-    include!(concat!(env!("OUT_DIR"), "/app.rs"));
-}
+mod app_config;
+
+#[path = "../native/lib.rs"]
+mod native;
+
+// 每个 src/**/*.tsx 一个模块（`crate::app` 是根组件），外加 `native/spec.rs`。
+include!(concat!(env!("OUT_DIR"), "/main.rs"));
 
 fn main() -> zant::Result<()> {
     native::register();
@@ -99,7 +107,8 @@ fn main() -> zant::Result<()> {
         title: app_config::title.to_string(),
         window: app_config::window,
         bundle_id: app_config::bundle_id.to_string(),
-        ..Default::default()
+        single_instance: app_config::single_instance,
+        watch_clipboard: false,
     })
 }
 ```
@@ -110,10 +119,6 @@ fn main() {
     zant_build::tsx_app();
 }
 ```
-
-> **迁移中（WP-6.2）**：`zant_build::tsx_app()` 目前只有接口说明，尚未实现；`zant-tsx` 的
-> 应用层（`main.rs` 入口生成、imports、assets）与 CLI 在 WP-5.6 合入。在那之前 TSX 应用还不能
-> 端到端编译，`zant create` / `zant sync` 生成的模板已经按这个接口写好。
 
 ### 新建 TS 项目
 

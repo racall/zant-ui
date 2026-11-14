@@ -116,6 +116,11 @@ impl std::error::Error for ProjectError {}
 pub struct GeneratedProject {
     pub outputs: Vec<String>,
     pub assets: Vec<crate::assets::Asset>,
+    /// The combined `native/spec.rs` (WP-5.8): one `pub mod` per
+    /// `native/*.ts` spec, or `None` when the project has no native specs.
+    /// The build writes it next to the app's `native/` modules; its module
+    /// path is `crate::native::spec::<name>`.
+    pub spec_root: Option<String>,
 }
 
 /// Parse, expand custom hooks and generate one file (Zig `compile.compile`).
@@ -323,8 +328,45 @@ pub fn compile_project_with(
             }
         }
     }
+    // The combined `native/spec.rs` root of the project's specs (WP-5.8). The
+    // per-spec outputs above stay available, but the app consumes this one
+    // file as the `native::spec` module.
+    let specs: Vec<crate::native_specs::Spec<'_>> = project
+        .modules
+        .iter()
+        .filter(|module| module.native)
+        .map(|module| crate::native_specs::Spec {
+            name: module.name.as_str(),
+            module: &module.module,
+        })
+        .collect();
+    let spec_root = if specs.is_empty() {
+        None
+    } else {
+        let mut spec_diag: Option<Diag> = None;
+        match crate::native_specs::spec_root(&specs, &mut spec_diag) {
+            Ok(source) => Some(source),
+            Err(_) => {
+                let diag = spec_diag.unwrap_or(Diag {
+                    loc: 0,
+                    msg: "native module spec error".to_owned(),
+                });
+                let file = project
+                    .modules
+                    .iter()
+                    .position(|module| module.native)
+                    .map(|module_index| file_of_module[module_index])
+                    .unwrap_or(0);
+                return Err(ProjectError { file, diag });
+            }
+        }
+    };
     let assets = project.assets.borrow().clone();
-    Ok(GeneratedProject { outputs, assets })
+    Ok(GeneratedProject {
+        outputs,
+        assets,
+        spec_root,
+    })
 }
 
 /// The output file name of an input (used by the build and the CLI).
@@ -561,6 +603,11 @@ pub fn compile_project_root_with(
             // copy would collide with them
             continue;
         }
+        if file.native {
+            // the specs are one generated `spec.rs` (`BuildOutput::write`),
+            // not one file each
+            continue;
+        }
         output.push(OutputFile {
             name: file.output_name(),
             source: compiled.outputs[index].clone(),
@@ -577,6 +624,7 @@ pub fn compile_project_root_with(
         entry,
         assets: compiled.assets,
         dep_file,
+        spec_root: compiled.spec_root,
     })
 }
 
@@ -599,6 +647,11 @@ pub struct BuildOutput {
     /// Asset imports: copy each `from` to `<out>/<key>`.
     pub assets: Vec<crate::assets::Asset>,
     pub dep_file: Option<String>,
+    /// The combined `native/spec.rs` of the project's `native/*.ts` specs
+    /// (WP-5.8). Written as `spec.rs` in the output directory, like the Zig
+    /// compiler's `spec.zig`; the app's `native/lib.rs` consumes the file that
+    /// `zant-build` writes into its `native/` directory instead.
+    pub spec_root: Option<String>,
 }
 
 impl BuildOutput {
@@ -619,6 +672,9 @@ impl BuildOutput {
         }
         if let Some(entry) = &self.entry {
             std::fs::write(format!("{out}/main.rs"), entry)?;
+        }
+        if let Some(spec_root) = &self.spec_root {
+            std::fs::write(format!("{out}/spec.rs"), spec_root)?;
         }
         if let (Some(dep), Some(dep_file)) = (dep, &self.dep_file) {
             if let Some(parent) = std::path::Path::new(dep).parent()

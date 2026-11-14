@@ -217,6 +217,33 @@ fn model_optional_child_is_none(g: &Generator<'_>, ty: Type) -> bool {
     info(g, ty).is_some_and(|entry| entry.kind == InfoKind::Optional)
 }
 
+/// The no-op default of a callback field: `Rc<dyn Fn(..)>` takes a closure
+/// with the callback's parameter types; the `ui::*Action` family has no
+/// `Default`, so it takes its own constructor (`ui::Action::new(|_| ())`),
+/// whose closure receives the action context plus the event value.
+fn callback_default(g: &mut Generator<'_>, ty: Type, params: &[Type]) -> String {
+    let base = optional_child(g, ty).unwrap_or(ty);
+    let rust = info(g, base)
+        .map(|entry| entry.rust.clone())
+        .unwrap_or_default();
+    let arity = match rust.as_str() {
+        "ui::Action" => 1,
+        "ui::TextAction" | "ui::BoolAction" | "ui::IndexAction" | "ui::HotkeyAction" => 2,
+        _ => params.len(),
+    };
+    let arguments = vec!["_"; arity].join(", ");
+    if rust.starts_with("ui::") {
+        format!("{rust}::new(|{arguments}| ())")
+    } else {
+        let arguments = params
+            .iter()
+            .map(|ty| format!("_: {}", ty.rust(g)))
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!("std::rc::Rc::new(|{arguments}| ())")
+    }
+}
+
 pub fn owned(g: &Generator<'_>, ty: Type) -> bool {
     let Some(entry) = info(g, ty) else {
         return false;
@@ -343,14 +370,7 @@ fn object(g: &mut Generator<'_>, fields: &[ast::TypeField], name: Option<&[u8]>)
                     let _ = params;
                     "None".to_owned()
                 }
-                Some(params) => {
-                    let args = params
-                        .iter()
-                        .map(|ty| format!("_: {}", ty.rust(g)))
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    format!("std::rc::Rc::new(|{args}| ())")
-                }
+                Some(params) => callback_default(g, field.ty, &params),
                 None => "Default::default()".to_owned(),
             };
             defaults.push_str(&format!("            {field_name}: {default},\n"));
