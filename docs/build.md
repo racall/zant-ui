@@ -8,7 +8,7 @@ zant build release/ci.json      # 指定配置文件
 zant build --yes                # 不提问（CI 用；设置了环境变量 CI 时也不提问）
 ```
 
-结果放在 `zig-out/dist/`。只想编译用 `zant compile [--release]`，本机测试用的 .app / 程序目录用
+结果放在 `target/dist/`。只想编译用 `zant compile [--release]`，本机测试用的 .app / 程序目录用
 `zant package`。
 
 | 平台 | 发布方式（`distribution`） | 结果 |
@@ -279,7 +279,7 @@ Mac App Store 要求 App Sandbox。`app-store` 方式总是带上沙盒权限，
 密码放在环境变量里；交互运行时变量没设置就在终端里询问（不显示、不保存）。签名命令经过 cmd 传递
 密码，所以**密码里不要有 `& | < > ^ %` 这些字符**。
 
-zant 签 exe、`zant_skia.dll`、`pdfium.dll`，安装包和卸载程序由 Inno Setup 调用同一个证书签名，都带时间戳
+zant 签 exe 和 `pdfium.dll`（Rust 版把 Skia 桥接静态链接进 exe，没有 `zant_skia.dll` 了），安装包和卸载程序由 Inno Setup 调用同一个证书签名，都带时间戳
 （证书过期后签名仍然有效）。签名工具 signtool 来自 Windows SDK（Visual Studio 的 C++ 工作负载自带），
 找不到时用环境变量 `ZANT_SIGNTOOL` 指定。
 
@@ -384,7 +384,7 @@ base64 -i AuthKey_XXXXXXXXXX.p8 | pbcopy  # .p8 也可以直接粘贴原文
 ```
 
 ```yaml
-# GitHub Actions：在装好 Zig 并构建好 Zant UI（zant 在 PATH 上）之后
+# GitHub Actions：在装好 Rust（rust-toolchain.toml 固定的工具链）并构建好 Zant UI（zant 在 PATH 上）之后
 - name: Release build (macOS)
   run: zant build build.config.json --yes
   env:
@@ -396,13 +396,13 @@ base64 -i AuthKey_XXXXXXXXXX.p8 | pbcopy  # .p8 也可以直接粘贴原文
 - uses: actions/upload-artifact@v4
   with:
     name: dist
-    path: zig-out/dist/
+    path: target/dist/
 ```
 
 Windows 的步骤相同，环境变量换成 `WIN_PFX_BASE64`、`WIN_PFX_PASSWORD`；要做安装包时先安装 Inno Setup
 （`winget install --id JRSoftware.InnoSetup -e`，或用 `ZANT_ISCC` 指向已有的 ISCC.exe）。
 
-从环境变量得到的 .p8 / .p12 / .pfx 内容临时写在 `zig-out/build/`（macOS 上只有当前用户可读），构建结束
+从环境变量得到的 .p8 / .p12 / .pfx 内容临时写在 `target/build/`（macOS 上只有当前用户可读），构建结束
 或出错时删除；macOS 的临时钥匙串也一样，并恢复原来的钥匙串列表。
 
 ## 常见问题

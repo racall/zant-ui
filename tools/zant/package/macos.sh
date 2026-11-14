@@ -1,6 +1,7 @@
 #!/bin/bash
 # macOS release steps run by `zant build` after it has built and signed
-# zig-out/<title>.app. zant asks for and resolves the settings
+# target/<title>.app from target/release/<name> (Zig: zig-out/<title>.app).
+# zant asks for and resolves the settings
 # (build.config.json, the keychain, environment variables) and passes them
 # here as ZANT_* environment variables; secrets never appear on a command
 # line or in the log.
