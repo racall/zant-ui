@@ -64,8 +64,8 @@
 | 2.2 | toggle、select、image + select 弹层、tooltip | wp-2-2 | 完成（已并入），runtime 接线待 1.4 | 32 个测试（含 raster 像素断言）；`Image::draw_rect` 已加；select/tooltip 的浮层生命周期、image load 调用点在 1.4 |
 | 2.3 | ui.zig 其余构建器、core/icons | wp-2-3a + wp-2-3b | 完成（已并入） | icons + 30 个 builder（builders/ 拆 8 个文件）；53 个 builder 测试；`ui.icon` 与 Zig 一样生成 Vector 节点（Element 无独立 icon 色/描边字段） |
 | 2.4 | memo、localState、portals、effects、commands | wp-2-4（local_state 由 lead 提前完成） | 完成（worktree wp-2.4，待并入） | `core/local_state.rs`（Store/Slot/child_id，Rc<RefCell<T>> + TypeId panic，child_id 与 Zig 钉死值一致）+ `ui/local_state` 包装；`ui::{memo,portals,commands}` 与运行时钩子（`memo_hash`/`memo_build`/`resolve_memo`、`take_portals`、`take_commands_for`/`requeue_command`/`set_command_owner`、`set_build_states`）完成；本模块新增 22 个测试 |
-| 2.5 | menu、modal、segmented、message、shortcut_list、hotkey_input、view、window_controls | wp-2-5 | 进行中（worktree wp-2.5） | |
-| 2.6 | components/list（虚拟列表）+ ListState | wp-2-6 | 完成（已并入） | 15 个测试（Zig 3：list_test.zig 全部移植）；Fenwick 树/锚点/follow-tail 1:1；`ui::list(&Rc<RefCell<ListState>>, ..)` |
+| 2.5 | menu、modal、segmented、message、shortcut_list、hotkey_input、view、window_controls | wp-2-5 | 完成（worktree wp-2.5，待并入） | 8 个 builder + 选项结构体（含 `TsxProps`）+ 47 个新测试（Zig 0 个 test 块：全部为新增结构 / raster 断言）；`ui::*` 导出待 lead 在 `ui/mod.rs` 加 8 行（见待决问题 4）；`desktop.Shortcut` 子集暂放 `components/hotkey_input.rs`（见待决问题 5） |
+| 2.6 | components/list（虚拟列表）+ ListState | — | 待领取 | |
 | 2.7 | 动效接入：presence、FLIP、layout_transition、runtime tick | — | 待领取 | |
 | 2.8 | desktop、store、多窗口 | wp-2-8 | 进行中（worktree wp-2.8） | store.rs 已完成；本包做 desktop + 多窗口 |
 | 2.9 | examples/{declarative,components,gallery}、gallery.zig、app.zig | — | 待领取 | |
@@ -186,6 +186,23 @@
 3. **clippy `module_inception`**：`platform/mod.rs`、`renderer/mod.rs`、`motion/mod.rs` 的模块名与父模块同名
    （对应 Zig 的 `platform/platform.zig` 等）。裁定：保留同名，加 `#[allow(clippy::module_inception)]`，
    让 `-D warnings` 通过。
+
+4. **组合组件未从 `ui::*` 导出**（WP-2.5 提出）：8 个组件按计划落在 `crates/zant/src/components/*.rs`，
+   `components/mod.rs` 已预先声明模块；但 `crates/zant/src/ui/mod.rs` 属于 WP-1.x 的文件，WP-2.5 不改。
+   裁定建议：lead 在 `ui/mod.rs` 的 `pub use` 区块追加
+   `pub use crate::components::menu::{dropdown_menu, MenuItem, MenuItemKind, MenuOptions};`、
+   `modal::{modal, ModalOptions}`、`segmented::{segmented, SegmentedOption, SegmentedOptions}`、
+   `message::{message, MessageKind, MessageOptions}`、
+   `shortcut_list::{shortcut_list, Shortcut, ShortcutGroup, ShortcutListOptions}`、
+   `hotkey_input::{hotkey_action, hotkey_input, HotkeyAction, HotkeyInputOptions, Shortcut}`、
+   `view::{view, ViewOptions}`、`window_controls::{window_controls, WindowControlsOptions, CAPTION_MAXIMIZE_KEY}`，
+   使 Rust 侧与 Zig 的 `ui.modal` / `ui.dropdownMenu` / … 同名可用（当前可经 `components::…` 使用）。
+5. **`desktop.Shortcut` 的临时位置**（WP-2.5 提出）：`hotkey_input.zig` 依赖 `desktop.zig` 的 `Shortcut`
+   （WP-2.8 才移植）。WP-2.5 在 `components/hotkey_input.rs` 内先移植了 recorder 需要的子集
+   （`fromKeyEvent` / `isValid` / `eql` / `label`，含平台 key 白名单与 macOS / Windows 标签）；
+   `format` / `parse` 留给 WP-2.8。裁定建议：WP-2.8 把 `Shortcut` 放到 `crate::desktop`，并让
+   `hotkey_input` 改为 `use crate::desktop::Shortcut;`（或在 desktop 里 `pub use` 本模块的类型），
+   字段名与语义不变。
 
 ## Zig 变更日志
 
