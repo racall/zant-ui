@@ -17,3 +17,7 @@ pub use document::{Document, Link, OpenError, OutlineEntry, Size};
 /// Raw glyph record of the native backends (tests, custom geometry).
 pub use native::Glyph as NativeGlyph;
 pub use renderer::Renderer;
+// WP-3.9: the viewer (`zant.pdf.view`) and its options, like `src/pdf/mod.zig`.
+pub use viewer::{
+    Fit, Labels, Match, Pos, Range, Tool, ViewOptions, Viewer, ZOOM_STEPS as zoom_steps, view,
+};
