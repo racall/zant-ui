@@ -371,7 +371,8 @@ impl Runtime {
                         data.layout_dirty = true;
                     }
                     if let Some(action) = action {
-                        let mut cx = super::action_cx(&mut self.app);
+                        let mut app = self.app.borrow_mut();
+                        let mut cx = super::action_cx(&mut app);
                         action.call(&mut cx, index);
                     }
                     self.close_select();
@@ -736,7 +737,8 @@ impl Runtime {
                 _ => return,
             }
         };
-        let mut cx = super::action_cx(&mut self.app);
+        let mut app = self.app.borrow_mut();
+        let mut cx = super::action_cx(&mut app);
         if let Some(index_action) = index_action {
             index_action.call(&mut cx, index);
         } else if let Some(action) = action {
