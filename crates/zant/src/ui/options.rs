@@ -96,6 +96,7 @@ pub struct PointerAreaOptions {
     /// Receives down / drag / up, hover / leave, and scroll when
     /// `capture_scroll`. Return true when state changed and the UI must be
     /// rebuilt.
+    #[tsx(required)]
     pub on_pointer: PointerAction,
     /// Wheel / trackpad scrolling goes to `on_pointer` (`.scroll`) instead of
     /// enclosing scroll containers (canvases, document viewers).
@@ -393,6 +394,7 @@ impl Default for ToggleOptions {
 /// One radio of `ui::radio_group`.
 #[derive(Clone, Default, zant_macros::TsxProps)]
 pub struct RadioOption {
+    #[tsx(required)]
     pub label: Str,
     pub disabled: bool,
 }
@@ -425,7 +427,9 @@ impl Default for RadioGroupOptions {
 /// One tab of `ui::tabs`.
 #[derive(Clone, zant_macros::TsxProps)]
 pub struct TabItem {
+    #[tsx(required)]
     pub label: Str,
+    #[tsx(required)]
     pub content: Node,
 }
 
@@ -441,7 +445,9 @@ pub struct TabsOptions {
 /// `ui::tooltip`: wraps a child node.
 #[derive(Clone, Default, zant_macros::TsxProps)]
 pub struct TooltipOptions {
+    #[tsx(required)]
     pub text: Str,
+    #[tsx(required)]
     pub child: Node,
 }
 
@@ -507,6 +513,7 @@ impl Default for SelectOptions {
 #[derive(Clone, zant_macros::TsxProps)]
 pub struct IconOptions {
     pub key: Option<Str>,
+    #[tsx(required)]
     pub name: Icon,
     pub size: f32,
     pub color: Option<u32>,
@@ -530,6 +537,7 @@ impl Default for IconOptions {
 #[derive(Clone, zant_macros::TsxProps)]
 pub struct IconButtonOptions {
     pub key: Option<Str>,
+    #[tsx(required)]
     pub icon: Icon,
     /// Icon size; the button is `box` × `box`.
     pub size: f32,
@@ -591,6 +599,7 @@ impl Default for DismissLayerOptions {
 #[derive(Clone, zant_macros::TsxProps)]
 pub struct VectorOptions {
     pub key: Option<Str>,
+    #[tsx(required)]
     pub drawing: DrawingRef,
     /// Fixed box width (default: the drawing's width). The drawing is
     /// left-aligned; wrap in a row to center it.
@@ -649,6 +658,7 @@ impl Default for RichTextOptions {
 #[derive(Clone, zant_macros::TsxProps)]
 pub struct PdfOptions {
     pub key: Option<Str>,
+    #[tsx(required)]
     pub src: Str,
     pub page: usize,
     pub width: f32,
@@ -784,6 +794,94 @@ impl Default for ProgressOptions {
         }
     }
 }
+
+/// Compile-time reflection metadata for the TSX compiler (WP-5.2).
+///
+/// `#[derive(TsxProps)]` emits an `impl TsxProps` for each option struct; the
+/// `zant-tsx-tags` generator reads [`TSX_REGISTRY`] and writes
+/// `crates/zant-tsx/src/ui_tags.rs`. A `proc-macro` crate cannot export these
+/// types itself, so they live here, next to the structs they describe.
+///
+/// This replaces the comptime `@typeInfo(ui)` reflection of
+/// `tools/tsx/manifest/reflect.zig`; field *classification* (integer / enum /
+/// color / nested options …) stays in the generator because Rust cannot
+/// enumerate an enum's variants at run time.
+pub mod tsx_props {
+    /// One field of an option struct.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub struct TsxField {
+        /// Rust field name with the `r#` prefix stripped (`type` for `r#type`,
+        /// matching the Zig field name `reflect.zig` saw).
+        pub name: &'static str,
+        /// Rust type as token text (`Option<TextAction>`); the generator
+        /// re-parses and classifies it.
+        pub ty: &'static str,
+        /// The TSX prop must be given (Zig field without a default value).
+        pub required: bool,
+        /// `#[tsx(default = "..")]` as written; `None` means `Default::default()`.
+        pub default: Option<&'static str>,
+    }
+
+    /// One reflected option struct.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub struct TsxStruct {
+        /// Rust type name (`ButtonOptions`); Zig `@typeName(T)`.
+        pub name: &'static str,
+        /// The struct's doc comment, lines joined with `\n`.
+        pub doc: &'static str,
+        /// `module_path!()` of the struct (`zant::ui::options`).
+        pub module_path: &'static str,
+        /// Fields in declaration order.
+        pub fields: &'static [TsxField],
+    }
+
+    /// Implemented by `#[derive(TsxProps)]`.
+    pub trait TsxProps {
+        /// The struct's reflection metadata.
+        const TSX: TsxStruct;
+    }
+}
+
+/// Every `#[derive(TsxProps)]` option struct of this module, in declaration
+/// order (Zig `src/ui.zig` declaration order), for `zant-tsx-tags`.
+///
+/// Keep it in sync when adding an option struct: the generator reports a
+/// builder whose options type is missing here. `ui::Styled`'s `Style` lives in
+/// `ui/styled.rs` and is not a builder option (the Zig generator omitted
+/// `ui.view.style` as an unsupported type), so it is not registered.
+pub static TSX_REGISTRY: &[&tsx_props::TsxStruct] = &[
+    &<BoxOptions as tsx_props::TsxProps>::TSX,
+    &<PointerAreaOptions as tsx_props::TsxProps>::TSX,
+    &<ClickableOptions as tsx_props::TsxProps>::TSX,
+    &<SpaceOptions as tsx_props::TsxProps>::TSX,
+    &<TextOptions as tsx_props::TsxProps>::TSX,
+    &<HeadingOptions as tsx_props::TsxProps>::TSX,
+    &<ParagraphOptions as tsx_props::TsxProps>::TSX,
+    &<ButtonOptions as tsx_props::TsxProps>::TSX,
+    &<LinkOptions as tsx_props::TsxProps>::TSX,
+    &<InputOptions as tsx_props::TsxProps>::TSX,
+    &<ToggleOptions as tsx_props::TsxProps>::TSX,
+    &<RadioOption as tsx_props::TsxProps>::TSX,
+    &<RadioGroupOptions as tsx_props::TsxProps>::TSX,
+    &<TabItem as tsx_props::TsxProps>::TSX,
+    &<TabsOptions as tsx_props::TsxProps>::TSX,
+    &<TooltipOptions as tsx_props::TsxProps>::TSX,
+    &<ImageOptions as tsx_props::TsxProps>::TSX,
+    &<SelectOptions as tsx_props::TsxProps>::TSX,
+    &<IconOptions as tsx_props::TsxProps>::TSX,
+    &<IconButtonOptions as tsx_props::TsxProps>::TSX,
+    &<DismissLayerOptions as tsx_props::TsxProps>::TSX,
+    &<VectorOptions as tsx_props::TsxProps>::TSX,
+    &<MemoOptions as tsx_props::TsxProps>::TSX,
+    &<RichTextOptions as tsx_props::TsxProps>::TSX,
+    &<PdfOptions as tsx_props::TsxProps>::TSX,
+    &<DividerOptions as tsx_props::TsxProps>::TSX,
+    &<TagOptions as tsx_props::TsxProps>::TSX,
+    &<CardOptions as tsx_props::TsxProps>::TSX,
+    &<AlertOptions as tsx_props::TsxProps>::TSX,
+    &<AvatarOptions as tsx_props::TsxProps>::TSX,
+    &<ProgressOptions as tsx_props::TsxProps>::TSX,
+];
 
 #[cfg(test)]
 mod tests {

@@ -8,11 +8,32 @@ use proc_macro::TokenStream;
 use syn::parse_macro_input;
 
 mod table;
+mod tsx_props;
 
-/// Placeholder: real derive lands in WP-5.2.
-#[proc_macro_derive(TsxProps)]
-pub fn derive_tsx_props(_input: TokenStream) -> TokenStream {
-    TokenStream::new()
+/// `#[derive(TsxProps)]`: compile-time reflection of a `ui` option struct for
+/// the TSX compiler (`docs/rust-port/tsx-codegen.md` §5, WP-5.2).
+///
+/// It emits `impl zant::ui::options::tsx_props::TsxProps for T` with the struct
+/// name, doc comment, module path and every field in declaration order. Field
+/// types are emitted as token strings; the `zant-tsx-tags` generator resolves
+/// them against the `zant` sources and turns them into the TSX prop table
+/// (`crates/zant-tsx/src/ui_tags.rs`), exactly like `tools/tsx/manifest/`
+/// reflected the Zig `ui.*` structs at comptime.
+///
+/// Field attributes:
+/// - `#[tsx(required)]` — the TSX prop must be supplied. In the Zig structs
+///   those were the fields without a default value; `impl Default` hides that
+///   in Rust, so it is spelled out. Also marks unsupported required fields, so
+///   the generator can skip the whole tag like `reflect.zig` did.
+/// - `#[tsx(default = "..")]` — the default expression as written (defaults to
+///   the struct's `Default::default()`).
+#[proc_macro_derive(TsxProps, attributes(tsx))]
+pub fn derive_tsx_props(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as syn::DeriveInput);
+    match tsx_props::expand(&input) {
+        Ok(tokens) => tokens.into(),
+        Err(error) => error.to_compile_error().into(),
+    }
 }
 
 /// `#[derive(Table)]`: the comptime ORM of `src/db/sqlite.zig` (`Table(T)`) as
