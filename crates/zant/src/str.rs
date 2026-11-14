@@ -30,6 +30,12 @@ impl Str {
     }
 }
 
+impl std::borrow::Borrow<str> for Str {
+    fn borrow(&self) -> &str {
+        self.as_str()
+    }
+}
+
 impl Deref for Str {
     type Target = str;
 

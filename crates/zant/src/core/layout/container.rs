@@ -202,9 +202,10 @@ fn layout_container(
     definite_height: Option<f32>,
     theme: Theme,
 ) {
-    let children: Vec<NodeId> = nodes[id].children.clone();
     let mut visible: Vec<NodeId> = Vec::new();
-    for child in children {
+    let child_count = nodes[id].children.len();
+    for child_index in 0..child_count {
+        let child = nodes[id].children[child_index];
         if nodes[child].in_flow() {
             visible.push(child);
         }

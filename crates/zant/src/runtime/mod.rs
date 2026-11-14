@@ -170,7 +170,7 @@ pub struct Runtime {
     /// Previous-frame boxes of keyed nodes (the `ui::key_bounds` hook; Zig
     /// pointed at the live tree — a snapshot avoids re-borrowing the tree from
     /// user code).
-    pub key_bounds: Rc<RefCell<HashMap<String, Rect>>>,
+    pub key_bounds: Rc<RefCell<HashMap<crate::Str, Rect>>>,
 }
 
 impl Runtime {
@@ -343,8 +343,9 @@ impl Runtime {
             if !node.alive || !node.in_flow() {
                 continue;
             }
-            if let Some(key) = node.key.as_deref() {
-                bounds.insert(key.to_string(), node.bounds);
+            if let Some(key) = node.key.as_ref() {
+                // `Str` clones are refcount bumps: no per-frame String allocation.
+                bounds.insert(key.clone(), node.bounds);
             }
         }
     }

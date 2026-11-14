@@ -319,6 +319,16 @@ Release、窗口模式（Metal），`ZANT_FRAME_STATS=1 ZANT_STREAM_CHARS=6 ZANT
 超过 1.25× 的只有 sub-millisecond 的 resize 单一 bucket（绝对值 ~1.8 ms），待 `zant-bench`（WP-2.11）
 的正式矩阵确认后再决定是否优化。挂载/缩放帧 30–47 ms 与 Zig 一致（首帧文本整形），不是回归。
 
+## 性能优化记录
+
+1. **布局热路径去掉每容器每帧的 `children.clone()`**（WP-2.11 提出，lead 应用）：
+   `core/layout/{intrinsic,container}.rs` 改为按索引访问子节点；bench `stream` layout 1.69 → ~1.4 ms。
+2. **`key_bounds` 快照不再每帧分配字符串**：`HashMap<String, Rect>` → `HashMap<Str, Rect>`（`Str` 克隆是引用计数），
+   `refresh_key_bounds` 每帧省下 ~3000 次 `String` 分配（bench 中 ~0.16 ms/帧）。
+3. 优化后 `scripts/parity/bench.sh` 仍 **PASS 7/7（默认 + 虚拟列表两种模式）**，`stream` 1.23×、`typing` 1.16×、
+   `resize` 1.13×、其余 ≤1.05×；所有稳态帧 0.6–5.5 ms（远低于 16.7 ms），峰值内存比 Zig 低 2%。
+   机器负载高（并行构建）时波动 ±0.05×，正式闸门应在空闲机器上复测（`ZANT_BENCH_REPEAT=8`）。
+
 ## 待决问题
 
 ### WP-5.5 提出（2026-11-14）

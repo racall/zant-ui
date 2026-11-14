@@ -111,8 +111,9 @@ pub(crate) fn intrinsic_width(
             let mut widest: f32 = 0.0;
             let direction = style.direction;
             let mut index = 0usize;
-            let children: Vec<NodeId> = nodes[id].children.clone();
-            for child_id in children {
+            let child_count = nodes[id].children.len();
+            for child_index in 0..child_count {
+                let child_id = nodes[id].children[child_index];
                 // absolutely positioned children do not size their parent
                 let child_style = nodes[child_id].style;
                 let in_flow = nodes[child_id].in_flow();
@@ -202,9 +203,10 @@ pub(crate) fn intrinsic_height(nodes: &mut Nodes<'_>, id: NodeId, width: f32, th
             let inner_width = (width - style.padding.horizontal()).max(0.0);
             let mut total: f32 = 0.0;
             let mut tallest: f32 = 0.0;
-            let children: Vec<NodeId> = nodes[id].children.clone();
+            let child_count = nodes[id].children.len();
             if style.direction == flex::Direction::Row {
-                for child_id in children {
+                for child_index in 0..child_count {
+                    let child_id = nodes[id].children[child_index];
                     let child_style = nodes[child_id].style;
                     let in_flow = nodes[child_id].in_flow();
                     if !in_flow || child_style.absolute {
@@ -221,7 +223,8 @@ pub(crate) fn intrinsic_height(nodes: &mut Nodes<'_>, id: NodeId, width: f32, th
                 tallest + style.padding.vertical()
             } else {
                 let mut index = 0usize;
-                for child_id in children {
+                for child_index in 0..child_count {
+                    let child_id = nodes[id].children[child_index];
                     let child_style = nodes[child_id].style;
                     let in_flow = nodes[child_id].in_flow();
                     if !in_flow || child_style.absolute {
