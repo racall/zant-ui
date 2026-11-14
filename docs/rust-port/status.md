@@ -48,7 +48,7 @@
 | WP | 内容 | 负责人 | 状态 | 备注 |
 |---|---|---|---|---|
 | 2.1 | input + runtime 键盘 / IME / 焦点 / 文本选择 | — | 待领取 | |
-| 2.2 | toggle、select、image + select 弹层、tooltip | — | 待领取 | |
+| 2.2 | toggle、select、image + select 弹层、tooltip | wp-2-2 | 完成（已并入），runtime 接线待 1.4 | 32 个测试（含 raster 像素断言）；`Image::draw_rect` 已加；select/tooltip 的浮层生命周期、image load 调用点在 1.4 |
 | 2.3 | ui.zig 其余构建器、core/icons | wp-2-3a + wp-2-3b | 完成（已并入） | icons + 30 个 builder（builders/ 拆 8 个文件）；53 个 builder 测试；`ui.icon` 与 Zig 一样生成 Vector 节点（Element 无独立 icon 色/描边字段） |
 | 2.4 | memo、localState、portals、effects、commands | wp-2-4（local_state 由 lead 提前完成） | 完成（worktree wp-2.4，待并入） | `core/local_state.rs`（Store/Slot/child_id，Rc<RefCell<T>> + TypeId panic，child_id 与 Zig 钉死值一致）+ `ui/local_state` 包装；`ui::{memo,portals,commands}` 与运行时钩子（`memo_hash`/`memo_build`/`resolve_memo`、`take_portals`、`take_commands_for`/`requeue_command`/`set_command_owner`、`set_build_states`）完成；本模块新增 22 个测试 |
 | 2.5 | menu、modal、segmented、message、shortcut_list、hotkey_input、view、window_controls | — | 待领取 | |
