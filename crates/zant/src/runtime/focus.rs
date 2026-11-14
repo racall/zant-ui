@@ -86,7 +86,8 @@ impl Runtime {
         if let NodeData::Input(data) = &mut self.tree.get_mut(id).data {
             data.reported_selection = [anchor, cursor];
         }
-        let mut cx = super::action_cx(&mut self.app);
+        let mut app = self.app.borrow_mut();
+        let mut cx = super::action_cx(&mut app);
         action.call(&mut cx, anchor, cursor);
         self.needs_build = true;
     }

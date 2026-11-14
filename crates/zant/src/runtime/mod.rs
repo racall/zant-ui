@@ -15,11 +15,15 @@
 //! [`Runtime::rebuild_for_test`] / [`Runtime::render_frame`] on a raster canvas
 //! and inject a fake clock through [`Runtime::clock`].
 //!
-//! Deviations from Zig (see the WP-1.4 report in docs/rust-port/status.md):
-//! one window per runtime — Zig's `open_runtimes` list, `openWindow` /
-//! `closeWindow` and `invalidateAll` belong to WP-2.8; Windows caption buttons
-//! (`ui.windowControls`) to WP-2.5; the select popup paint / hit test and the
-//! input / toggle / select component animation to WP-2.1 / WP-2.2.
+//! Multi-window support (Zig's `open_runtimes` list, `openWindow` /
+//! `closeWindow` / `invalidateAll`, the shared app state and the wake fan-out)
+//! lives in [`window`]: one [`Runtime`] per window, all of them cloning the
+//! same [`SharedApp`].
+//!
+//! Deviations from Zig (see the WP-1.4 / WP-2.8 reports in
+//! docs/rust-port/status.md): Windows caption buttons (`ui.windowControls`) to
+//! WP-2.5; the select popup paint / hit test and the input / toggle / select
+//! component animation to WP-2.1 / WP-2.2.
 #![forbid(unsafe_code)]
 
 pub mod animate;
@@ -36,8 +40,9 @@ pub mod patch;
 pub mod pointer;
 pub mod reconcile;
 pub mod selection;
+pub mod window;
 
-use std::cell::RefCell;
+use std::cell::{RefCell, RefMut};
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -54,6 +59,7 @@ use crate::ui::actions::ActionCx;
 use crate::ui::app::{App, RunOptions};
 
 use self::debug::FrameStats;
+use self::window::{SharedApp, WindowHooks};
 
 /// Zig `Runtime.Config`; the same struct the application entry point takes.
 pub type Config = RunOptions;
@@ -78,7 +84,13 @@ pub type Clock = fn() -> i64;
 /// submodules of this directory but keeps the same state).
 pub struct Runtime {
     pub config: RunOptions,
-    pub app: Box<dyn App>,
+    /// The application state, shared with the app's other windows (Zig handed
+    /// every runtime the same `userdata` pointer).
+    pub app: SharedApp,
+    /// Hooks of a window opened with `desktop::open_window`; `None` for the
+    /// main window, which renders through `App::render` and uses the `App`
+    /// trait's event hooks.
+    pub window_hooks: Option<WindowHooks>,
     pub theme: Theme,
     /// The retained tree (`runtime.tree` in Zig).
     pub tree: Tree,
@@ -163,8 +175,19 @@ pub struct Runtime {
 
 impl Runtime {
     /// Creates a runtime for `app` (`Runtime.init` in Zig). No native window is
-    /// created; `ui::app::run` attaches one.
+    /// created; `ui::app::run` attaches one and registers the window.
     pub fn init(app: impl App, config: RunOptions) -> Runtime {
+        Runtime::with_shared(SharedApp::new(app), None, config)
+    }
+
+    /// The constructor behind [`Runtime::init`]: `app` may already be shared
+    /// with other windows and `window_hooks` replaces `App::render` (a window
+    /// opened with `desktop::open_window`).
+    fn with_shared(
+        app: SharedApp,
+        window_hooks: Option<WindowHooks>,
+        config: RunOptions,
+    ) -> Runtime {
         let theme = config.theme;
         let window_background = config.window.background;
         let mut tree = Tree::init(theme);
@@ -176,14 +199,10 @@ impl Runtime {
             root.visual.background = Some(window_background);
         }
         tree.selection_color = tokens::with_alpha(theme.color_primary, 0x4d);
-        let key_bounds: Rc<RefCell<HashMap<String, Rect>>> = Rc::new(RefCell::new(HashMap::new()));
-        let hook = Rc::clone(&key_bounds);
-        crate::ui::set_key_bounds_hook(Some(Rc::new(move |key: &str| {
-            hook.borrow().get(key).copied()
-        })));
         Runtime {
             config,
-            app: Box::new(app),
+            app,
+            window_hooks,
             theme,
             tree,
             local_states: Rc::new(RefCell::new(Store::new())),
@@ -235,12 +254,11 @@ impl Runtime {
             sel_marked: Vec::new(),
             clear_color: window_background,
             window: None,
-            key_bounds,
+            key_bounds: Rc::new(RefCell::new(HashMap::new())),
         }
     }
 
-    /// Zig `Runtime.deinit`: Rust frees on `Drop`; also uninstalls this
-    /// runtime's `ui::key_bounds` hook.
+    /// Zig `Runtime.deinit`: Rust frees on `Drop`.
     pub fn deinit(&mut self) {}
 
     /// Rebuilds the UI on the next frame (`Runtime.invalidate`).
@@ -282,11 +300,16 @@ impl Runtime {
 
     /// The application state, downcast to the concrete `App` type (tests and
     /// code that needs to inspect or mutate the state from outside the frame).
-    pub fn app_state_mut<S: 'static>(&mut self) -> &mut S {
-        let app: &mut dyn App = self.app.as_mut();
-        let root: &mut dyn std::any::Any = app;
-        root.downcast_mut::<S>()
-            .expect("Zant UI: runtime app state has another type")
+    ///
+    /// The state is shared between windows, so the guard is a `RefMut` (Zig
+    /// handed out `*State`); it must be dropped before the next frame.
+    pub fn app_state_mut<S: 'static>(&self) -> RefMut<'_, S> {
+        RefMut::map(self.app.borrow_mut(), |app| {
+            let app: &mut dyn App = app.as_mut();
+            let root: &mut dyn std::any::Any = app;
+            root.downcast_mut::<S>()
+                .expect("Zant UI: runtime app state has another type")
+        })
     }
 
     /// Window-drag hit test for app-drawn title bars: interactive widgets stay
@@ -333,18 +356,13 @@ impl Runtime {
     }
 
     /// The host's wake callback: the app takes results published by background
-    /// work, then the UI rebuilds.
+    /// work, then every window rebuilds (Zig `wakeCallback`).
     pub fn handle_wake(&mut self) {
-        self.app.on_wake();
+        self.app.borrow_mut().on_wake();
         self.needs_build = true;
         self.request_redraw();
-    }
-}
-
-impl Drop for Runtime {
-    fn drop(&mut self) {
-        // The hook points at this runtime's snapshot; leave no dangling `Rc`.
-        crate::ui::set_key_bounds_hook(None);
+        // background results concern the shared app state: other windows too
+        window::invalidate_all();
     }
 }
 

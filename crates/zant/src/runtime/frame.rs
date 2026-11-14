@@ -146,7 +146,8 @@ impl Runtime {
                 data.reported_width = width;
                 data.reported_height = height;
             }
-            let mut cx = super::action_cx(&mut self.app);
+            let mut app = self.app.borrow_mut();
+            let mut cx = super::action_cx(&mut app);
             action.call(&mut cx);
             any = true;
         }

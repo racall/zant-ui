@@ -26,7 +26,8 @@ impl Runtime {
             };
             if let Some(hook) = hook {
                 let consumed = {
-                    let mut cx = super::action_cx(&mut self.app);
+                    let mut app = self.app.borrow_mut();
+                    let mut cx = super::action_cx(&mut app);
                     hook.call(&mut cx, k)
                 };
                 if consumed {
@@ -72,7 +73,8 @@ impl Runtime {
                     unreachable!()
                 };
                 let consumed = {
-                    let mut cx = super::action_cx(&mut self.app);
+                    let mut app = self.app.borrow_mut();
+                    let mut cx = super::action_cx(&mut app);
                     hook.call(&mut cx, k, &data.text, data.anchor, data.cursor)
                 };
                 if consumed {
@@ -126,7 +128,8 @@ impl Runtime {
                             _ => (None, 0, None),
                         }
                     };
-                    let mut cx = super::action_cx(&mut self.app);
+                    let mut app = self.app.borrow_mut();
+                    let mut cx = super::action_cx(&mut app);
                     if let Some(index_action) = index_action {
                         index_action.call(&mut cx, index);
                     } else if let Some(action) = action {
@@ -205,7 +208,8 @@ impl Runtime {
                 data.action.clone()
             };
             if let Some(action) = action {
-                let mut cx = super::action_cx(&mut self.app);
+                let mut app = self.app.borrow_mut();
+                let mut cx = super::action_cx(&mut app);
                 action.call(&mut cx, next);
             }
             self.tree.mark_dirty(id, false, true);
@@ -404,7 +408,8 @@ impl Runtime {
                         _ => None,
                     }
                 } {
-                    let mut cx = super::action_cx(&mut self.app);
+                    let mut app = self.app.borrow_mut();
+                    let mut cx = super::action_cx(&mut app);
                     action.call(&mut cx);
                 }
                 1
@@ -433,7 +438,8 @@ impl Runtime {
         let Some(action) = action else {
             return false;
         };
-        let mut cx = super::action_cx(&mut self.app);
+        let mut app = self.app.borrow_mut();
+        let mut cx = super::action_cx(&mut app);
         action.call(&mut cx);
         self.needs_build = true;
         true
@@ -487,7 +493,8 @@ impl Runtime {
         let NodeData::Input(data) = &node.data else {
             return;
         };
-        let mut cx = super::action_cx(&mut self.app);
+        let mut app = self.app.borrow_mut();
+        let mut cx = super::action_cx(&mut app);
         action.call(&mut cx, &data.text);
     }
 

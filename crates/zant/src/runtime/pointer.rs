@@ -86,7 +86,8 @@ impl Runtime {
             dy,
         };
         let changed = {
-            let mut cx = super::action_cx(&mut self.app);
+            let mut app = self.app.borrow_mut();
+            let mut cx = super::action_cx(&mut app);
             area.action.call(&mut cx, info)
         };
         if changed {
@@ -489,7 +490,8 @@ impl Runtime {
                             _ => (None, 0, None),
                         }
                     };
-                    let mut cx = super::action_cx(&mut self.app);
+                    let mut app = self.app.borrow_mut();
+                    let mut cx = super::action_cx(&mut app);
                     if let Some(index_action) = index_action {
                         index_action.call(&mut cx, index);
                     } else if let Some(action) = action {
@@ -538,7 +540,8 @@ impl Runtime {
                 if let Some(action) = action {
                     // The span memory may be replaced by the callback's
                     // rebuild; hand the callback a stable copy (owned String).
-                    let mut cx = super::action_cx(&mut self.app);
+                    let mut app = self.app.borrow_mut();
+                    let mut cx = super::action_cx(&mut app);
                     action.call(&mut cx, &link);
                 }
             }
@@ -752,29 +755,33 @@ mod tests {
             })),
             1
         );
-        let log = runtime.app_state_mut::<Log>();
-        assert_eq!(
-            log.phases,
-            [
-                PointerPhase::Hover,
-                PointerPhase::Down,
-                PointerPhase::Drag,
-                PointerPhase::Up,
-                PointerPhase::Scroll
-            ]
-        );
-        let down = log.infos[1];
-        assert_eq!((down.x, down.y), (30.0, 40.0), "local to the area");
-        assert_eq!((down.window_x, down.window_y), (30.0, 40.0));
-        assert_eq!(down.click_count, 1);
-        let drag = log.infos[2];
-        assert_eq!(
-            (drag.x, drag.y),
-            (390.0, 290.0),
-            "captured outside the area"
-        );
-        let scroll = log.infos[4];
-        assert_eq!((scroll.dx, scroll.dy), (0.0, -12.0));
+        {
+            // the guard borrows the shared app state: release it before the
+            // next dispatch
+            let log = runtime.app_state_mut::<Log>();
+            assert_eq!(
+                log.phases,
+                [
+                    PointerPhase::Hover,
+                    PointerPhase::Down,
+                    PointerPhase::Drag,
+                    PointerPhase::Up,
+                    PointerPhase::Scroll
+                ]
+            );
+            let down = log.infos[1];
+            assert_eq!((down.x, down.y), (30.0, 40.0), "local to the area");
+            assert_eq!((down.window_x, down.window_y), (30.0, 40.0));
+            assert_eq!(down.click_count, 1);
+            let drag = log.infos[2];
+            assert_eq!(
+                (drag.x, drag.y),
+                (390.0, 290.0),
+                "captured outside the area"
+            );
+            let scroll = log.infos[4];
+            assert_eq!((scroll.dx, scroll.dy), (0.0, -12.0));
+        }
         // leaving the area sends `leave`
         runtime.dispatch(Event::PointerMove(pointer(390.0, 290.0)));
         runtime.dispatch(Event::PointerMove(pointer(390.0, 290.0)));

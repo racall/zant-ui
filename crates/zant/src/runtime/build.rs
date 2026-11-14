@@ -26,7 +26,8 @@ impl Runtime {
         // `ui::effect` callbacks: after the tree is in place; they may set
         // state, so another build follows
         let requested = {
-            let mut cx = action_cx(&mut self.app);
+            let mut app = self.app.borrow_mut();
+            let mut cx = action_cx(&mut app);
             crate::ui::run_effects(&mut cx)
         };
         if requested {
@@ -38,7 +39,8 @@ impl Runtime {
     /// Zig `buildTree`: theme / window style / build states, then `render` and
     /// [`Runtime::reconcile_root`].
     pub(crate) fn build_tree(&mut self) {
-        if let Some(theme) = self.app.theme() {
+        let theme = self.app.borrow().theme();
+        if let Some(theme) = theme {
             self.set_theme(theme);
         }
         crate::ui::set_build_theme(self.theme);
@@ -48,9 +50,19 @@ impl Runtime {
         self.local_states.borrow_mut().begin_build();
         crate::ui::set_build_states(Some(Rc::clone(&self.local_states)));
         crate::ui::begin_frame();
+        // `ui::key_bounds` answers from this window's snapshot while it builds
+        // (Zig pointed the build context at the live tree; multi-window needs
+        // the hook to follow the window being built).
+        let bounds = Rc::clone(&self.key_bounds);
+        crate::ui::set_key_bounds_hook(Some(Rc::new(move |key: &str| {
+            bounds.borrow().get(key).copied()
+        })));
         let prev_owner = crate::ui::set_command_owner(Some(self.owner_ptr()));
 
-        let mut root = self.app.render();
+        let mut root = match &self.window_hooks {
+            Some(hooks) => (hooks.render)(),
+            None => self.app.borrow_mut().render(),
+        };
         let portals = crate::ui::take_portals();
         if !portals.is_empty() && root.element().kind == NodeKind::Container {
             root = crate::ui::append_children(root, &portals);
@@ -72,6 +84,7 @@ impl Runtime {
             eprintln!("Zant UI: render() must return a container (ui.column/ui.row/ui.card)");
         }
         self.needs_build = false;
+        crate::ui::set_key_bounds_hook(None);
         crate::ui::set_command_owner(prev_owner);
         crate::ui::set_build_states(None);
         crate::ui::end_frame();

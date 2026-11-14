@@ -25,8 +25,11 @@ use std::rc::Rc;
 
 use crate::Error;
 use crate::core::events::KeyEvent;
+use crate::desktop;
+use crate::desktop::AppEvent;
 use crate::motion::motion;
-use crate::platform::platform::{AppEvent, Window, WindowOptions};
+use crate::platform::platform::{Window, WindowOptions};
+use crate::runtime::window as runtime_window;
 use crate::theme::tokens::Theme;
 
 use super::element::Node;
@@ -106,14 +109,15 @@ pub trait App: std::any::Any {
     /// the results it published (all windows rebuild afterwards).
     fn on_wake(&mut self) {}
 
-    /// Tray / status bar clicks, global hotkeys, Dock clicks (desktop events,
-    /// WP-2.8). Return true when state changed.
+    /// Tray / status bar clicks and menu items, global hotkeys, Dock clicks
+    /// and clipboard changes (`zant::desktop`). Return true when state changed:
+    /// every window rebuilds then.
     fn on_app_event(&mut self, _event: &AppEvent) -> bool {
         false
     }
 
     /// The app is about to end (quit, main window closed): stop background
-    /// work and save. Wiring the exit hook belongs to WP-2.8 (`desktop`).
+    /// work and save; the process exits right after it returns.
     fn on_exit(&mut self) {}
 }
 
@@ -155,7 +159,16 @@ pub fn run(app: impl App, options: RunOptions) -> Result<(), Error> {
     if env_flag("ZANT_FRAME_STATS") {
         core.borrow_mut().enable_frame_stats();
     }
-    core.borrow_mut().app.on_start();
+    // Zig `launch.run`: the main window for `zant.desktop.mainWindow` /
+    // `openWindow`, the window registry (`invalidateAll`) and the app hooks
+    // (`onAppEvent` / `onExit`) installed before the event loop starts.
+    desktop::set_main_runtime(Some(Rc::clone(&core)));
+    runtime_window::register(&core);
+    desktop::install_app_hooks(core.borrow().shared_app());
+    // the hook runs without the runtime borrowed: it may call desktop APIs
+    // (`openWindow`, `setTray`, …)
+    let app = core.borrow().shared_app();
+    app.borrow_mut().on_start();
     // Zig `ZANT_SNAPSHOT`: the native side takes the screenshot after a few
     // frames and `ZANT_SNAPSHOT_EXIT` (handled by the platform layer, not by
     // the runtime) makes it quit afterwards.
@@ -163,7 +176,11 @@ pub fn run(app: impl App, options: RunOptions) -> Result<(), Error> {
         window.schedule_snapshot(&path, 600);
     }
     window.run();
-    // The event loop ended: background work must no longer wake the window.
+    // The event loop ended: background work must no longer wake a window and
+    // the native side keeps no app-event handler.
+    desktop::set_main_runtime(None);
+    desktop::clear_app_hooks();
+    runtime_window::clear();
     crate::platform::platform::set_post_wake_window(std::ptr::null_mut());
     // Break the Rc cycle Runtime -> Window -> Host -> Rc<RefCell<Runtime>> so
     // both are freed when this function returns.

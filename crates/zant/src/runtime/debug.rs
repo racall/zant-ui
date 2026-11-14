@@ -52,6 +52,16 @@ pub struct FrameStats {
 }
 
 impl FrameStats {
+    /// Statistics of a window opened after the main one: the main window
+    /// enabled the counters, this one only needs its `ZANT_FRAME_STATS` label
+    /// (`":2"`, `":3"`, …; Zig `Runtime.openWindow`).
+    pub fn for_window(label: &'static str) -> FrameStats {
+        FrameStats {
+            label,
+            ..Default::default()
+        }
+    }
+
     /// Records the duration of one phase of the current frame.
     pub fn phase(&mut self, which: Phase, start_us: i64) {
         let index = which.index();
