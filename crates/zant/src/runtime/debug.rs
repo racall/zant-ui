@@ -250,9 +250,9 @@ mod tests {
         let path = std::env::temp_dir().join("zant-wp14-layout.txt");
         let path = path.to_string_lossy().into_owned();
         write_layout_file(&tree, &path);
-        if let Ok(written) = std::fs::read_to_string(&path) {
-            assert_eq!(written, contents);
-            let _ = std::fs::remove_file(&path);
-        }
+        let written =
+            std::fs::read_to_string(&path).expect("ZANT_LAYOUT_FILE exists after the frame");
+        assert_eq!(written, contents);
+        let _ = std::fs::remove_file(&path);
     }
 }
