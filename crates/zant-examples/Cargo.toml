@@ -39,3 +39,9 @@ path = "src/bin/zant-md-stream.rs"
 [[bin]]
 name = "zant-pdf"
 path = "src/bin/zant-pdf.rs"
+
+# Headless frame benchmark (port of `examples/bench.zig`, WP-2.11); the app and
+# scenarios live in the bin-local `zant_bench` module.
+[[bin]]
+name = "zant-bench"
+path = "src/bin/zant-bench.rs"
