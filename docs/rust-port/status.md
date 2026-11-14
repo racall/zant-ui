@@ -60,12 +60,12 @@
 
 | WP | 内容 | 负责人 | 状态 | 备注 |
 |---|---|---|---|---|
-| 2.1 | input + runtime 键盘 / IME / 焦点 / 文本选择 | wp-2-1 | 进行中（worktree wp-2.1） | 组件半已随 1.5 并入；本包负责 6 个已知缺口接线 + tests |
+| 2.1 | input + runtime 键盘 / IME / 焦点 / 文本选择（runtime 交互接线收尾） | wp-2-1 | 完成（worktree wp-2.1，待并入） | `rust/wp-2.1`；补齐 status.md「已知框架缺口」1–6：toggle/radio/switch 的 BoolAction/IndexAction 派发（pointer click + Space/Enter）、image 路径加载 / 内存源接线、animate tick 覆盖 Input/Toggle/Select、select 弹层 hover/click/键盘 + popup 在 tree paint 之后绘制、rich text 选择高亮、input 助手三处重复合并到 `components/input.rs`。新增 8 个 headless 测试（lib 354，+8）；parity 6/6、0 像素。IME 真机（macOS 拼音）未自动化验证 |
 | 2.2 | toggle、select、image + select 弹层、tooltip | wp-2-2 | 完成（已并入），runtime 接线待 1.4 | 32 个测试（含 raster 像素断言）；`Image::draw_rect` 已加；select/tooltip 的浮层生命周期、image load 调用点在 1.4 |
 | 2.3 | ui.zig 其余构建器、core/icons | wp-2-3a + wp-2-3b | 完成（已并入） | icons + 30 个 builder（builders/ 拆 8 个文件）；53 个 builder 测试；`ui.icon` 与 Zig 一样生成 Vector 节点（Element 无独立 icon 色/描边字段） |
 | 2.4 | memo、localState、portals、effects、commands | wp-2-4（local_state 由 lead 提前完成） | 完成（worktree wp-2.4，待并入） | `core/local_state.rs`（Store/Slot/child_id，Rc<RefCell<T>> + TypeId panic，child_id 与 Zig 钉死值一致）+ `ui/local_state` 包装；`ui::{memo,portals,commands}` 与运行时钩子（`memo_hash`/`memo_build`/`resolve_memo`、`take_portals`、`take_commands_for`/`requeue_command`/`set_command_owner`、`set_build_states`）完成；本模块新增 22 个测试 |
 | 2.5 | menu、modal、segmented、message、shortcut_list、hotkey_input、view、window_controls | wp-2-5 | 进行中（worktree wp-2.5） | |
-| 2.6 | components/list（虚拟列表）+ ListState | — | 待领取 | |
+| 2.6 | components/list（虚拟列表）+ ListState | wp-2-6 | 完成（已并入） | 15 个测试（Zig 3：list_test.zig 全部移植）；Fenwick 树/锚点/follow-tail 1:1；`ui::list(&Rc<RefCell<ListState>>, ..)` |
 | 2.7 | 动效接入：presence、FLIP、layout_transition、runtime tick | — | 待领取 | |
 | 2.8 | desktop、store、多窗口 | wp-2-8 | 进行中（worktree wp-2.8） | store.rs 已完成；本包做 desktop + 多窗口 |
 | 2.9 | examples/{declarative,components,gallery}、gallery.zig、app.zig | — | 待领取 | |
@@ -166,14 +166,14 @@
 
 ## 已知框架缺口（WP-1.5 parity 发现，2026-11-13）
 
-1. **toggle/radio/switch 的 on_change 不派发**：Rust `Tree::toggle_set` 只改 checked，runtime pointer/keyboard 不回调
-   （Zig `Tree.toggleSet` 调 index_action/action）。交互残，静态 parity 不受影响 → WP-2.1/2.2 修。
-2. **按路径图片未加载**：`runtime/patch.rs`/`reconcile.rs` 的 image 分支没调 `components::image::load`，
-   内存图片未设 `intrinsic_width/height` → 待接线（demo 用 `ImageOptions.image` 绕开）。
-3. **animate tick 跳过 Input/Toggle/Select**（`runtime/animate.rs` TODO）→ input 边框过渡、toggle/select 动效不推进。
-4. **select 弹层 option hover/click 仍 TODO**（`runtime/pointer.rs`）→ WP-2.2/1.4 收尾。
-5. **rich text 选择高亮未绘制**（`renderer::rich_text::Layout::range_rects` 已补，tree paint 未接）。
-6. **input 编辑助手在 `components/input.rs` / `core/tree/input_ops.rs` / `runtime/ime.rs` 三处重复** → 合并到 components。
+> 1–6 已由 WP-2.1 修复（见 `rust/wp-2.1`）；记录保留供核对。
+
+1. ~~**toggle/radio/switch 的 on_change 不派发**~~：已修复。runtime `toggle_set` / `toggle_flip` 从节点拷贝出 `IndexAction`/`BoolAction`/`Action` 后按 Zig `Tree.toggleSet` 语义调用（radio 只置 true）；pointer click 与 Space/Enter 共用。
+2. ~~**按路径图片未加载**~~：已修复。`runtime/{reconcile,patch}.rs` 的 image 分支调用 `components::image::load` / `set_source`，比较 intrinsic 尺寸决定 `layout_changed`。
+3. ~~**animate tick 跳过 Input/Toggle/Select**~~：已修复。`runtime/animate.rs` 调用三者 `animate(...)`，由 `Tree::poke` 只推进变化节点。
+4. ~~**select 弹层 option hover/click 仍 TODO**~~：已修复。pointer move/down 用 `components::select::option_at` 命中，`paint_select_popup` 在 tree paint 之后调用 `paint_popup`。
+5. ~~**rich text 选择高亮未绘制**~~：已修复。`core/tree/paint.rs` 用 `renderer::rich_text::Layout::range_rects` + 运行时 selection color。
+6. ~~**input 编辑助手三处重复**~~：已修复。`core/tree/input_ops.rs` 与 `runtime/ime.rs` 改为调用 / 再导出 `components::input`。
 
 ## 待决问题
 

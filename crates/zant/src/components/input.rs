@@ -10,11 +10,10 @@
 //! [`animate`], the caret blink by [`update_blink`].
 //!
 //! Zig owns the editing operations here too (`insertText`, `deleteBackward`,
-//! `move*`, `beginComposition`, …). The Rust port has already grown equivalent
-//! implementations in `core/tree/input_ops.rs` (tree-level edits) and
-//! `runtime/ime.rs` (the runtime helpers) while this module was a stub, so the
-//! functions below keep the Zig names and behaviour self-contained; WP-2.1
-//! should consolidate the three copies onto this module.
+//! `move*`, `beginComposition`, …). They are the single implementation now:
+//! `core/tree/input_ops.rs` (the tree-level state changes) and
+//! `runtime/ime.rs` (the runtime helpers) delegate to the functions below, so
+//! the temporary copies that existed while this module was a stub are gone.
 //!
 //! Signature adaptations (identical behaviour): Zig passes `*const Node` for
 //! `bounds` / `enabled`; Rust takes the values (`Rect`, `bool`) like the

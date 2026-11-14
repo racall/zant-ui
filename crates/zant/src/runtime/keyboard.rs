@@ -147,10 +147,10 @@ impl Runtime {
                     };
                     if kind == crate::core::node::ToggleKind::Radio {
                         if !checked {
-                            self.tree.toggle_set(id, true);
+                            self.toggle_set(id, true);
                         }
                     } else {
-                        self.tree.toggle_flip(id);
+                        self.toggle_flip(id);
                     }
                     return 1;
                 }
@@ -556,11 +556,11 @@ mod keyboard_tests {
     use crate::core::node::{FlexStyle, NodeKind};
     use crate::renderer::renderer::Renderer;
     use crate::ui::RunOptions;
-    use crate::ui::actions::{action, text_action};
+    use crate::ui::actions::{action, bool_action, index_action, text_action};
     use crate::ui::app::App;
-    use crate::ui::builders::column;
+    use crate::ui::builders::{checkbox, column, select};
     use crate::ui::element::{Element, Node};
-    use crate::ui::options::BoxOptions;
+    use crate::ui::options::{BoxOptions, SelectOptions, ToggleOptions};
 
     struct Form {
         text: String,
@@ -734,5 +734,108 @@ mod keyboard_tests {
             }
             _ => panic!("expected an input"),
         }
+    }
+
+    // ── WP-2.1: keyboard activation of toggles and selects ─────────────────
+
+    #[derive(Default)]
+    struct Options {
+        checked: bool,
+        changes: u32,
+        selected: usize,
+        picks: u32,
+    }
+
+    impl App for Options {
+        fn render(&mut self) -> Node {
+            column(BoxOptions {
+                children: crate::nodes![
+                    checkbox(ToggleOptions {
+                        key: Some("notify".into()),
+                        label: "Notify".into(),
+                        checked: self.checked,
+                        on_change: Some(bool_action(|state: &mut Options, checked| {
+                            state.checked = checked;
+                            state.changes += 1;
+                        })),
+                        ..Default::default()
+                    }),
+                    select(SelectOptions {
+                        key: Some("plan".into()),
+                        options: ["Starter", "Pro", "Enterprise"]
+                            .iter()
+                            .map(|label| crate::Str::from(*label))
+                            .collect(),
+                        selected: self.selected,
+                        width: Some(150.0),
+                        on_change: Some(index_action(|state: &mut Options, index| {
+                            state.selected = index;
+                            state.picks += 1;
+                        })),
+                        ..Default::default()
+                    }),
+                ],
+                ..Default::default()
+            })
+        }
+    }
+
+    fn options_runtime() -> (Runtime, Renderer) {
+        let mut runtime = Runtime::init(Options::default(), RunOptions::default());
+        let mut renderer = Renderer::create_raster(200, 120).expect("renderer");
+        frame(&mut runtime, &mut renderer);
+        (runtime, renderer)
+    }
+
+    #[test]
+    fn space_and_enter_activate_a_focused_toggle_once_each() {
+        let (mut runtime, _renderer) = options_runtime();
+        assert_eq!(runtime.tree.focused, None);
+        runtime.dispatch(Event::KeyDown(key(Key::Tab)));
+        let toggle = runtime.tree.focused.expect("Tab focuses the checkbox");
+        assert!(matches!(
+            &runtime.tree.get(toggle).data,
+            NodeData::Toggle(_)
+        ));
+        runtime.dispatch(Event::KeyDown(key(Key::Character(' '))));
+        assert!(runtime.app_state_mut::<Options>().checked);
+        assert_eq!(runtime.app_state_mut::<Options>().changes, 1);
+        runtime.dispatch(Event::KeyDown(key(Key::Enter)));
+        assert!(!runtime.app_state_mut::<Options>().checked);
+        assert_eq!(
+            runtime.app_state_mut::<Options>().changes,
+            2,
+            "one callback per key press"
+        );
+    }
+
+    #[test]
+    fn enter_opens_the_popup_and_arrows_move_the_selection() {
+        let (mut runtime, _renderer) = options_runtime();
+        // Tab reaches the checkbox first and the select second
+        runtime.dispatch(Event::KeyDown(key(Key::Tab)));
+        runtime.dispatch(Event::KeyDown(key(Key::Tab)));
+        let select_id = runtime.find_key("plan").expect("select");
+        assert_eq!(runtime.tree.focused, Some(select_id));
+        assert_eq!(
+            runtime.dispatch(Event::KeyDown(key(Key::Enter))),
+            1,
+            "Enter opens the popup"
+        );
+        assert_eq!(runtime.open_select, Some(select_id));
+        assert!(matches!(&runtime.tree.get(select_id).data, NodeData::Select(data) if data.open));
+        // Down / Up move the selected option and fire the index action
+        runtime.dispatch(Event::KeyDown(key(Key::Down)));
+        assert_eq!(runtime.app_state_mut::<Options>().selected, 1);
+        assert_eq!(runtime.app_state_mut::<Options>().picks, 1);
+        runtime.dispatch(Event::KeyDown(key(Key::Down)));
+        assert_eq!(runtime.app_state_mut::<Options>().selected, 2);
+        runtime.dispatch(Event::KeyDown(key(Key::Up)));
+        assert_eq!(runtime.app_state_mut::<Options>().selected, 1);
+        assert_eq!(runtime.app_state_mut::<Options>().picks, 3);
+        // Escape closes the popup
+        runtime.dispatch(Event::KeyDown(key(Key::Escape)));
+        assert_eq!(runtime.open_select, None);
+        assert!(matches!(&runtime.tree.get(select_id).data, NodeData::Select(data) if !data.open));
     }
 }

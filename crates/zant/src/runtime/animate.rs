@@ -2,17 +2,16 @@
 //!
 //! Animation frames only repaint: `Tree::poke` queues the nodes whose state
 //! changed and [`Runtime::tick`] advances only those (never the whole tree).
-//! Container hover / scroll animations and the button transitions are advanced
-//! here; the input / toggle / select component transitions belong to
-//! `components/{input,toggle,select}.zig` (WP-2.1 / WP-2.2) and are not ported
-//! yet, so those nodes simply settle.
+//! Container hover / scroll animations, the button transitions and the
+//! `components/{input,toggle,select}` transitions advance here; the caret blink
+//! of the focused input is driven from `tick` as well.
 //!
 //! Exit transitions that finish detach and free the node here (Zig did it in
 //! `tick` as well).
 #![forbid(unsafe_code)]
 
-use crate::components::button;
-use crate::core::node::{NodeData, NodeId};
+use crate::components::{button, input, select, toggle};
+use crate::core::node::{NodeData, NodeId, NodeKind};
 use crate::motion::easing::Easing;
 use crate::motion::motion::{self, Fx, Transition};
 
@@ -28,18 +27,37 @@ impl Runtime {
     /// Advances one node's transitions; true while it keeps animating.
     fn animate_node(&mut self, id: NodeId) -> bool {
         let now = self.now_ms;
+        let theme = self.theme;
         let mut active = match self.tree.get(id).kind() {
-            crate::core::node::NodeKind::Container => self.animate_container(id, now),
-            crate::core::node::NodeKind::Button => {
-                let theme = self.theme;
+            NodeKind::Container => self.animate_container(id, now),
+            NodeKind::Button => {
                 if let NodeData::Button(data) = &mut self.tree.get_mut(id).data {
                     button::animate(data, now, theme)
                 } else {
                     false
                 }
             }
-            // TODO(WP-2.1 / WP-2.2): components::input / toggle / select
-            // `animate` are not ported yet (their paint/layout is missing too).
+            NodeKind::Input => {
+                if let NodeData::Input(data) = &mut self.tree.get_mut(id).data {
+                    input::animate(data, now, theme)
+                } else {
+                    false
+                }
+            }
+            NodeKind::Toggle => {
+                if let NodeData::Toggle(data) = &mut self.tree.get_mut(id).data {
+                    toggle::animate(data, now, theme)
+                } else {
+                    false
+                }
+            }
+            NodeKind::Select => {
+                if let NodeData::Select(data) = &mut self.tree.get_mut(id).data {
+                    select::animate(data, now, theme)
+                } else {
+                    false
+                }
+            }
             _ => false,
         };
         // presence (enter / exit) and FLIP layout transitions
@@ -206,8 +224,8 @@ mod tests {
     use crate::motion::motion::Presence;
     use crate::renderer::renderer::Renderer;
     use crate::ui::app::App;
-    use crate::ui::builders::column;
-    use crate::ui::options::BoxOptions;
+    use crate::ui::builders::{column, input};
+    use crate::ui::options::{BoxOptions, InputOptions};
     use crate::ui::{Node, RunOptions, Style, styled, with_key};
     use std::sync::atomic::{AtomicI64, Ordering};
 
@@ -347,5 +365,80 @@ mod tests {
         assert!(settled.done(0));
         assert_eq!(settled.value(0), 1.0);
         let _ = FlexStyle::default();
+    }
+
+    #[test]
+    fn the_focused_input_advances_its_transitions_and_caret_blink() {
+        motion::set_enabled(true);
+        static NOW: AtomicI64 = AtomicI64::new(1_000);
+        fn clock() -> i64 {
+            NOW.load(Ordering::Relaxed)
+        }
+        struct Field;
+        impl App for Field {
+            fn render(&mut self) -> Node {
+                column(BoxOptions {
+                    children: crate::nodes![input(InputOptions {
+                        key: Some("name".into()),
+                        value: Some("hi".into()),
+                        ..Default::default()
+                    })],
+                    ..Default::default()
+                })
+            }
+        }
+        NOW.store(1_000, Ordering::Relaxed);
+        let mut runtime = Runtime::init(Field, RunOptions::default());
+        runtime.clock = clock;
+        let mut renderer = Renderer::create_raster(300, 200).expect("renderer");
+        frame(&mut runtime, &mut renderer);
+        let id = runtime.find_key("name").expect("input");
+        let bounds = runtime.tree.get(id).bounds;
+        let point = pointer(bounds.x + 10.0, bounds.y + bounds.height * 0.5);
+        runtime.dispatch(Event::PointerMove(point));
+        runtime.dispatch(Event::PointerDown(point));
+        runtime.dispatch(Event::PointerUp(point));
+        assert_eq!(runtime.tree.focused, Some(id));
+        // the first frame starts the hover / focus transition (Zig `tick`
+        // called `components/input.zig:animate` for it)
+        frame(&mut runtime, &mut renderer);
+        assert!(runtime.animating_contains(id));
+        let focus_t = match &runtime.tree.get(id).data {
+            NodeData::Input(data) => data.focus_t,
+            _ => panic!("expected an input"),
+        };
+        assert!(focus_t < 1.0, "the focus border is still easing in");
+        // the 200 ms antd transition settles
+        NOW.store(
+            1_000 + i64::from(runtime.theme.motion_duration_mid),
+            Ordering::Relaxed,
+        );
+        frame(&mut runtime, &mut renderer);
+        let (hover_t, focus_t) = match &runtime.tree.get(id).data {
+            NodeData::Input(data) => (data.hover_t, data.focus_t),
+            _ => panic!("expected an input"),
+        };
+        assert!((hover_t - 1.0).abs() < 0.01, "hover settled at {hover_t}");
+        assert!((focus_t - 1.0).abs() < 0.01, "focus settled at {focus_t}");
+        assert!(!runtime.any_animation);
+        // only the caret blink is scheduled now (first tick armed it at 1_530)
+        let blink_remaining = crate::components::input::BLINK_INTERVAL_MS
+            - i64::from(runtime.theme.motion_duration_mid);
+        assert_eq!(runtime.next_delay_ms, blink_remaining as i32);
+        // the blink flips at the interval and repaints
+        NOW.store(
+            1_000 + crate::components::input::BLINK_INTERVAL_MS,
+            Ordering::Relaxed,
+        );
+        frame(&mut runtime, &mut renderer);
+        let blink_on = match &runtime.tree.get(id).data {
+            NodeData::Input(data) => data.blink_on,
+            _ => panic!("expected an input"),
+        };
+        assert!(!blink_on, "the caret blinked off");
+        assert_eq!(
+            runtime.next_delay_ms,
+            crate::components::input::BLINK_INTERVAL_MS as i32
+        );
     }
 }

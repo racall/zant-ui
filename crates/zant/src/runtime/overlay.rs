@@ -6,8 +6,10 @@
 //! presence, centred below its target and flipped above near the window bottom.
 //!
 //! The select popup is painted by `components/select.zig:paintPopup` in Zig;
-//! that component is not ported yet (WP-2.2), so this module keeps the popup's
-//! `open_select` / `popup_select` bookkeeping but paints nothing yet.
+//! [`components::select::paint_popup`](crate::components::select::paint_popup)
+//! holds the same port and this module owns the popup's `open_select` /
+//! `popup_select` bookkeeping plus painting it after the tree (Zig's
+//! `paintSelectPopup`).
 #![forbid(unsafe_code)]
 
 use crate::core::geometry::Rect;
@@ -36,7 +38,7 @@ impl Runtime {
 
     /// Zig `paintSelectPopup`: keeps `popup_select` alive while the popup's
     /// closing transition runs, then forgets it.
-    pub(crate) fn paint_select_popup(&mut self, _canvas: Canvas) {
+    pub(crate) fn paint_select_popup(&mut self, canvas: Canvas) {
         if let Some(id) = self.open_select {
             self.popup_select = Some(id);
         }
@@ -59,9 +61,12 @@ impl Runtime {
             self.popup_select = None;
             return;
         }
-        // TODO(WP-2.2): `components::select::paint_popup(node, canvas, theme,
-        // viewport)` is not ported yet, so an open select paints no popup.
-        let _ = (open, open_t);
+        // the popup is not a tree node: the runtime paints it above the tree.
+        // `select::paint` already cached the option layouts in this frame's
+        // tree paint (same ordering as Zig).
+        let theme = self.theme;
+        let viewport = self.viewport;
+        crate::components::select::paint_popup(self.tree.get(id), canvas, theme, viewport);
     }
 
     /// The tooltip state for tests: `(visible, rect)`.
