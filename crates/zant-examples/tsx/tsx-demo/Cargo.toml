@@ -1,0 +1,20 @@
+# TSX showcase app (`examples/tsx/app` ported to Rust, WP-5.10).
+#
+# The app is a Cargo workspace member: `build.rs` calls
+# `zant_build::try_tsx_app()` (the template's TSX → Rust step) and writes
+# `src/app_config.rs`; `src/main.rs` includes the generated modules.
+# `cargo build --workspace` / `cargo test --workspace` build and check it.
+[package]
+name = "zant-tsx-demo"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+description = "The TSX showcase app: components, state, a native module, a tray, a panel window"
+
+[dependencies]
+zant.workspace = true
+
+[build-dependencies]
+zant-build.workspace = true

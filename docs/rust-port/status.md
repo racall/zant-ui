@@ -9,12 +9,12 @@
 | 项 | 值 |
 |---|---|
 | 分支 | `feat/rust-port`（全部 WP 直接合入这里，提交带 `WP-x.y:` 前缀） |
-| Rust 测试 | `cargo test --workspace` 全绿：**lib 427 + 集成 66 + zant-tsx 269 + 示例 5 ≈ 767**（zant-tsx 由 WP-5.9 的黄金/端到端用例扩充；工作区全量以 lead 合并后为准） |
+| Rust 测试 | `cargo test --workspace` 全绿（`rust/wp-5.10`）：**71 个测试二进制 / 1059 passed / 0 failed**，含 WP-5.10 新增 6 条（3 × 示例 native `system`、3 条 `zant-tsx-bench`）；工作区全量以 lead 合并后为准 |
 | Zig 测试 | `zig build test` 仍全绿（Zig 版未改行为，只加了 `ZANT_WINDOW_SIZE` 钩子与 `ZANT_STATIC_DATA` 原生补丁） |
 | 质量门 | `cargo fmt --all -- --check` 干净；`cargo clippy --workspace --all-targets -- -D warnings` 0 告警 |
-| 已完成 | M0 全部（0.1 macOS/0.2/0.3/0.4/0.5）、M1 全部（1.1a–d/1.2/1.3/1.4/1.5，parity 6/6 0 像素）、M2（2.1–2.11 除 2.11 已并入全绿）、M3（3.1–3.9、3.11，zant-pdf parity 6/6）、M4（4.1–4.4）、M5（5.1–5.8、5.9 黄金/端到端，见下方偏差表）、M6（6.1、6.3、6.4、6.5）、M7（7.3 文档） |
-| 进行中 | WP-6.2（zant-build）、WP-5.10（TSX 示例 + bench-tsx） |
-| 下一步 | WP-6.2（zant-build）/WP-5.10（TSX 示例 + bench-tsx）→ 补齐 WP-5.9 报告的框架 API（ui 的 markdown/pdf_viewer 等）→ M6 端到端（`zant create` → `zant run` → `zant build`）→ M7 下游（受沙箱限制，需在工作区外写权限）→ M8 切换（需用户确认） |
+| 已完成 | M0 全部（0.1 macOS/0.2/0.3/0.4/0.5）、M1 全部（1.1a–d/1.2/1.3/1.4/1.5，parity 6/6 0 像素）、M2（2.1–2.11 除 2.11 已并入全绿）、M3（3.1–3.9、3.11，zant-pdf parity 6/6）、M4（4.1–4.4）、M5（5.1–5.8、5.9 黄金/端到端，见下方偏差表）、M6（6.1、6.3、6.4、6.5）、M7（7.3 文档）、**WP-5.10（TSX 示例 + 编译基准，见下方「WP-5.10 完成情况」）** |
+| 进行中 | —（WP-5.10 已完成；待 lead 合并各 worktree 并做全量验收） |
+| 下一步 | lead 合并 → 全量验收（macOS + Windows）→ 补齐 WP-5.9 / WP-5.10 报告的框架 API 与编译器 bug（`ui` 的 markdown/pdf_viewer 导出、跨文件窗口组件、`Uint8Array` 映射、生成代码 lint 兜底）→ TSX 帧对比基准（TSX 生成代码 ≤1.2× 手写 Rust）→ M8 切换（需用户确认） |
 | Windows | 测试机 192.168.31.24 全程不可达；所有 Windows 验收待补 |
 
 ## 环境与基线（M0 记录）
@@ -187,7 +187,7 @@ Release、窗口模式（Metal），`ZANT_FRAME_STATS=1 ZANT_STREAM_CHARS=6 ZANT
 | 5.7 | src/tsx*.zig → zant/src/tsx/ | — | 待领取 | |
 | 5.8 | native 模块（trait 化） | — | 待领取 | ★★★ |
 | 5.9 | 黄金用例换成 .rs | wp-5-9 | 完成（worktree wp-5.9，待并入） | 分支 `rust/wp-5.9`。`crates/zant-tsx/testdata/*.rs` 30 个黄金（32 个 Zig 用例里 `desktop`/`entities` 无法生成，见下方「WP-5.9 偏差表」）；`tests/golden.rs`（黄金逐字节比对 + 全部黄金批量写入一个 workspace 外临时 crate，`cargo check` 通过 **29/30**，`widgets` 因框架 API 缺失排除）；`tests/tsx_end_to_end.rs`（`compile_project_root_with` 驱动 `tests/fixtures/{hooks,crossfile,rust_types,media}`，Zig 模块移植为 `.rs` 镜像）；逐服务器审阅 30 个黄金时修掉 30+ 处编译器/联调 bug（见「WP-5.9 提出」）。 |
-| 5.10 | examples/tsx 入口、bench-tsx | — | 待领取 | |
+| 5.10 | examples/tsx 入口、bench-tsx | wp-5-10 | 完成（worktree wp-5.10，待并入） | 分支 `rust/wp-5.10`。3 个 TSX 示例应用改成 Cargo workspace 成员（`crates/zant-examples/tsx/{tsx-counter,tsx-demo,tsx-bench}`，template 形态：`build.rs` → `zant_build::try_tsx_app()`）；`scripts/tsx/examples-check.sh` 无窗口跑 3 个应用并断言 PNG 非空白 / 尺寸 / 确定性 / `ZANT_LAYOUT_FILE` keyed 控件；`zant-tsx-bench` 编译基准（32 个语料，Rust 编译 30 个，best-of-3 平均 **1.08×** Zig in-process，闸门 ≤1.25× PASS）。详见下方「WP-5.10 完成情况」与「WP-5.10 提出」。 |
 
 ### M6 CLI / 构建 / 脚手架 / 发布
 
@@ -248,6 +248,121 @@ Release、窗口模式（Metal），`ZANT_FRAME_STATS=1 ZANT_STREAM_CHARS=6 ZANT
   Rust 侧的 gallery 是 `zant-examples` 的 `gallery_app`（WP-2.9），不是框架 API，`crates/zant/tests`
   不做跨 crate 依赖，故保留未移植（该应用另有 `crates/zant-examples/tests/gallery_smoke.rs` 覆盖）。
 - 仍归其他 WP：`motion_test.zig` 后 6 条（WP-2.7）、`tsx*_test.zig`（M4/M5）。
+
+### WP-5.10 完成情况（wp-5-10，2026-11-14）
+
+分支 `rust/wp-5.10`。**TSX 示例与 TSX 编译基准**：`examples/tsx/` 的 Rust 入口（3 个 workspace 成员应用）
++ 32 个语料文件的进程内编译基准（对照 Zig 编译器进程内基线）。
+
+**新增文件**
+
+- `crates/zant-examples/tsx/`（3 个 Cargo workspace 成员，`scaffold/template-ts` 形态：`build.rs` →
+  `zant_build::try_tsx_app()`、`src/main.rs` → `zant::tsx::app::run`、`native/system.ts|rs` 原生模块）：
+  - `tsx-counter/`（bin `zant-tsx-counter`）：`examples/tsx/counter.tsx` 的 1:1 移植（窗口 520×480，9 个 key）；
+  - `tsx-demo/`（bin `zant-tsx-demo`）：`examples/tsx/app/App.tsx` 的移植（`Hello from TSX`、两个 Counter、
+    store、tray、panel 窗口、clipboard、`useAppExit` 里的 `native/system` 原生调用；窗口 480×360）；
+  - `tsx-bench/`（bin `zant-tsx-bench-app`）：帧基准的重负载页 `examples/tsx/settings.tsx`（40 个开关，
+    窗口 640×900，布局 86 个 key）；
+  - `tsx/app_config_build.rs`：三个 `build.rs` 共用的 body。workspace 成员没有 `zant sync` 步骤，所以它在
+    `build.rs` 里把 `zant sync` 会写的 `src/app_config.rs` 从 `try_tsx_app()` 已解析的 `app.config.json`
+    写出来（内容比较后写，避免 `src/` rerun-if-changed 抖动；文件 gitignore）。
+- `crates/zant-examples/src/bin/zant-tsx-bench.rs`：32 个 `tools/tsx/testdata/*.tsx` 逐文件在进程内调
+  `zant_tsx::compile`（默认 10 轮预热 + 100 次迭代），输出与 Zig `bench_harness.zig` 相同的统计行
+  （每文件一行 `frames=… avg=… p95=… max=…` + `total`）；被 Rust 编译器拒绝的文件打印诊断并跳过。
+- `tools/tsx/compile_bench.zig`：Zig 基线（独立基准工具，不改 `zant-tsx` 编译器）：同一个
+  `tools/tsx/compile.zig` 进程内跑同一语料、同样预热/迭代/输出格式。Zig 的
+  `zig-out-baseline/bin/zant-tsx-bench` 是**帧**基准（`clicks frames= 3000 avg= 0.099 ms` …），不是编译时间，
+  不能当编译基准的基线。
+- `scripts/tsx/examples-check.sh`：构建 3 个示例 → 逐个无窗口跑 `ZANT_SNAPSHOT` 并断言（见下）→ 跑编译基准
+  （与 Zig 基线交替跑 3 轮，取每文件最好一轮，闸门 ≤1.25×）。
+- 接线：根 `Cargo.toml` +3 个 workspace 成员；`crates/zant-examples/Cargo.toml` +`zant-tsx` 依赖与
+  `[[bin]] zant-tsx-bench`。
+
+**截图证据**（`scripts/tsx/examples-check.sh` 每次重新生成；本机浅色 2× 显示，证据文件在
+`target/wp-5.10-evidence/`）
+
+| 示例 | 窗口 | 快照 | 断言 |
+|---|---|---|---|
+| `zant-tsx-counter` | 520×480 | 1040×960，36 404 B，sha256 `e86260f6…` | 9 个 key：title/count/name/inc/reset/step/large/notify/note |
+| `zant-tsx-demo` | 480×360 | 960×720，45 653 B，sha256 `7a0a6bb4…` | 8 个 key：label-Apples/label-Pears/minus-Apples/plus-Apples/total/toggle-panel/copy/note |
+| `zant-tsx-bench-app` | 640×900 | 1280×1800，132 003 B，sha256 `f6aec2c8…` | changes/row-0/sw-0/row-39/sw-39（布局 86 个 key） |
+
+`examples-check.sh` 的断言：PNG 签名有效、≥16 种颜色且主色 < 99%（非空白）、尺寸 = `app.config.json`
+逻辑尺寸 × 1–4 显示倍率、两次运行 PNG 与 layout 字节一致、每个期望 keyed 控件盒非空、二进制 rodata 里
+有窗口标题（`TSX Counter`/`TSX App`/`TSX Bench`）与 UI 字面量（`Notifications are on`/`Hello from TSX`/
+`Settings`）。AX 不暴露 Skia 文本，所以「标题文字」用二进制 rodata + layout key 两条证据代替。
+
+**编译基准**（Release；macOS 27.2.1 arm64 14 核；best-of-3；逐文件平均编译时间 ms；Rust = `zant-tsx-bench`，
+Zig = `tools/tsx/compile_bench.zig`）
+
+| 语料文件 | Rust | Zig | 比值 |
+|---|---|---|---|
+| app_hooks | 0.173 | 0.028 | 6.18× |
+| arrays | 2.030 | 7.368 | **0.28×** |
+| builtins | 2.906 | 5.286 | **0.55×** |
+| children | 0.702 | 0.160 | 4.39× |
+| components | 1.176 | 1.028 | 1.14× |
+| conditional | 0.273 | 0.154 | 1.77× |
+| counter | 0.354 | 0.090 | 3.93× |
+| defaults | 0.339 | 0.056 | 6.05× |
+| events | 0.882 | 0.563 | 1.57× |
+| functions | 0.418 | 0.075 | 5.57× |
+| hooks | 1.055 | 0.247 | 4.27× |
+| layout | 0.269 | 0.090 | 2.99× |
+| list | 0.369 | 0.144 | 2.56× |
+| list_scroll | 0.367 | 0.219 | 1.68× |
+| local_state | 0.754 | 0.161 | 4.68× |
+| loops | 1.325 | 0.456 | 2.91× |
+| named_handlers | 0.556 | 0.136 | 4.09× |
+| narrowing | 0.644 | 0.243 | 2.65× |
+| nesting | 0.572 | 0.180 | 3.18× |
+| platform | 0.415 | 0.165 | 2.52× |
+| react_compat | 0.277 | 0.046 | 6.02× |
+| spread | 0.301 | 0.071 | 4.24× |
+| store | 0.590 | 0.117 | 5.04× |
+| strings | 1.437 | 1.396 | 1.03× |
+| text | 0.282 | 0.107 | 2.64× |
+| theme | 0.289 | 0.062 | 4.66× |
+| timers | 0.454 | 0.090 | 5.04× |
+| todos | 0.757 | 0.398 | 1.90× |
+| widgets | 0.382 | 0.054 | 7.07× |
+| windows | 0.433 | 0.060 | 7.22× |
+| **平均（共同编译的 30 个）** | **0.693** | **0.642** | **1.08×** |
+
+**结论：平均 1.08× Zig（闸门 ≤1.25×，PASS）。** 小文件 Rust 慢 2–7×（固定开销是 `syn` 解析 +
+`prettyplease` 格式化生成的 Rust），大文件反超（`arrays` 0.28×、`builtins` 0.55×）。`desktop`/`entities`
+Rust 编译器仍拒绝（见「WP-5.10 提出」4），基准输出 `failed: 2 (desktop, entities)`，比对取两侧共同编译的
+30 个文件。
+
+**偏差**
+
+1. `tsx-demo` 的 `Panel` 窗口声明放在 `src/components/Panel.tsx`（组件自己的文件），`App.tsx` 用
+   `import { panel } from "./components/Panel"`。Zig 版是 `App.tsx` 里 `createWindow(Panel, …)` + 从
+   `./components/Panel` 导入组件；Rust 生成器跨文件窗口组件缺 `impl tsx::window::Component`
+   （见「WP-5.10 提出」1）。窗口选项、组件、keys、UI 完全一致。
+2. `tsx-counter` 的 `note` 文本保持 Zig 的 `Notifications are on`（原生模块只编译/注册，不在 UI 调用）；
+   `tsx-demo` 的原生调用放在 `useAppExit` 日志里（窗口 UI 与 tray tooltip 与 Zig 版一致）：
+   `TSX App: exiting with total 0 (14 cpus)`，`ZANT_SNAPSHOT` 退出时实际执行。
+3. 示例 crate 级 `#![allow(clippy::all)]` / `#![allow(non_upper_case_globals)]` 与 `#[rustfmt::skip]
+   pub mod spec;` 是生成代码的 lint 兜底（见「WP-5.10 提出」2/3），`zant-tsx` 修好后可去掉。
+4. 首次 `cargo clean` 后构建这三个应用会打印一次 `zant-build: src/app_config.rs is missing`（
+   `try_tsx_app()` 先打印 cargo 指令，共有 build helper 后写文件），之后不再出现，不影响构建。
+5. `tsx-bench/` 的包/二进制名是 `zant-tsx-bench-app`，避免与 `zant-examples` 的 `zant-tsx-bench`
+   二进制在 `target/` 重名。
+6. 只移植了**编译**基准（父任务要求）；Zig `bench.zig` 的**帧**对比（clicks/typing/todos/list/markdown/local，
+   TSX 生成代码 vs 手写 Rust ≤1.2×，plan M5 验收）仍未移植，需要把 `*_manual.zig` 对照组与 harness 改成 Rust。
+
+**验收命令**（全部通过）
+
+- `./scripts/cargo.sh test --workspace`：71 个测试二进制 / **1059 passed, 0 failed**（新增 6 条：3 × 示例
+  native `system`、3 条 `zant-tsx-bench` 语料/p95/统计行用例）；
+- `./scripts/cargo.sh clippy --workspace --all-targets -- -D warnings`：0 告警；
+- `./scripts/cargo.sh fmt --all -- --check`：干净；
+- `./scripts/tsx/examples-check.sh`：3 个示例 + 编译基准 PASS（1.08×）；
+- `./scripts/tsx/build-template-check.sh`、`./scripts/tsx/build-check.sh`：仍通过。
+
+**待验证**：Windows（测试机不可达）——3 个示例应用与编译基准未在 Windows 上跑；应用不带平台专属资源，
+`app.config.json` 走通用字段。
 
 ## 已并入 feat/rust-port 的内容（按时间）
 
@@ -471,6 +586,72 @@ Release、窗口模式（Metal），`ZANT_FRAME_STATS=1 ZANT_STREAM_CHARS=6 ZANT
    `codegen_components.rs`/`codegen_app.rs` 与 `tests/snapshots/*.rs`（`Str::from`、`{Component}Props_`、常量函数、
    依赖元组、数组闭包类型、span `&str`、`list_index` 不再 `Some`、`extrema::<T>`、store accessor 等）。快照用
    `ZANT_TSX_WRITE_SNAPSHOTS=1` 重新生成并人工核对。
+
+### WP-5.10 提出（2026-11-14）
+
+**1. 跨文件窗口组件缺 `impl tsx::window::Component`（`crates/zant-tsx/src/codegen/windows.rs`）**
+`docs/tsx.md`「多窗口」和 Zig `examples/tsx/app` 的写法是 `App.tsx` 里 `createWindow(Panel, {…})`、`Panel`
+从 `./components/Panel` 导入。Rust 生成器对 imported 组件走 `component.external` 分支，直接用
+`crate::panel::Panel` 做 `Window` 的参数；`impl tsx::window::Component for Panel` 只在**定义组件的文件**里
+生成（`collect()` 只找本文件的 `createWindow`），于是：
+
+```
+error[E0277]: the trait bound `panel::Panel: WindowComponent` is not satisfied
+  --> $OUT_DIR/App.rs:35: static PANEL : …tsx::window::Window<crate::panel::Panel>> = …
+error[E0599]: the method `toggle` exists for mutable reference
+  `&mut zant::tsx::window::Window<panel::Panel>`, but its trait bounds were not satisfied
+```
+
+Repro：把 `crates/zant-examples/tsx/tsx-demo` 的 `export const panel = createWindow(Panel, …)` 从
+`src/components/Panel.tsx` 移回 `src/App.tsx`（`Panel` 仍 `import { Panel } from "./components/Panel"`）。
+建议修法：`collect()` 的 external 分支在调用方文件里生成 wrapper（`pub struct PanelWindow { _s:
+Rc<RefCell<crate::panel::Panel>> }` + `impl tsx::window::Component`，转发 `render`/`_window_on_key` 等；
+trait impl 可以与被实现类型不同模块），或让组件文件无条件生成 `Component` impl。
+
+**2. 资源常量与生成代码不满足 `clippy -D warnings`（`codegen/assets` 等）**
+`import icon from "…png"` 生成 `const statusbar: &'static [u8] = include_bytes!(…);`：
+
+```
+error: constants have by default a `'static` lifetime   (clippy::redundant_static_lifetimes)
+error: constant `statusbar` should have an upper case name   (non_upper_case_globals)
+```
+
+生成的组件树还会触发 `clippy::needless_return`、`clippy::redundant_field_names`、`clippy::derivable_impls`
+等（模板项目不在主 workspace 里，所以之前没有暴露）。建议生成文件头的 `#![allow(…)]` 补齐这些
+（资源常量上加 `#[allow(non_upper_case_globals)]`）；在那之前示例 crate 用 `#![allow(clippy::all)]` 兜底
+（`crates/zant-examples/tsx/*/src/main.rs`，注释写明原因）。
+
+**3. 生成的 `native/spec.rs` 不是 rustfmt-clean**
+`zant_build::tsx_app()` 写出的 `native/spec.rs` 末尾多一个空行，workspace 成员的 `pub mod spec;` 会被
+`cargo fmt --all -- --check` 检查：
+
+```
+Diff in …/native/spec.rs:42:
+     /// The registry key of this spec …
+     pub const NAME: &str = "system";
+ }
+-
+```
+
+示例用 `#[rustfmt::skip] pub mod spec;` 规避（`native/lib.rs`）。建议生成物末尾只留一个换行（
+`native_specs::generate` / `write_spec_module`），或由 `zant-build` 在文件头写 `#[rustfmt::skip]`。
+
+**4. `desktop` / `entities` 仍不能编译（承接 WP-5.9 待决 2/4）**
+编译基准只覆盖 32 个语料里的 30 个：
+
+```
+tools/tsx/testdata/desktop.tsx:13:11: error: cannot convert tsx::List<u8> to &'static [u8]; use an explicit matching type
+tools/tsx/testdata/entities.tsx:1:1: error: string literal is not valid UTF-8; Rust cannot represent an unpaired surrogate
+```
+
+基准输出 `failed: 2 (desktop, entities)`，比值取两侧共同编译的 30 个；`Uint8Array` 映射裁定后 `desktop`
+应进入共同集。
+
+**5. `zant-build` 的 `src/app_config.rs` 警告时序（无害）**
+workspace 成员没有 `zant sync` 时，`zant_build::try_tsx_app()` 在打印
+`cargo:warning=zant-build: src/app_config.rs is missing … run zant sync` 之后应用 `build.rs` 才写出该文件，
+`cargo clean` 后第一次构建会看到一次警告，之后正常。要彻底消掉可以让 `try_tsx_app` 的指令打印延后到
+调用方写文件之后（接口变化），或示例 build.rs 先写文件再调用 `zant_build::tsx_app()`。
 
 ### WP-5.6 提出（2026-11-14）
 
