@@ -80,8 +80,8 @@ fn pdf_opens_the_default_fixture_and_builds_the_reader() {
         assert!(runtime.find_key(key).is_some(), "toolbar key {key:?}");
     }
     assert!(
-        runtime.find_key("pdf-tool0").is_some(),
-        "annotation tool switch"
+        runtime.find_key("pdf-tools").is_some(),
+        "annotation tool switch (a segmented control, like Zig)"
     );
     let texts: Vec<&str> = runtime
         .tree

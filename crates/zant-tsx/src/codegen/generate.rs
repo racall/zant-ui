@@ -115,72 +115,51 @@ fn emit_jsx(
 }
 
 pub fn install(g: &mut Generator<'_>) {
+    // application-layer state of this module (imports, windows, desktop hooks)
+    super::app_state::reset();
     g.extensions.extra_hook = hooks::extra_hook;
     g.extensions.hooks.ref_read = Some(hooks::ref_read);
     g.extensions.hooks.ref_write = Some(hooks::ref_write);
     g.extensions.hooks.bare_ref = Some(hooks::bare_ref);
-    g.extensions.hooks.hook_statement = Some(statement_hook);
-    g.extensions.hooks.hook_declaration = Some(declaration_hook);
+    // WP-5.6's dispatcher chains app hooks, desktop hooks and `useEffect`
+    g.extensions.hooks.hook_statement = Some(super::app_hooks::statement);
+    g.extensions.hooks.hook_declaration = Some(super::app_hooks::declaration);
     g.extensions.hooks.cleanup_return = Some(hooks::cleanup_return);
     g.extensions.hooks.components_read_prop = Some(components::read_prop);
     g.extensions.hooks.callback_type = Some(components::callback_type);
     g.extensions.hooks.nested = Some(super::captures::nested);
     g.extensions.array_methods = Some(super::array_methods::emit);
-    g.extensions.call_before_functions = vec![components::try_call, stores::try_call];
-    // WP-5.4: JSX and event emission.
+    // Zig `expr.callValue`'s dispatch order: components, .rs functions,
+    // stores, windows
+    g.extensions.call_before_functions = vec![
+        components::try_call,
+        super::rust_imports::try_call,
+        stores::try_call,
+        super::windows::try_call,
+    ];
+    // Zig `expr.callValue`: `zant_api` before the JS builtins
+    g.extensions.call_before_builtins = vec![super::zant_api::try_call];
+    g.extensions.is_app_hook = super::app_hooks::is_app_hook;
+    g.extensions.is_desktop_hook = super::desktop_hooks::is_hook;
+    g.extensions.hooks.zant_api_read = Some(super::zant_api::read);
+    g.extensions.hooks.key_event_type = Some(super::app_hooks::key_event_type);
+    g.extensions.hooks.imported_type = Some(super::imports::named);
+    g.extensions.hooks.zig_type = Some(super::rust_imports::named);
+    g.extensions.hooks.external_name = Some(super::imports::external_name);
+    // WP-5.6 (one line each):
+    g.extensions.process_imports = Some(super::imports::process);
+    g.extensions.collect_windows = Some(super::windows::collect);
+    g.extensions.app_lifecycle = Some(super::app_hooks::lifecycle);
+    g.extensions.is_window_const = Some(super::windows::is_create);
+    // WP-5.4 (one line each):
     g.extensions.hooks.emit_jsx = Some(emit_jsx);
     g.extensions.hooks.scan_body = Some(super::events::scan_body);
     g.extensions.hooks.scan_expr = Some(super::events::scan_expr);
     g.extensions.hooks.emit_setter = Some(super::events::emit_setter);
     g.extensions.hooks.method_param = Some(super::events::method_param_type);
     g.extensions.hooks.parameter_type = Some(super::events::parameter_type);
-    // WP-5.6 (one line each):
-    // g.extensions.process_imports = Some(super::imports::process);
-    // g.extensions.collect_windows = Some(super::windows::collect);
-    // g.extensions.app_lifecycle = Some(super::app_hooks::lifecycle);
     // WP-5.8:
     // (native module specs): g.extensions.native_spec = Some(super::native_specs::emit);
-}
-
-/// Statement-position hook (Zig `hooks.effect`; WP-5.6's app hooks chain in
-/// before this one).
-fn statement_hook(
-    g: &mut Generator<'_>,
-    c: &mut scope::Context,
-    e: &ast::Expr,
-    top: bool,
-) -> Result<String> {
-    match hooks::call_name(e).as_deref() {
-        Some("useEffect") => hooks::effect(g, c, e, top),
-        Some(name) => fail(
-            g,
-            e.loc,
-            format!(
-                "`{name}` cannot be used as a statement; keep its value in a const or call it at the top level"
-            ),
-        ),
-        None => fail(g, e.loc, "hook statements are not supported here"),
-    }
-}
-
-/// Declaration-position hook (`useMemo`, `useStore`; WP-5.6's hooks chain in
-/// before this one).
-fn declaration_hook(
-    g: &mut Generator<'_>,
-    c: &mut scope::Context,
-    loc: ast::Loc,
-    d: &ast::Decl,
-    top: bool,
-) -> Result<String> {
-    let Some(init) = d.init.as_deref() else {
-        return fail(g, loc, "hook declarations need an initializer");
-    };
-    match hooks::call_name(init).as_deref() {
-        Some("useMemo") => hooks::memo(g, c, loc, d, top),
-        Some("useStore") => stores::use_store(g, c, loc, d, top),
-        Some(name) => fail(g, loc, format!("hook `{name}` is implemented by WP-5.6")),
-        None => fail(g, loc, "hook declarations are not supported here"),
-    }
 }
 
 /// Validate the module, register state and handlers, then emit a complete
@@ -287,7 +266,7 @@ fn generate_inner(
     let is_window = g.extensions.is_window_const.unwrap_or(|_| false);
     let store_code = stores::collect(&mut g, &module.consts)?;
     let plain = stores::plain_constants(&mut g, &module.consts, is_window)?;
-    let asset_code = globals::assets(&mut g, module, options.source_path)?;
+    let asset_code = crate::assets::process(&mut g, module, options.source_path)?;
     let globals_code = format!(
         "{asset_code}{}{store_code}",
         globals::collect(&mut g, &plain)?
@@ -750,10 +729,13 @@ pub fn collect(g: &mut Generator<'_>, f: &ast::Function) -> Result<()> {
             ast::StmtData::Decl(d) => collect_declaration(g, s.loc, d)?,
             ast::StmtData::Func(func) => collect_method(g, &func.name, func)?,
             ast::StmtData::Expr(e) => {
-                if let Some(name) = hooks::call_name(e)
-                    && name == "useEffect"
-                {
-                    hooks::collect_effect(g, e)?;
+                if let Some(name) = hooks::call_name(e) {
+                    if name == "useEffect" {
+                        hooks::collect_effect(g, e)?;
+                    }
+                    if (g.extensions.is_app_hook)(&name) {
+                        super::app_hooks::collect(g, e)?;
+                    }
                 }
             }
             _ => {}
@@ -776,7 +758,7 @@ pub fn collect(g: &mut Generator<'_>, f: &ast::Function) -> Result<()> {
         if let Some(name) = hooks::call_name(e)
             && (g.extensions.is_desktop_hook)(&name)
         {
-            return fail(g, e.loc, "desktop hooks are implemented by WP-5.6");
+            super::desktop_hooks::collect(g, e)?;
         }
     }
     for state in g.states.clone() {

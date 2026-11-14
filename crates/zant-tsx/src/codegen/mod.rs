@@ -71,11 +71,14 @@
 //! | hook predicates | `extensions.extra_hook` / `is_app_hook` / `is_desktop_hook` / `component_shadow` | `fn(..) -> bool` |
 
 pub mod aggregate;
+pub mod app_hooks;
+pub mod app_state;
 pub mod array_methods;
 pub mod builtins;
 pub mod callbacks;
 pub mod captures;
 pub mod components;
+pub mod desktop_hooks;
 pub mod events;
 pub mod expr;
 pub mod free_names;
@@ -83,6 +86,7 @@ pub mod functions;
 pub mod generate;
 pub mod globals;
 pub mod hooks;
+pub mod imports;
 pub mod jsx;
 pub mod jsx_children;
 pub mod jsx_values;
@@ -92,6 +96,7 @@ pub mod model;
 pub mod narrowing;
 pub mod nesting;
 pub mod rich_text;
+pub mod rust_imports;
 pub mod rust_text;
 pub mod scope;
 pub mod spread;
@@ -100,6 +105,8 @@ pub mod stmt;
 pub mod stores;
 pub mod string_methods;
 pub mod types;
+pub mod windows;
+pub mod zant_api;
 
 use crate::ast;
 

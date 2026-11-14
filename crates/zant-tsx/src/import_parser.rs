@@ -137,7 +137,7 @@ fn is_asset(source: &[u8]) -> bool {
     if ext.is_empty() {
         return false;
     }
-    for code in [&b".tsx"[..], b".ts", b".zig", b".jsx", b".js"] {
+    for code in [&b".tsx"[..], b".ts", b".zig", b".rs", b".jsx", b".js"] {
         if ext == code {
             return false;
         }

@@ -174,6 +174,12 @@ impl ChildState {
   由新编译器生成后**人工逐个审阅**再签入（WP-5.9）。
 - `tests/tsx/**`（多文件、hooks、native、windows）同样迁到 Rust 版并驱动运行期测试。
 - 回归门槛：`bench-tsx` 中 TSX 生成代码不慢于手写 Rust 对照组 1.2 倍。
+- **WP-5.6 的应用层黄金用例**（`crates/zant-tsx/tests/codegen_app.rs` + `tests/snapshots/`）：
+  counter（简版）、windows、app_hooks、platform、desktop 五个模块的输出快照。快照由
+  `generate_with(.., install_extra)` 注入 **仅测试用的 JSX 桩**生成（WP-5.4 的 `jsx.rs`/`events.rs`
+  落地前任何渲染 JSX 的模块都无法生成），因此 render 体是 `ui::text("stub", …)`；快照覆盖的是
+  本 WP 拥有的部分（imports/windows/desktop hooks/app hooks/zant API/assets/entry）。5.4 合并后
+  这些快照仍用同一桩（稳定、不依赖 5.4 的实现细节），真实 render 由 5.4/5.9 的黄金用例覆盖。
 
 ## 11. 实现顺序与文件
 
@@ -185,7 +191,15 @@ impl ChildState {
 | `builtins.rs` / `narrowing.rs` / `functions.rs` / `loops.rs` / `aggregate.rs` | §7/§8 | 5.3 |
 | `jsx.rs` / `jsx_values.rs` / `jsx_children.rs` / `rich_text.rs` / `list.rs` / `events.rs` | §5 | 5.4 |
 | `codegen.rs` / `components.rs` / `model.rs` / `stateful.rs` / `hooks.rs` / `stores.rs` / `array_methods.rs` / `local_state.rs` | §6 | 5.5 |
-| `imports.rs` / `rust_imports.rs` / `windows.rs` / `desktop_hooks.rs` / `zant_api.rs` / `assets.rs` / `entry.rs` / `compile.rs` / `main.rs` | §9、CLI/构建接线 | 5.6 |
+| `codegen/imports.rs` / `codegen/rust_imports.rs` / `codegen/windows.rs` / `codegen/desktop_hooks.rs` / `codegen/zant_api.rs` / `codegen/app_hooks.rs` / `codegen/app_state.rs`；`assets.rs` / `entry.rs` / `compile.rs`；`main.rs` | §9、CLI/构建接线 | 5.6 |
 
 每个文件对照 `tools/tsx/codegen/` 同名文件逐函数移植；只有 §3 的所有权规则与 §7/§8 的
 「Zig 字符串语义 → Rust 语义」是**有意不同**的地方，其余逻辑顺序、优先级、命名规则照搬。
+
+WP-5.6 的文件位置（实现时确定，行为需要）：`codegen/` 里只有 codegen 钩子；`assets.rs` /
+`entry.rs` / `compile.rs` 是项目级流水线，放在 crate 根（与 `tools/tsx/` 的目录一致）。
+另外两个不在原表里的文件也是 5.6 的：`codegen/app_hooks.rs`（原 `app_hooks.zig`，
+`impl ui::App` 的生命周期方法：`generate.rs` 的 `app_lifecycle` 钩子需要它）和
+`codegen/app_state.rs`（Zig `Generator` 上的 imports/zig_imports/windows/desktop 字段；
+Rust 的 `Generator` 归 5.3/5.5，本 WP 只被允许填 `install`，所以项目与每模块状态放在
+thread-local，由 `install` 在每个模块前重置——见 `codegen/app_state.rs` 顶部说明）。
