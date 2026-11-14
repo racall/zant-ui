@@ -22,6 +22,7 @@ pub mod components;
 pub mod core;
 pub mod db;
 pub mod desktop;
+pub mod error;
 pub mod layout;
 pub mod markdown;
 pub mod math;
@@ -31,6 +32,7 @@ pub mod runtime;
 pub mod store;
 pub mod str;
 
+pub use error::{Error, Result};
 pub use str::Str;
 pub mod theme;
 pub mod tsx;

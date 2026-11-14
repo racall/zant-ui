@@ -14,6 +14,7 @@ pub mod builders;
 pub mod commands;
 pub mod context;
 pub mod element;
+pub mod local_state;
 pub mod memo;
 pub mod options;
 pub mod portals;
@@ -27,11 +28,12 @@ pub use actions::{
 pub use builders::{button, column, row, text};
 pub use context::{
     BuildCx, begin_frame, current_theme, display_scale, document_edited, effect, end_frame,
-    frame_string, is_frame_active, now_ms, push_portal, request_rebuild, run_effects,
-    set_build_theme, set_build_window_style, set_display_scale, set_now, take_document_edited,
-    take_portals, take_wake, titlebar_insets, wake_after, with_cx,
+    frame_string, is_frame_active, key_bounds, now_ms, post_wake, push_portal, request_rebuild,
+    run_effects, set_build_theme, set_build_window_style, set_display_scale, set_key_bounds_hook,
+    set_now, take_document_edited, take_portals, take_wake, titlebar_insets, wake_after, with_cx,
 };
 pub use element::{Element, IntoNodes, MemoBuild, Node, append_children, with_key};
+pub use local_state::{child_id, local_slot, local_state};
 pub use options::{
     AlertOptions, AlertType, AvatarOptions, BoxOptions, ButtonOptions, CardOptions,
     ClickableOptions, DismissLayerOptions, DividerOptions, HeadingOptions, IconButtonOptions,

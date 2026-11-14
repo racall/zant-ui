@@ -1,0 +1,82 @@
+//! `ui::local_state` / `ui::local_slot` / `ui::child_id` — WP-2.4 (drawn early
+//! so the ui builders and the TSX compiler can use it).
+//!
+//! Component-local state that lives while the instance keeps being built: the
+//! slot for `id` is created from `initial` on the first build and freed after
+//! the first rebuild that does not ask for it (unmount). The `Rc<RefCell<T>>`
+//! stays valid for callbacks of the frame; unmount drops the store's handle.
+//!
+//! ```ignore
+//! let open = ui::local_state(ui::child_id(parent_id, "faq-3"), || false);
+//! ```
+#![forbid(unsafe_code)]
+
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use crate::core::local_state::{Slot, Store};
+
+use super::context;
+
+thread_local! {
+    /// Fallback store for builds outside a runtime (tests, previews), like the
+    /// Zig `default_states`.
+    static FALLBACK: RefCell<Store> = RefCell::new(Store::new());
+}
+
+fn with_store<R>(f: impl FnOnce(&mut Store) -> R) -> R {
+    match context::build_states() {
+        Some(states) => f(&mut states.borrow_mut()),
+        None => FALLBACK.with(|store| f(&mut store.borrow_mut())),
+    }
+}
+
+/// Component-local state (`ui.localState`): the slot for `id`, created from
+/// `init` on the first build of the instance.
+pub fn local_state<T: 'static>(id: u64, init: impl FnOnce() -> T) -> Rc<RefCell<T>> {
+    with_store(|store| store.slot(id, init).value)
+}
+
+/// `local_state` without discarding `fresh` (`ui.localSlot`): the caller can
+/// initialise the value only on the first build.
+pub fn local_slot<T: 'static>(id: u64, init: impl FnOnce() -> T) -> Slot<T> {
+    with_store(|store| store.slot(id, init))
+}
+
+/// The id of a child instance: the parent's id mixed with a name, key or
+/// position (`&str` or an integer).
+pub fn child_id(parent: u64, part: impl crate::core::local_state::ChildIdPart) -> u64 {
+    crate::core::local_state::child_id(parent, part)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn local_state_persists_in_the_fallback_store() {
+        let id = 0xFA11_BACC_u64;
+        let first = local_state(id, || 5u32);
+        assert_eq!(*first.borrow(), 5);
+        *first.borrow_mut() = 9;
+        drop(first);
+        let again = local_state(id, || 0u32);
+        assert_eq!(*again.borrow(), 9, "the slot is not re-initialised");
+    }
+
+    #[test]
+    fn local_slot_reports_fresh_only_once() {
+        let id = 0xFEED_BEEF_u64;
+        let first = local_slot(id, || 1u8);
+        assert!(first.fresh);
+        drop(first);
+        let again = local_slot(id, || 0u8);
+        assert!(!again.fresh);
+    }
+
+    #[test]
+    fn child_ids_are_stable_and_typed() {
+        assert_eq!(child_id(7, "row"), child_id(7, "row"));
+        assert_ne!(child_id(7, 1u64), child_id(7, "1"));
+    }
+}

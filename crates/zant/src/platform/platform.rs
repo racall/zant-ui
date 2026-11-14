@@ -11,6 +11,7 @@
 //! docs/rust-port/plan.md WP-1.1d.
 
 use std::ffi::{CStr, CString};
+use std::sync::atomic::{AtomicPtr, Ordering};
 use std::time::Instant;
 
 use crate::renderer::canvas::Canvas;
@@ -441,6 +442,11 @@ impl Window {
         if handle.is_null() {
             return Err(PlatformError::WindowCreationFailed);
         }
+        // The first window is the wake target for background work; the runtime
+        // may point it elsewhere for multiple windows.
+        if POST_WAKE_WINDOW.load(Ordering::Relaxed).is_null() {
+            set_post_wake_window(handle);
+        }
         Ok(Window {
             handle,
             _host: Some(host),
@@ -573,6 +579,30 @@ impl Drop for Window {
             self.handle = std::ptr::null_mut();
         }
         // the handler is dropped with `self.host`
+    }
+}
+
+/// The window `post_wake` wakes (the first window created; the runtime may
+/// change it later for multi-window apps). A raw pointer is stored so any
+/// thread can wake the UI thread, which `zant_window_post_wake` documents as
+/// thread-safe.
+static POST_WAKE_WINDOW: AtomicPtr<ffi::ZantWindow> = AtomicPtr::new(std::ptr::null_mut());
+
+/// Registers the window `platform::post_wake` targets. The runtime sets this
+/// for the window it wants background work to wake.
+pub fn set_post_wake_window(window: *mut ffi::ZantWindow) {
+    POST_WAKE_WINDOW.store(window, Ordering::Relaxed);
+}
+
+/// Thread-safe: asks the UI thread to run the `wake` callback once and redraw
+/// (Zig: `ui.postWake`). Does nothing before a window exists.
+pub fn post_wake() {
+    let handle = POST_WAKE_WINDOW.load(Ordering::Relaxed);
+    if !handle.is_null() {
+        // SAFETY: the native function is thread-safe and the pointer is the
+        // live window registered by `create` / `set_post_wake_window` (the
+        // window outlives the app's background work).
+        unsafe { ffi::zant_window_post_wake(handle) }
     }
 }
 
