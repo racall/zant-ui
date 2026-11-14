@@ -27,3 +27,5 @@ target/
 **/*.rs.bk
 .cargo-home/
 .worktrees/
+.cargo-home
+.zig-global-cache
