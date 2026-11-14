@@ -64,6 +64,14 @@ pub use styled::{Style, inset, inset_xy, styled};
 pub use crate::core::node::Icon;
 pub use crate::platform::platform::Cursor;
 
+/// Virtual list (`docs/components/list.md`) — WP-2.6. Zig `ui.list`,
+/// `ui.ListState`, `ui.ListOptions`, `ui.listItem` / `ui.listItemId` (Rust
+/// closures replace those wrappers), `ui.ListAlignment`.
+pub use crate::components::list::{
+    Alignment as ListAlignment, ItemBuilder as ListItemBuilder, ItemId as ListItemId, List,
+    ListOptions, ListState, ScrollPosition as ListScrollPosition, list,
+};
+
 #[cfg(test)]
 mod contract_tests {
     //! The call shapes frozen by docs/rust-port/api.md §4, as the TSX codegen
