@@ -175,9 +175,18 @@ impl Tree {
             NodeKind::Button => {
                 crate::components::button::paint(&mut self.nodes[index], canvas, theme);
             }
-            // WP-2.1 / WP-2.2 own the paint of these components; until their
-            // modules land only the generic background / border above is drawn.
-            NodeKind::Input | NodeKind::Toggle | NodeKind::Image | NodeKind::Select => {}
+            // WP-2.1 owns input; until its module lands only the generic
+            // background / border above is drawn.
+            NodeKind::Input => {}
+            NodeKind::Toggle => {
+                crate::components::toggle::paint(&mut self.nodes[index], canvas, theme);
+            }
+            NodeKind::Image => {
+                crate::components::image::paint(&mut self.nodes[index], canvas, theme);
+            }
+            NodeKind::Select => {
+                crate::components::select::paint(&mut self.nodes[index], canvas, theme);
+            }
             NodeKind::RichText => {
                 if let NodeData::RichText(data) = &mut self.nodes[index].data {
                     // Rich-text selection painting needs the range-rect helper

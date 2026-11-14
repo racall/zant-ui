@@ -11,8 +11,7 @@ use crate::core::geometry::Size;
 use crate::core::layout::Nodes;
 use crate::core::layout::column::layout_column;
 use crate::core::layout::intrinsic::{
-    clamp_dim, image_measure_height, input_measure_height, intrinsic_height, intrinsic_width,
-    resolve_width, select_measure_height, toggle_measure_height,
+    clamp_dim, input_measure_height, intrinsic_height, intrinsic_width, resolve_width,
 };
 use crate::core::layout::row::layout_row;
 use crate::core::layout::wrap::layout_row_wrap;
@@ -134,7 +133,7 @@ pub(crate) fn layout_node(
                         .height_percent
                         .map(|percent| available_height.max(0.0) * percent / 100.0)
                 })
-                .unwrap_or_else(|| toggle_measure_height(&style));
+                .unwrap_or_else(|| crate::components::toggle::measure_height(&style));
             nodes[id].bounds.height = clamp_dim(&style, height, false);
         }
         NodeKind::Image => {
@@ -146,12 +145,9 @@ pub(crate) fn layout_node(
                 })
                 .or(style.height)
                 .unwrap_or_else(|| match &nodes[id].data {
-                    NodeData::Image(data) => image_measure_height(
-                        &style,
-                        data.intrinsic_width,
-                        data.intrinsic_height,
-                        width,
-                    ),
+                    NodeData::Image(data) => {
+                        crate::components::image::measure_height(&style, data, width)
+                    }
                     _ => 0.0,
                 });
             nodes[id].bounds.height = clamp_dim(&style, height, false);
@@ -163,7 +159,7 @@ pub(crate) fn layout_node(
                         .height_percent
                         .map(|percent| available_height.max(0.0) * percent / 100.0)
                 })
-                .unwrap_or_else(|| select_measure_height(&style));
+                .unwrap_or_else(|| crate::components::select::measure_height(&style));
             nodes[id].bounds.height = clamp_dim(&style, height, false);
         }
         NodeKind::Vector => {
