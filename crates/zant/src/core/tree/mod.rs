@@ -86,6 +86,10 @@ impl Tree {
         tree
     }
 
+    /// Zig `Tree.deinit`: Rust frees the nodes on `Drop`; kept so ported call
+    /// sites compile unchanged.
+    pub fn deinit(&mut self) {}
+
     pub fn get(&self, id: NodeId) -> &RetainedNode {
         &self.nodes[id as usize]
     }
