@@ -79,7 +79,6 @@ macro_rules! scratch_pool {
         }
     };
 }
-pub(crate) use scratch_pool;
 
 scratch_pool!(pub(crate) ScratchIds, NodeId, IDS_POOL);
 scratch_pool!(pub(crate) ScratchItems, crate::layout::flex::Item, ITEMS_POOL);
