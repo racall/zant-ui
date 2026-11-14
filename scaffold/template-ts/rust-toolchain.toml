@@ -1,0 +1,7 @@
+# Zant UI apps build with the stable Rust toolchain (edition 2024); the minimum
+# version is `rust-version` in Cargo.toml. rustup installs this toolchain
+# automatically on the first build.
+[toolchain]
+channel = "stable"
+profile = "minimal"
+components = ["rustfmt", "clippy"]

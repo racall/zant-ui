@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <!-- Windows app icon (Microsoft Fluent app icon guidance): the shape fills
+       the canvas (no system mask, no drop shadow), small even margin, heavier
+       strokes so the 16–32 px sizes stay legible. zant builds the .ico
+       (16, 20, 24, 32, 40, 48, 64, 256) from app-windows.png (256×256, RGBA). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4f8cff"/>
+      <stop offset="1" stop-color="#1d4ed8"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="52" fill="url(#bg)"/>
+  <path d="M84 84 H172 L84 172 H172" fill="none" stroke="#ffffff" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

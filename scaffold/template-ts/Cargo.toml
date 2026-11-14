@@ -1,0 +1,29 @@
+# The app is a single Cargo package: `src/main.rs` is the entry, `build.rs`
+# compiles `src/**/*.tsx` into Rust, and `native/` holds the Rust native modules.
+#
+# `__ZANT_PATH__` is the Zant UI checkout (or the installed `zant-ui/` folder).
+# `zant create` rewrites it into a path relative to this project, so the project
+# builds wherever the two live. On Windows a project on another drive than Zant
+# UI gets a directory junction `.zant/zant-ui` and the path becomes that.
+[package]
+name = "__APP_NAME_SNAKE__"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.94"
+publish = false
+
+[dependencies]
+zant = { path = "__ZANT_PATH__/crates/zant" }
+
+[build-dependencies]
+# `build.rs`: TSX → Rust in OUT_DIR, icons, Windows manifest / .ico, pdfium.dll.
+zant-build = { path = "__ZANT_PATH__/crates/zant-build" }
+
+# The workspace `[profile.release]` is not inherited by an app: keep Zig's
+# "integer overflow panics" semantics, like the Zant UI workspace does.
+[profile.release]
+overflow-checks = true
+
+# This package is its own workspace, so a project created inside another Cargo
+# workspace (for example inside the Zant UI checkout) still builds on its own.
+[workspace]
