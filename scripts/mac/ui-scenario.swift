@@ -137,6 +137,60 @@ for raw in steps.split(separator: "\n") {
         let a = rest.split(separator: " ").compactMap { Double($0) }
         if let w = window(), a.count == 2 { resize(w, a[0], a[1]) }
         usleep(500_000)
+    case "clickfrac":
+        // click a fraction of a keyed control's box (popup rows, track knobs)
+        let a = rest.split(separator: " ").map(String.init)
+        guard a.count == 3, let fx = Double(a[1]), let fy = Double(a[2]) else { print("bad clickfrac \(line)"); failures += 1; continue }
+        if let w = window(), let b = layout()[a[0]] {
+            let o = origin(w)
+            let p = CGPoint(x: o.x + b.minX + b.width * fx, y: o.y + b.minY + b.height * fy)
+            mouse(.mouseMoved, p); mouse(.leftMouseDown, p); usleep(10_000); mouse(.leftMouseUp, p)
+        } else { print("missing key \(a[0])"); failures += 1 }
+        usleep(80_000)
+    case "scroll":
+        // scroll the wheel over a keyed control (positive `lines` scrolls down)
+        let a = rest.split(separator: " ").map(String.init)
+        guard a.count == 2, let lines = Int32(a[1]) else { print("bad scroll \(line)"); failures += 1; continue }
+        if let w = window(), let b = layout()[a[0]] {
+            let o = origin(w)
+            mouse(.mouseMoved, CGPoint(x: o.x + b.midX, y: o.y + b.midY))
+            for _ in 0..<8 {
+                CGEvent(scrollWheelEvent2Source: src, units: .line, wheelCount: 1, wheel1: lines, wheel2: 0, wheel3: 0)?.post(tap: .cghidEventTap)
+                usleep(20_000)
+            }
+        } else { print("missing key \(a[0])"); failures += 1 }
+        usleep(300_000)
+    case "drag":
+        // drag from the control's centre to a fraction of its box
+        let a = rest.split(separator: " ").map(String.init)
+        guard a.count == 3, let fx = Double(a[1]), let fy = Double(a[2]) else { print("bad drag \(line)"); failures += 1; continue }
+        if let w = window(), let b = layout()[a[0]] {
+            let o = origin(w)
+            let start = CGPoint(x: o.x + b.midX, y: o.y + b.midY)
+            let end = CGPoint(x: o.x + b.minX + b.width * fx, y: o.y + b.minY + b.height * fy)
+            mouse(.mouseMoved, start); mouse(.leftMouseDown, start)
+            for i in 1...12 {
+                let t = Double(i) / 12.0
+                mouse(.leftMouseDragged, CGPoint(x: start.x + (end.x - start.x) * t, y: start.y + (end.y - start.y) * t))
+                usleep(15_000)
+            }
+            mouse(.leftMouseUp, end)
+        } else { print("drag: missing \(a[0])"); failures += 1 }
+        usleep(120_000)
+    case "clickat":
+        // click absolute content coordinates (imperative apps without layout keys)
+        let a = rest.split(separator: " ").compactMap { Double($0) }
+        guard a.count == 2, let w = window() else { print("bad clickat \(line)"); failures += 1; continue }
+        let o = origin(w)
+        let p = CGPoint(x: o.x + a[0], y: o.y + a[1])
+        mouse(.mouseMoved, p); mouse(.leftMouseDown, p); usleep(10_000); mouse(.leftMouseUp, p)
+        usleep(120_000)
+    case "layout":
+        // copy the app's layout dump (key -> boxes) for later assertions
+        if let text = try? String(contentsOfFile: layoutPath, encoding: .utf8) {
+            try? text.write(toFile: "\(outDir)/\(rest).layout", atomically: true, encoding: .utf8)
+            print("layout \(rest)")
+        } else { print("layout: unreadable \(layoutPath)"); failures += 1 }
     case "wait": usleep(useconds_t((Double(rest) ?? 0) * 1000))
     case "shot":
         usleep(350_000) // transitions settle

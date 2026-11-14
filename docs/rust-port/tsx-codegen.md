@@ -135,7 +135,10 @@ impl ChildState {
 
 - 变量声明：`let x: T = ..;`；块作用域照 TS（Rust 块语义相同）。
 - `if/else`、`while`、`for (const x of arr)`（→ `for x in arr.iter().cloned()`）、
-  `for (let i = 0; i < n; i++)`、`switch`（→ `match`，fallthrough 报诊断）、`try/catch`（→ 不支持，诊断）。
+  `for (let i = 0; i < n; i++)`、`switch`（→ **带标签的 `if/else if` 链**；case 表达式可能有副作用且按源码顺序求值，
+  Rust `match` 表达不了，`fallthrough` 仍报诊断）、`try/catch`（→ 不支持，诊断）。
+- C 风格 `for` 用 `loop { if first { first = false } else { update }; if !(cond) { break; } body }`，
+  保证 `continue` 仍执行 update。
 - 逻辑：`&&` / `||` / `!` → Rust 同名（`&&`/`||` 短路语义相同）；`??` → `unwrap_or` / `unwrap_or_else`。
 - 三元 `a ? b : c` → `if a { b } else { c }`。
 - 比较 `===`/`!==` → `==`/`!=`（两边都是 `PartialEq` 类型）。
