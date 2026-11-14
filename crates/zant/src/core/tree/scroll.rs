@@ -63,3 +63,88 @@ impl Tree {
         None
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::core::geometry::Size;
+    use crate::core::node::FlexStyle;
+    use crate::core::tree::Tree;
+    use crate::theme::tokens::ant_light;
+
+    #[test]
+    fn scroll_by_clamps_and_translates_children() {
+        let mut tree = Tree::init(ant_light());
+        let root = tree.root;
+        let scroll = tree.add_container(
+            Some(root),
+            FlexStyle {
+                width: Some(100.0),
+                height: Some(50.0),
+                scroll: true,
+                direction: crate::layout::flex::Direction::Column,
+                ..Default::default()
+            },
+        );
+        let child = tree.add_container(
+            Some(scroll),
+            FlexStyle {
+                width: Some(100.0),
+                height: Some(200.0),
+                ..Default::default()
+            },
+        );
+        tree.layout(Size {
+            width: 100.0,
+            height: 50.0,
+        });
+        let content_height = tree.get(scroll).container().unwrap().content_height;
+        assert_eq!(content_height, 200.0);
+        assert!(tree.scroll_by(scroll, 30.0));
+        assert_eq!(tree.get(scroll).container().unwrap().scroll_offset, 30.0);
+        assert!((tree.get(child).bounds.y - (0.0 - 30.0)).abs() < 0.01);
+        assert!(tree.scroll_by(scroll, -100.0));
+        assert_eq!(tree.get(scroll).container().unwrap().scroll_offset, 0.0);
+        assert!((tree.get(child).bounds.y - 0.0).abs() < 0.01);
+        // clamped at zero: nothing changes
+        assert!(!tree.scroll_by(scroll, -5.0));
+        // huge delta clamps to the maximum
+        assert!(tree.scroll_by(scroll, 1000.0));
+        let offset = tree.get(scroll).container().unwrap().scroll_offset;
+        assert!(offset > 0.0);
+        assert!(offset <= content_height - 50.0);
+    }
+
+    #[test]
+    fn scroll_at_finds_the_innermost_overflow_container() {
+        let mut tree = Tree::init(ant_light());
+        let root = tree.root;
+        let scroll = tree.add_container(
+            Some(root),
+            FlexStyle {
+                width: Some(100.0),
+                height: Some(50.0),
+                scroll: true,
+                direction: crate::layout::flex::Direction::Column,
+                ..Default::default()
+            },
+        );
+        tree.add_container(
+            Some(scroll),
+            FlexStyle {
+                width: Some(100.0),
+                height: Some(200.0),
+                ..Default::default()
+            },
+        );
+        tree.layout(Size {
+            width: 100.0,
+            height: 50.0,
+        });
+        assert!(tree.scroll_at(10.0, 10.0, -20.0));
+        assert_eq!(tree.get(scroll).container().unwrap().scroll_offset, 20.0);
+        assert!(
+            !tree.scroll_at(500.0, 500.0, -20.0),
+            "outside the container"
+        );
+    }
+}

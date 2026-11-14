@@ -268,3 +268,169 @@ pub fn copy_text(tree: &Tree, nodes: &[NodeId], a: Point, b: Point) -> String {
     }
     out
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::geometry::Size;
+    use crate::core::tree::Tree;
+    use crate::layout::flex;
+    use crate::renderer::text;
+    use crate::theme::tokens::ant_light;
+
+    fn selectable_tree() -> (Tree, Vec<NodeId>) {
+        let mut tree = Tree::init(ant_light());
+        let root = tree.root;
+        tree.get_mut(root).style.direction = flex::Direction::Column;
+        tree.get_mut(root).visual.selectable = true;
+        let _first = tree.add_text(
+            Some(root),
+            "Hello world",
+            text::Style {
+                wrap: false,
+                ..Default::default()
+            },
+        );
+        let _second = tree.add_text(
+            Some(root),
+            "Second line",
+            text::Style {
+                wrap: false,
+                ..Default::default()
+            },
+        );
+        let third = tree.add_text(
+            Some(root),
+            "unselectable",
+            text::Style {
+                wrap: false,
+                ..Default::default()
+            },
+        );
+        tree.get_mut(third).visual.unselectable = true;
+        tree.layout(Size {
+            width: 300.0,
+            height: 200.0,
+        });
+        let mut nodes = Vec::new();
+        collect(&tree, root, &mut nodes);
+        (tree, nodes)
+    }
+
+    #[test]
+    fn collect_returns_text_nodes_in_document_order() {
+        let (tree, nodes) = selectable_tree();
+        assert_eq!(nodes.len(), 2, "unselectable text is skipped");
+        assert_eq!(tree.get(nodes[0]).bounds.y, 0.0);
+        assert!(tree.get(nodes[1]).bounds.y > 0.0);
+        assert!(is_text(tree.get(nodes[0])));
+        assert!(!is_text(tree.get(tree.root)));
+    }
+
+    #[test]
+    fn root_at_finds_the_selectable_container() {
+        let (tree, _) = selectable_tree();
+        assert_eq!(root_at(&tree, 5.0, 5.0), Some(tree.root));
+        assert_eq!(root_at(&tree, 500.0, 500.0), None);
+    }
+
+    #[test]
+    fn point_at_clamps_into_the_nearest_text() {
+        let (mut tree, nodes) = selectable_tree();
+        // above the first node: its start
+        let point = point_at(&mut tree, &nodes, 5.0, -10.0).expect("point");
+        assert_eq!(point.node, nodes[0]);
+        assert_eq!(point.byte, 0);
+        // below the last node: its end
+        let point = point_at(&mut tree, &nodes, 5.0, 500.0).expect("point");
+        assert_eq!(point.node, nodes[1]);
+        assert_eq!(point.byte, text_len(tree.get(nodes[1])));
+        // inside the first node: a byte offset near the start
+        let point = point_at(&mut tree, &nodes, 1.0, 5.0).expect("point");
+        assert_eq!(point.node, nodes[0]);
+        assert!(point.byte <= 2);
+        assert!(point_at(&mut tree, &[], 0.0, 0.0).is_none());
+    }
+
+    #[test]
+    fn word_at_expands_to_word_boundaries() {
+        let (tree, nodes) = selectable_tree();
+        assert_eq!(word_at(tree.get(nodes[0]), 1), [0, 5], "Hello");
+        assert_eq!(word_at(tree.get(nodes[0]), 7), [6, 11], "world");
+        let len = text_len(tree.get(nodes[0]));
+        // past the end: the word ending there (Zig `wordAt` clamps the offset)
+        assert_eq!(word_at(tree.get(nodes[0]), len), [6, 11]);
+    }
+
+    #[test]
+    fn copy_text_joins_lines_with_a_newline_and_columns_with_a_space() {
+        let (tree, nodes) = selectable_tree();
+        let start = Point {
+            node: nodes[0],
+            byte: 0,
+        };
+        let end = Point {
+            node: nodes[1],
+            byte: text_len(tree.get(nodes[1])),
+        };
+        let copied = copy_text(&tree, &nodes, start, end);
+        assert!(copied.contains("Hello world"), "copied: {copied:?}");
+        assert!(copied.contains('\n'), "stacked nodes join with a newline");
+        // a same-node range copies exactly
+        let copied = copy_text(
+            &tree,
+            &nodes,
+            Point {
+                node: nodes[0],
+                byte: 0,
+            },
+            Point {
+                node: nodes[0],
+                byte: 5,
+            },
+        );
+        assert_eq!(copied, "Hello");
+        // reversed points are ordered first
+        let reversed = copy_text(
+            &tree,
+            &nodes,
+            Point {
+                node: nodes[0],
+                byte: 5,
+            },
+            Point {
+                node: nodes[0],
+                byte: 0,
+            },
+        );
+        assert_eq!(reversed, "Hello");
+    }
+
+    #[test]
+    fn rich_text_and_vectors_expose_their_text() {
+        let mut tree = Tree::init(ant_light());
+        let root = tree.root;
+        let spans = [crate::core::node::RichSpan {
+            text: "abc".into(),
+            ..Default::default()
+        }];
+        let rich = tree.add_rich_text(Some(root), &spans);
+        assert_eq!(node_text(tree.get(rich)), "abc");
+        assert_eq!(text_len(tree.get(rich)), 3);
+        let drawing = crate::core::vector::Drawing {
+            width: 10.0,
+            ascent: 4.0,
+            descent: 1.0,
+            ..Default::default()
+        };
+        let mut vector = tree.add_vector(Some(root), &drawing);
+        if let crate::core::node::NodeData::Vector(data) = &mut tree.get_mut(vector).data {
+            data.copy = "x^2".into();
+        }
+        assert!(is_text(tree.get(vector)));
+        assert_eq!(node_text(tree.get(vector)), "x^2");
+        let _ = vector;
+        vector = rich;
+        assert!(is_text(tree.get(vector)));
+    }
+}

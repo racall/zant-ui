@@ -163,3 +163,106 @@ impl Tree {
         self.set_focus(Some(focusables[index]));
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::core::geometry::Size;
+    use crate::core::node::{FlexStyle, NodeData};
+    use crate::core::tree::Tree;
+    use crate::theme::tokens::ant_light;
+
+    fn focusable_tree() -> (Tree, [u32; 3]) {
+        let mut tree = Tree::init(ant_light());
+        let root = tree.root;
+        let a = tree.add_button(
+            Some(root),
+            "a",
+            Default::default(),
+            Default::default(),
+            None,
+        );
+        let b = tree.add_button(
+            Some(root),
+            "b",
+            Default::default(),
+            Default::default(),
+            None,
+        );
+        let toggle = tree.add_toggle(Some(root), "t", Default::default(), false);
+        tree.layout(Size {
+            width: 200.0,
+            height: 200.0,
+        });
+        (tree, [a, b, toggle])
+    }
+
+    #[test]
+    fn tab_focus_cycles_through_focusable_nodes() {
+        let (mut tree, [a, b, toggle]) = focusable_tree();
+        assert_eq!(tree.focused, None);
+        tree.tab_focus(false);
+        assert_eq!(tree.focused, Some(a));
+        tree.tab_focus(false);
+        assert_eq!(tree.focused, Some(b));
+        tree.tab_focus(false);
+        assert_eq!(tree.focused, Some(toggle));
+        tree.tab_focus(false);
+        assert_eq!(tree.focused, Some(a), "wraps around");
+        tree.tab_focus(true);
+        assert_eq!(tree.focused, Some(toggle), "backwards wraps");
+        // only the focused node reports focused state
+        let focused_count = tree
+            .nodes
+            .iter()
+            .filter(|node| match &node.data {
+                NodeData::Button(data) => data.focused,
+                NodeData::Toggle(data) => data.focused,
+                _ => false,
+            })
+            .count();
+        assert_eq!(focused_count, 1);
+    }
+
+    #[test]
+    fn set_focus_ignores_unfocusable_targets() {
+        let (mut tree, [a, _b, _toggle]) = focusable_tree();
+        tree.set_focus(Some(tree.root));
+        assert_eq!(tree.focused, None, "the root is not focusable");
+        tree.set_focus(Some(a));
+        assert_eq!(tree.focused, Some(a));
+        tree.set_focus(None);
+        assert_eq!(tree.focused, None);
+        assert!(tree.focused_node().is_none());
+    }
+
+    #[test]
+    fn focus_scope_limits_tab_order() {
+        let mut tree = Tree::init(ant_light());
+        let root = tree.root;
+        let outside = tree.add_button(
+            Some(root),
+            "out",
+            Default::default(),
+            Default::default(),
+            None,
+        );
+        let panel = tree.add_container(Some(root), FlexStyle::default());
+        tree.get_mut(panel).visual.focus_scope = true;
+        let inside = tree.add_button(
+            Some(panel),
+            "in",
+            Default::default(),
+            Default::default(),
+            None,
+        );
+        tree.layout(Size {
+            width: 200.0,
+            height: 200.0,
+        });
+        tree.tab_focus(false);
+        assert_eq!(tree.focused, Some(inside), "the topmost focus scope wins");
+        tree.tab_focus(false);
+        assert_eq!(tree.focused, Some(inside), "Tab stays inside the scope");
+        assert_ne!(tree.focused, Some(outside));
+    }
+}

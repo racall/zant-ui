@@ -290,3 +290,100 @@ fn paint_scroll_indicator(node: &crate::core::node::RetainedNode, canvas: Canvas
     let x = node.bounds.right() - 7.0;
     canvas.fill_round_rect(Rect::init(x, y, 3.5, thumb), 1.75, color);
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::core::geometry::Size;
+    use crate::core::node::FlexStyle;
+    use crate::core::tree::Tree;
+    use crate::renderer::renderer::Renderer;
+    use crate::theme::tokens::ant_light;
+
+    #[test]
+    fn painting_a_container_fills_its_background() {
+        let mut renderer = Renderer::create_raster(120, 60).expect("raster renderer");
+        let canvas = renderer.begin(1.0).expect("canvas");
+        canvas.clear(0xffff_ffff);
+        let mut tree = Tree::init(ant_light());
+        let root = tree.root;
+        let id = tree.add_container(
+            Some(root),
+            FlexStyle {
+                width: Some(50.0),
+                height: Some(30.0),
+                ..Default::default()
+            },
+        );
+        tree.get_mut(id).visual.background = Some(0xffff_0000);
+        tree.layout(Size {
+            width: 120.0,
+            height: 60.0,
+        });
+        tree.paint(canvas);
+        renderer.end();
+        assert_eq!(renderer.pixel_at(10, 10), Some(0xffff_0000));
+        assert_eq!(renderer.pixel_at(100, 50), Some(0xffff_ffff), "outside");
+    }
+
+    #[test]
+    fn painting_a_button_and_text_does_not_panic() {
+        let mut renderer = Renderer::create_raster(200, 80).expect("raster renderer");
+        let canvas = renderer.begin(1.0).expect("canvas");
+        canvas.clear(0xffff_ffff);
+        let mut tree = Tree::init(ant_light());
+        let root = tree.root;
+        tree.get_mut(root).style.direction = crate::layout::flex::Direction::Row;
+        tree.add_button(
+            Some(root),
+            "Save",
+            Default::default(),
+            Default::default(),
+            None,
+        );
+        tree.add_text(Some(root), "Hello", Default::default());
+        tree.layout(Size {
+            width: 200.0,
+            height: 80.0,
+        });
+        tree.paint(canvas);
+        renderer.end();
+        // the text button paints its background (a light container colour)
+        assert!(renderer.pixel_at(5, 5).is_some());
+    }
+
+    #[test]
+    fn a_scroll_container_paints_its_children_offset() {
+        let mut renderer = Renderer::create_raster(100, 100).expect("raster renderer");
+        let canvas = renderer.begin(1.0).expect("canvas");
+        canvas.clear(0xffff_ffff);
+        let mut tree = Tree::init(ant_light());
+        let root = tree.root;
+        let scroll = tree.add_container(
+            Some(root),
+            FlexStyle {
+                width: Some(50.0),
+                height: Some(50.0),
+                scroll: true,
+                direction: crate::layout::flex::Direction::Column,
+                ..Default::default()
+            },
+        );
+        let child = tree.add_container(
+            Some(scroll),
+            FlexStyle {
+                width: Some(50.0),
+                height: Some(100.0),
+                ..Default::default()
+            },
+        );
+        tree.get_mut(child).visual.background = Some(0xff00_ff00);
+        tree.layout(Size {
+            width: 100.0,
+            height: 100.0,
+        });
+        assert!(tree.scroll_by(scroll, 10.0));
+        tree.paint(canvas);
+        renderer.end();
+        assert_eq!(renderer.pixel_at(5, 5), Some(0xff00_ff00));
+    }
+}
