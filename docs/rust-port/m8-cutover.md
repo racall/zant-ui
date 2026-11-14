@@ -219,3 +219,21 @@ git ls-files '*.zig'   # 必须为空
   全部通过（`✓ all post-M8 gates passed`）。
 
 **结论**：切换脚本在一次性副本里端到端通过，可以等用户批准后在 `feat/rust-port` 上执行。
+
+
+## 彩排结果（2026-11-14，lead 亲自复跑）
+
+在 `/tmp/m8-rehearsal`（`git clone --no-hardlinks` 本仓库 + 软链 `third_party/`）执行
+`./scripts/migrate/cutover-m8.sh --apply --skip-gates`：54 处移动、388 个删除、78 处编辑、
+4 个文件重写，`git ls-files '*.zig'` 归零。随后在克隆里跑完整质量门：
+
+| 门 | 结果 |
+|---|---|
+| `cargo build --workspace` | Finished（仅生成文件缺失的既有 warning） |
+| `cargo test --workspace` | **74 个测试套件全绿**（Zig 已删除） |
+| `cargo clippy --workspace --all-targets -- -D warnings` | 0 |
+| `scripts/tsx/build-template-check.sh` | OK（TSX 应用端到端） |
+| `scripts/tsx/examples-check.sh` | OK（Rust-only 模式，脚本自动跳过 Zig 对照并注明预 M8 比值） |
+| `scripts/parity/bench.sh` | PASS 7/7（两种模式；Zig 基线对照按脚本说明用记录值） |
+
+注意：彩排克隆必须软链 `third_party/`（Skia 预编译依赖，git 忽略），否则 zant-sys 原生编译失败。
