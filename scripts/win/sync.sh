@@ -40,12 +40,11 @@ send() { # <source dir>
   name="$(basename "$src")"
   archive="$TMP/$name.tar"
   pack "$src" "$archive"
-  scp -q "$archive" "$HOST:$DIR/cache/$name.tar"
-  ssh "$HOST" "\$ErrorActionPreference='Stop'; New-Item -ItemType Directory -Force '$DIR/$name' | Out-Null; tar -xf '$DIR/cache/$name.tar' -C '$DIR/$name'; Remove-Item '$DIR/cache/$name.tar'" \
-    2> >(grep -vE "post-quantum|store now|pq.html" >&2)
+  scp -q ${ZANT_WIN_SSH_OPTS:-} "$archive" "$HOST:$DIR/cache/$name.tar"
+  ssh ${ZANT_WIN_SSH_OPTS:-} "$HOST" "\$ErrorActionPreference='Stop'; New-Item -ItemType Directory -Force '$DIR/$name' | Out-Null; tar -xf '$DIR/cache/$name.tar' -C '$DIR/$name'; Remove-Item '$DIR/cache/$name.tar'"
   echo "synced $name -> $HOST:$DIR/$name"
 }
 
-ssh "$HOST" "New-Item -ItemType Directory -Force '$DIR/cache' | Out-Null" 2> >(grep -vE "post-quantum|store now|pq.html" >&2)
+ssh ${ZANT_WIN_SSH_OPTS:-} "$HOST" "New-Item -ItemType Directory -Force '$DIR/cache' | Out-Null"
 send "$ROOT"
 for extra in "$@"; do send "$extra"; done

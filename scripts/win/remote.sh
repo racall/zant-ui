@@ -17,5 +17,4 @@ ZIG="${ZANT_WIN_ZIG:-}"
 project="$1"
 shift
 
-ssh "$HOST" "[Console]::OutputEncoding=[Text.Encoding]::UTF8; \$OutputEncoding=[Text.Encoding]::UTF8; if ('$ZIG') { \$env:PATH='$ZIG;'+\$env:PATH }; Set-Location '$DIR/$project'; $*; exit \$LASTEXITCODE" \
-  2> >(grep -vE "post-quantum|store now|pq.html" >&2)
+ssh ${ZANT_WIN_SSH_OPTS:-} "$HOST" "[Console]::OutputEncoding=[Text.Encoding]::UTF8; \$OutputEncoding=[Text.Encoding]::UTF8; if ('$ZIG') { \$env:PATH='$ZIG;'+\$env:PATH }; Set-Location '$DIR/$project'; $*; exit \$LASTEXITCODE"
