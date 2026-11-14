@@ -24,8 +24,9 @@ const RAD_PER_DEG: f32 = 0.017_453_292_f32;
 /// The icon set. Declaration order is the Zig order and is stable: it is the
 /// order of [`Icon::ALL`] and the discriminant hashed by [`drawing`].
 #[repr(u32)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum Icon {
+    #[default]
     None,
     // navigation / chrome
     Menu,

@@ -78,94 +78,10 @@ pub enum ImageFit {
     Fill = 2,
 }
 
-/// The Zant icon set, ported from the `Icon` enum of `src/core/icons.zig`.
-///
-/// WP-2.3 owns `core/icons.rs` (the drawing functions); the name list lives
-/// here because `ui::Element::icon` and the option structs need it first.
-/// WP-2.3 should move this enum to `core/icons.rs` and keep
-/// `core::node::ButtonIcon` as `pub use`.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-#[repr(u8)]
-pub enum Icon {
-    #[default]
-    None,
-    // navigation / chrome
-    Menu,
-    List,
-    Search,
-    Eye,
-    EyeOff,
-    More,
-    MoreVertical,
-    Close,
-    Plus,
-    Minus,
-    Check,
-    ChevronDown,
-    ChevronUp,
-    ChevronLeft,
-    ChevronRight,
-    ArrowDown,
-    ArrowUp,
-    // files / actions
-    File,
-    FileText,
-    Folder,
-    Save,
-    Copy,
-    Download,
-    Upload,
-    Link,
-    ExternalLink,
-    Pencil,
-    Trash,
-    Undo,
-    Redo,
-    /// two circling arrows: sync, reload
-    Refresh,
-    Settings,
-    // view
-    Sun,
-    Moon,
-    Columns,
-    Keyboard,
-    BookOpen,
-    Maximize,
-    Minimize,
-    Focus,
-    TypeSize,
-    // formatting
-    Heading,
-    Bold,
-    Italic,
-    Strikethrough,
-    Code,
-    CodeBlock,
-    Quote,
-    ListBullet,
-    ListOrdered,
-    ListChecks,
-    Table,
-    Sigma,
-    Image,
-    MinusRule,
-    // Windows caption buttons (drawn at 10px with a 1px stroke)
-    WindowMinimize,
-    WindowMaximize,
-    WindowRestore,
-    WindowClose,
-    // status
-    Info,
-    Alert,
-    Lightbulb,
-    // devices and system
-    Clipboard,
-    Monitor,
-    Wifi,
-    WifiOff,
-    Clock,
-    Power,
-}
+/// The Zant icon set (`core::icons::Icon`, 24×24 line icons). Zig had a single
+/// enum used by both `ui.Element` and the drawing functions, so Rust re-exports
+/// the definition from `core/icons.rs` here instead of duplicating it.
+pub use crate::core::icons::Icon;
 
 /// Zig: `pub const ButtonIcon = icons.zig.Icon;`
 pub type ButtonIcon = Icon;

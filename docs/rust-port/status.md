@@ -39,7 +39,7 @@
 | 1.1c | renderer/{canvas,text,rich_text,renderer}、image | lead | 完成 | 依赖 0.3；14 个测试（renderer raster/像素、TextLayout 度量/换行/relayout/caret、rich text、image PNG/缩略图/data URI）；`Image` 是唯一 `unsafe impl Send + Sync` 的句柄 |
 | 1.1d | platform/{platform,dialog}、core/events、core/keys | lead | 完成 | `Host` 回调表 → `Box<dyn HostHandler>` 蹦床；`ZANT_WINDOW_SIZE` 已照搬；`monotonic_us` 用 `Instant`（deviation）；事件 text 用 owned `String`；14 个测试 |
 | 1.2 | actions、ui Element / 选项 / 构建上下文 | wp-1-2 | 完成（已并入） | 39 个新测试；52 字段 Element + 32 个选项结构体逐一对照 Zig；只做 column/row/text/button/styled，其余选项类型已声明 |
-| 1.3 | node、tree、layout、components/button、text_select | wp-1-3 | 进行中（worktree wp-1.3） | ★★★；vector 已提前并入；按阶段提交（node 数据 → layout → tree → paint/hit → select/button） |
+| 1.3 | node、tree、layout、components/button、text_select | wp-1-3 | 完成（已并入） | 24 个 flex_test + 25 个新单测；`Tree`/`RetainedNode`/`NodeData`/text 缓存/命中/滚动/焦点/输入编辑；Icon 重复已去重；rich text 选择高亮待接（range_rects 已补） |
 | 1.4 | ui_runtime 构建/协调/patch/事件/帧循环、launch、App trait | lead | 待领取 | ★★★ |
 | 1.5 | `zant-demo`（对应 src/main.zig） | lead | 待领取 | |
 

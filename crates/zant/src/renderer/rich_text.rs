@@ -132,6 +132,26 @@ impl Layout {
         unsafe { ffi::zant_text_layout_index_at(self.handle, x, y) }
     }
 
+    /// Selection rectangles for a UTF-8 byte range (into the concatenated span
+    /// text); returns the number written (Zig: `zant_text_layout_range_rects`).
+    pub fn range_rects(&self, start: usize, end: usize, out: &mut [Rect]) -> usize {
+        if out.is_empty() {
+            return 0;
+        }
+        // SAFETY: `Rect` is repr(C) with the same layout as `ZantRect`, the
+        // slice has `out.len()` elements and the handle is alive.
+        let count = unsafe {
+            ffi::zant_text_layout_range_rects(
+                self.handle,
+                start,
+                end,
+                out.as_mut_ptr().cast(),
+                i32::try_from(out.len()).expect("int cast"),
+            )
+        };
+        usize::try_from(count.max(0)).unwrap_or(0).min(out.len())
+    }
+
     /// Placeholder boxes in span order (relative to the layout origin).
     pub fn placeholder_rects<'a>(&self, out: &'a mut [Rect]) -> &'a mut [Rect] {
         if out.is_empty() {
