@@ -146,6 +146,16 @@ for raw in steps.split(separator: "\n") {
     case "type": typeText(rest)
     case "key": pressKey(rest)
     case "cmdkey": pressKey(rest, flags: .maskCommand)
+    case "resizefast":
+        // resize repeatedly with no settle wait: continuous-resize frame test
+        let a = rest.split(separator: " ").compactMap { Double($0) }
+        if a.count >= 2, let w = window() {
+            for _ in 0..<Int(a.count >= 3 ? a[2] : 10) {
+                resize(w, a[0], a[1])
+                usleep(16_000)
+            }
+        } else { print("bad resizefast \(line)"); failures += 1 }
+        usleep(300_000)
     case "resize":
         let a = rest.split(separator: " ").compactMap { Double($0) }
         if let w = window(), a.count == 2 { resize(w, a[0], a[1]) }

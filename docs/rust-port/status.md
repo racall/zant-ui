@@ -224,6 +224,24 @@
 - **zant-gallery**：命令式 retained-mode 示例（无 layout key / 事件日志）只能视觉+像素验收（WP-2.9：图像 parity 6/6）；
   如需交互断言，需要给 gallery 加 debug layout dump（未做，非必需）。
 
+## 真实帧率测量（2026-11-14，Release，macOS，`ZANT_FRAME_STATS=1` + GUI 自动化）
+
+| 场景 | Rust | Zig 基线 | 比值 | 备注 |
+|---|---|---|---|---|
+| components 首次布局 | 29.5 ms | 39.0 ms | 0.76× | text_layouts=204，text 21.5 ms；单次挂载帧 |
+| components 滚轮滚动帧 | max 3.97 ms | max 2.46–3.51 ms | 1.1–1.6× | 绝对远低于 16.7 ms |
+| components 连续 resize（16 ms 间隔） | 帧 0.84–1.33 ms，resize 延迟 1.47–1.86 ms | 帧 0.73–0.76 ms，延迟 1.25–1.61 ms | 1.08–1.34× | 延迟仍 ≪16.7 ms（约 600 fps 能力） |
+| PDF 阅读器首帧 | 47.3 ms | 46.6 ms | 1.02× | layout 41.8 ms（文本层），与 Zig 同 |
+| PDF 滚动帧 | max 1.59 ms | max 1.35 ms | 1.18× | 瓦片异步渲染不阻塞 UI |
+| PDF 缩放重建 | 13.4 / 9.4 ms | 12.1 / 9.2 ms | 1.11 / 1.02× | 缩放时树重建，仍 <16.7 ms |
+| 流式 Markdown 稳态帧 | max 2.9–3.5 ms | 2.5–3.2 ms | ~1.1× | 流式期间 `text_layouts` 不随内容增长；挂载 31.1 ms vs 36.6 ms |
+| 流式整体耗时（history 8） | 6.28 s | 6.35 s | 0.99× | build avg 0.08 vs 0.06 ms |
+| 流式峰值内存（history 16） | 123.9 MB | 126.3 MB | 0.98× | `/usr/bin/time -l` |
+
+结论：稳态帧时间全部远低于 16.7 ms（≥60 fps 有余量）；与 Zig 基线的偏差在 0.76–1.34× 之间，
+超过 1.25× 的只有 sub-millisecond 的 resize 单一 bucket（绝对值 ~1.8 ms），待 `zant-bench`（WP-2.11）
+的正式矩阵确认后再决定是否优化。挂载/缩放帧 30–47 ms 与 Zig 一致（首帧文本整形），不是回归。
+
 ## 待决问题
 
 ### WP-5.5 提出（2026-11-14）
