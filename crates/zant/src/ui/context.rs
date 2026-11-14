@@ -21,6 +21,9 @@ use crate::theme::tokens::Theme;
 use super::actions::{Action, ActionCx};
 use super::element::Node;
 
+/// Query for the previous-frame box of a keyed node (see [`key_bounds`]).
+pub type KeyBoundsHook = std::rc::Rc<dyn Fn(&str) -> Option<crate::core::geometry::Rect>>;
+
 /// All build-context state of one thread (each window builds on one thread).
 pub struct BuildCx {
     theme: Theme,
@@ -36,7 +39,7 @@ pub struct BuildCx {
     /// Local-state store of the runtime being built (see `ui::local_state`).
     states: Option<std::rc::Rc<std::cell::RefCell<crate::core::local_state::Store>>>,
     /// Previous-frame box of a keyed node (set by the runtime; see `key_bounds`).
-    key_bounds: Option<std::rc::Rc<dyn Fn(&str) -> Option<crate::core::geometry::Rect>>>,
+    key_bounds: Option<KeyBoundsHook>,
 }
 
 impl Default for BuildCx {
@@ -216,6 +219,43 @@ pub fn frame_string(value: &str) -> Str {
     Str::copy(value)
 }
 
+/// The current build's local-state store (`None` outside a runtime build, in
+/// which case `ui::local_state` uses a per-thread fallback store).
+pub fn build_states() -> Option<std::rc::Rc<std::cell::RefCell<crate::core::local_state::Store>>> {
+    with_cx(|cx| cx.states.clone())
+}
+
+/// Installs the previous-frame box query used by [`key_bounds`] (the runtime
+/// sets it from the retained tree each frame).
+pub fn set_key_bounds_hook(hook: Option<KeyBoundsHook>) {
+    with_cx(|cx| cx.key_bounds = hook);
+}
+
+/// Window-space box (logical px) of the node with `key` as laid out in the
+/// previous frame, or null (first frame, key not shown). Use it to place a
+/// popover next to its trigger from the root container.
+pub fn key_bounds(key: &str) -> Option<crate::core::geometry::Rect> {
+    // Clone the hook out and call it after the CX borrow ends (the hook walks
+    // the retained tree; keeping the rule for user code simple).
+    let hook = with_cx(|cx| cx.key_bounds.clone())?;
+    hook(key)
+}
+
+/// Thread-safe: asks the UI thread to wake up and redraw (Zig: `ui.postWake`).
+/// Called by background work (PDF tiles, image decoding) after `post_wake` was
+/// wired to a window.
+pub fn post_wake() {
+    crate::platform::platform::post_wake();
+}
+
+/// Installs the local-state store the build uses (the runtime sets it before
+/// each build).
+pub fn set_build_states(
+    states: Option<std::rc::Rc<std::cell::RefCell<crate::core::local_state::Store>>>,
+) {
+    with_cx(|cx| cx.states = states);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -346,43 +386,4 @@ mod tests {
         let copied = frame_string(&value);
         assert_eq!(copied, "hello");
     }
-}
-
-/// Installs the previous-frame box query used by [`key_bounds`] (the runtime
-/// sets it from the retained tree each frame).
-pub fn set_key_bounds_hook(
-    hook: Option<std::rc::Rc<dyn Fn(&str) -> Option<crate::core::geometry::Rect>>>,
-) {
-    with_cx(|cx| cx.key_bounds = hook);
-}
-
-/// Window-space box (logical px) of the node with `key` as laid out in the
-/// previous frame, or null (first frame, key not shown). Use it to place a
-/// popover next to its trigger from the root container.
-pub fn key_bounds(key: &str) -> Option<crate::core::geometry::Rect> {
-    // Clone the hook out and call it after the CX borrow ends (the hook walks
-    // the retained tree; keeping the rule for user code simple).
-    let hook = with_cx(|cx| cx.key_bounds.clone())?;
-    hook(key)
-}
-
-/// Thread-safe: asks the UI thread to wake up and redraw (Zig: `ui.postWake`).
-/// Called by background work (PDF tiles, image decoding) after `post_wake` was
-/// wired to a window.
-pub fn post_wake() {
-    crate::platform::platform::post_wake();
-}
-
-/// Installs the local-state store the build uses (the runtime sets it before
-/// each build).
-pub fn set_build_states(
-    states: Option<std::rc::Rc<std::cell::RefCell<crate::core::local_state::Store>>>,
-) {
-    with_cx(|cx| cx.states = states);
-}
-
-/// The current build's local-state store (`None` outside a runtime build, in
-/// which case `ui::local_state` uses a per-thread fallback store).
-pub fn build_states() -> Option<std::rc::Rc<std::cell::RefCell<crate::core::local_state::Store>>> {
-    with_cx(|cx| cx.states.clone())
 }
