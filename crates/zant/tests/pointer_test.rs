@@ -1,25 +1,228 @@
-//! Port of `tests/pointer_test.zig` — in-memory images shown by `ui::image`
-//! and the container hover look.
-//!
-//! Two of the three Zig cases are not portable yet (listed in the WP-2.10
-//! report): the `ui::pointer_area` case asserts that `ui::key_bounds` answers
-//! inside `BoxOptions::on_resize`, but the Rust runtime clears the key-bounds
-//! hook at the end of the build, before `notify_resizes` runs.
+//! Port of `tests/pointer_test.zig` — `ui::pointer_area` (capture, local
+//! coordinates, multi-click, wheel capture, keys; `BoxOptions::on_resize`),
+//! in-memory images shown by `ui::image` and the container hover look.
 
-use zant::core::events::Event;
+use std::cell::Cell;
+
+use zant::core::events::{Event, Key, KeyEvent, Modifiers, PointerEvent, Scroll};
 use zant::core::node::{NodeData, NodeId};
 use zant::image::Image;
 use zant::renderer::renderer::Renderer;
 use zant::runtime::Runtime;
+use zant::ui::actions::{KeyAction, PointerAction, PointerInfo, PointerPhase};
 use zant::ui::app::{App, RunOptions};
 use zant::ui::element::Node;
-use zant::ui::options::{BoxOptions, ImageOptions};
-use zant::ui::{button, column, image, row};
+use zant::ui::options::{BoxOptions, ImageOptions, PointerAreaOptions};
+use zant::ui::{Cursor, button, column, image, inset, pointer_area, row};
 
 fn frame(runtime: &mut Runtime, renderer: &mut Renderer, w: f32, h: f32) {
     let canvas = renderer.begin(1.0).expect("canvas");
     runtime.render_frame(canvas, w, h, 1.0);
     renderer.end();
+}
+
+thread_local! {
+    static NOW: Cell<i64> = const { Cell::new(1000) };
+}
+
+fn fake_clock() -> i64 {
+    NOW.with(|now| now.get())
+}
+
+struct Log {
+    phases: [PointerPhase; 32],
+    infos: [PointerInfo; 32],
+    n: usize,
+    keys: usize,
+    resizes: usize,
+    wide: bool,
+}
+
+impl Log {
+    fn new() -> Log {
+        Log {
+            phases: [PointerPhase::default(); 32],
+            infos: [PointerInfo::default(); 32],
+            n: 0,
+            keys: 0,
+            resizes: 0,
+            wide: false,
+        }
+    }
+
+    fn record(&mut self, info: PointerInfo) -> bool {
+        if self.n < self.phases.len() {
+            self.phases[self.n] = info.phase;
+            self.infos[self.n] = info;
+            self.n += 1;
+        }
+        info.phase != PointerPhase::Hover
+    }
+
+    fn last(&self) -> PointerInfo {
+        self.infos[self.n - 1]
+    }
+}
+
+impl App for Log {
+    fn render(&mut self) -> Node {
+        column(BoxOptions {
+            grow: 1.0,
+            padding: inset(20.0),
+            children: zant::nodes![pointer_area(PointerAreaOptions {
+                r#box: BoxOptions {
+                    key: Some("area".into()),
+                    width_percent: Some(100.0),
+                    height_percent: Some(100.0),
+                    on_resize: Some(zant::ui::action(|state: &mut Log| {
+                        state.resizes += 1;
+                        if let Some(bounds) = zant::ui::key_bounds("area") {
+                            state.wide = bounds.width > 300.0;
+                        }
+                    })),
+                    ..Default::default()
+                },
+                on_pointer: PointerAction::new(|cx, info| cx.state::<Log>().record(info)),
+                capture_scroll: true,
+                cursor: Some(Cursor::Crosshair),
+                focusable: true,
+                on_key: Some(KeyAction::new(|cx, _key| {
+                    cx.state::<Log>().keys += 1;
+                    true
+                })),
+                ..Default::default()
+            })],
+            ..Default::default()
+        })
+    }
+}
+
+#[test]
+fn pointer_area_capture_local_coordinates_clicks_wheel_and_keys() {
+    let log = Log::new();
+    let mut runtime = Runtime::init(
+        log,
+        RunOptions {
+            window: zant::platform::platform::WindowOptions {
+                width: 400.0,
+                height: 300.0,
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+    );
+    let mut renderer = Renderer::create_raster(400, 300).expect("raster renderer");
+    NOW.with(|now| now.set(1000));
+    runtime.clock = fake_clock;
+    frame(&mut runtime, &mut renderer, 400.0, 300.0);
+    assert_eq!(runtime.app_state_mut::<Log>().resizes, 1);
+    assert!(runtime.app_state_mut::<Log>().wide);
+
+    // hover, then press inside and drag outside: the area keeps the pointer
+    runtime.dispatch(Event::PointerMove(PointerEvent {
+        x: 30.0,
+        y: 40.0,
+        ..Default::default()
+    }));
+    {
+        let log = &*runtime.app_state_mut::<Log>();
+        assert_eq!(log.last().phase, PointerPhase::Hover);
+        assert!((log.last().x - 10.0).abs() <= 0.01);
+        assert!((log.last().y - 20.0).abs() <= 0.01);
+    }
+    runtime.dispatch(Event::PointerDown(PointerEvent {
+        x: 30.0,
+        y: 40.0,
+        ..Default::default()
+    }));
+    {
+        let log = &*runtime.app_state_mut::<Log>();
+        assert_eq!(log.last().phase, PointerPhase::Down);
+        assert_eq!(log.last().click_count, 1);
+    }
+    runtime.dispatch(Event::PointerMove(PointerEvent {
+        x: 390.0,
+        y: 290.0,
+        ..Default::default()
+    }));
+    {
+        let log = &*runtime.app_state_mut::<Log>();
+        assert_eq!(log.last().phase, PointerPhase::Drag);
+        assert!((log.last().x - 370.0).abs() <= 0.01);
+        assert!((log.last().y - 270.0).abs() <= 0.01);
+    }
+    runtime.dispatch(Event::PointerUp(PointerEvent {
+        x: 390.0,
+        y: 290.0,
+        ..Default::default()
+    }));
+    {
+        let log = &*runtime.app_state_mut::<Log>();
+        assert_eq!(log.last().phase, PointerPhase::Up);
+    }
+    // focused by the click: keys go to on_key
+    runtime.dispatch(Event::KeyDown(KeyEvent {
+        key: Key::Character('x'),
+        modifiers: Modifiers::default(),
+        repeat: false,
+    }));
+    assert_eq!(runtime.app_state_mut::<Log>().keys, 1);
+
+    // double click (same spot, quickly)
+    NOW.with(|now| now.set(now.get() + 1000));
+    runtime.dispatch(Event::PointerDown(PointerEvent {
+        x: 50.0,
+        y: 50.0,
+        ..Default::default()
+    }));
+    runtime.dispatch(Event::PointerUp(PointerEvent {
+        x: 50.0,
+        y: 50.0,
+        ..Default::default()
+    }));
+    NOW.with(|now| now.set(now.get() + 120));
+    runtime.dispatch(Event::PointerDown(PointerEvent {
+        x: 51.0,
+        y: 50.0,
+        ..Default::default()
+    }));
+    assert_eq!(runtime.app_state_mut::<Log>().last().click_count, 2);
+    runtime.dispatch(Event::PointerUp(PointerEvent {
+        x: 51.0,
+        y: 50.0,
+        ..Default::default()
+    }));
+    NOW.with(|now| now.set(now.get() + 800));
+    runtime.dispatch(Event::PointerDown(PointerEvent {
+        x: 51.0,
+        y: 50.0,
+        ..Default::default()
+    }));
+    assert_eq!(runtime.app_state_mut::<Log>().last().click_count, 1);
+    runtime.dispatch(Event::PointerUp(PointerEvent {
+        x: 51.0,
+        y: 50.0,
+        ..Default::default()
+    }));
+
+    // the wheel goes to the area
+    runtime.dispatch(Event::Scroll(Scroll {
+        x: 60.0,
+        y: 60.0,
+        dx: 0.0,
+        dy: -12.0,
+        modifiers: Modifiers::default(),
+    }));
+    {
+        let log = &*runtime.app_state_mut::<Log>();
+        assert_eq!(log.last().phase, PointerPhase::Scroll);
+        assert!((log.last().dy + 12.0).abs() <= 0.01);
+    }
+
+    // window resize: on_resize runs and the UI rebuilds in the same frame
+    frame(&mut runtime, &mut renderer, 200.0, 300.0);
+    assert_eq!(runtime.app_state_mut::<Log>().resizes, 2);
+    assert!(!runtime.app_state_mut::<Log>().wide);
 }
 
 #[test]
