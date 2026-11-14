@@ -38,7 +38,7 @@
 | 1.1b | core/{unicode,paths,hash} | wp-1-1b | 完成（已并入） | 9 个测试；hash 是 Zig Wyhash 4.2 的逐行移植并钉死 20 个 Zig 实测值；keys/text_select 改派 lead |
 | 1.1c | renderer/{canvas,text,rich_text,renderer}、image | lead | 完成 | 依赖 0.3；14 个测试（renderer raster/像素、TextLayout 度量/换行/relayout/caret、rich text、image PNG/缩略图/data URI）；`Image` 是唯一 `unsafe impl Send + Sync` 的句柄 |
 | 1.1d | platform/{platform,dialog}、core/events、core/keys | lead | 完成 | `Host` 回调表 → `Box<dyn HostHandler>` 蹦床；`ZANT_WINDOW_SIZE` 已照搬；`monotonic_us` 用 `Instant`（deviation）；事件 text 用 owned `String`；14 个测试 |
-| 1.2 | actions、ui Element / 选项 / 构建上下文 | lead | 待领取 | ★★★ |
+| 1.2 | actions、ui Element / 选项 / 构建上下文 | wp-1-2 | 进行中（worktree wp-1.2） | ★★★ |
 | 1.3 | node、tree、layout、vector、components/button | lead | 待领取 | ★★★ |
 | 1.4 | ui_runtime 构建/协调/patch/事件/帧循环、launch、App trait | lead | 待领取 | ★★★ |
 | 1.5 | `zant-demo`（对应 src/main.zig） | lead | 待领取 | |
@@ -49,7 +49,7 @@
 |---|---|---|---|---|
 | 2.1 | input + runtime 键盘 / IME / 焦点 / 文本选择 | — | 待领取 | |
 | 2.2 | toggle、select、image + select 弹层、tooltip | — | 待领取 | |
-| 2.3 | ui.zig 其余构建器、core/icons | — | 待领取 | |
+| 2.3 | ui.zig 其余构建器、core/icons | wp-2-3a（icons 部分）| icons 进行中；其余构建器等 1.2 | |
 | 2.4 | memo、localState、portals、effects、commands | — | 待领取 | |
 | 2.5 | menu、modal、segmented、message、shortcut_list、hotkey_input、view、window_controls | — | 待领取 | |
 | 2.6 | components/list（虚拟列表）+ ListState | — | 待领取 | |
@@ -64,13 +64,13 @@
 | WP | 内容 | 负责人 | 状态 | 备注 |
 |---|---|---|---|---|
 | 3.1 | markdown/remend（522 条夹具） | wp-3-1 | 完成（已并入） | 522/522 夹具通过；5 个 Zig 测试移植 |
-| 3.2 | markdown/parser + blocks/cache/html/safety/highlight | — | 待领取（需先并入 3.1：parser/inline 与 cache 依赖 remend） | |
+| 3.2 | markdown/parser + blocks/cache/html/safety/highlight | wp-3-2 | 进行中（worktree wp-3.2） | remend 已并入；core/hash 已并入 |
 | 3.3 | markdown/render、editor/edit、widgets 的 markdown 部分 | — | 待领取 | |
 | 3.4 | markdown/mermaid | — | 待领取 | 依赖 1.3 |
 | 3.5 | math/{parser,symbols,fonts} | wp-3-5 | phase 1 完成（symbols+fonts，11 测试）；phase 2（parser）等 mhchem | |
 | 3.6 | math/layout | — | 待领取 | 依赖 1.3 |
 | 3.7 | math/mhchem（823 条夹具，逐字节对齐） | wp-3-7 | 进行中（worktree wp-3.7） | |
-| 3.8 | pdf/{document,text,renderer,annotations,native}、platform/pdf | — | 待领取 | 依赖 1.1 |
+| 3.8 | pdf/{document,text,renderer,annotations,native}、platform/pdf | wp-3-8 | 进行中（worktree wp-3.8） | 依赖 1.1（已并入） |
 | 3.9 | pdf/viewer、ui.pdfPreview | — | 待领取 | |
 | 3.10 | db/sqlite → rusqlite + derive(Table) | wp-3-10 | 完成（已并入） | 生成的 SQL 与 Zig 逐字节一致（含迁移 ALTER）；Zig 建的库 Rust 可读已实测；fallback 表名差异登记见待决问题 |
 | 3.11 | examples/{markdown,math,markdown_stream,pdf} | — | 待领取 | |
@@ -80,7 +80,7 @@
 | WP | 内容 | 负责人 | 状态 | 备注 |
 |---|---|---|---|---|
 | 4.1 | lexer、ast、jsx_text、jsx_entities | wp-4-1 | 完成 | `rust/wp-4.1`；10/10 Rust 测试（Zig 可移植 10 个）；AST 字符串用 `Vec<u8>`（见待决问题）；`jsx_entities_test.zig` 另 2 个依赖 parser/compile 的测试待 4.2/4.3 补 |
-| 4.2 | parser、expr_parser、jsx_parser、type_parser、loop_parser、import_parser、react_compat | — | 待领取 | 依赖 4.1 |
+| 4.2 | parser、expr_parser、jsx_parser、type_parser、loop_parser、import_parser、react_compat | wp-4-2 | 进行中（worktree wp-4.2） | 依赖 4.1（已并入）；含 AST dump 函数 |
 | 4.3 | hooks/{expand,rewrite,resolve,leftover} | — | 待领取 | 依赖 4.2 |
 | 4.4 | tags、tag_aliases、string_method_names、诊断 | — | 待领取 | |
 
@@ -140,6 +140,16 @@
   依赖 WP-1.3 的保留树，不能放在 1.1a。
 - `tests/motion_test.zig` 后 6 个用例依赖 `ui` / `ui_runtime` / renderer / button / segmented
   （WP-1.2 / 1.3 / 1.4 / 1.1c），前 4 个纯 motion 用例已随 1.1a 移植。
+
+## 已并入 feat/rust-port 的内容（按时间）
+
+1. M0.2 骨架 + 模块树桩、M0.3 `zant-sys`、M0.4 对照工具、M0.5 文档。
+2. WP-1.1a geometry/theme/motion/flex、WP-1.1b unicode/paths/hash（Wyhash 4.2 逐行移植 + 20 个 Zig 实测钉死值）、
+   WP-1.1c renderer/image、WP-1.1d platform/dialog/events/keys。
+3. WP-3.1 markdown/remend（522/522）、WP-3.5 phase 1（math symbols/fonts）、WP-4.1（TSX lexer/AST/JSX text/entities）、
+   WP-3.10（db/sqlite + derive(Table)，SQL 与 Zig 逐字节一致）。
+4. 早期落地（原属 1.3/2.8，为解除依赖提前做）：`core/vector.rs`、`core/icons.rs`（WP-2.3a）、`store.rs`、`Str`、
+   renderer 的 path / simple-text / measure-ink 包装、`lib.rs` 的 `extern crate self as zant;`。
 
 ## 待决问题
 

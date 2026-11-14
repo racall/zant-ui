@@ -48,6 +48,13 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
+      - name: checked-in bindings are up to date
+        if: runner.os == 'macOS'
+        run: |
+          cargo install bindgen-cli --locked
+          ./scripts/gen_bindings.sh
+          git diff --exit-code crates/zant-sys/src
+
       - name: cargo fmt
         run: cargo fmt --all -- --check
 
