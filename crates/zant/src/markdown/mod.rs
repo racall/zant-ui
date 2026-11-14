@@ -17,3 +17,12 @@ pub mod scan;
 pub mod stats;
 pub mod table_utils;
 pub mod theme;
+
+// Zig `markdown/mod.zig` re-exports: `zant.markdown.streamdown` etc.
+pub use editor::{Props as EditorProps, editor};
+pub use render::{
+    BlockInfo, BlockRenderer, Caret, CodeControls, Controls, Ctx, ImageLoader, Labels,
+    LinkModalProps, MermaidControls, Options as RenderOptions, Props as ViewProps, TableControls,
+    block_key, block_key_at_offset, heading_key, link_safety_modal, load_image, render_document,
+    streamdown,
+};
