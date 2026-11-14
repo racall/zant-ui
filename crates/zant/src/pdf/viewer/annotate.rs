@@ -11,6 +11,7 @@
 use std::rc::Rc;
 
 use crate::Str;
+use crate::components::segmented::{SegmentedOption, SegmentedOptions};
 use crate::core::node::Icon;
 use crate::core::vector::{Command, Drawing, Path};
 use crate::layout::flex;
@@ -18,7 +19,7 @@ use crate::pdf::annotations::{self, Annotation, Kind, Point};
 use crate::pdf::native;
 use crate::pdf::text::Rect;
 use crate::theme::tokens::Theme;
-use crate::ui::actions::Action;
+use crate::ui::actions::{Action, IndexAction};
 use crate::ui::builders::{icon_button, row, space};
 use crate::ui::element::Node;
 use crate::ui::options::{BoxOptions, IconButtonOptions, IconOptions, SpaceOptions};
@@ -536,12 +537,9 @@ impl Viewer {
     }
 }
 
-/// Annotation tool switch of the toolbar (Zig `toolSwitch`).
-///
-/// Deviation (WP-3.9): `ui::segmented` belongs to WP-2.5 and is not merged in
-/// this base, so the tools are icon buttons with an active background and a
-/// tooltip — same behaviour (one active tool, `setTool` on click), different
-/// chrome. Replace with `ui::segmented` when WP-2.5 lands.
+/// Annotation tool switch of the toolbar (Zig `toolSwitch`): a segmented
+/// control with the select / highlight / underline / pen / note tools, then
+/// undo and redo.
 pub(crate) fn tool_switch(inner: &Inner, viewer: &Viewer, options: &ViewOptions) -> Node {
     let labels = &options.labels;
     let selected: usize = match inner.tool {
@@ -551,21 +549,7 @@ pub(crate) fn tool_switch(inner: &Inner, viewer: &Viewer, options: &ViewOptions)
         Tool::Ink => 3,
         Tool::Note => 4,
     };
-    let icons = [
-        Icon::Focus,
-        Icon::Bold,
-        Icon::TypeSize,
-        Icon::Pencil,
-        Icon::FileText,
-    ];
-    let tips = [
-        labels.select.clone(),
-        labels.highlight.clone(),
-        labels.underline.clone(),
-        labels.pen.clone(),
-        labels.note.clone(),
-    ];
-    let mut children = Vec::new();
+    let mut children: Vec<Node> = Vec::new();
     children.push(styled(
         space(SpaceOptions {
             width: Some(8.0),
@@ -573,19 +557,41 @@ pub(crate) fn tool_switch(inner: &Inner, viewer: &Viewer, options: &ViewOptions)
         }),
         Style::default(),
     ));
-    for (index, icon) in icons.into_iter().enumerate() {
-        let v = viewer.clone();
-        children.push(icon_button(IconButtonOptions {
-            key: Some(Str::from(format!("{}-tool{}", options.key, index))),
-            icon,
-            size: 16.0,
-            r#box: 28.0,
-            active: selected == index,
-            tooltip: Some(tips[index].clone()),
-            on_click: Some(Action::new(move |_| tb_tool(&v, index))),
-            ..Default::default()
-        }));
-    }
+    let segmented_viewer = viewer.clone();
+    children.push(ui::segmented(SegmentedOptions {
+        key: Some(Str::from(format!("{}-tools", options.key))),
+        options: vec![
+            SegmentedOption {
+                label: labels.select.clone(),
+                ..Default::default()
+            },
+            SegmentedOption {
+                label: labels.highlight.clone(),
+                ..Default::default()
+            },
+            SegmentedOption {
+                label: labels.underline.clone(),
+                ..Default::default()
+            },
+            SegmentedOption {
+                label: labels.pen.clone(),
+                icon: Icon::Pencil,
+                ..Default::default()
+            },
+            SegmentedOption {
+                label: labels.note.clone(),
+                icon: Icon::FileText,
+                ..Default::default()
+            },
+        ],
+        selected,
+        on_change: Some(IndexAction::new(move |_, index| {
+            tb_tool(&segmented_viewer, index)
+        })),
+        height: 24.0,
+        font_size: 12.0,
+        ..Default::default()
+    }));
     let undo_viewer = viewer.clone();
     children.push(icon_button(IconButtonOptions {
         key: Some(Str::from(format!("{}-undo", options.key))),

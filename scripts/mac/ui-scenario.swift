@@ -82,11 +82,23 @@ func typeText(_ text: String) {
         usleep(25_000)
     }
 }
-func pressKey(_ name: String) {
-    let codes: [String: CGKeyCode] = ["return": 36, "backspace": 51, "tab": 48, "escape": 53]
+func pressKey(_ name: String, flags: CGEventFlags = []) {
+    let codes: [String: CGKeyCode] = [
+        "return": 36, "backspace": 51, "tab": 48, "escape": 53, "space": 49,
+        "left": 123, "right": 124, "down": 125, "up": 126,
+        "home": 115, "end": 119, "pageup": 116, "pagedown": 121, "forwarddelete": 117,
+        "a": 0, "s": 1, "d": 2, "f": 3, "h": 4, "g": 5, "z": 6, "x": 7, "c": 8, "v": 9,
+        "b": 11, "q": 12, "w": 13, "e": 14, "r": 15, "y": 16, "t": 17, "1": 18, "2": 19,
+        "3": 20, "4": 21, "6": 22, "5": 23, "9": 25, "7": 26, "8": 28, "0": 29,
+        "o": 31, "u": 32, "i": 34, "p": 35, "l": 37, "j": 38, "k": 40, "n": 45, "m": 46,
+        "equal": 24, "minus": 27, "plus": 24,
+    ]
     guard let code = codes[name] else { print("unknown key \(name)"); return }
-    CGEvent(keyboardEventSource: src, virtualKey: code, keyDown: true)?.post(tap: .cghidEventTap)
-    CGEvent(keyboardEventSource: src, virtualKey: code, keyDown: false)?.post(tap: .cghidEventTap)
+    let down = CGEvent(keyboardEventSource: src, virtualKey: code, keyDown: true)
+    let up = CGEvent(keyboardEventSource: src, virtualKey: code, keyDown: false)
+    if !flags.isEmpty { down?.flags = flags; up?.flags = flags }
+    down?.post(tap: .cghidEventTap)
+    up?.post(tap: .cghidEventTap)
 }
 func resize(_ w: Win, _ width: Double, _ height: Double) {
     let app = AXUIElementCreateApplication(w.pid)
@@ -133,6 +145,7 @@ for raw in steps.split(separator: "\n") {
         usleep(400_000)
     case "type": typeText(rest)
     case "key": pressKey(rest)
+    case "cmdkey": pressKey(rest, flags: .maskCommand)
     case "resize":
         let a = rest.split(separator: " ").compactMap { Double($0) }
         if let w = window(), a.count == 2 { resize(w, a[0], a[1]) }
@@ -185,6 +198,17 @@ for raw in steps.split(separator: "\n") {
         let p = CGPoint(x: o.x + a[0], y: o.y + a[1])
         mouse(.mouseMoved, p); mouse(.leftMouseDown, p); usleep(10_000); mouse(.leftMouseUp, p)
         usleep(120_000)
+    case "scrollat":
+        // scroll the wheel at absolute content coordinates
+        let a = rest.split(separator: " ").compactMap { Double($0) }
+        guard a.count == 3, let w = window() else { print("bad scrollat \(line)"); failures += 1; continue }
+        let o = origin(w)
+        mouse(.mouseMoved, CGPoint(x: o.x + a[0], y: o.y + a[1]))
+        for _ in 0..<Int(a[2].magnitude) {
+            CGEvent(scrollWheelEvent2Source: src, units: .pixel, wheelCount: 1, wheel1: a[2] > 0 ? -40 : 40, wheel2: 0, wheel3: 0)?.post(tap: .cghidEventTap)
+            usleep(15_000)
+        }
+        usleep(300_000)
     case "layout":
         // copy the app's layout dump (key -> boxes) for later assertions
         if let text = try? String(contentsOfFile: layoutPath, encoding: .utf8) {
