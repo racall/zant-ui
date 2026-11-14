@@ -202,6 +202,28 @@
 4. **安装根目录**（给 6.5）：`find_root` 认定发布包布局是 `<home>/bin/zant` + `<home>/zant-ui/Cargo.toml`（zant-ui 为 Rust workspace）；`zant create` 写入的依赖路径是相对项目目录的 path 依赖。
 5. **打包脚本路径**（给 6.4）：CLI 仍调用 `tools/zant/package/{macos.sh,windows.ps1}` 的既有 action，ZANT_* 变量名不变；输出目录从 `zig-out/` 改为 `target/`（`ZANT_OUT=target/dist`、`ZANT_DIR=target/<标题>`、临时文件 `target/build/`），脚本里若还写死 `zig-out` 需要同步。
 
+## GUI 真实交互验证（2026-11-14，macOS 登录会话）
+
+用 `scripts/mac/ui-scenario.swift`（本轮扩展：`clickfrac`/`clickat`/`scroll`/`scrollat`/`drag`/`layout`/`cmdkey` 与方向键等）
+对 Rust 示例做**真实鼠标/键盘驱动**，证据读取 `[event]` stderr、`ZANT_LAYOUT_FILE` 快照差异与应用快照（系统截图权限被拒，
+因此用应用自带 `ZANT_SNAPSHOT` 渲染的 PNG）。
+
+- **zant-components**：38 个真实事件全通过 —— 9 个按钮（含 disabled 正确不触发）、输入框输入中文（逐字符事件）与密码、
+  checkbox/switch/radio、select 弹层点选、segmented ×3、tabs ×2、progress ×4、菜单打开/菜单项、modal 打开/关闭、
+  message、pointerArea 拖拽（pointer down/up）、虚拟列表点击+滚轮、Markdown 追加、深色切换、窗口 resize；
+  弹层状态由 layout 快照证明（menu 85→83 keys、modal 94→93、message 出现 `message-pill`、vlist 24 行）。
+  截图：浅/深色与 2500 高全页快照（含真实 PDF 阅读器）已检查。
+- **zant-markdown**：真实点击「代码复制」→ 系统剪贴板得到代码块原文；表格 `copy-md`/`copy-csv` → 剪贴板为 Markdown / CSV；
+  滚轮滚动全部块。与 Zig parity 6/6、0 像素（WP-3.11）。
+- **zant-pdf**（真实 15 页 MEMGPT.pdf）：翻页（layout 页 key 变化）、缩放（页宽 868→1071）、fit 切换、搜索输入+下一个/上一个、
+  页码输入跳转、⌘A+⌘C 整页文字进剪贴板（真实 PDF 文本）、批注工具切换与拖拽/撤销/重做。**工具栏改为 `ui::segmented` 后
+  Rust/Zig parity 6/6（light/dark × 3 尺寸，layout 33–35 keys 全等、0 像素差）**。
+- **zant-md-stream**：流式期间连续滚轮与点击，块 key 随内容增长（60→63→100 keys），完成行
+  `[stream] done: 1990 bytes, 322 deltas, 14306 ms, 410 builds, build avg 0.08 ms, max 0.18 ms`。
+- **zant-math**：滚动/缩放/resize 交互，应用快照渲染正确；与 Zig parity 6/6、0 像素（WP-3.11）。
+- **zant-gallery**：命令式 retained-mode 示例（无 layout key / 事件日志）只能视觉+像素验收（WP-2.9：图像 parity 6/6）；
+  如需交互断言，需要给 gallery 加 debug layout dump（未做，非必需）。
+
 ## 待决问题
 
 > 执行者遇到计划没写清的设计问题，登记在这里并停下来等负责人裁定，不要自行发明方案。
