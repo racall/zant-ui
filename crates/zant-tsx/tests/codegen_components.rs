@@ -162,13 +162,9 @@ fn install_stubs(g: &mut codegen::Generator<'_>) {
 }
 
 fn generated(src: &str) -> generate::GeneratedFile {
+    // The real JSX / event emitters are wired since WP-5.4 landed; no stub.
     let module = parse_module(src);
-    match generate::generate_with(
-        "src/App.tsx",
-        &module,
-        &generate::Options::default(),
-        Some(install_stubs),
-    ) {
+    match generate::generate("src/App.tsx", &module, &generate::Options::default()) {
         Ok(file) => file,
         Err(_) => match generate::last_diag() {
             Some(diag) => panic!("codegen error at {}: {}", diag.loc, diag.msg),
@@ -271,7 +267,7 @@ fn counter_matches_the_design_doc_snippet() {
     // §5: `onChange={setName}` becomes a setter adapter method, and
     // `onClick={() => setCount(0)}` a numbered private handler.
     assert!(
-        source.contains("fn _setName(&mut self, value: &str) {"),
+        source.contains("fn _set_name(&mut self, value: &str) {"),
         "{source}"
     );
     assert!(source.contains("fn _on_click"), "{source}");
@@ -322,8 +318,8 @@ fn state_refs_memo_effects_and_stores_lower() {
             "count: u32,".to_owned(),
             "label: zant::Str,".to_owned(),
             "ref_: u32,".to_owned(),
-            "_memo2: Option<((u32,), u32)>,".to_owned(),
-            "_deps3: Option<(u32,)>,".to_owned(),
+            "_memo3: Option<((u32,), u32)>,".to_owned(),
+            "_deps4: Option<(u32,)>,".to_owned(),
         ],
         struct_fields(source, "App"),
         "{source}"

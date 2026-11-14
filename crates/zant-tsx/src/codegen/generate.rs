@@ -99,6 +99,21 @@ pub struct GeneratedFile {
 
 /// Fill in the hooks this work package owns. WP-5.4 / 5.6 / 5.8 replace the
 /// `None` entries with their module functions at merge time.
+/// `expr` sends every JSX element through this hook: child components first
+/// (they emit `Child::build(..)`), then the `ui::*` tags (`jsx::emit`).
+fn emit_jsx(
+    g: &mut Generator<'_>,
+    c: &mut super::scope::Context,
+    jsx: &ast::Jsx,
+) -> Result<super::types::Value> {
+    let name = String::from_utf8_lossy(&jsx.name).into_owned();
+    if let Some(component) = super::components::find(g, &name) {
+        let component = component.clone();
+        return super::components::emit_call(g, c, jsx, &component);
+    }
+    super::jsx::emit(g, c, jsx)
+}
+
 pub fn install(g: &mut Generator<'_>) {
     g.extensions.extra_hook = hooks::extra_hook;
     g.extensions.hooks.ref_read = Some(hooks::ref_read);
@@ -112,14 +127,13 @@ pub fn install(g: &mut Generator<'_>) {
     g.extensions.hooks.nested = Some(super::captures::nested);
     g.extensions.array_methods = Some(super::array_methods::emit);
     g.extensions.call_before_functions = vec![components::try_call, stores::try_call];
-    // WP-5.4 (one line each):
-    // g.extensions.hooks.emit_jsx = Some(super::jsx::emit);
-    // g.extensions.hooks.scan_body = Some(super::events::scan_body);
-    // g.extensions.hooks.scan_expr = Some(super::events::scan_expr);
-    // g.extensions.hooks.emit_setter = Some(super::events::emit_setter);
-    // g.extensions.hooks.method_param = Some(super::events::method_param_type);
-    // g.extensions.hooks.forward_arrow = Some(super::events::forward_arrow);
-    // g.extensions.hooks.parameter_type = Some(super::events::parameter_type);
+    // WP-5.4: JSX and event emission.
+    g.extensions.hooks.emit_jsx = Some(emit_jsx);
+    g.extensions.hooks.scan_body = Some(super::events::scan_body);
+    g.extensions.hooks.scan_expr = Some(super::events::scan_expr);
+    g.extensions.hooks.emit_setter = Some(super::events::emit_setter);
+    g.extensions.hooks.method_param = Some(super::events::method_param_type);
+    g.extensions.hooks.parameter_type = Some(super::events::parameter_type);
     // WP-5.6 (one line each):
     // g.extensions.process_imports = Some(super::imports::process);
     // g.extensions.collect_windows = Some(super::windows::collect);
@@ -557,6 +571,12 @@ fn default_impl(
         let id = rust_text::id_at(g, field.name.as_bytes(), 0)?;
         values.push_str(&format!("            {id}: Default::default(),\n"));
     }
+    for info in &g.lists {
+        values.push_str(&format!(
+            "            {}: Default::default(),\n",
+            info.field
+        ));
+    }
     Ok(format!(
         "impl Default for {name} {{\n    fn default() -> Self {{\n        Self {{\n{values}        }}\n    }}\n}}\n\n"
     ))
@@ -575,9 +595,13 @@ fn state_fields(g: &mut Generator<'_>) -> Result<String> {
         let id = rust_text::id_at(g, field.name.as_bytes(), 0)?;
         out.push_str(&format!("    {id}: {},\n", field.rust_type));
     }
-    // `<List>` scroll state (WP-5.4 `list.zig` pushes the field names)
-    for field in &g.lists {
-        out.push_str(&format!("    {field}: ui::ListState,\n"));
+    // `<List>` scroll state (WP-5.4 `list.zig` registers `_listN` fields).
+    let lists = g.lists.clone();
+    for info in &lists {
+        out.push_str(&format!(
+            "    {}: std::rc::Rc<std::cell::RefCell<ui::ListState>>,\n",
+            info.field
+        ));
     }
     Ok(out)
 }

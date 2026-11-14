@@ -50,6 +50,12 @@
 //! | Zig module | Hook field | Shape |
 //! |---|---|---|
 //! | `jsx.zig` | `hooks.emit_jsx` | `fn(&mut Generator, &mut Context, &ast::Jsx) -> Result<Value>` |
+//!
+//! WP-5.4's `jsx::emit` handles `ui::*` tags, `<List>` and stateful widgets
+//! only. Component tags are dispatched by `components.zig` (WP-5.5), so WP-5.5
+//! installs its own `emit_jsx` wrapper that checks components first and then
+//! calls `jsx::emit`; its scan pass dispatches component tags before calling
+//! `events::scan_jsx`.
 //! | `captures.zig` | `hooks.captures_read` | `fn(&mut Generator, &mut Context, &str) -> Result<Option<Value>>` |
 //! | `components.zig` (`readProp`) | `hooks.components_read_prop` | `fn(&mut Generator, &str) -> Result<Option<Value>>` |
 //! | `components.zig` (`callbackType`) | `hooks.callback_type` | `fn(&mut Generator, Loc, &ast::FuncType) -> Result<Type>` |
@@ -70,16 +76,22 @@ pub mod builtins;
 pub mod callbacks;
 pub mod captures;
 pub mod components;
+pub mod events;
 pub mod expr;
 pub mod free_names;
 pub mod functions;
 pub mod generate;
 pub mod globals;
 pub mod hooks;
+pub mod jsx;
+pub mod jsx_children;
+pub mod jsx_values;
+pub mod list;
 pub mod loops;
 pub mod model;
 pub mod narrowing;
 pub mod nesting;
+pub mod rich_text;
 pub mod rust_text;
 pub mod scope;
 pub mod spread;
@@ -453,6 +465,16 @@ pub struct Generator<'a> {
     pub constants: Vec<Constant>,
     /// Plain functions of this file and imported ones (`functions.zig`).
     pub functions: Vec<functions::Function>,
+    /// Handler expressions registered before emission (`events.zig`).
+    pub events: Vec<events::Event>,
+    /// `<List>` elements of the component being generated (`list.zig`).
+    pub lists: Vec<list::ListInfo>,
+    /// Key-less instance ids handed out to stateful child tags (`widgets.zig`).
+    pub child_sites: usize,
+    /// How many scrolling containers enclose the element being generated.
+    pub scroll_depth: usize,
+    /// How many loops enclose the element being generated (keys, callbacks).
+    pub loop_depth: usize,
     /// `const _X = @import("X.zig");` lines of the file header (WP-5.6).
     pub header: String,
     /// Child components of the module, and the one being generated (WP-5.5
@@ -461,9 +483,6 @@ pub struct Generator<'a> {
     pub current_component: Option<usize>,
     /// Inline arrows passed to a child component's callback props.
     pub callback_events: Vec<components::CallbackEvent>,
-    /// Key-less stateful child call sites of the current component, numbered
-    /// for their instance ids.
-    pub child_sites: usize,
     /// `useMemo` caches and `useEffect` dependency lists of the current
     /// component (fields next to its state), and its effects.
     pub hook_fields: Vec<hooks::Field>,
@@ -471,17 +490,9 @@ pub struct Generator<'a> {
     pub cleanups: Vec<hooks::Cleanup>,
     /// Stores declared in or imported into this file (`stores.zig`).
     pub stores: Vec<stores::Store>,
-    /// Hidden `ui::ListState` fields of the component being generated
-    /// (WP-5.4 `list.zig` pushes the field names).
-    pub lists: Vec<String>,
     /// The enclosing render's typed bindings while a captured method is
     /// emitted (`captures.zig`).
     pub capture_scope: Option<Vec<ScopeEntry>>,
-    /// Scrolling containers around the element being emitted (`nesting.zig`).
-    pub scroll_depth: usize,
-    /// Array callbacks / list rows around the element being emitted: a
-    /// stateful component there needs a key.
-    pub loop_depth: usize,
     /// Generating a child component: its state lives outside `self` (WP-5.5).
     pub child_component: bool,
     /// Whether imported type declarations are being resolved (WP-5.6).
@@ -518,19 +529,20 @@ impl<'a> Generator<'a> {
             resolved_types: Vec::new(),
             constants: Vec::new(),
             functions: Vec::new(),
+            events: Vec::new(),
+            lists: Vec::new(),
+            child_sites: 0,
+            scroll_depth: 0,
+            loop_depth: 0,
             header: String::new(),
             components: Vec::new(),
             current_component: None,
             callback_events: Vec::new(),
-            child_sites: 0,
             hook_fields: Vec::new(),
             effects: Vec::new(),
             cleanups: Vec::new(),
             stores: Vec::new(),
-            lists: Vec::new(),
             capture_scope: None,
-            scroll_depth: 0,
-            loop_depth: 0,
             child_component: false,
             type_scope: false,
             extra_globals: Vec::new(),
