@@ -8,12 +8,13 @@ description = "Build-script helpers for Zant applications (replaces addTsxApp / 
 
 [dependencies]
 zant-tsx.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-syn.workspace = true
-quote.workspace = true
-proc-macro2.workspace = true
-prettyplease.workspace = true
+thiserror.workspace = true
+# Windows `.ico` generation from `assets/icons/app-windows.png` (Zig's
+# `zant-icon ico`, which `zant-cli`'s png module also ports).
+png.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 embed-resource.workspace = true
+
+[dev-dependencies]
+syn.workspace = true

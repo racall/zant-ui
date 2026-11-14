@@ -761,12 +761,9 @@ name = "zant-build"
 version = "0.1.0"
 dependencies = [
  "embed-resource",
- "prettyplease",
- "proc-macro2",
- "quote",
- "serde",
- "serde_json",
+ "png",
  "syn",
+ "thiserror",
  "zant-tsx",
 ]
 

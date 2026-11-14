@@ -1,0 +1,18 @@
+{
+  "title": "Zant Build Fixture",
+  "bundle_id": "dev.zant.build-fixture",
+  "version": "0.1.0",
+  "single_instance": true,
+  "window": {
+    "style": "native",
+    "width": 360,
+    "height": 240,
+    "min_width": 240,
+    "min_height": 160,
+    "background": "#101010",
+    "resizable": false,
+    "always_on_top": true,
+    "movable_by_background": true,
+    "center": false
+  }
+}

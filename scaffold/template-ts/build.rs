@@ -1,8 +1,9 @@
 //! Build script of the app.
 //!
-//! `zant_build::tsx_app()` compiles every `src/**/*.tsx` file into
-//! `$OUT_DIR/app.rs` — the generated root component `App` that `src/main.rs`
-//! includes as the `app` module — and handles the platform extras: app icons
+//! `zant_build::tsx_app()` compiles every `src/**/*.tsx` file into `$OUT_DIR`
+//! (`App.rs`, one module per file, and `main.rs` with the `#[path] mod …;`
+//! declarations that `src/main.rs` includes at its crate root) and handles the
+//! platform extras: app icons
 //! embedded from `assets/icons/`, the Windows manifest / `.ico` and the
 //! `pdfium.dll` copy next to the executable. It also prints
 //! `cargo:rerun-if-changed` for `src/**/*.tsx`, `native/**` and

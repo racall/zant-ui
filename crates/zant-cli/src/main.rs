@@ -248,20 +248,23 @@ pub fn build_once(root: &str, release: bool) -> bool {
 }
 
 /// `zant run` / `compile` / `package` build with `cargo build`, so the project
-/// needs the Rust application template (Cargo.toml + build.rs, WP-6.3). For a
-/// TSX app the build script must call `zant_build::tsx_app()` (WP-6.2), which
-/// does not exist yet: fail with the interface we expect instead of a
-/// confusing cargo error. Plain-Rust-app projects build normally.
+/// needs the Rust application template (Cargo.toml + build.rs, WP-6.3). A TSX
+/// app's `build.rs` calls `zant_build::tsx_app()` (WP-6.2), which compiles
+/// `src/**/*.tsx` into `$OUT_DIR`; without that build script cargo would fail
+/// with a confusing "file not found for module app_config" / missing `App`
+/// error. Plain-Rust-app projects build normally.
 pub fn ensure_rust_project(root: &str) -> std::io::Result<()> {
     if !Path::new(root).join("Cargo.toml").is_file() {
         fail(format!(
             "{root} 没有 Cargo.toml：zant run/compile/package 用 cargo build 构建 Cargo 应用；`--lang zig` 的旧模板只保留到 M8（没有 Cargo.toml，不能构建）"
         ));
     }
-    if project::detect(root)? == project::Language::Ts {
-        fail(
-            "TSX 应用的编译接口：应用的 build.rs 需要调用 `zant_build::tsx_app()`（WP-6.2，TSX codegen 见 WP-5.3–5.6），把 src/**/*.tsx 生成到 OUT_DIR 并由 src/main.rs include!；该接口尚未实现，所以现在 zant run/compile/package 不能编译 TSX 应用（zant create/sync 仍可用）",
-        );
+    if project::detect(root)? == project::Language::Ts
+        && !Path::new(root).join("build.rs").is_file()
+    {
+        fail(format!(
+            "{root} 是 TSX 应用（src/App.tsx）但没有 build.rs：TSX → Rust 的编译由应用的 build.rs 调用 `zant_build::tsx_app()` 完成（把 src/**/*.tsx 生成到 OUT_DIR，由 src/main.rs include!）；请用 `zant create` 生成模板，或参照 scaffold/template-ts/build.rs 补上 build.rs"
+        ));
     }
     Ok(())
 }
