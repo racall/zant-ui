@@ -24,6 +24,7 @@
 //! * `ui.textFmt` has no Rust counterpart: call sites format with `format!`.
 #![forbid(unsafe_code)]
 
+pub mod pdf_viewer;
 mod view;
 
 use std::cell::RefCell;
@@ -70,6 +71,10 @@ pub struct ComponentsApp {
     pub(crate) knob_drag: Option<[f32; 2]>,
     /// Virtual list demo (10 000 rows).
     pub(crate) rows: Rc<RefCell<ListState>>,
+    /// `src` of the PDF viewer widget (the Zig example uses the working
+    /// directory relative fixture path; the headless tests point it at the
+    /// repository fixture).
+    pub(crate) pdf_src: String,
 }
 
 impl ComponentsApp {
@@ -96,7 +101,15 @@ impl ComponentsApp {
             knob: 0.3,
             knob_drag: None,
             rows: Rc::new(RefCell::new(ListState::new())),
+            pdf_src: String::from("tests/fixtures/widgets.pdf"),
         }
+    }
+
+    /// `pdf_src` of the PDF viewer widget (headless tests resolve the fixture
+    /// from the crate directory instead of the working directory).
+    pub fn with_pdf_src(mut self, src: impl Into<String>) -> ComponentsApp {
+        self.pdf_src = src.into();
+        self
     }
 
     /// The last `[event]` message (`None` while nothing happened).
@@ -151,6 +164,11 @@ impl ComponentsApp {
     fn append_widget(&mut self) {
         self.widget_chunk = !self.widget_chunk;
         self.event(String::from("markdown chunk"));
+    }
+
+    /// Zig `State.pdfChanged`.
+    fn pdf_changed(&mut self) {
+        self.event(String::from("pdf changed"));
     }
 
     /// `ui.pointerArea`: drag the knob along the track; double click resets it.

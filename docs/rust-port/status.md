@@ -86,7 +86,7 @@
 | 3.8 | pdf/{document,text,renderer,annotations,native}、platform/pdf | wp-3-8 | 完成（已并入） | `Document` Send+Sync（原生层已串行化）；渲染 worker 的 wake 用注入回调（3.9 传 `ui::post_wake`）；缓存返回 `Arc` 快照；Windows PDFium 待验证 |
 | 3.9 | pdf/viewer、ui.pdfPreview | wp-3-9 | 完成（分支 rust/wp-3.9，待并入） | 7 测试（Zig viewer 2 + 新增 5，pdf_viewer_test.zig 两条延迟用例已移植）；`Viewer` = `Rc<RefCell<Inner>>` 句柄（回调需 `'static` 闭包）；`ui::post_wake` 直接作 renderer wake，无需运行时改动；`on_change`/`on_annotation` 改为下一次 build 的 effect；`ui::segmented`（WP-2.5 未并入）暂用图标按钮，见报告 |
 | 3.10 | db/sqlite → rusqlite + derive(Table) | wp-3-10 | 完成（已并入） | 生成的 SQL 与 Zig 逐字节一致（含迁移 ALTER）；Zig 建的库 Rust 可读已实测；fallback 表名差异登记见待决问题 |
-| 3.11 | examples/{markdown,math,markdown_stream,pdf} | — | 待领取 | |
+| 3.11 | examples/{markdown,math,markdown_stream,pdf} | wp-3-11 | 完成（worktree wp-3.11） | `rust/wp-3.11`。4 个新 bin（`zant-markdown` / `zant-math` / `zant-md-stream` / `zant-pdf`）+ 9 个 headless 测试（markdown 3、math 3、stream 3、pdf 3；components 由 6 → 8）。parity：`zant-markdown` 6/6（0 像素）、`zant-math` 6/6（自定义截图；Zig 示例没有 key，`layout.txt` 为空，`capture.sh` 因此拒绝，见待决问题 9）、`zant-md-stream` 6/6（`ZANT_STREAM_CHARS=1000000 ZANT_STREAM_MS=16 ZANT_STREAM_HISTORY=3`，0 像素）、`zant-components` 6/6（`pdf-2002` 占位换成真 viewer；换之前 layout 6/6 FAIL）、`zant-demo` 6/6。`zant-pdf` 未过：Zig 示例必须带 argv、且 Rust viewer 工具条的批注切换用图标按钮（Zig 用 `ui.segmented`），layout 差 25 项、像素差 0.7–2.0%，全部在工具条，**页面区域与页面瓦片完全一致**（见待决问题 8）。性能（Release，`ZANT_FRAME_STATS=1`，history 8/16）：`[slow-frame]` 只有挂载首帧 29.5 ms（Zig 29.1 ms，两边 `text_layouts` 都是 **244**，history 8→16 内容翻倍仍是 244、不增长），流式帧 1–2 ms（最慢一帧 7.7 ms，Zig 1.3–2.2 ms），build avg 0.06–0.07 ms（Zig 0.04 ms）。偏差：`zant-pdf` 无 argv 时打开 `tests/fixtures/widgets.pdf`（Zig 打印 usage 退出）；`math/mod.zig` 的 UI 层 `block` 落在 example crate；`ui.pdfViewer` 框架侧未移植，example 内同名实现（待决问题 7/8）。 |
 
 ### M4 TSX 编译器前端
 
@@ -253,6 +253,33 @@
    `format` / `parse` 留给 WP-2.8。裁定建议：WP-2.8 把 `Shortcut` 放到 `crate::desktop`，并让
    `hotkey_input` 改为 `use crate::desktop::Shortcut;`（或在 desktop 里 `pub use` 本模块的类型），
    字段名与语义不变。
+
+7. **`math/mod.zig` 的 UI 层未移植**（WP-3.11 提出）：Zig `math/mod.zig` 的 `block` / `render` /
+   `inlineText` / `inlineDrawing` 属 UI 层，WP-3.6 只移植了 `layout` 引擎（`math::layout`）。
+   WP-3.11 在 `crates/zant-examples/src/math_app.rs` 里按 Zig 逐行实现 `math_block`（display、
+   上下各半 em 边距、100% 宽居中 row，见 `zant-math` 测试），`inlineDrawing` 已在 WP-3.3 的
+   `markdown::render::spans::inline_drawing`。裁定建议：把 `block` / `render` 移进 `crate::math`
+   （约 40 行，example 改调用 `zant::math::block`）；`zant-math` parity 已证明绘制结果与 Zig 逐像素一致。
+8. **`ui.pdfViewer` 组件与 PDF 工具条 segmented**（WP-3.11 提出）：`src/components/widgets.zig` 的
+   PDF 半（`PdfViewerOptions` / `PdfViewerState` / `pdfViewer`，含 `password identity` 测试）没有任何
+   WP 认领（WP-3.3 声明留给 3.9，3.9 只做了 viewer）。WP-3.11 在
+   `crates/zant-examples/src/components_app/pdf_viewer.rs` 里逐行实现同名组件（local slot + 惰性 open
+   effect + empty/loading/failed 表面 + `pdf::view` 透传），`zant-components` parity 6/6，并且
+   `pdf-2002-zin` 的 on_change 事件恢复（`components-check.ps1` 的第 162–163 行可用）。
+   同时 3.9 的 `pdf/viewer/annotate.rs::tool_switch` 用图标按钮替代了 Zig 的 `ui.segmented`
+   （当时的 base 没有 2.5 的 `ui::segmented`；本 base 已有）。后果：`zant-pdf` layout 差 25 项
+   （Zig `pdf-tools*` 11 个 key vs Rust `pdf-tool0..4`，另 8 个 x 偏移）、像素差 0.7–2.0%，差异全部
+   在工具条（y ≤ 70）；`pdf-p0*` 页面瓦片坐标与像素完全一致。裁定建议：(a) 把 `pdf_viewer` 移入
+   `crate::components::widgets`（+ 其 1 个测试）；(b) `tool_switch` 改成 `ui::segmented`
+   （Zig 原样：key `{key}-tools`、`height: 24`、`font_size: 12`，5 个 label/icon，`on_change` → `tb_tool`），
+   之后 `zant-pdf` 应能过 parity。
+9. **`zant-math` / `zant-pdf` 的 parity 调用方式**（WP-3.11 记录，非待决）：`zant-math` 的 Zig 示例
+   没有任何 key，`ZANT_LAYOUT_FILE` 是空文件，`capture.sh` 的 `-s layout.txt` 检查会失败 → 用同一套
+   `ZANT_SNAPSHOT*` / `ZANT_WINDOW_SIZE` 环境手动截图并只跑 `imgdiff.py`（本次 6/6、0 像素）；
+   `zant-pdf` 的 Zig 示例必须带 argv（`zig-out-baseline/bin/zant-pdf tests/fixtures/widgets.pdf`），
+   `compare.sh` 不支持传参 → 手动跑 `capture.sh` 的同一套环境变量并分别 `layoutdiff.py` / `imgdiff.py`。
+   `zant-gallery` 的 Zig 基线不写 `layout.txt`（imperative 树没有 key），`compare.sh zant-gallery`
+   在 capture 阶段就失败；与 3.11 无关，留给 lead 决定是否给 gallery 加 key 或换对照方式。
 
 ## Zig 变更日志
 

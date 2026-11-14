@@ -21,6 +21,7 @@ use zant::ui::{
     TooltipOptions,
 };
 
+use super::pdf_viewer::{PdfViewerOptions, pdf_viewer};
 use super::{ComponentsApp, DISPLAY_ICONS, shortcut_groups};
 
 /// `ui.card` section with a title (Zig `section`).
@@ -579,27 +580,19 @@ pub(crate) fn render(app: &mut ComponentsApp) -> ui::Node {
                     ..Default::default()
                 },
             ),
-            // `ui.pdfViewer(0x2002, ...)` belongs to WP-3.9; the placeholder
-            // keeps the widget's slot (key / size / border) so the section
-            // lays out like the Zig one. Remove it when the widget lands.
-            ui::column(BoxOptions {
-                key: Some("pdf-2002".into()),
-                height: Some(240.0),
-                radius: 8.0,
-                border_color: Some(theme.color_border_secondary),
-                border_width: 1.0,
-                align_items: flex::Align::Center,
-                justify: flex::Justify::Center,
-                children: vec![ui::text(
-                    "PDF 阅读器（ui.pdfViewer）由 WP-3.9 移植",
-                    TextOptions {
-                        size: 13.0,
-                        color: Some(theme.color_text_secondary),
-                        ..Default::default()
-                    },
-                )],
-                ..Default::default()
-            }),
+            // Zig `ui.pdfViewer(0x2002, ...)`: the framework widget is not in
+            // `zant::components::widgets` on this base (WP-3.3 left the PDF
+            // half to WP-3.9, which ported the viewer only), so the example
+            // crate carries the same wrapper in `pdf_viewer.rs` (WP-3.11).
+            pdf_viewer(
+                0x2002,
+                PdfViewerOptions {
+                    src: Str::copy(&app.pdf_src),
+                    height: Some(240.0),
+                    on_change: Some(ui::action(|s: &mut ComponentsApp| s.pdf_changed())),
+                    ..Default::default()
+                },
+            ),
         ],
     );
 
