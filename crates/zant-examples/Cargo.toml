@@ -1,0 +1,10 @@
+[package]
+name = "zant-examples"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Runnable examples for Zant UI (zant-demo, zant-components, zant-gallery, ...)"
+
+[dependencies]
+zant.workspace = true

@@ -21,3 +21,9 @@ third_party/pdfium-win/
 third_party/fonts/
 third_party/*.tgz
 zig-out-*/
+
+# Rust
+target/
+**/*.rs.bk
+.cargo-home/
+.worktrees/

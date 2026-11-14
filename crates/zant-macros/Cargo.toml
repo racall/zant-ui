@@ -1,0 +1,15 @@
+[package]
+name = "zant-macros"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Procedural macros for Zant UI: #[derive(TsxProps)] and #[derive(Table)]"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn.workspace = true
+quote.workspace = true
+proc-macro2.workspace = true
