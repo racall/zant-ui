@@ -548,6 +548,10 @@ pub struct VectorData {
 }
 
 /// Zig `Data` (`union(NodeKind)`): what a retained node paints and lays out.
+///
+/// The variants deliberately differ a lot in size (Zig stores the same union
+/// inline); boxing one would add an allocation per node of that kind.
+#[allow(clippy::large_enum_variant)]
 pub enum NodeData {
     Root,
     Container(ContainerData),

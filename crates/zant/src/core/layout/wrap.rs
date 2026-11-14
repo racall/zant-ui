@@ -17,6 +17,7 @@ struct WrapLine {
 }
 
 /// Port of `layoutRowWrap`: rows wrap into lines, each justified on its own.
+#[allow(clippy::too_many_arguments)] // mirrors the Zig signature
 pub(crate) fn layout_row_wrap(
     nodes: &mut Nodes<'_>,
     id: NodeId,

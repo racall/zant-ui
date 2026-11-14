@@ -13,6 +13,7 @@ use crate::theme::tokens::Theme;
 
 /// Port of `layoutColumn`: a vertical flex line (also used for scroll
 /// containers with no definite height, which then measure their content).
+#[allow(clippy::too_many_arguments)] // mirrors the Zig signature
 pub(crate) fn layout_column(
     nodes: &mut Nodes<'_>,
     id: NodeId,

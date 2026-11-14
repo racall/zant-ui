@@ -141,26 +141,41 @@ impl RichTextData {
         self.spans.iter().any(|span| span.embed.is_some())
     }
 
-    /// Paints the paragraph and its inline embeds at (x, y).
-    pub fn paint_at(&self, canvas: Canvas, layout: &rich_text::Layout, x: f32, y: f32) {
-        layout.paint(canvas, x, y);
-        if !self.has_embeds() {
+    /// Paints the paragraph and its inline embeds at (x, y), laid out
+    /// `max_width` wide.
+    pub fn paint_at(&mut self, canvas: Canvas, x: f32, y: f32, max_width: f32) {
+        if self.ensure_layout(max_width).is_none() {
             return;
         }
         let mut rects_buf = [crate::core::geometry::Rect::default(); 128];
-        let rects = layout.placeholder_rects(&mut rects_buf);
+        let count = {
+            let Some(layout) = self.layout.as_ref() else {
+                return;
+            };
+            layout.paint(canvas, x, y);
+            if !self.has_embeds() {
+                return;
+            }
+            layout.placeholder_rects(&mut rects_buf).len()
+        };
+        // Collect first: the embed drawings are `Rc` and the layout borrow of
+        // `self` has to end before `vector::paint` (which may read any span).
+        let mut placements: Vec<(f32, f32, crate::core::vector::DrawingRef)> = Vec::new();
         let mut index = 0usize;
         for span in &self.spans {
             let Some(embed) = span.embed.as_ref() else {
                 continue;
             };
-            if index >= rects.len() {
+            if index >= count {
                 break;
             }
-            let r = rects[index];
+            let r = rects_buf[index];
             index += 1;
             // the placeholder box's top is `ascent` above its baseline
-            vector::paint(canvas, embed, x + r.x, y + r.y + embed.ascent);
+            placements.push((x + r.x, y + r.y + embed.ascent, embed.clone()));
+        }
+        for (embed_x, embed_y, embed) in placements {
+            vector::paint(canvas, &embed, embed_x, embed_y);
         }
     }
 

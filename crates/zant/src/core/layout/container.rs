@@ -370,28 +370,28 @@ fn layout_container(
         } else if let Some(bottom) = child_style.bottom {
             y = box_y + box_h - h - bottom;
         }
-        if let Some(anchor) = child_style.anchor {
-            if (anchor as usize) < flow.len() {
-                // follow the n-th in-flow sibling (FLIP animates the moves)
-                let target = nodes[flow[anchor as usize]].bounds;
-                let own_vertical = child_style.top.is_some()
-                    || child_style.bottom.is_some()
-                    || child_style.height.is_some()
-                    || child_style.height_percent.is_some();
-                let _ = layout_node(
-                    nodes,
-                    child_id,
-                    target.x,
-                    if own_vertical { y } else { target.y },
-                    Some(target.width),
-                    Some(if own_vertical { h } else { target.height }),
-                    target.width,
-                    box_h,
-                    theme,
-                    false,
-                );
-                continue;
-            }
+        if let Some(anchor) = child_style.anchor
+            && (anchor as usize) < flow.len()
+        {
+            // follow the n-th in-flow sibling (FLIP animates the moves)
+            let target = nodes[flow[anchor as usize]].bounds;
+            let own_vertical = child_style.top.is_some()
+                || child_style.bottom.is_some()
+                || child_style.height.is_some()
+                || child_style.height_percent.is_some();
+            let _ = layout_node(
+                nodes,
+                child_id,
+                target.x,
+                if own_vertical { y } else { target.y },
+                Some(target.width),
+                Some(if own_vertical { h } else { target.height }),
+                target.width,
+                box_h,
+                theme,
+                false,
+            );
+            continue;
         }
         let _ = layout_node(
             nodes,

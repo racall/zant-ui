@@ -12,6 +12,7 @@ use crate::layout::flex;
 use crate::theme::tokens::Theme;
 
 /// Port of `layoutRow`: a non-wrapping horizontal flex line.
+#[allow(clippy::too_many_arguments)] // mirrors the Zig signature
 pub(crate) fn layout_row(
     nodes: &mut Nodes<'_>,
     id: NodeId,

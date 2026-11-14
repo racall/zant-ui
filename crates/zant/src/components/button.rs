@@ -218,10 +218,10 @@ pub fn paint(node: &mut RetainedNode, canvas: Canvas, theme: Theme) {
     // an empty plain button (hit area, dismiss layer) paints only an
     // explicit background
     if data.button_type == ButtonType::Plain && data.icon == Icon::None && data.label.is_empty() {
-        if let Some(bg) = visual.background {
-            if tokens::alpha(bg) > 0 {
-                canvas.fill_round_rect(bounds, visual.radius, bg);
-            }
+        if let Some(bg) = visual.background
+            && tokens::alpha(bg) > 0
+        {
+            canvas.fill_round_rect(bounds, visual.radius, bg);
         }
         return;
     }
