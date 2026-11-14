@@ -9,11 +9,11 @@
 | 项 | 值 |
 |---|---|
 | 分支 | `feat/rust-port`（全部 WP 直接合入这里，提交带 `WP-x.y:` 前缀） |
-| Rust 测试 | `cargo test --workspace` 全绿：**435 个**（lib 338 + 集成 56 + zant-tsx 41） |
+| Rust 测试 | `cargo test --workspace` 全绿：**~490 个**（lib 346 + 集成 54 + zant-tsx 41 + examples 5） |
 | Zig 测试 | `zig build test` 仍全绿（Zig 版未改行为，只加了 `ZANT_WINDOW_SIZE` 钩子与 `ZANT_STATIC_DATA` 原生补丁） |
 | 质量门 | `cargo fmt --all -- --check` 干净；`cargo clippy --workspace --all-targets -- -D warnings` 0 告警 |
 | 已完成 | M0 全部（0.1 macOS/0.2/0.3/0.4/0.5）、1.1a–d、1.2、1.3、2.2、2.3、2.4、3.1、3.2、3.4、3.5、3.6、3.7、3.8、3.10、4.1、4.2、4.3、5.1 |
-| 进行中 | WP-1.5（`zant-demo` + M1 parity，worktree `wp-1.5`） |
+| 进行中 | 无（M1 已完成；下一批：2.1 收尾、2.5、2.6、2.7、2.8、2.9、2.10、2.11、3.3、3.9、3.11、4.4） |
 | 下一步（依赖已就绪） | 1.4 完成 → 1.5 `zant-demo` + M1 parity → 2.1（input/IME，需 1.4）→ 2.5/2.6/2.7/2.8/2.9/2.10/2.11 → 3.3（markdown render，需 1.3+2.3 ✓ 可并行）→ 3.9（viewer）→ 3.11 → 4.4 → M5/M6/M7/M8 |
 | Windows | 测试机 192.168.31.24 全程不可达；所有 Windows 验收待补 |
 
@@ -54,13 +54,13 @@
 | 1.2 | actions、ui Element / 选项 / 构建上下文 | wp-1-2 | 完成（已并入） | 39 个新测试；52 字段 Element + 32 个选项结构体逐一对照 Zig；只做 column/row/text/button/styled，其余选项类型已声明 |
 | 1.3 | node、tree、layout、components/button、text_select | wp-1-3 | 完成（已并入） | 24 个 flex_test + 25 个新单测；`Tree`/`RetainedNode`/`NodeData`/text 缓存/命中/滚动/焦点/输入编辑；Icon 重复已去重；rich text 选择高亮待接（range_rects 已补） |
 | 1.4 | ui_runtime 构建/协调/patch/事件/帧循环、launch、App trait | wp-1-4 | 完成（worktree wp-1.4，待并入） | ★★★；`App`/`RunOptions`/`run()` + `runtime/` 15 个模块；51 个新测试（ui_runtime.zig / launch.zig 无 test 块，全部为新增 headless 测试；zant lib 测试 210 → 261）；Zig 环境变量除 `ZANT_AUTOPLAY`（Zig runtime 不读）与 `ZANT_SNAPSHOT_EXIT`（原生处理）外全部覆盖；多窗口 / caption 按钮 / select 弹层 / input·toggle·select 组件动画留给 WP-2.x；`ui::key_bounds` 用每帧快照而非活树（借用检查） |
-| 1.5 | `zant-demo`（src/main.zig + src/app.zig）| wp-1-5 | 进行中 | 完成后跑 M1 parity（`scripts/parity/compare.sh zant-demo`） |
+| 1.5 | `zant-demo`（= `examples/declarative.zig`，注意不是 src/main.zig） | wp-1-5 | 完成（已并入） | **M1 验收通过**：parity 6/6（light/dark × 3 尺寸），layout 8 keys 一致、像素 0 差异；input 组件 paint 已补 |
 
 ### M2 组件与运行时补全
 
 | WP | 内容 | 负责人 | 状态 | 备注 |
 |---|---|---|---|---|
-| 2.1 | input + runtime 键盘 / IME / 焦点 / 文本选择 | — | 待领取 | |
+| 2.1 | input + runtime 键盘 / IME / 焦点 / 文本选择 | 组件半完成（随 1.5 并入） | 部分完成 | components/input.rs 全量移植 + 8 测试；剩余：runtime animate 接线、toggle 回调派发、select 弹层命中、input 助手三处重复合并、IME 真机验证 |
 | 2.2 | toggle、select、image + select 弹层、tooltip | wp-2-2 | 完成（已并入），runtime 接线待 1.4 | 32 个测试（含 raster 像素断言）；`Image::draw_rect` 已加；select/tooltip 的浮层生命周期、image load 调用点在 1.4 |
 | 2.3 | ui.zig 其余构建器、core/icons | wp-2-3a + wp-2-3b | 完成（已并入） | icons + 30 个 builder（builders/ 拆 8 个文件）；53 个 builder 测试；`ui.icon` 与 Zig 一样生成 Vector 节点（Element 无独立 icon 色/描边字段） |
 | 2.4 | memo、localState、portals、effects、commands | wp-2-4（local_state 由 lead 提前完成） | 完成（worktree wp-2.4，待并入） | `core/local_state.rs`（Store/Slot/child_id，Rc<RefCell<T>> + TypeId panic，child_id 与 Zig 钉死值一致）+ `ui/local_state` 包装；`ui::{memo,portals,commands}` 与运行时钩子（`memo_hash`/`memo_build`/`resolve_memo`、`take_portals`、`take_commands_for`/`requeue_command`/`set_command_owner`、`set_build_states`）完成；本模块新增 22 个测试 |
@@ -163,6 +163,17 @@
    WP-3.10（db/sqlite + derive(Table)，SQL 与 Zig 逐字节一致）。
 4. 早期落地（原属 1.3/2.8，为解除依赖提前做）：`core/vector.rs`、`core/icons.rs`（WP-2.3a）、`store.rs`、`Str`、
    renderer 的 path / simple-text / measure-ink 包装、`lib.rs` 的 `extern crate self as zant;`。
+
+## 已知框架缺口（WP-1.5 parity 发现，2026-11-13）
+
+1. **toggle/radio/switch 的 on_change 不派发**：Rust `Tree::toggle_set` 只改 checked，runtime pointer/keyboard 不回调
+   （Zig `Tree.toggleSet` 调 index_action/action）。交互残，静态 parity 不受影响 → WP-2.1/2.2 修。
+2. **按路径图片未加载**：`runtime/patch.rs`/`reconcile.rs` 的 image 分支没调 `components::image::load`，
+   内存图片未设 `intrinsic_width/height` → 待接线（demo 用 `ImageOptions.image` 绕开）。
+3. **animate tick 跳过 Input/Toggle/Select**（`runtime/animate.rs` TODO）→ input 边框过渡、toggle/select 动效不推进。
+4. **select 弹层 option hover/click 仍 TODO**（`runtime/pointer.rs`）→ WP-2.2/1.4 收尾。
+5. **rich text 选择高亮未绘制**（`renderer::rich_text::Layout::range_rects` 已补，tree paint 未接）。
+6. **input 编辑助手在 `components/input.rs` / `core/tree/input_ops.rs` / `runtime/ime.rs` 三处重复** → 合并到 components。
 
 ## 待决问题
 
