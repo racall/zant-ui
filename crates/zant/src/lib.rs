@@ -23,6 +23,7 @@ pub mod core;
 pub mod db;
 pub mod desktop;
 pub mod error;
+pub mod launch;
 pub mod layout;
 pub mod markdown;
 pub mod math;

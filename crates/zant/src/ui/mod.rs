@@ -10,6 +10,7 @@
 //! `column` / `row` / `text` / `button` builders in [`builders`].
 
 pub mod actions;
+pub mod app;
 pub mod builders;
 pub mod commands;
 pub mod context;
@@ -25,6 +26,7 @@ pub use actions::{
     PointerInfo, PointerPhase, RangeAction, TextAction, action, bool_action, call, call_bool,
     call_index, call_range, call_text, index_action, range_action, text_action,
 };
+pub use app::{App, RunOptions, run};
 pub use builders::{
     alert, avatar, button, card, checkbox, clickable, column, dismiss_layer, divider, heading,
     icon, icon_button, image, input, link, paragraph, pdf_preview, pointer_area, progress,

@@ -53,8 +53,8 @@
 | 1.1d | platform/{platform,dialog}、core/events、core/keys | lead | 完成 | `Host` 回调表 → `Box<dyn HostHandler>` 蹦床；`ZANT_WINDOW_SIZE` 已照搬；`monotonic_us` 用 `Instant`（deviation）；事件 text 用 owned `String`；14 个测试 |
 | 1.2 | actions、ui Element / 选项 / 构建上下文 | wp-1-2 | 完成（已并入） | 39 个新测试；52 字段 Element + 32 个选项结构体逐一对照 Zig；只做 column/row/text/button/styled，其余选项类型已声明 |
 | 1.3 | node、tree、layout、components/button、text_select | wp-1-3 | 完成（已并入） | 24 个 flex_test + 25 个新单测；`Tree`/`RetainedNode`/`NodeData`/text 缓存/命中/滚动/焦点/输入编辑；Icon 重复已去重；rich text 选择高亮待接（range_rects 已补） |
-| 1.4 | ui_runtime 构建/协调/patch/事件/帧循环、launch、App trait | lead | 待领取 | ★★★ |
-| 1.5 | `zant-demo`（对应 src/main.zig） | lead | 待领取 | |
+| 1.4 | ui_runtime 构建/协调/patch/事件/帧循环、launch、App trait | wp-1-4 | 完成（worktree wp-1.4，待并入） | ★★★；`App`/`RunOptions`/`run()` + `runtime/` 15 个模块；51 个新测试（ui_runtime.zig / launch.zig 无 test 块，全部为新增 headless 测试；zant lib 测试 210 → 261）；Zig 环境变量除 `ZANT_AUTOPLAY`（Zig runtime 不读）与 `ZANT_SNAPSHOT_EXIT`（原生处理）外全部覆盖；多窗口 / caption 按钮 / select 弹层 / input·toggle·select 组件动画留给 WP-2.x；`ui::key_bounds` 用每帧快照而非活树（借用检查） |
+| 1.5 | `zant-demo`（src/main.zig + src/app.zig）| wp-1-5 | 进行中 | 完成后跑 M1 parity（`scripts/parity/compare.sh zant-demo`） |
 
 ### M2 组件与运行时补全
 

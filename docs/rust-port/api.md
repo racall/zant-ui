@@ -174,5 +174,10 @@ pub enum NodeData { Root, Container(..), Text(..), Button(..), /* .. */ }
    runtime 每帧用 `set_key_bounds_hook` 装上「查保留树」的闭包；`ui` 不直接依赖 `core::tree`。
 10. **不提供 `frameAllocator`**：Zig 的帧 arena 在 Rust 里删除。需要「活过本帧」的数据一律由闭包捕获
     `Rc`/`String`（回调生命周期即保证），字符串用 `Str::copy`。移植 pdf/markdown/tsx/components 时按此执行。
-11. **`mut`/所有权形态**：`Collection` 式容器方法取 `&self` + 内部可变（`Rc<RefCell<..>>`）或 `&mut self`，
+11. **`App: std::any::Any`**（WP-1.4 定稿）：`ActionCx::state::<S>()` 需要从 boxed app 里 downcast；
+    对 `impl App for X` 的写法没有影响。
+12. **`ui::key_bounds` 的实现**（WP-1.4 定稿）：runtime 每次 layout 后刷新一个
+    `Rc<RefCell<HashMap<String, Rect>>>` 快照并安装为 hook（不是每帧查活树——那会在 build/effects 里
+    重借 `RefCell<Tree>` panic）。语义仍是「上一帧的盒子」。
+13. **`mut`/所有权形态**：`Collection` 式容器方法取 `&self` + 内部可变（`Rc<RefCell<..>>`）或 `&mut self`，
     按各 WP 的文件头说明；读路径优先返回 `Arc` 快照（PDF 缓存已如此）。
