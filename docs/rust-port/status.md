@@ -50,7 +50,7 @@
 | 2.1 | input + runtime 键盘 / IME / 焦点 / 文本选择 | — | 待领取 | |
 | 2.2 | toggle、select、image + select 弹层、tooltip | — | 待领取 | |
 | 2.3 | ui.zig 其余构建器、core/icons | wp-2-3a（icons 完成）/ lead（其余）| icons 已并入（2 测试，3317/3321 坐标逐位一致，4 个 1ulp 差来自 sin/cos 实现）；其余构建器等 1.2 |
-| 2.4 | memo、localState、portals、effects、commands | lead（local_state 已提前完成） | 进行中 | `core/local_state.rs`（Store/Slot/child_id，Rc<RefCell<T>> + TypeId panic）已完成并测试；memo/portals/effects/commands 等 1.2 |
+| 2.4 | memo、localState、portals、effects、commands | wp-2-4（local_state 由 lead 提前完成） | 完成（worktree wp-2.4，待并入） | `core/local_state.rs`（Store/Slot/child_id，Rc<RefCell<T>> + TypeId panic，child_id 与 Zig 钉死值一致）+ `ui/local_state` 包装；`ui::{memo,portals,commands}` 与运行时钩子（`memo_hash`/`memo_build`/`resolve_memo`、`take_portals`、`take_commands_for`/`requeue_command`/`set_command_owner`、`set_build_states`）完成；本模块新增 22 个测试 |
 | 2.5 | menu、modal、segmented、message、shortcut_list、hotkey_input、view、window_controls | — | 待领取 | |
 | 2.6 | components/list（虚拟列表）+ ListState | — | 待领取 | |
 | 2.7 | 动效接入：presence、FLIP、layout_transition、runtime tick | — | 待领取 | |

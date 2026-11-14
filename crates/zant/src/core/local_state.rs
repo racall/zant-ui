@@ -317,6 +317,24 @@ mod tests {
         assert_ne!(child_id(9, "row"), child_id(9, "column"));
     }
 
+    /// Reference values produced by Zig 0.17.1 `childId`
+    /// (`src/core/local_state.zig`, values printed with `zig run`): ids must be
+    /// bit-identical across the two implementations so memo / local-state
+    /// parity runs can compare them (plan.md §4).
+    #[test]
+    fn child_ids_match_zig() {
+        assert_eq!(child_id(0, 0u64), 0x3076_e496_f66a_89bb);
+        assert_eq!(child_id(0, "row"), 0x8943_aef2_fe85_1d89);
+        assert_eq!(child_id(9, "row"), 0x288e_2b61_86b3_ff10);
+        assert_eq!(child_id(1, 3u64), 0x1c2b_5cfb_b83b_73ea);
+        assert_eq!(child_id(0xDEAD, 1u64), 0x164d_2cfb_bbd3_397a);
+        assert_eq!(child_id(u64::MAX, "x"), 0x2142_bf46_c451_6f7e);
+        assert_eq!(child_id(42, 0u64), 0x26e2_240a_8827_0202);
+        // integers of another width go through the same u64 byte stream
+        assert_eq!(child_id(1, 3u32), child_id(1, 3u64));
+        assert_eq!(child_id(1, 3u8), child_id(1, 3u64));
+    }
+
     #[test]
     fn one_id_with_two_types_panics() {
         let mut store = Store::new();
