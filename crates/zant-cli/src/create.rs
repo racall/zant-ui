@@ -4,7 +4,7 @@
 use crate::app_config::bundle_error;
 use crate::scaffold;
 use crate::{
-    COLOR_RED, COLOR_RESET, escape_json, fail, ok, path_exists, prompt, read_line, sep, step,
+    COLOR_RED, COLOR_RESET, escape_json, fail, ok, path_exists, prompt, read_line, step,
     write_file, zant_root,
 };
 use std::io::Write as _;
@@ -156,15 +156,21 @@ pub fn cmd_create(options: CreateOptions) -> std::io::Result<()> {
     crate::dim_line(
         "macOS 专属设置（沙盒、签名）在 Mac 上首次 zant run / zant package 时补充到 app.config.json",
     );
-    if crate::release_home().is_some() {
-        eprint!("\n下一步：\n  cd {name}\n  zant run\n\n");
+    // `zant` when the command is on PATH, else the path of this executable
+    let on_path = std::env::var_os("PATH").is_some_and(|paths| {
+        std::env::split_paths(&paths).any(|dir| {
+            dir.join(format!("zant{}", std::env::consts::EXE_SUFFIX))
+                .is_file()
+        })
+    });
+    let command = if on_path || crate::release_home().is_some() {
+        "zant".to_string()
     } else {
-        let zroot = zroot.to_string_lossy();
-        eprint!(
-            "\n下一步：\n  cd {name}\n  {zroot}{sep}target{sep}debug{sep}zant run\n\n",
-            sep = sep()
-        );
-    }
+        std::env::current_exe()
+            .map(|exe| exe.to_string_lossy().into_owned())
+            .unwrap_or_else(|_| "zant".to_string())
+    };
+    eprint!("\n下一步：\n  cd {name}\n  {command} run\n\n");
     Ok(())
 }
 
