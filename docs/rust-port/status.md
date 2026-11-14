@@ -66,9 +66,9 @@
 | 3.1 | markdown/remend（522 条夹具） | wp-3-1 | 完成（已并入） | 522/522 夹具通过；5 个 Zig 测试移植 |
 | 3.2 | markdown/parser + blocks/cache/html/safety/highlight | wp-3-2 | 完成（已并入） | 23 个内联测试 + 6/12 个 markdown_test（余 6 个需 render/editor → 3.3）；与 Zig 逐字节差分 15.2MB 输出 sha256 一致 |
 | 3.3 | markdown/render、editor/edit、widgets 的 markdown 部分 | — | 待领取 | |
-| 3.4 | markdown/mermaid | — | 待领取 | 依赖 1.3 |
-| 3.5 | math/{parser,symbols,fonts} | wp-3-5 | phase 1 完成（symbols+fonts，11 测试）；phase 2（parser）已通知继续 | mhchem API：`to_tex(&str, Machine) -> Result<String, MhchemError>` |
-| 3.6 | math/layout | — | 待领取 | 依赖 1.3 |
+| 3.4 | markdown/mermaid | wp-3-4 | 进行中（worktree wp-3.4） | 只依赖 core/vector（已并入） |
+| 3.5 | math/{parser,symbols,fonts} | wp-3-5 | 完成（已并入） | 16 个 Rust 测试（Zig 2）；`parse(&str) -> Result<Vec<Node>, ParseError>`，Node 为 owned enum；symbols/fonts 数据逐条对照 |
+| 3.6 | math/layout | wp-3-6 | 进行中（worktree wp-3.6） | 依赖 vector/renderer/text/math parser（均已并入） |
 | 3.7 | math/mhchem（823 条夹具，逐字节对齐） | wp-3-7 | 完成（已并入） | 823/823；207 条状态机转移与 Zig 逐条对照；拆成 15 个文件；`to_tex(&str, Machine) -> Result<String, MhchemError>` |
 | 3.8 | pdf/{document,text,renderer,annotations,native}、platform/pdf | wp-3-8 | 完成（已并入） | `Document` Send+Sync（原生层已串行化）；渲染 worker 的 wake 用注入回调（3.9 传 `ui::post_wake`）；缓存返回 `Arc` 快照；Windows PDFium 待验证 |
 | 3.9 | pdf/viewer、ui.pdfPreview | — | 待领取 | |
