@@ -29,7 +29,7 @@
 | 已完成 | M0 全部（0.1 macOS/0.2/0.3/0.4/0.5）、M1 全部（1.1a–d/1.2/1.3/1.4/1.5，parity 6/6 0 像素）、M2（2.1–2.11 除 2.11 已并入全绿）、M3（3.1–3.9、3.11，zant-pdf parity 6/6）、M4（4.1–4.4）、M5（5.1–5.8、5.9 黄金/端到端、5.10 TSX 示例/编译基准、5.10c 帧对比基准，见下方完成情况）、M6（6.1、6.3、6.4、6.5）、M7（7.3 文档）、**WP-5.10c（TSX 帧基准 ≤1.2× 验收，见下方「WP-5.10c 完成情况」）** |
 | 进行中 | —（WP-5.10 / WP-5.10c 已完成；待 lead 合并各 worktree 并做全量验收） |
 | 下一步 | lead 合并 → 全量验收（macOS + Windows）→ 补齐 WP-5.9 / WP-5.10 / WP-5.10c 报告的框架 API 与编译器 bug（`ui` 的 markdown/pdf_viewer 导出、跨文件窗口组件、`Uint8Array` 映射、非根 `<List>` 生成代码、生成代码 lint 兜底）→ M8 切换（需用户确认） |
-| Windows | 测试机 192.168.31.24 全程不可达；所有 Windows 验收待补 |
+| Windows | **已验证（2026-11-14，WP-WIN）**：debug/release 构建绿，`cargo test --workspace` 79 套件 / 1084 passed / 0 failed（并行默认线程，跑两遍），parity 7 示例 42/42 + 6 个 TSX 应用 36/36，`zant-bench` 闸门 14/14 PASS，桌面脚本除 2 处（Zig 同样不达标）外全过；详见「Windows 验证」 |
 
 ## 环境与基线（M0 记录）
 
@@ -42,7 +42,7 @@
 | 基线机器 | macOS 27.2.1，arm64（Apple Silicon） |
 | `zig build test`（macOS arm64） | **通过**：6 个测试二进制，共 **380** 个测试（tests 聚合 124、框架单元 99、zant CLI 8、TSX 编译器 149）。文档里旧的「164/164」是过时数字 |
 | ReleaseFast 基线 | `zig-out-baseline/bin/`（`zant-demo`、`zant-components`、`zant-gallery`、`zant-markdown`、`zant-math`、`zant-pdf`、`zant-md-stream`、`zant-bench`、`zant`） |
-| Windows 基线 | **待验证**：测试机 `192.168.31.24` 当前不可达（No route to host）。恢复后要补：`zig build test`、`build_bridge.ps1`、rustup / VS Build Tools / 1.94.1 工具链检查 |
+| Windows 基线 | 已验证（2026-11-14）：Windows 11 x64，`rustc/cargo 1.96.1`（MSVC）、Zig 0.17.1、VS 18 Build Tools；`cargo test --workspace` 79 套件 / 1084 passed / 0 failed；`zig build -Doptimize=ReleaseFast` 通过（`zig-out/bin`，`zig build test` 未在 Windows 上跑，Zig 侧行为未动）。主机与目录只写在未提交的 `scripts/win/.env` |
 | 沙箱注意 | `cargo` 一律通过 `./scripts/cargo.sh`（CARGO_HOME 指向 `.cargo-home/`）；Zig 命令带 `ZIG_GLOBAL_CACHE_DIR=$PWD/.zig-global-cache` |
 
 ## 性能基线（WP-2.11，`zant-bench`）
@@ -700,6 +700,154 @@ Zig 的 `bench-tsx`（`examples/tsx/bench.zig` + `bench_harness.zig` + 四个场
 | `zant-md-stream` 流式 | 稳态帧 1–3 ms，`text_layouts` 不随内容增长 |
 | `scripts/tsx/build-template-check.sh` / `build-check.sh` | 都通过（含 ZANT_SNAPSHOT 冒烟） |
 | `scripts/tsx/bench-tsx.sh`（WP-5.10c） | **PASS 6/6 apps、11/11 scenarios ≤1.2×**（最高 `todos-add` 1.11×，`local-mount` 1.08×，settings 0.93×） |
+
+## Windows 验证（2026-11-14，WP-WIN）
+
+在真实 Windows 测试机（Windows 11 x64；`rustc/cargo 1.96.1` MSVC、Zig 0.17.1、VS 18 Build Tools；
+主机与目录在未提交的 `scripts/win/.env`）上跑完 plan §7 的两平台验收。仓库源码由
+`scripts/win/sync.sh` 同步到机器上的固定目录，Zig 基线与 Rust 产物都从当前树重新构建。
+
+### 构建
+
+| 命令（Windows） | 结果 |
+|---|---|
+| `cargo build --workspace` | **通过**（debug；首个完整构建 ~26 s，含 `zant-sys` 的 MSVC C++ 编译） |
+| `cargo build --release --workspace` | **通过**（release，~35 s；增量 10–20 s） |
+| `zig build -Doptimize=ReleaseFast` | **通过**：`zig-out/bin` 得到 7 个示例 + 6 个 TSX 示例 + `zant-bench` + `zant`，`zant_skia.dll` / `pdfium.dll` 一并安装 |
+
+Windows 专属构建问题（本次修复）：
+
+1. `crates/zant-sys/build.rs`：仓库根 `canonicalize()` 在 Windows 返回 verbatim 路径
+   `\\?\E:\...`；`cl.exe` 无法通过它打开源文件（`c1xx: fatal error C1083: 无法打开源文件 "\skia_bridge.cpp"`）。
+   修复：`plain_path()` 在 Windows 去掉 `\\?\` / `\\?\UNC\` 前缀后再传给 `cc`（`include_bytes!` 也用它）。
+2. `crates/zant-sys/build.rs`：生成的 `OUT_DIR/static_data.rs`（Windows 专属，内嵌 ICU 数据与 STIX Two Math）
+   以 `//!` 开头，但它被 `include!` 进 `mod static_data` 而不是模块顶部 → 6 个
+   `error[E0753]: expected outer doc comment`。修复：改用 `//` 注释。macOS 不走这段生成代码，所以之前没暴露。
+3. `crates/zant-build/src/windows.rs`：workspace 里 12 个示例的 build script 并行把同一个
+   `pdfium.dll` 拷到 `target/<profile>/`，偶发 `os error 32`（另一个进程正在使用此文件）导致 release 构建失败。
+   修复：同内容跳过 + 最多 20 次重试。
+
+剩余构建告警（非 Windows 专属，不影响结果）：`cl: warning D9025: 正在重写 /W4 (用 /W3)`（`cc` 默认
+`/W4` 与移植自 `build_bridge.ps1` 的显式 `/W3` 重叠）；TSX 示例的 `app_config.rs is missing` /
+`assets/icons/app-windows.png is missing`（这些文件由 `zant sync` / 脚手架生成，macOS 同样告警）。
+
+### 测试
+
+| 命令（Windows） | 结果 |
+|---|---|
+| `cargo test --workspace`（默认并行，跑两遍） | **79 个测试套件 / 1084 passed / 0 failed**（两遍相同；日志 `test-parallel-{1,2}.log`） |
+| `math_test` / `ui_test` 连跑 30 次（并行线程） | **0/30、0/30 失败**（修复后） |
+
+Windows 专属测试问题（本次修复）：
+
+- `crates/zant/src/components/shortcut_list.rs`：测试把列宽写死 250.0，而默认值是
+  `if IS_MACOS { 250 } else { 310 }` → 断言改成同一条件。
+- `crates/zant-cli/tests/cli.rs`：`compile_and_run_a_plain_rust_app` 断言 `target/debug/demo-app` 存在，
+  Windows 产物是 `demo-app.exe` → 按平台取文件名。
+- 开始时 2 个 zant-cli 脚手架测试失败，根因不是代码：**同步是覆盖式的**，远端残留了仓库里已删除的
+  `scaffold/template-ts/build.zig`（`copy_template` 于是把它拷进新项目）。重建远端树（保留
+  `third_party/`、`target/`、Zig 缓存）后通过；`docs/development.md` 已记录这个同步注意事项。
+
+**框架级 Windows 崩溃（已修，经 lead 批准动原生代码）**：
+
+- 所有 Rust **窗口** 应用在 Windows 启动即崩（`[skia] fatal error: check(fUnicode)`，
+  `SkIcuLoader: datafile missing icudtl.dat`）：窗口路径是原生的（`zant_window_create` → Skia 初始化），
+  从未调用 `zant_sys::init()`，内嵌 ICU 数据没交给桥；只有测试用的光栅路径会调它（所以 `cargo test` 反而绿）。
+  修复：`crates/zant/src/platform/platform.rs` 在 `zant_window_create` 前 `#[cfg(windows)] zant_sys::init()`。
+- 并行测试偶发 `STATUS_HEAP_CORRUPTION`（`0xC0000374`）/ 访问违例：`math_test` 10/20、`ui_test` 4/20 失败，
+  `--test-threads=1` 全过。根因是 `src/renderer/skia/skia_bridge.cpp` 的进程级文本状态不线程安全：
+  `typeface_for()` 的 `static std::vector<Entry> cache` 无锁、共享 `g_font_collection` / `g_unicode` +
+  `ParagraphBuilder` 不能并发 shaping。Zig 的测试 runner 是串行的、应用只在一个 UI 线程渲染，所以只有 Rust
+  的并行测试 harness 暴露（macOS 只是分配器运气好）。修复（原生文件，plan 约定外的例外，经 lead 同意）：
+  给 typeface 缓存加互斥锁、用 `std::call_once` 初始化 Skia 共享状态、串行化普通/富文本段落构建与 relayout；
+  应用单线程渲染时锁无竞争。修复后两套件连跑 30 次 0 失败，`cargo test --workspace` 并行两遍全绿。
+
+### 对照（parity）：Rust 与 Zig 基线
+
+Zig 基线用当前树重新构建（`zig build -Doptimize=ReleaseFast` → `zig-out/bin`）；Rust 用 `target/release`。
+SSH 会话里 D3D12 不可用、两边都落到 CPU 光栅（日志一致），正好做像素对照；交互测试在可见桌面用 D3D12。
+
+`scripts/win/parity-capture.ps1`（浅/深色 × 600x620 / 900x640 / 1200x800，`ZANT_SNAPSHOT` +
+`ZANT_LAYOUT_FILE` + `ZANT_WINDOW_SIZE`）在机器上抓图，`scripts/win/parity-compare.sh` 拷回 Mac 后用
+`scripts/parity/{layoutdiff,imgdiff}.py` 比较（layout ±0.01、像素差 ≤0.1%）：
+
+| 应用 | 组合 | layout | 像素 |
+|---|---|---|---|
+| `zant-demo` / `zant-components` / `zant-markdown` / `zant-pdf tests/fixtures/widgets.pdf` | 各 6 | 6/6 | 6/6，0 像素差 |
+| `zant-gallery` / `zant-math`（Zig 无 key，两边 layout 都空） | 各 6 | 跳过 | 6/6，0 像素差 |
+| `zant-md-stream` | 6 | 6/6（48 keys） | 6/6，0 像素差 |
+| TSX：`zant-tsx-counter/gallery/todos/reader/notes/demo` | 各 6 | 6/6 | 6/6，0 像素差 |
+| **合计** | | **78/78** | **78/78（全部 0 像素差）** |
+
+`zant-md-stream` 是流式的：600 ms 截图会落到不同的流式进度（Rust 与 Zig 重建速度不同），所以对照矩阵里
+给它 `ZANT_STREAM_CHARS=1000000` 一次性灌完整段文本再截图，两边才可比（脚本里按应用设置）。Zig 的
+`zant-tsx-bench` 没有 snapshot 模式（Rust 版有），该应用不计入对照。
+
+### TSX 端到端（Windows）
+
+| 步骤 | 结果 |
+|---|---|
+| `target/release/zant.exe create tsx-demo --yes --title "WP TSX Demo" --style native --bundle-id dev.zant.wptsx` | **通过**：模板、`app.config.json`、路径依赖 `../../XyUI/crates/{zant,zant-build}` 正确 |
+| 应用里 `cargo build --release` | **通过**（23 s） |
+| `ZANT_SNAPSHOT` + `ZANT_LAYOUT_FILE` + `ZANT_WINDOW_SIZE=900x640` 无头运行 | **通过**：exit 0、PNG 30 KB、layout 写出 |
+| `zant package` | **通过**：`target/WP TSX Demo/` 内含 22 MB exe、`pdfium.dll`、`mswcp140/vcruntime140*.dll` |
+| `zant run --watch` | **通过**：watcher 起来；改 `src/App.tsx` → `检测到改动，重新编译...` → 0.94 s 编译 → `已重启应用`，新进程运行 |
+
+### 桌面交互（可见桌面会话，`scripts/win/run-desktop.ps1`）
+
+`scripts/win/desktop-checks.ps1` 顺序跑各检查（同一时刻只能一个程序占鼠标），每份报告连同截图在
+`-Out` 目录下，汇总在其中的 `summary.txt`（本次验证用的是机器上的 `E:/dev/checks/desktop`）。
+
+| 检查 | Rust 版 | Zig 基线（同机对照） |
+|---|---|---|
+| `components-check.ps1` | **41 PASS / 0 FAIL** | 30 PASS / 5 FAIL（两边都失败的是测试脚本环境问题：`SendKeys` 的 CJK 空格、switch 点击；Zig 还多 3 条 modal/message 时序失败） |
+| `pdf-check.ps1`（fixture PDF） | **PASS** | — |
+| `scaffold-check.ps1`（真实控制台 + 中文标题 + 无效 bundle 重问） | **5 PASS**（Rust CLI；脚本已改成 Rust `create` 的语言选项顺序） | — |
+| `smoke-stillmd.ps1`（M7 Zig still.） | — | **20/20 PASS** |
+| `smoke-stillmd.ps1`（M7 Rust still.） | **18/20**：`maximize button maximizes`、`don't save closes the app` 失败，原因见下 | 20/20 |
+| `docs-check.ps1`（59 个 md × 预览/编辑） | **118/118 PASS**（Rust still.） | **118/118 PASS**（Zig still.） |
+| `resize-check.ps1`（真实鼠标 120 Hz 拖右下角） | 缩放帧率 **42.5/s**（门槛 ≥55）、动画最慢帧 **22.4 ms**（门槛 <16.7）、缩放延迟达标、最小尺寸与布局达标 | 缩放 **40.8/s**、动画最慢帧 **30.0 ms**（**同样不达标**） |
+| `stream-resize-check.ps1`（流式 + 拖标题栏/缩放） | 最慢帧 **54.4 ms**、稳态 45–61 fps | 最慢帧 **70.0 ms**（同样不达标） |
+
+说明：`resize-check` / `stream-resize-check` 的性能阈值在这台机器上 **Zig 基线自己也不达标**（缩放帧率
+40–42/s、动画存在 22–30 ms 的尖峰），Rust 版各项数值与 Zig 相当或更好（42.5 vs 40.8 fps、22.4 vs 30.0 ms、
+54.4 vs 70.0 ms），因此判定为机器/显示器环境限制（不是移植回退）；脚本的 PASS/FAIL 阈值沿用 Zig 时代。
+`smoke-stillmd` 对 Rust still. 的 2 个失败是**框架缺口**：Zig 运行时会在隐藏标题栏窗口上自动追加
+`ui.windowControls`，Rust 运行时还没有（`crates/zant/src/runtime/build.rs` 里明确写着「the Rust builder
+arrives with WP-2.5」），截图 08-maximized 里看不到 Windows 标题按钮，所以点按钮的位置落到应用内容上；
+双击标题栏最大化（原生行为）是通过的。该缺口影响任何 Windows 隐藏标题栏应用，留给框架后续补。
+
+### 帧基准（`zant-bench`）与 `zant-md-stream`
+
+`scripts/win/bench-compare.sh`：Rust `target/release/zant-bench.exe` vs Zig `zig-out/bin/zant-bench.exe`，
+每边 best-of-3，默认 30 条消息，两种渲染模式。
+
+| 模式 | 结果（avg，Rust/Zig = 比值；闸门 ≤1.25×） |
+|---|---|
+| default（全量重建） | **7/7 PASS**：open 1.02×、stream 0.87×、typing **1.18×**、caret 1.06×、hover 1.00×、resize 0.87×、scroll 1.05×；稳态 avg 0.42–4.83 ms |
+| virtual list（`ZANT_BENCH_LIST=1`） | **7/7 PASS**：全部 ≤1.04×；稳态 avg 0.42–0.83 ms（open 10.6 ms 冷启动只判比值） |
+
+`zant-md-stream` 流式（可见桌面，`ZANT_FRAME_STATS=1 ZANT_STREAM_EXIT=1`，内置回复）：Rust 稳态
+**60.9 fps、max_frame 1.1–1.5 ms**、`[stream] done: 1990 bytes, 322 deltas, 5423 ms, 377 builds, build avg 0.07 ms`，
+挂载帧 11.5 ms（layout 8.9）之后无慢帧、`text_layouts` 不随内容增长；Zig 同机稳态 34–36 fps、帧时间相近
+（重绘节奏不同）、总时长 9633 ms。Rust 的流式帧率满足 plan §7.3“稳态远低于 16.7 ms”。
+
+### M7 冒烟（still.）
+
+- Zig 基线：`E:/dev/stillmd` 用当前 XyUI 树重新 `zig build -Doptimize=ReleaseFast`，`smoke-stillmd` 20/20、
+  `docs-check` 118/118。
+- Rust 移植（`/tmp/m7-stillmd-artifact/stillmd-rust.tar.gz`，把 `Cargo.toml` 的 zant 路径指到
+  `E:/dev/XyUI` 后 `cargo build --release` 通过，`stillmd.exe` 23 MB）：`docs-check` 118/118、
+  `smoke-stillmd` 18/20（2 个失败即上面的 `ui.windowControls` 框架缺口）。
+
+### 遗留 / 需要决策
+
+1. **Rust 运行时缺少 Windows 自动 `ui.windowControls`**（`runtime/build.rs` 的 WP-2.5 TODO）：隐藏标题栏
+   应用的 Windows 最小化/最大化/关闭按钮不会自动出现，`smoke-stillmd` 2 条失败因此而起；M7 移植本身无 bug。
+2. `resize-check` / `stream-resize-check` 的绝对性能阈值在这台机器上 Zig 也不达标（见上表），如需“脚本全过”
+   要先确认目标机器/显示器，或调整阈值并保留 Zig 对照数字。
+3. `zant-sys` 的 C++ 编译仍有一个 `D9025`（`/W4`→`/W3`）告警，无害；若想清零需要决定保留哪一级告警。
+4. Windows 上未跑 `zig build test`（Zig 源码未改；Windows 基线只用于 parity/bench 的对照二进制）。
 
 ## 收尾增补（lead）
 

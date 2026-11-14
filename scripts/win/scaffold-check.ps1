@@ -9,7 +9,8 @@
 param(
     [string]$Zant = "",
     [string]$Out = "",
-    # the language answer: 1 = Zig, 2 = TypeScript + TSX
+    # the language answer of the Rust `zant create`: 1 = TypeScript + TSX
+    # (default), 2 = Zig (legacy template, kept until M8)
     [ValidateSet("1", "2")][string]$Lang = "1"
 )
 if (!$Zant) { $Zant = (Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) "zig-out\bin\zant.exe") }
@@ -108,7 +109,7 @@ Result ($cfg -and $cfg.window.style -eq "hidden-titlebar") ("window style: '{0}'
 # only shared settings on Windows: no macOS section or bundle files
 Result ($cfg -and !$cfg.macos -and !(Test-Path (Join-Path $work "demo-app\Info.plist"))) "no macOS-only settings or files"
 $app = Join-Path $work "demo-app"
-if ($Lang -eq "2") {
+if ($Lang -eq "1") {
     $ts = (Test-Path "$app\src\App.tsx") -and !(Test-Path "$app\src\main.zig") -and (Test-Path "$app\zant.d.ts")
     Result $ts "TS project: src\App.tsx and zant.d.ts, no src\main.zig"
 } else {

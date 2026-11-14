@@ -240,7 +240,13 @@ mod tests {
         // File (2 rows) goes to the first (both empty) column, then Edit fits
         // the second column and View also goes there: 0 vs 1+2 groups
         let first = list.children[0].element();
-        assert_eq!(first.layout.width, Some(250.0));
+        // Zig: `if (@import("builtin").os.tag == .macos) 250 else 310`
+        let column_width = if crate::core::keys::IS_MACOS {
+            250.0
+        } else {
+            310.0
+        };
+        assert_eq!(first.layout.width, Some(column_width));
         assert_eq!(first.layout.align_items, flex::Align::Stretch);
         assert_eq!(first.children.len(), 3, "title group + two rows");
         let group = first.children[0].element();

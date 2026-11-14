@@ -128,8 +128,29 @@ scripts/win/remote.sh XyUI 'cargo test --workspace'   # 远程执行（UTF-8 输
 scripts/win/remote.sh XyUI 'powershell -File scripts/win/run-desktop.ps1 -Exe target\release\zant-demo.exe -Env "ZANT_SNAPSHOT=$env:TEMP\a.png;ZANT_SNAPSHOT_EXIT=1" -Wait 30'
 ```
 
+**受限环境（AI 执行者 / 沙箱）**：`~/.ssh` 不可写时 `ssh` 无法更新 `known_hosts`，所有
+`sync.sh` / `remote.sh` / 裸 `ssh` 调用前先设置 `ZANT_WIN_SSH_OPTS`（脚本会原样传给 `ssh` / `scp`）：
+
+```bash
+export ZANT_WIN_SSH_OPTS="-o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/tmp/winhome/.ssh/known_hosts -o LogLevel=ERROR"
+```
+
+`scripts/win/sync.sh` 的远端目录名默认取本 checkout 的目录名；在 git worktree 里（目录名如
+`wp-win`）与机器上的固定目录（如 `XyUI`）对不上时，在 `.env` 里加 `ZANT_WIN_PROJECT=XyUI`。
+同步是**覆盖**式（打包 tracked + untracked 文件后解包），不会删除远端已不存在的文件：仓库里
+删掉的文件（例如 M6 删掉的 `scaffold/template-ts/build.zig`）会留在远端，让测试看到幽灵文件。
+远端源码与仓库不一致时重建：保留 `third_party/`、`target/`、`.zig-cache` 等目录，其余从空目录
+重新同步一次。
+
 > `scripts/win/remote.sh` / `run-desktop.ps1` 里的工具链（`ZANT_WIN_ZIG`）与产物路径（`zig-out\`）
 > 还在从 Zig 迁移到 Cargo（**迁移中**），在 Windows 脚本更新前按脚本当前写法传参。
+> Zig 基线在 `zig build -Doptimize=ReleaseFast` 之后位于 `zig-out\bin\`（含 `zant_skia.dll`、
+> `pdfium.dll`，要一起用）；Rust 产物是 `target\{debug,release}\`。
+
+一致性对照（Rust vs Zig 基线，plan.md §6/§7.2）在 Windows 上这样跑：`parity-compare.sh` 用
+`parity-capture.ps1` 在机器上按 浅/深色 × 三种窗口尺寸抓 `shot.png` + `layout.txt`（Zig 用
+`zig-out\bin`，Rust 用 `target\release`），把结果拷回 Mac 后用 `scripts/parity/{layoutdiff,imgdiff}.py`
+比对；`ZANT_WIN_SKIP_CAPTURE=1` 只重跑比对。
 
 SSH 会话里的窗口不可见、也拿不到真实缩放，所以视觉检查用 `run-desktop.ps1` 在已登录的
 桌面会话里运行。一直运行的程序（例如测试同步时的应用）用自己的 `-Name`（计划任务名，一个名字
@@ -146,10 +167,14 @@ SSH 会话里的窗口不可见、也拿不到真实缩放，所以视觉检查�
 | `scripts/win/scaffold-check.ps1` | 在真实命令行窗口（代码页 936）运行 `zant create`，用 Unicode 按键输入中文标题，截图并检查生成的 `app.config.json` |
 | `scripts/win/stream-resize-check.ps1 -Sse <录制的 SSE>` | `zant-md-stream` 回放真实回复的同时，真实鼠标拖动标题栏移动窗口、拖右下角放大 / 缩到最小 / 还原，每步截图，统计帧时间 |
 | `scripts/win/pdf-check.ps1 -Folder <目录>` | 对目录里的 PDF 检查页数、文字、链接与目录、首页 / 中间页截图；真实鼠标拖选 + Ctrl+C、双击选词、缩放、滚轮、搜索、翻页 |
+| `scripts/win/desktop-checks.ps1` | 依次跑上面这些检查（同一时间只能一个程序占鼠标 / 前台），把每份 report 汇总到 `E:\dev\checks\desktop\summary.txt`；`-Checks resize,stream` 可选子集，`-ComponentsExe` / `-MdStreamExe` / `-PdfExe` 换成任意实现（例如 Zig 基线做对照） |
 
 用 `run-desktop.ps1 -Exe powershell.exe -Arguments "-NoProfile -ExecutionPolicy Bypass -File <脚本>"`
 在桌面会话运行；结果与截图在 `%TEMP%\zant-checks\` 下。含中文的 `.ps1` 要保存为带 BOM 的
-UTF-8（Windows PowerShell 5.1）。
+UTF-8（Windows PowerShell 5.1）。桌面脚本默认跑 `zig-out\bin\` 里的 Zig 版本；验证 Rust 版时传
+`-Exe <repo>\target\release\<app>.exe`（`smoke-stillmd.ps1` / `docs-check.ps1` 传 `-App`）。
+`stream-resize-check.ps1 -Sse` 需要一份录制的 SSE；仓库里的合成样例是
+`scripts/win/fixtures/stream-replay.sse`（几十个 `data: {"type":"text_delta",…}`）。
 
 ## 脚手架
 

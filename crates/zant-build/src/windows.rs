@@ -109,19 +109,57 @@ fn install_pdfium(out_dir: &Path) -> Result<(), Error> {
         );
     }
     let destination = profile_dir.join("pdfium.dll");
-    // The DLL may be loaded by a running preview; replacing it can fail.
-    if let Err(error) = std::fs::copy(&source, &destination) {
-        return fallback(
-            release,
-            format!(
-                "could not copy {} next to the executable ({error}); quit the running app and \
-                 retry, or the packaged app cannot open PDF previews",
-                source.display()
-            ),
-        );
+    // Several build scripts of one workspace (every example app) install the
+    // same DLL into the same profile directory in parallel, and a running
+    // preview may still map it. Bytes already identical => nothing to do;
+    // otherwise retry, since the failure is transient (another build script is
+    // writing the file right now, or Defender holds it for a moment).
+    let mut last_error = None;
+    for _ in 0..20 {
+        if same_contents(&source, &destination) {
+            println!("cargo:rerun-if-changed={}", source.display());
+            return Ok(());
+        }
+        match std::fs::copy(&source, &destination) {
+            Ok(_) => {
+                println!("cargo:rerun-if-changed={}", source.display());
+                return Ok(());
+            }
+            Err(error) => {
+                last_error = Some(error);
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+        }
     }
-    println!("cargo:rerun-if-changed={}", source.display());
-    Ok(())
+    return fallback(
+        release,
+        format!(
+            "could not copy {} next to the executable ({}); quit the running app and retry, \
+             or the packaged app cannot open PDF previews",
+            source.display(),
+            last_error
+                .map(|error| error.to_string())
+                .unwrap_or_default()
+        ),
+    );
+}
+
+/// Same length and bytes (used to skip a `pdfium.dll` copy that another build
+/// script already did).
+fn same_contents(source: &Path, destination: &Path) -> bool {
+    let Ok(source_meta) = std::fs::metadata(source) else {
+        return false;
+    };
+    let Ok(destination_meta) = std::fs::metadata(destination) else {
+        return false;
+    };
+    if source_meta.len() != destination_meta.len() {
+        return false;
+    }
+    match (std::fs::read(source), std::fs::read(destination)) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => false,
+    }
 }
 
 /// A release build fails, a debug build prints a `cargo:warning` and goes on.

@@ -437,6 +437,15 @@ impl Window {
             wake: Some(trampoline_wake),
         };
         let native = to_native_options(options);
+        // Windows: the native window creation initialises Skia (the renderer
+        // lives behind the platform ABI), so the static data zant-sys embeds
+        // (`icudtl.dat`, STIX Two Math) must be handed to the bridge first.
+        // Without this the window path skips `zant_sys::init()` — only the
+        // raster renderer used by tests called it — and Skia falls back to
+        // looking for `icudtl.dat` next to the exe (`check(fUnicode)` aborts
+        // in SkParagraph when text is shaped). macOS has no static data.
+        #[cfg(target_os = "windows")]
+        zant_sys::init();
         // SAFETY: title and table are valid for the call; the native side copies
         // them (the host table is read during create only, per platform.h).
         let handle = unsafe { ffi::zant_window_create(title.as_ptr(), &native, &table) };

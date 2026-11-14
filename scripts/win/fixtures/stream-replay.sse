@@ -1,0 +1,89 @@
+data: {"type": "text_delta", "content": "# 流式 Markdown 压测回复\n\n"}
+data: {"type": "text_delta", "content": "这是一段用来测试流式渲染与窗口缩放的合成回复，包含中文、代码"}
+data: {"type": "text_delta", "content": "块、列表和表格。\n\n"}
+data: {"type": "text_delta", "content": "## 列表\n\n"}
+data: {"type": "text_delta", "content": "- 第 1 条：Zant UI 在 Windows 上用 D"}
+data: {"type": "text_delta", "content": "3D12 渲染，缩放窗口时应保持刷新率。\n"}
+data: {"type": "text_delta", "content": "- 第 2 条：Zant UI 在 Windows 上用 D"}
+data: {"type": "text_delta", "content": "3D12 渲染，缩放窗口时应保持刷新率。\n"}
+data: {"type": "text_delta", "content": "- 第 3 条：Zant UI 在 Windows 上用 D"}
+data: {"type": "text_delta", "content": "3D12 渲染，缩放窗口时应保持刷新率。\n"}
+data: {"type": "text_delta", "content": "- 第 4 条：Zant UI 在 Windows 上用 D"}
+data: {"type": "text_delta", "content": "3D12 渲染，缩放窗口时应保持刷新率。\n"}
+data: {"type": "text_delta", "content": "- 第 5 条：Zant UI 在 Windows 上用 D"}
+data: {"type": "text_delta", "content": "3D12 渲染，缩放窗口时应保持刷新率。\n"}
+data: {"type": "text_delta", "content": "- 第 6 条：Zant UI 在 Windows 上用 D"}
+data: {"type": "text_delta", "content": "3D12 渲染，缩放窗口时应保持刷新率。\n"}
+data: {"type": "text_delta", "content": "- 第 7 条：Zant UI 在 Windows 上用 D"}
+data: {"type": "text_delta", "content": "3D12 渲染，缩放窗口时应保持刷新率。\n"}
+data: {"type": "text_delta", "content": "- 第 8 条：Zant UI 在 Windows 上用 D"}
+data: {"type": "text_delta", "content": "3D12 渲染，缩放窗口时应保持刷新率。\n"}
+data: {"type": "text_delta", "content": "\n## 代码\n\n```rust\nfn main() {\n  "}
+data: {"type": "text_delta", "content": "  zant::ui::run(app, options);"}
+data: {"type": "text_delta", "content": "\n}\n```\n\n"}
+data: {"type": "text_delta", "content": "## 表格\n\n| 平台 | 渲染 | 输入法 |\n|---|"}
+data: {"type": "text_delta", "content": "---|---|\n| macOS | Metal | IME"}
+data: {"type": "text_delta", "content": " |\n| Windows | D3D12 | IMM32 |"}
+data: {"type": "text_delta", "content": "\n\n"}
+data: {"type": "text_delta", "content": "## 段落\n\n"}
+data: {"type": "text_delta", "content": "第 1 段：流式渲染的性能瓶颈通常在布局与文本整形。Zant"}
+data: {"type": "text_delta", "content": " UI 用块级解析缓存和 ui::memo 复用节点，让正在"}
+data: {"type": "text_delta", "content": "生长的块继承旧节点，从而避免每帧重建整棵树。拖动窗口时应观察"}
+data: {"type": "text_delta", "content": " [slow-frame] 输出，单帧耗时应远低于 16.7"}
+data: {"type": "text_delta", "content": " ms。\n\n"}
+data: {"type": "text_delta", "content": "第 2 段：流式渲染的性能瓶颈通常在布局与文本整形。Zant"}
+data: {"type": "text_delta", "content": " UI 用块级解析缓存和 ui::memo 复用节点，让正在"}
+data: {"type": "text_delta", "content": "生长的块继承旧节点，从而避免每帧重建整棵树。拖动窗口时应观察"}
+data: {"type": "text_delta", "content": " [slow-frame] 输出，单帧耗时应远低于 16.7"}
+data: {"type": "text_delta", "content": " ms。\n\n"}
+data: {"type": "text_delta", "content": "第 3 段：流式渲染的性能瓶颈通常在布局与文本整形。Zant"}
+data: {"type": "text_delta", "content": " UI 用块级解析缓存和 ui::memo 复用节点，让正在"}
+data: {"type": "text_delta", "content": "生长的块继承旧节点，从而避免每帧重建整棵树。拖动窗口时应观察"}
+data: {"type": "text_delta", "content": " [slow-frame] 输出，单帧耗时应远低于 16.7"}
+data: {"type": "text_delta", "content": " ms。\n\n"}
+data: {"type": "text_delta", "content": "第 4 段：流式渲染的性能瓶颈通常在布局与文本整形。Zant"}
+data: {"type": "text_delta", "content": " UI 用块级解析缓存和 ui::memo 复用节点，让正在"}
+data: {"type": "text_delta", "content": "生长的块继承旧节点，从而避免每帧重建整棵树。拖动窗口时应观察"}
+data: {"type": "text_delta", "content": " [slow-frame] 输出，单帧耗时应远低于 16.7"}
+data: {"type": "text_delta", "content": " ms。\n\n"}
+data: {"type": "text_delta", "content": "第 5 段：流式渲染的性能瓶颈通常在布局与文本整形。Zant"}
+data: {"type": "text_delta", "content": " UI 用块级解析缓存和 ui::memo 复用节点，让正在"}
+data: {"type": "text_delta", "content": "生长的块继承旧节点，从而避免每帧重建整棵树。拖动窗口时应观察"}
+data: {"type": "text_delta", "content": " [slow-frame] 输出，单帧耗时应远低于 16.7"}
+data: {"type": "text_delta", "content": " ms。\n\n"}
+data: {"type": "text_delta", "content": "第 6 段：流式渲染的性能瓶颈通常在布局与文本整形。Zant"}
+data: {"type": "text_delta", "content": " UI 用块级解析缓存和 ui::memo 复用节点，让正在"}
+data: {"type": "text_delta", "content": "生长的块继承旧节点，从而避免每帧重建整棵树。拖动窗口时应观察"}
+data: {"type": "text_delta", "content": " [slow-frame] 输出，单帧耗时应远低于 16.7"}
+data: {"type": "text_delta", "content": " ms。\n\n"}
+data: {"type": "text_delta", "content": "第 7 段：流式渲染的性能瓶颈通常在布局与文本整形。Zant"}
+data: {"type": "text_delta", "content": " UI 用块级解析缓存和 ui::memo 复用节点，让正在"}
+data: {"type": "text_delta", "content": "生长的块继承旧节点，从而避免每帧重建整棵树。拖动窗口时应观察"}
+data: {"type": "text_delta", "content": " [slow-frame] 输出，单帧耗时应远低于 16.7"}
+data: {"type": "text_delta", "content": " ms。\n\n"}
+data: {"type": "text_delta", "content": "第 8 段：流式渲染的性能瓶颈通常在布局与文本整形。Zant"}
+data: {"type": "text_delta", "content": " UI 用块级解析缓存和 ui::memo 复用节点，让正在"}
+data: {"type": "text_delta", "content": "生长的块继承旧节点，从而避免每帧重建整棵树。拖动窗口时应观察"}
+data: {"type": "text_delta", "content": " [slow-frame] 输出，单帧耗时应远低于 16.7"}
+data: {"type": "text_delta", "content": " ms。\n\n"}
+data: {"type": "text_delta", "content": "第 9 段：流式渲染的性能瓶颈通常在布局与文本整形。Zant"}
+data: {"type": "text_delta", "content": " UI 用块级解析缓存和 ui::memo 复用节点，让正在"}
+data: {"type": "text_delta", "content": "生长的块继承旧节点，从而避免每帧重建整棵树。拖动窗口时应观察"}
+data: {"type": "text_delta", "content": " [slow-frame] 输出，单帧耗时应远低于 16.7"}
+data: {"type": "text_delta", "content": " ms。\n\n"}
+data: {"type": "text_delta", "content": "第 10 段：流式渲染的性能瓶颈通常在布局与文本整形。Zan"}
+data: {"type": "text_delta", "content": "t UI 用块级解析缓存和 ui::memo 复用节点，让正"}
+data: {"type": "text_delta", "content": "在生长的块继承旧节点，从而避免每帧重建整棵树。拖动窗口时应观"}
+data: {"type": "text_delta", "content": "察 [slow-frame] 输出，单帧耗时应远低于 16."}
+data: {"type": "text_delta", "content": "7 ms。\n\n"}
+data: {"type": "text_delta", "content": "第 11 段：流式渲染的性能瓶颈通常在布局与文本整形。Zan"}
+data: {"type": "text_delta", "content": "t UI 用块级解析缓存和 ui::memo 复用节点，让正"}
+data: {"type": "text_delta", "content": "在生长的块继承旧节点，从而避免每帧重建整棵树。拖动窗口时应观"}
+data: {"type": "text_delta", "content": "察 [slow-frame] 输出，单帧耗时应远低于 16."}
+data: {"type": "text_delta", "content": "7 ms。\n\n"}
+data: {"type": "text_delta", "content": "第 12 段：流式渲染的性能瓶颈通常在布局与文本整形。Zan"}
+data: {"type": "text_delta", "content": "t UI 用块级解析缓存和 ui::memo 复用节点，让正"}
+data: {"type": "text_delta", "content": "在生长的块继承旧节点，从而避免每帧重建整棵树。拖动窗口时应观"}
+data: {"type": "text_delta", "content": "察 [slow-frame] 输出，单帧耗时应远低于 16."}
+data: {"type": "text_delta", "content": "7 ms。\n\n"}
+data: {"type":"done"}
