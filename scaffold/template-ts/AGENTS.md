@@ -16,7 +16,7 @@
 - `native/<名字>.ts`：原生模块规范（唯一来源，只写类型与 `export declare function`）；
   `native/<名字>.rs` 是 Rust 实现，`native/lib.rs` 登记并注册。示例模块是 `native/system`。
   内部代码放 `native/` 的子目录；耗时工作放后台线程，不要放在渲染路径。
-- `build.rs`：调用 `zant_build::tsx_app()`，把 `src/**/*.tsx` 编译成 Rust（`OUT_DIR/app.rs`）。
+- `build.rs`：调用 `zant_build::tsx_app()`，把 `src/**/*.tsx` 编译成 Rust（`OUT_DIR` 的模块 + `main.rs`）。
 - `Cargo.toml`：单个 Cargo package；`zant` / `zant-build` 是相对路径依赖（`zant create` 写入）。
 - `assets/icons/`：图标；代码里用 `include_bytes!("../assets/icons/<文件>")` 引用。
 - `zant.d.ts` / `tsconfig.json`：`import … from "zant"` 的类型与补全。

@@ -20,7 +20,7 @@ zant build            # 发布构建
 - `src/app_config.rs`：`zant` 从 `app.config.json` 生成（`zant create` / `zant sync`），不要手改。
 - `native/`：原生模块。`system.ts` 是接口规范，`system.rs` 是 Rust 实现，`lib.rs` 登记；
   TSX 用 `import { info } from "native/system"` 直接调用，类型不一致时编译报错。
-- `build.rs`：调用 `zant_build::tsx_app()`：`src/**/*.tsx` → `OUT_DIR/app.rs`，
+- `build.rs`：调用 `zant_build::tsx_app()`：`src/**/*.tsx` → `OUT_DIR`（模块 + `main.rs`），
   Windows 的 manifest / `.ico` 与 `pdfium.dll` 也在这一步处理。
 - `Cargo.toml` / `rust-toolchain.toml`：单个 Cargo package，stable 工具链；
   Zant UI 的依赖是相对路径（由 `zant create` 写入）。项目是独立 workspace，

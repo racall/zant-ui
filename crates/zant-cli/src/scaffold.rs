@@ -272,8 +272,10 @@ mod tests {
         let build_rs = std::fs::read_to_string(target.join("build.rs")).expect("build.rs");
         assert!(build_rs.contains("zant_build::tsx_app()"), "{build_rs}");
         let main = std::fs::read_to_string(target.join("src/main.rs")).expect("main.rs");
+        // The template includes the generated module declarations at the crate
+        // root (`zant_build::tsx_app()` writes `main.rs` + the modules).
         assert!(
-            main.contains("include!(concat!(env!(\"OUT_DIR\"), \"/app.rs\"))"),
+            main.contains("include!(concat!(env!(\"OUT_DIR\"), \"/main.rs\"))"),
             "{main}"
         );
         assert!(main.contains("app_config::window"), "{main}");
