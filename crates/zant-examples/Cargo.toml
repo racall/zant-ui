@@ -12,3 +12,11 @@ zant.workspace = true
 [[bin]]
 name = "zant-demo"
 path = "src/bin/zant-demo.rs"
+
+[[bin]]
+name = "zant-components"
+path = "src/bin/zant-components.rs"
+
+[[bin]]
+name = "zant-gallery"
+path = "src/bin/zant-gallery.rs"
