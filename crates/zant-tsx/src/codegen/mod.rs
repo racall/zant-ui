@@ -50,6 +50,12 @@
 //! | Zig module | Hook field | Shape |
 //! |---|---|---|
 //! | `jsx.zig` | `hooks.emit_jsx` | `fn(&mut Generator, &mut Context, &ast::Jsx) -> Result<Value>` |
+//!
+//! WP-5.4's `jsx::emit` handles `ui::*` tags, `<List>` and stateful widgets
+//! only. Component tags are dispatched by `components.zig` (WP-5.5), so WP-5.5
+//! installs its own `emit_jsx` wrapper that checks components first and then
+//! calls `jsx::emit`; its scan pass dispatches component tags before calling
+//! `events::scan_jsx`.
 //! | `captures.zig` | `hooks.captures_read` | `fn(&mut Generator, &mut Context, &str) -> Result<Option<Value>>` |
 //! | `components.zig` (`readProp`) | `hooks.components_read_prop` | `fn(&mut Generator, &str) -> Result<Option<Value>>` |
 //! | `components.zig` (`callbackType`) | `hooks.callback_type` | `fn(&mut Generator, Loc, &ast::FuncType) -> Result<Type>` |
@@ -65,11 +71,17 @@
 
 pub mod aggregate;
 pub mod builtins;
+pub mod events;
 pub mod expr;
 pub mod functions;
+pub mod jsx;
+pub mod jsx_children;
+pub mod jsx_values;
+pub mod list;
 pub mod loops;
 pub mod model;
 pub mod narrowing;
+pub mod rich_text;
 pub mod rust_text;
 pub mod scope;
 pub mod stmt;
@@ -377,6 +389,16 @@ pub struct Generator<'a> {
     pub constants: Vec<Constant>,
     /// Plain functions of this file and imported ones (`functions.zig`).
     pub functions: Vec<functions::Function>,
+    /// Handler expressions registered before emission (`events.zig`).
+    pub events: Vec<events::Event>,
+    /// `<List>` elements of the component being generated (`list.zig`).
+    pub lists: Vec<list::ListInfo>,
+    /// Key-less instance ids handed out to stateful child tags (`widgets.zig`).
+    pub child_sites: usize,
+    /// How many scrolling containers enclose the element being generated.
+    pub scroll_depth: usize,
+    /// How many loops enclose the element being generated (keys, callbacks).
+    pub loop_depth: usize,
     /// `const _X = @import("X.zig");` lines of the file header (WP-5.6).
     pub header: String,
     /// Generating a child component: its state lives outside `self` (WP-5.5).
@@ -415,6 +437,11 @@ impl<'a> Generator<'a> {
             resolved_types: Vec::new(),
             constants: Vec::new(),
             functions: Vec::new(),
+            events: Vec::new(),
+            lists: Vec::new(),
+            child_sites: 0,
+            scroll_depth: 0,
+            loop_depth: 0,
             header: String::new(),
             child_component: false,
             type_scope: false,
