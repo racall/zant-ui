@@ -30,7 +30,10 @@ pub(crate) fn write(
             let path = item?.path();
             if path.is_file() && path.extension().is_some_and(|ext| ext == "rs") {
                 let stem = path.file_stem().unwrap().to_string_lossy().into_owned();
-                if stem != "main" && stem != "build" {
+                // editor / archive leftovers ("._core.rs", "core copy.rs") are not modules
+                let identifier = stem.chars().next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+                    && stem.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+                if identifier && stem != "main" && stem != "build" {
                     modules.push((stem, path.canonicalize()?));
                 }
             }
