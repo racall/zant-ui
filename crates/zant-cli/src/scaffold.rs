@@ -32,6 +32,49 @@ pub fn write(options: &Options) -> std::io::Result<()> {
     Ok(())
 }
 
+/// Expand the JSON template separately so metadata is escaped as JSON strings.
+pub fn app_config(
+    options: &Options,
+    year: u64,
+    style: &str,
+    sandbox: Option<bool>,
+    sign: Option<&str>,
+) -> std::io::Result<String> {
+    let path = Path::new(&options.framework)
+        .join(TEMPLATE_TS)
+        .join("app.config.json");
+    let mut source = std::fs::read_to_string(path)?;
+    // Reverse-domain identifiers conventionally put the organisation second.
+    let organisation = options.bundle.split('.').nth(1).unwrap_or_default();
+    let mut chars = organisation.chars();
+    let company = chars
+        .next()
+        .map(|first| first.to_uppercase().chain(chars).collect::<String>())
+        .unwrap_or_default();
+    for (needle, value) in [
+        ("__APP_TITLE__", options.title.as_str()),
+        ("__BUNDLE_ID__", options.bundle.as_str()),
+        ("__COMPANY__", company.as_str()),
+        ("__COPYRIGHT_YEAR__", &year.to_string()),
+    ] {
+        let quoted = serde_json::to_string(value).map_err(std::io::Error::other)?;
+        source = source.replace(needle, &quoted[1..quoted.len() - 1]);
+    }
+    let style = serde_json::to_string(style).map_err(std::io::Error::other)?;
+    source = source.replace("\"style\": \"native\"", &format!("\"style\": {style}"));
+    if sandbox.is_some() || sign.is_some() {
+        let mut fields = format!(",\n    \"sandbox\": {}", sandbox.unwrap_or(false));
+        if let Some(sign) = sign {
+            let sign = serde_json::to_string(sign).map_err(std::io::Error::other)?;
+            fields.push_str(&format!(",\n    \"signing_identity\": {sign}"));
+        }
+        // Append the explicit macOS options after the template's last field.
+        let category = "\"category\": \"public.app-category.productivity\"";
+        source = source.replace(category, &format!("{category}{fields}"));
+    }
+    Ok(source)
+}
+
 fn copy_tree(
     source: &Path,
     dest: &Path,
@@ -149,6 +192,34 @@ mod tests {
             dependency: "../zant-ui".to_string(),
             hidden_titlebar: true,
         }
+    }
+
+    #[test]
+    fn config_template_substitutes_metadata_and_copyright_year() {
+        let mut opts = options(Path::new("unused"));
+        opts.title = "中文 \"App\"\n桌面".into();
+        let source = app_config(&opts, 2032, "native", None, None).expect("config");
+        let cfg: serde_json::Value = serde_json::from_str(&source).expect("valid JSON");
+        assert_eq!(cfg["title"], opts.title);
+        assert_eq!(cfg["description"], format!("{} 桌面应用", opts.title));
+        assert_eq!(cfg["bundle_id"], opts.bundle);
+        assert_eq!(cfg["company"], "Acme");
+        assert_eq!(cfg["copyright"], "© 2032 Acme");
+        assert_eq!(cfg["macos"]["category"], "public.app-category.productivity");
+        assert_eq!(cfg["window"]["min_width"], 600);
+        assert!(!cfg.to_string().contains("__"));
+        opts.bundle = "dev.zant.demo".into();
+        let source = app_config(&opts, 2026, "native", None, None).unwrap();
+        let cfg: serde_json::Value = serde_json::from_str(&source).unwrap();
+        assert_eq!(cfg["copyright"], "© 2026 Zant");
+        opts.bundle = "com.acme-labs.demo".into();
+        let source = app_config(&opts, 2026, "native", None, None).unwrap();
+        let cfg: serde_json::Value = serde_json::from_str(&source).unwrap();
+        assert_eq!(cfg["company"], "Acme-labs");
+        opts.bundle = "com.aCme-Labs.demo".into();
+        let source = app_config(&opts, 2026, "native", None, None).unwrap();
+        let cfg: serde_json::Value = serde_json::from_str(&source).unwrap();
+        assert_eq!(cfg["company"], "ACme-Labs");
     }
 
     #[test]

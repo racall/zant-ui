@@ -2,7 +2,7 @@
 
 应用的窗口默认值来自项目根目录的 `app.config.json`。`zant run` / `zant compile` /
 `zant package` / `zant build` / `zant sync` 会读取它，并生成 `src/app_config.rs`（macOS 上还有 `Info.plist`）。
-通用设置由 `zant create` 写入；平台专属的段（目前只有 `macos`）在该平台首次运行 / 打包时补充。
+通用设置由 `zant create` 写入；模板包含 `macos.category` 默认值；其余平台专属设置在该平台首次运行 / 打包时补充。
 
 ## app.config.json
 
@@ -11,6 +11,9 @@
   "title": "My App",
   "bundle_id": "com.acme.myapp",
   "version": "0.1.0",
+  "description": "My App 桌面应用",
+  "company": "acme",
+  "copyright": "© 2026 acme",
   "window": {
     "style": "hidden-titlebar",
     "width": 560,
@@ -24,6 +27,8 @@
     "center": true
   },
   "macos": {
+    "category": "public.app-category.productivity",
+    "minimum_system_version": "13.0",
     "sandbox": true,
     "signing_identity": "Developer ID Application: Example (TEAMID)"
   }
@@ -35,6 +40,11 @@
 | `title` | 窗口标题、应用显示名 |
 | `bundle_id` | 应用标识（如 `com.xx.test`）：macOS 的 Bundle ID，Windows 上 `zant::core::paths::app_data_dir` 的目录名；须符合苹果与微软规范（见 `docs/scaffold.md`），否则 `zant` 报错 |
 | `version` | 版本号（macOS 写入 `CFBundleShortVersionString`） |
+| `description` | 应用简介：Windows 写入 VERSIONINFO 的 `FileDescription`，显示在文件属性 → 详细信息中；留空时用 `title`。macOS 不写入 Info.plist |
+| `company` | 公司 / 发布者：Windows 写入 VERSIONINFO 的 `CompanyName`，显示在文件属性 → 详细信息中；macOS 不写入 Info.plist |
+| `copyright` | 版权声明：macOS 写入 `NSHumanReadableCopyright`，供标准“关于”面板显示；Windows 写入 VERSIONINFO 的 `LegalCopyright`，显示在文件属性 → 详细信息中 |
+| `macos.category` | macOS 应用分类，写入 Info.plist 的 `LSApplicationCategoryType`（如效率类 `public.app-category.productivity`），用于系统分类和 App Store；Windows 忽略 |
+| `macos.minimum_system_version` | macOS 最低系统版本，写入 Info.plist 的 `LSMinimumSystemVersion`，默认 `13.0`；Windows 忽略 |
 | `single_instance` | 只运行一个实例：再次打开时把已运行的应用带到前面并退出（模板的 `src/main.rs` 把 `app_config.single_instance` 传给 `zant::tsx::app::Config`；手写 Rust 应用可调 `zant::desktop::single_instance`）。默认 false |
 | `macos.sandbox` | 是否写入 App Sandbox entitlement 并用沙盒方式运行（仅 macOS） |
 | `macos.signing_identity` | `zant package` 和沙盒应用 `zant run` 用的 `codesign` 身份；`none` 表示 ad-hoc（仅 macOS）。发布构建的证书在 `build.config.json`，见 [发布构建](build.md) |
@@ -49,6 +59,10 @@
 | `window.center` | 首次显示是否居中 |
 | `window.titlebar_height` | `hidden-titlebar` 时应用自绘标题栏的高度（系统窗口按钮所在区域）；0 为系统默认。`macos.titlebar_height` / `windows.titlebar_height` 可按平台覆盖（比如 macOS 52、Windows 32） |
 | `window.hidden_at_login` | 系统在登录时启动应用时先不显示窗口（托盘 / 菜单栏应用） |
+
+`zant create` 默认将 `description` 设为“<应用标题> 桌面应用”，`company` 取反向域名应用标识的第二段
+（如 `com.acme.myapp` → `acme`），`copyright` 为“© <创建时的 UTC 年份> <公司>”。
+这些值写入配置后可自行修改，年份不会在后续构建时自动更新。
 
 省略的字段取默认值：`native`、560 × 420、最小 480 × 320、`#f5f5f5`、可缩放、居中、沙盒关、`none`。
 旧项目写在顶层的 `sandbox` / `signing_identity` 仍然有效；补充 `macos` 段时会移到段里。

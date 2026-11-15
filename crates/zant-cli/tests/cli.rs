@@ -128,7 +128,45 @@ fn create_then_sync_writes_the_ts_template_and_generated_config() {
     );
     assert!(config.contains("\"width\": 680"), "{config}");
     assert!(config.contains("\"min_height\": 620"), "{config}");
-    assert!(!config.contains("\"macos\""), "{config}");
+    let template = std::fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../scaffold/template-ts/app.config.json"),
+    )
+    .expect("template");
+    // Compare every key in source order, including nested window/macOS fields.
+    let keys = |text: &str| {
+        text.lines()
+            .filter_map(|line| {
+                line.trim()
+                    .strip_prefix('"')?
+                    .split_once("\":")
+                    .map(|(key, _)| key.to_string())
+            })
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(keys(&config), keys(&template));
+    let metadata: serde_json::Value = serde_json::from_str(&config).expect("valid JSON");
+    assert_eq!(metadata["description"], "Demo App 桌面应用");
+    assert_eq!(metadata["company"], "Acme");
+    let copyright = metadata["copyright"].as_str().expect("copyright");
+    let year = copyright
+        .strip_prefix("© ")
+        .and_then(|s| s.strip_suffix(" Acme"))
+        .expect("copyright includes company and year");
+    assert!(year.parse::<u16>().expect("calendar year") >= 1970);
+    assert_eq!(
+        config,
+        template
+            .replace("__APP_TITLE__", "Demo App")
+            .replace("__BUNDLE_ID__", "com.acme.demo")
+            .replace("__COMPANY__", "Acme")
+            .replace("__COPYRIGHT_YEAR__", year)
+    );
+    assert_eq!(
+        metadata["macos"]["category"],
+        "public.app-category.productivity"
+    );
+    assert!(metadata["macos"]["sandbox"].is_null());
+    assert!(!config.contains("__"), "unexpanded metadata: {config}");
     let manifest = std::fs::read_to_string(project.join("Cargo.toml")).expect("Cargo.toml");
     assert!(manifest.contains("name = \"demo\""), "{manifest}");
     assert!(
@@ -149,6 +187,53 @@ fn create_then_sync_writes_the_ts_template_and_generated_config() {
     let output = run(zant().current_dir(&project).arg("sync"));
     assert!(output.status.success());
     assert!(!project.join("src/app_config.rs").exists());
+}
+
+#[test]
+fn create_preserves_template_formatting_with_explicit_options() {
+    let dir = temp_dir("create-options");
+    let sign = "Example \"Signing\" Identity";
+    let output = run(zant().current_dir(&dir).args([
+        "create",
+        "demo",
+        "--yes",
+        "--bundle-id",
+        "com.acme-labs.demo",
+        "--style",
+        "hidden-titlebar",
+        "--sandbox",
+        "true",
+        "--sign",
+        sign,
+    ]));
+    assert!(output.status.success(), "{}", stderr(&output));
+    let config = std::fs::read_to_string(dir.join("demo/app.config.json")).expect("config");
+    let metadata: serde_json::Value = serde_json::from_str(&config).expect("valid JSON");
+    assert_eq!(metadata["company"], "Acme-labs");
+    assert_eq!(metadata["window"]["style"], "hidden-titlebar");
+    assert_eq!(metadata["macos"]["sandbox"], true);
+    assert_eq!(metadata["macos"]["signing_identity"], sign);
+    let year = metadata["copyright"]
+        .as_str()
+        .unwrap()
+        .strip_prefix("© ")
+        .unwrap()
+        .strip_suffix(" Acme-labs")
+        .unwrap();
+    let template = std::fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../scaffold/template-ts/app.config.json"),
+    )
+    .expect("template");
+    assert_eq!(config, template
+        .replace("__APP_TITLE__", "Demo")
+        .replace("__BUNDLE_ID__", "com.acme-labs.demo")
+        .replace("__COMPANY__", "Acme-labs")
+        .replace("__COPYRIGHT_YEAR__", year)
+        .replace("\"style\": \"native\"", "\"style\": \"hidden-titlebar\"")
+        .replace("\"category\": \"public.app-category.productivity\"", &format!(
+            "\"category\": \"public.app-category.productivity\",\n    \"sandbox\": true,\n    \"signing_identity\": {}",
+            serde_json::to_string(sign).unwrap()
+        )));
 }
 
 /// A minimal plain-Rust application project (no TSX, no build script):
