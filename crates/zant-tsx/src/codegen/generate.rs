@@ -44,9 +44,14 @@ use super::{Diag, Generator, Result, fail, parse_and_format};
 ///
 /// `non_snake_case` is inherent to the generated code: TSX props keep their
 /// camelCase names (`onIncrement`) and the handler methods derive from them.
+/// Parentheses keep translated expressions unambiguous, callbacks return
+/// through labeled blocks, and a custom hook file's imports (assets) are
+/// used where the hook is inlined: none of these is the app's code to fix,
+/// so an app's `clippy -D warnings` stays about its own code.
 pub const HEADER_ALLOWS: &str = "#![allow(clippy::redundant_clone)]\n\
      #![allow(clippy::too_many_arguments)]\n\
-     #![allow(non_snake_case)]\n";
+     #![allow(non_snake_case)]\n\
+     #![allow(unused_parens, break_with_label_and_loop, dead_code)]\n";
 pub const PREAMBLE: &str = "#[allow(unused_imports)]\nuse zant::nodes;\n#[allow(unused_imports)]\nuse zant::tsx;\n#[allow(unused_imports)]\nuse zant::ui;\n\n";
 
 /// The input of one module compilation.

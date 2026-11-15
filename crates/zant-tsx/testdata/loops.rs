@@ -2,6 +2,7 @@
 #![allow(clippy::redundant_clone)]
 #![allow(clippy::too_many_arguments)]
 #![allow(non_snake_case)]
+#![allow(unused_parens, break_with_label_and_loop, dead_code)]
 #[allow(unused_imports)]
 use zant::nodes;
 #[allow(unused_imports)]
@@ -462,12 +463,12 @@ impl ui::App for App {
                                     for candidate in _items_2.iter().cloned() {
                                         {
                                             if candidate == x {
-                                                break '_callback true;
+                                                break '_callback (true);
                                             }
                                         }
                                     }
                                 }
-                                break '_callback false;
+                                break '_callback (false);
                             }
                         })(x.clone());
                         if _keep { Some(x) } else { None }

@@ -2,6 +2,7 @@
 #![allow(clippy::redundant_clone)]
 #![allow(clippy::too_many_arguments)]
 #![allow(non_snake_case)]
+#![allow(unused_parens, break_with_label_and_loop, dead_code)]
 #[allow(unused_imports)]
 use zant::nodes;
 #[allow(unused_imports)]
@@ -231,7 +232,7 @@ impl ui::App for Arrays {
                     .map(|(i, x): (usize, f64)| {
                         '_callback: {
                             let doubled: f64 = x * 2.0f64;
-                            break '_callback doubled + (i as f64);
+                            break '_callback (doubled + (i as f64));
                         }
                     })
                     .collect::<Vec<_>>(),
@@ -412,9 +413,9 @@ impl ui::App for Arrays {
                     .map(|x: f64| {
                         '_callback: {
                             if x > 2.0f64 {
-                                break '_callback Some(x);
+                                break '_callback (Some(x));
                             }
-                            break '_callback None;
+                            break '_callback (None);
                         }
                     })
                     .collect::<Vec<_>>(),

@@ -2,6 +2,7 @@
 #![allow(clippy::redundant_clone)]
 #![allow(clippy::too_many_arguments)]
 #![allow(non_snake_case)]
+#![allow(unused_parens, break_with_label_and_loop, dead_code)]
 #[allow(unused_imports)]
 use zant::nodes;
 #[allow(unused_imports)]

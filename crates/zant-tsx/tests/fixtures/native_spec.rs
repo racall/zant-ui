@@ -109,6 +109,8 @@ pub mod clips {
     /// `native/clips.ts`: the functions `native/clips.rs` implements.
     ///
     /// A missing or mistyped function is a rustc error at the `impl`.
+    /// Methods keep the spec's camelCase names.
+    #[allow(non_snake_case)]
     pub trait ClipsSpec {
         fn entries(query: zant::Str) -> tsx::List<ListEntry>;
         fn copy(row: i64) -> CopyResult;

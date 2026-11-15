@@ -2,6 +2,7 @@
 #![allow(clippy::redundant_clone)]
 #![allow(clippy::too_many_arguments)]
 #![allow(non_snake_case)]
+#![allow(unused_parens, break_with_label_and_loop, dead_code)]
 #[allow(unused_imports)]
 use zant::nodes;
 #[allow(unused_imports)]
@@ -411,9 +412,9 @@ impl ui::App for App {
                 let _value: tsx::List<Item> = (|| {
                     '_callback: {
                         if tsx::utf16_length((self.query.clone()).as_str()) == 0usize {
-                            break '_callback self.items.clone();
+                            break '_callback (self.items.clone());
                         }
-                        break '_callback {
+                        break '_callback ({
                             let _items: tsx::List<Item> = self.items.clone();
                             tsx::List::from_vec(
                                 _items
@@ -428,7 +429,7 @@ impl ui::App for App {
                                     })
                                     .collect::<Vec<_>>(),
                             )
-                        };
+                        });
                     }
                 })();
                 self._memo11 = Some((_deps, _value));

@@ -206,10 +206,12 @@ fn return_statement(
                 if let Some(values) = c.return_values.as_mut() {
                     values.push(scope::ReturnValue { value, loc: x.loc });
                 }
-                return Ok(format!("break '{label} {}{index}{};\n", '\u{5}', '\u{6}'));
+                // parenthesized: a block value after a label reads like a
+                // labeled loop (rustc's break_with_label_and_loop)
+                return Ok(format!("break '{label} ({}{index}{});\n", '\u{5}', '\u{6}'));
             }
             let value = expr::emit(g, c, x, Some(c.ret), false)?;
-            return Ok(format!("break '{label} {};\n", value.code));
+            return Ok(format!("break '{label} ({});\n", value.code));
         }
         if c.ret == Type::Void {
             if !matches!(x.data, ast::ExprData::Call(_)) {
