@@ -82,8 +82,10 @@ impl Library {
     /// The instance must have been destroyed and its replacement successfully
     /// started. No callbacks or other pointers into this image may be used again.
     pub unsafe fn unload(self) {
-        let keep = std::env::var_os("ZANT_HOT_UNLOAD").is_none_or(|value| value != "1")
-            || std::env::var_os("ZANT_HOT_KEEP_LIBS").is_some_and(|value| value == "1");
+        // unloading is the default; ZANT_HOT_KEEP_LIBS=1 (or the older
+        // ZANT_HOT_UNLOAD=0) keeps every version mapped for diagnosis
+        let keep = std::env::var_os("ZANT_HOT_KEEP_LIBS").is_some_and(|value| value == "1")
+            || std::env::var_os("ZANT_HOT_UNLOAD").is_some_and(|value| value == "0");
         if !keep {
             // SAFETY: the caller guarantees that the old instance is gone.
             if !unsafe { close(self.handle) } {

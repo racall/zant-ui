@@ -118,7 +118,7 @@ TS 模板在 `scaffold/template-ts/`：`src/App.tsx` 是根组件，`src/compone
 组件本地状态按实例恢复；稳定 key 的滚动、焦点、输入光标与选区也会恢复。类型不兼容只重置对应字段。
 `Cargo.toml` / `app.config.json` 改动会重启；`--watch` 显式选择重启模式，`--no-hot` 运行一次。
 编译失败时错误面板覆盖仍运行的 UI，修复后刷新。`createStore`、任意 Rust 全局状态和外部资源不自动恢复。
-完整行为、沙盒与旧库映射的限制见 [脚手架](scaffold.md#热更新)，调试开关见
+完整行为与沙盒限制见 [脚手架](scaffold.md#热更新)，调试开关见
 [开发指南](development.md#热刷新验证)。无 GUI 创建冒烟：`scripts/tsx/create-smoke.sh`。
 
 ### 编辑器类型

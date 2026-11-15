@@ -103,7 +103,7 @@ try:
  cargo=a/'Cargo.toml';cargo.write_text(cargo.read_text().replace('version = "0.1.0"','version = "0.1.1"'))
  wait(lambda:len(re.findall(r'host_pid=(\d+)',output()))>=3,'manifest restart');assert re.findall(r'host_pid=(\d+)',output())[-1]!=pid
  control.close();control=fifo.open('w');send('close');proc.wait(timeout=10);assert proc.returncode==0,proc.returncode
- if env.get('ZANT_HOT_UNLOAD')=='1' and env.get('ZANT_HOT_KEEP_LIBS')!='1':
+ if env.get('ZANT_HOT_KEEP_LIBS')!='1':
   unloaded=re.findall(r'\[zant-hot\] unloaded .*',output())
   assert unloaded,'no app libraries were unloaded'
   assert all('(gone) images=0' in line for line in unloaded),unloaded
