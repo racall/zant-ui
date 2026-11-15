@@ -15,7 +15,10 @@ fn root() -> std::io::Result<String> {
 pub fn cmd_sync() -> std::io::Result<()> {
     let root = root()?;
     sync(&root)?;
-    crate::ok("配置代码已重新生成");
+    // Windows has no bundle files to write (sync_project says so itself)
+    if !IS_WINDOWS {
+        crate::ok("配置代码已重新生成");
+    }
     Ok(())
 }
 

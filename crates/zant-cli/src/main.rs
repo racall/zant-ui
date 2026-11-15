@@ -540,6 +540,17 @@ struct RootInfo {
 
 static ROOT_INFO: OnceLock<RootInfo> = OnceLock::new();
 
+/// `canonicalize` returns `\\?\C:\…` verbatim paths on Windows, which
+/// PowerShell (`Join-Path`), cmd and the install script reject: a drive path
+/// loses the prefix. Verbatim UNC paths (`\\?\UNC\…`) are kept.
+fn plain_path(path: PathBuf) -> PathBuf {
+    let text = path.to_string_lossy();
+    match text.strip_prefix(r"\\?\") {
+        Some(rest) if !rest.starts_with(r"UNC\") => PathBuf::from(rest.to_string()),
+        _ => path,
+    }
+}
+
 fn root_info() -> &'static RootInfo {
     ROOT_INFO.get_or_init(find_root)
 }
@@ -551,6 +562,7 @@ fn find_root() -> RootInfo {
     let checkout = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
         .canonicalize()
+        .map(plain_path)
         .unwrap_or_else(|_| Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."));
     let Ok(executable) = std::env::current_exe() else {
         return RootInfo {
@@ -561,7 +573,10 @@ fn find_root() -> RootInfo {
     // The installer links `zant` into ~/.local/bin; macOS reports the link's
     // path, not the installed binary's, so resolve it before looking for
     // the release next to it.
-    let executable = executable.canonicalize().unwrap_or(executable);
+    let executable = executable
+        .canonicalize()
+        .map(plain_path)
+        .unwrap_or(executable);
     let Some(home) = executable.parent().and_then(|dir| dir.parent()) else {
         return RootInfo {
             root: checkout,
@@ -767,6 +782,23 @@ mod log_filter_tests {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn plain_path_drops_the_verbatim_drive_prefix() {
+        use std::path::PathBuf;
+        assert_eq!(
+            super::plain_path(PathBuf::from(r"\\?\C:\Users\me\AppData\Local\zant")),
+            PathBuf::from(r"C:\Users\me\AppData\Local\zant")
+        );
+        assert_eq!(
+            super::plain_path(PathBuf::from(r"\\?\UNC\server\share")),
+            PathBuf::from(r"\\?\UNC\server\share")
+        );
+        assert_eq!(
+            super::plain_path(PathBuf::from("/Users/me/.zant")),
+            PathBuf::from("/Users/me/.zant")
+        );
+    }
+
     use super::*;
 
     #[test]
