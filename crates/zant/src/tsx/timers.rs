@@ -67,11 +67,21 @@ pub fn is_running() -> bool {
     RUNNING.with(Cell::get)
 }
 
+pub(crate) fn release_app() {
+    set_running(false);
+    set_clock(None); // A caller-supplied function can live in the app image.
+    let timers = TIMERS.with(|timers| std::mem::take(&mut *timers.borrow_mut()));
+    drop(timers);
+    // Keep NEXT_ID monotonic so old ids cannot cancel a new version's timer.
+}
+
 fn schedule_wake(delay_ms: i64) {
     if !is_running() {
         return;
     }
     std::thread::spawn(move || {
+        // Only the integer delay crosses threads; no app callback, clock,
+        // or app-owned value may be captured here. This code lives in zant.
         std::thread::sleep(Duration::from_millis((delay_ms.max(0) + 2) as u64));
         crate::ui::post_wake();
     });

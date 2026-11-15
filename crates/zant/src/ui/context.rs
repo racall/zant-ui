@@ -77,6 +77,25 @@ pub fn with_cx<R>(f: impl FnOnce(&mut BuildCx) -> R) -> R {
     CX.with(|cx| f(&mut cx.borrow_mut()))
 }
 
+pub(crate) fn release_app() {
+    let old = CX.with(|cx| cx.replace(BuildCx::default()));
+    drop(old);
+}
+
+#[cfg(test)]
+pub(crate) fn assert_app_released() {
+    with_cx(|cx| {
+        assert!(cx.effects.is_empty());
+        assert!(cx.portals.is_empty());
+        assert!(cx.states.is_none());
+        assert!(cx.key_bounds.is_none());
+        assert!(!cx.frame_active);
+        assert!(!cx.rebuild_requested);
+        assert!(cx.pending_wake_ms.is_none());
+        assert!(cx.pending_edited.is_none());
+    });
+}
+
 /// Theme used by `ui::*` builders for their default colours; the runtime sets
 /// it before every build from the active theme (light / dark).
 pub fn set_build_theme(theme: Theme) {

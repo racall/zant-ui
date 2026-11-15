@@ -83,15 +83,20 @@ thread_local! {
 /// `open_window()` must work from inside a callback whose window is currently
 /// borrowed, so they never borrow the runtime.
 pub fn set_main_runtime(runtime: Option<Rc<RefCell<Runtime>>>) {
-    MAIN.with(|main| {
-        *main.borrow_mut() = runtime.map(|core| {
-            let (app, native) = {
-                let runtime = core.borrow();
-                (runtime.shared_app(), runtime.window().map(Rc::downgrade))
-            };
-            MainWindow { core, app, native }
-        });
+    let next = runtime.map(|core| {
+        let (app, native) = {
+            let runtime = core.borrow();
+            (runtime.shared_app(), runtime.window().map(Rc::downgrade))
+        };
+        MainWindow { core, app, native }
     });
+    let old = MAIN.with(|main| main.replace(next));
+    drop(old);
+}
+
+#[cfg(test)]
+pub(crate) fn assert_app_released() {
+    MAIN.with(|main| assert!(main.borrow().is_none()));
 }
 
 /// The app's main window, `None` before `ui::app::run` created it.

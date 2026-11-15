@@ -22,6 +22,15 @@ struct ListBuild {
     seen: HashSet<String>,
 }
 
+pub(crate) fn release_app() {
+    BUILD_LISTS.with(|slot| slot.replace(None));
+}
+
+#[cfg(test)]
+pub(crate) fn assert_app_released() {
+    BUILD_LISTS.with(|slot| assert!(slot.borrow().is_none()));
+}
+
 pub(crate) struct ListBuildGuard(Option<ListBuild>);
 impl ListBuildGuard {
     pub(crate) fn enter(lists: Lists) -> Self {

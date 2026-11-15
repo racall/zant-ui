@@ -113,6 +113,10 @@ thread_local! {
     static QUEUE: RefCell<CommandQueue> = RefCell::new(CommandQueue::new());
 }
 
+pub(crate) fn release_app() {
+    QUEUE.with(|queue| *queue.borrow_mut() = CommandQueue::new());
+}
+
 /// The runtime handling an event / building a frame (set by the runtime);
 /// commands queued meanwhile belong to its window. Returns the previous one.
 pub fn set_command_owner(owner: Option<*const ()>) -> Option<*const ()> {
