@@ -113,6 +113,19 @@ fn copy_tree(
     Ok(())
 }
 
+/// The `channel` of the framework's rust-toolchain.toml (`stable` when it
+/// cannot be read).
+fn framework_toolchain(framework: &str) -> String {
+    let text = std::fs::read_to_string(std::path::Path::new(framework).join("rust-toolchain.toml"))
+        .unwrap_or_default();
+    text.lines()
+        .filter_map(|line| line.trim().strip_prefix("channel"))
+        .filter_map(|rest| rest.trim_start().strip_prefix('='))
+        .map(|value| value.trim().trim_matches('"').to_string())
+        .find(|value| !value.is_empty())
+        .unwrap_or_else(|| "stable".to_string())
+}
+
 fn expand(source: &str, options: &Options, is_tsx: bool) -> Vec<u8> {
     let fingerprint = (u64::from(crc32(options.crate_name.as_bytes())) << 32) | 0x9e37_79b9;
     let hex = format!("0x{fingerprint:016x}");
@@ -121,7 +134,9 @@ fn expand(source: &str, options: &Options, is_tsx: bool) -> Vec<u8> {
     } else {
         "top: 24"
     };
-    let pairs: [(&str, &str); 7] = [
+    let toolchain = framework_toolchain(&options.framework);
+    let pairs: [(&str, &str); 8] = [
+        ("__RUST_TOOLCHAIN__", &toolchain),
         ("__APP_NAME_SNAKE__", &options.crate_name),
         ("__APP_FINGERPRINT__", &hex),
         ("__ZANT_PATH__", &options.dependency),
@@ -162,6 +177,13 @@ fn crc32(data: &[u8]) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn apps_use_the_framework_toolchain() {
+        let pinned = framework_toolchain(&repo_root());
+        assert!(!pinned.is_empty() && pinned != "__RUST_TOOLCHAIN__");
+        assert_eq!(framework_toolchain("/no/such/dir"), "stable");
+    }
 
     fn repo_root() -> String {
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))

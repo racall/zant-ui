@@ -1,7 +1,8 @@
-# Zant UI apps build with the stable Rust toolchain (edition 2024); the minimum
-# version is `rust-version` in Cargo.toml. rustup installs this toolchain
-# automatically on the first build.
+# The Rust release Zant UI is built and tested with (`zant create` copies it
+# from the framework's rust-toolchain.toml), so the app and the framework it
+# compiles use the same compiler and nothing extra is downloaded. rustup
+# installs it automatically on the first build.
 [toolchain]
-channel = "stable"
+channel = "__RUST_TOOLCHAIN__"
 profile = "minimal"
 components = ["rustfmt", "clippy"]
