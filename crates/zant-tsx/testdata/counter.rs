@@ -26,6 +26,28 @@ impl Default for Counter {
         }
     }
 }
+impl tsx::hot::Hot for Counter {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "count", self.count);
+        zant::hot_put!(snapshot, "step", self.step);
+        zant::hot_put!(snapshot, "name", self.name);
+        zant::hot_put!(snapshot, "large", self.large);
+        zant::hot_put!(snapshot, "notify", self.notify);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        zant::hot_get!(restore, "count", instance.count);
+        zant::hot_get!(restore, "step", instance.step);
+        zant::hot_get!(restore, "name", instance.name);
+        zant::hot_get!(restore, "large", instance.large);
+        zant::hot_get!(restore, "notify", instance.notify);
+        Some(instance)
+    }
+}
 impl Counter {
     fn increment(&mut self) {
         let count: u32 = self.count;
@@ -100,5 +122,22 @@ impl ui::App for Counter {
             ],
             ..Default::default()
         });
+    }
+    fn hot_save(&self) -> Option<String> {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "count", self.count);
+        zant::hot_put!(snapshot, "step", self.step);
+        zant::hot_put!(snapshot, "name", self.name);
+        zant::hot_put!(snapshot, "large", self.large);
+        zant::hot_put!(snapshot, "notify", self.notify);
+        Some(snapshot.finish())
+    }
+    fn hot_load(&mut self, state: &str) {
+        let restore = tsx::hot::Restore::parse(state);
+        zant::hot_get!(restore, "count", self.count);
+        zant::hot_get!(restore, "step", self.step);
+        zant::hot_get!(restore, "name", self.name);
+        zant::hot_get!(restore, "large", self.large);
+        zant::hot_get!(restore, "notify", self.notify);
     }
 }

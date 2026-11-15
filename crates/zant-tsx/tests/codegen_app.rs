@@ -1213,7 +1213,7 @@ fn compact(source: &str) -> String {
 }
 
 #[test]
-fn a_types_only_spec_omits_the_unused_tsx_import() {
+fn a_types_only_spec_imports_tsx_for_hot_state_types() {
     let files = [
         SourceFile::tsx(
             "src/App.tsx",
@@ -1229,9 +1229,9 @@ fn a_types_only_spec_omits_the_unused_tsx_import() {
     let build = compile::compile_project_with(&files, Some(install_stubs)).expect("spec compiles");
     let root = build.spec_root.as_deref().expect("the spec root");
     assert!(root.contains("pub trait SystemSpec"), "{root}");
-    // `tsx::List` does not appear in the generated code, so the import would
-    // be unused (and warn in the app).
-    assert!(!root.contains("use zant::tsx;"), "{root}");
+    // Even scalar-only specs use TSX for their generated Hot implementations.
+    assert!(root.contains("use zant::tsx;"), "{root}");
+    assert!(root.contains("impl tsx::hot::Hot for SystemInfo"), "{root}");
 }
 
 #[test]

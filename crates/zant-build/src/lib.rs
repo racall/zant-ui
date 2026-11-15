@@ -8,47 +8,14 @@
 //! }
 //! ```
 //!
-//! It compiles `src/**/*.tsx` (and `.ts`, plus hand-written `.rs` files that
-//! TSX imports), the `native/*.ts` specs and the project configuration with
-//! `zant-tsx` and writes into `$OUT_DIR`:
+//! `native/build.rs` compiles TSX and native specs into `$OUT_DIR`. Applications
+//! use `zant::app!()` in `native/main.rs`; configuration, native registration
+//! and both normal/hot entry points are generated without writing source files.
 //!
-//! - one `<Stem>.rs` per TSX module, and `main.rs` declaring them
-//!   (`#[path = "App.rs"] pub mod app;`). The app's `src/main.rs` includes the
-//!   declarations at its crate root:
-//!
-//!   ```rust,ignore
-//!   include!(concat!(env!("OUT_DIR"), "/main.rs"));
-//!   ```
-//!
-//!   `#[path]` inside the generated file resolves relative to the generated
-//!   file's own directory (`$OUT_DIR`), so the `<Stem>.rs` modules are found
-//!   next to it. Hand-written modules (`src/format.rs`, `native/…`) are not
-//!   declared: the app's crate root does that itself.
-//! - the assets imported from TSX (`import icon from "../assets/x.png"`) under
-//!   `_assets/`, referenced by `include_bytes!` in the generated modules.
-//! - `icons.rs`: one `icon_<name>` byte constant per `assets/icons/*.png`
-//!   (`-` → `_`). Include it where the bytes are
-//!   needed: `mod icons { include!(concat!(env!("OUT_DIR"), "/icons.rs")); }`.
-//! - `app.d`, the dep file listing every source and asset the build read.
-//!
-//! It prints `cargo:rerun-if-changed` for the project inputs so editing a
-//! `.tsx`, `.ts`, `.rs`, `native/` file, an icon/asset or `app.config.json`
-//! rebuilds the app.
-//!
-//! On Windows (host) it additionally configures the executable: the `.ico`
-//! built from `assets/icons/app-windows.png`, the per-monitor-DPI /
-//! Common-Controls manifest (`crates/zant-sys/native/platform/windows/zant.manifest`)
-//! and the GUI
-//! subsystem for release builds are embedded with `embed-resource`, and
-//! `pdfium.dll` is copied next to the executable. macOS is a no-op: `zant
-//! package` turns `assets/icons/app-macos.png` into `AppIcon.icns`.
-//!
-//! Failures panic with an actionable message (a build script's only way to fail
-//! the build); [`tsx_app_in`] is the testable variant that returns a
-//! [`Error`] and also lets tests pass their own app root and output directory.
-
 #![forbid(unsafe_code)]
 
+pub mod config;
+mod entry;
 mod icons;
 mod png;
 #[cfg(test)]
@@ -67,7 +34,7 @@ use windows_stub as platform;
 use std::path::{Path, PathBuf};
 
 use zant_tsx::compile::{self, GeneratedProject, SourceFile};
-use zant_tsx::{codegen, entry};
+use zant_tsx::{codegen, entry as tsx_entry};
 
 pub use icons::{Icon, enumerate as app_icons, module_source as icon_module_source};
 pub use zant_tsx::compile::ConfigSpec as AppConfig;
@@ -136,9 +103,34 @@ pub fn try_tsx_app() -> Result<BuildReport, Error> {
 fn run_build_script() -> Result<BuildReport, Error> {
     let root = environment_path("CARGO_MANIFEST_DIR")?;
     let out_dir = environment_path("OUT_DIR")?;
-    let report = tsx_app_in(&root, &out_dir)?;
-    print_cargo_directives(&report, &root);
+    let report = hot_app(&root)?;
     platform::apply(&root, &out_dir)?;
+    Ok(report)
+}
+
+/// Build an app rooted outside the current Cargo package as a hot UI library.
+/// Generates the same app shell as [`tsx_app`], emits absolute Cargo inputs,
+/// and leaves executable-only platform resources to the host.
+pub fn hot_app(root: &Path) -> Result<BuildReport, Error> {
+    let out_dir = environment_path("OUT_DIR")?;
+    let started = std::time::Instant::now();
+    let report = tsx_app_in(root, &out_dir)?;
+    print_cargo_directives(&report, root);
+    println!("cargo:rerun-if-env-changed=ZANT_HOT_TRACE");
+    if std::env::var_os("ZANT_HOT_TRACE").is_some() {
+        println!(
+            "cargo:warning=[zant-hot] codegen_ms={:.3}",
+            started.elapsed().as_secs_f64() * 1000.0
+        );
+    }
+    let rustc = std::env::var_os("RUSTC").unwrap_or_else(|| "rustc".into());
+    if let Ok(output) = std::process::Command::new(rustc).arg("--version").output() {
+        let line = String::from_utf8_lossy(&output.stdout);
+        println!(
+            "cargo:rustc-env=RUSTC_VERSION={}",
+            line.trim().strip_prefix("rustc ").unwrap_or(line.trim())
+        );
+    }
     Ok(report)
 }
 
@@ -156,7 +148,7 @@ fn environment_path(name: &str) -> Result<PathBuf, Error> {
 /// needs to print Cargo directives for, and tests to assert on.
 #[derive(Clone, Debug)]
 pub struct BuildReport {
-    /// Every compiler input (`.tsx` / `.ts` / `.rs` under `src/`, the
+    /// Every compiler input (`.tsx` / `.ts` under `src/`, the
     /// `native/*.ts` specs) — for `cargo:rerun-if-changed`.
     pub sources: Vec<PathBuf>,
     /// The asset files imported from TSX (copied to `_assets/`).
@@ -169,26 +161,21 @@ pub struct BuildReport {
     pub icons_module: PathBuf,
     /// `app.config.json`, when the app has one.
     pub config_path: Option<PathBuf>,
-    /// The parsed `app.config.json` (the Rust entry reads the generated
-    /// `src/app_config.rs` instead, but the build validates the JSON it came
-    /// from and keeps it in the rerun set).
+    /// Parsed compiler configuration (kept for compatibility).
     pub config: Option<AppConfig>,
     /// `$OUT_DIR/app.d` (Makefile-style dep file: sources and assets).
     pub dep_file: PathBuf,
-    /// `<app_root>/native/spec.rs`: the generated module tree of the
-    /// `native/*.ts` specs, written into the app so
-    /// `native/lib.rs` can declare `pub mod spec;`. `None` when the app has
-    /// no native specs.
+    /// The generated `zant_app.rs` containing native specs, when present.
     pub spec_module: Option<PathBuf>,
 }
 
 /// Compile the app at `app_root` into `out_dir` — the testable core of
 /// [`tsx_app`] (no Cargo directives, no platform resource embedding).
 ///
-/// The inputs are `<app_root>/src/**` (`.tsx` / `.ts` / `.rs`), the
+/// The inputs are `<app_root>/src/**` (`.tsx` / `.ts`), the
 /// `<app_root>/native/*.ts` specs, `assets/icons/*.png` and
 /// `<app_root>/app.config.json`. `out_dir` receives the generated modules,
-/// `main.rs`, `_assets/`, `_icons/`, `icons.rs` and `app.d`.
+/// `main.rs`, `zant_app.rs`, `zant_main.rs`, `zant_hot.rs`, assets, icons and `app.d`.
 pub fn tsx_app_in(app_root: &Path, out_dir: &Path) -> Result<BuildReport, Error> {
     let src_dir = app_root.join("src");
     if !src_dir.is_dir() {
@@ -201,23 +188,17 @@ pub fn tsx_app_in(app_root: &Path, out_dir: &Path) -> Result<BuildReport, Error>
         return Err(Error::NoRootComponent { path: root_path });
     }
     let root_source = read_text(&root_path)?;
-    validate_root(&root_path, &root_source)?;
+    entry::validate_root(&root_path, &root_source)?;
+    entry::reject_rust_sources(&src_dir)?;
 
-    // The compiler inputs: every `.tsx` / `.ts` / `.rs` under `src` (the
-    // hand-written Rust files are parsed for the signatures TSX imports), then
-    // the native module specs.
-    // Paths are app-relative (`src/App.tsx`, `native/system.ts`): the
-    // diagnostics read like the sources on disk, the dep file names files the
-    // way `zant-tsx --dep` does, and the asset hashes (which include the
-    // importing path) do not change with the checkout directory.
     let mut files: Vec<SourceFile> = Vec::new();
-    for path in entry::collect(&path_string(&src_dir))? {
+    for path in tsx_entry::collect(&path_string(&src_dir))? {
         let source = read_text(Path::new(&path))?;
         files.push(SourceFile::tsx(&project_relative(app_root, &path), &source));
     }
     let native_dir = app_root.join("native");
     if native_dir.is_dir() {
-        for path in entry::collect_specs(&path_string(&native_dir))? {
+        for path in tsx_entry::collect_specs(&path_string(&native_dir))? {
             let source = read_text(Path::new(&path))?;
             files.push(SourceFile::native_spec(
                 &project_relative(app_root, &path),
@@ -254,8 +235,17 @@ pub fn tsx_app_in(app_root: &Path, out_dir: &Path) -> Result<BuildReport, Error>
     })?;
 
     std::fs::create_dir_all(out_dir)?;
-    let outputs = write_modules(&files, &generated, out_dir)?;
-    let spec_module = write_spec_module(app_root, &generated)?;
+    let mut outputs = write_modules(&files, &generated, out_dir)?;
+    let spec_module = generated
+        .spec_root
+        .as_ref()
+        .map(|_| out_dir.join("zant_app.rs"));
+    outputs.extend(entry::write(
+        app_root,
+        out_dir,
+        &generated,
+        &module_declarations(&files),
+    )?);
     let assets = write_assets(app_root, &generated, out_dir)?;
     let dep_file = write_dep_file(&files, &generated, out_dir)?;
 
@@ -275,26 +265,6 @@ pub fn tsx_app_in(app_root: &Path, out_dir: &Path) -> Result<BuildReport, Error>
     })
 }
 
-/// Writes the project's `native/spec.rs` into the app: one `pub mod`
-/// per `native/*.ts` spec, which `native/lib.rs` declares as `pub mod spec;`.
-///
-/// The generated modules call `crate::native::spec::<name>::…` and
-/// `<crate::native::<name>::Native as …Spec>`; the file is generated, so the
-/// template `.gitignore`s it. The write is skipped when the content is
-/// unchanged so `cargo:rerun-if-changed` on the `native/` directory (which
-/// contains it) does not rebuild the app in a loop.
-fn write_spec_module(
-    app_root: &Path,
-    generated: &GeneratedProject,
-) -> Result<Option<PathBuf>, Error> {
-    let Some(source) = &generated.spec_root else {
-        return Ok(None);
-    };
-    let path = app_root.join("native/spec.rs");
-    write_if_changed(&path, source.as_bytes())?;
-    Ok(Some(path))
-}
-
 /// Writes the generated modules and the declaration file `main.rs`, returning
 /// every written path.
 fn write_modules(
@@ -305,12 +275,9 @@ fn write_modules(
     let mut outputs = Vec::new();
     for (index, file) in files.iter().enumerate() {
         if file.is_rust() {
-            // The app crate owns its hand-written modules (`mod format;`).
             continue;
         }
         if file.native {
-            // `native/*.ts` specs become the combined `native/spec.rs`
-            // (`write_spec_module`), not one generated file each.
             continue;
         }
         let name = file.output_name();
@@ -320,7 +287,11 @@ fn write_modules(
             });
         }
         let destination = out_dir.join(&name);
-        write_file(&destination, generated.outputs[index].as_bytes())?;
+        let mut source = generated.outputs[index].clone();
+        if file.stem() == ENTRY {
+            source.push_str(&entry::root_alias(&file.src));
+        }
+        write_file(&destination, source.as_bytes())?;
         outputs.push(destination);
     }
     let entry_path = out_dir.join("main.rs");
@@ -331,19 +302,9 @@ fn write_modules(
 }
 
 /// The generated `main.rs`: a plain list of `#[path] pub mod …;` declarations
-/// (no inner attributes / doc comments — the app `include!`s it at its crate
-/// root, which rejects those).
 fn module_declarations(files: &[SourceFile]) -> String {
-    let mut out = String::from(
-        "// Generated by zant-build from the app's TSX sources. Do not edit.\n\
-         //\n\
-         // `src/main.rs` includes this file at the crate root:\n\
-         //     include!(concat!(env!(\"OUT_DIR\"), \"/main.rs\"));\n\
-         // `#[path]` is resolved relative to this file's directory (OUT_DIR).\n",
-    );
+    let mut out = String::from("// Generated TSX module declarations.\n");
     for file in files {
-        // Native specs are not declared here: they go to `native/spec.rs`
-        // and the generated entry registers them.
         if file.is_rust() || file.native {
             continue;
         }
@@ -365,8 +326,6 @@ fn write_assets(
 ) -> Result<Vec<PathBuf>, Error> {
     let mut assets = Vec::with_capacity(generated.assets.len());
     for asset in &generated.assets {
-        // `Asset::from` is relative to the app root (the compiler's importing
-        // file paths are).
         let relative = Path::new(&asset.from);
         let source_buf = if relative.is_absolute() {
             relative.to_path_buf()
@@ -396,34 +355,10 @@ fn write_dep_file(
     out_dir: &Path,
 ) -> Result<PathBuf, Error> {
     let sources: Vec<String> = files.iter().map(|file| file.path.clone()).collect();
-    // The target names the generated entry relative to `app.d`'s directory,
-    // so the file is identical for every checkout location.
     let contents = zant_tsx::assets::dep_file("main.rs", &sources, &generated.assets);
     let path = out_dir.join("app.d");
     write_file(&path, contents.as_bytes())?;
     Ok(path)
-}
-
-/// Checks that `src/App.tsx` really is the app entry: a default exported
-/// component with no props (the project compiler runs with
-/// `require_root = false` and would otherwise emit a module without `App`).
-fn validate_root(path: &Path, source: &str) -> Result<(), Error> {
-    let mut parser = zant_tsx::parser::Parser::init(source);
-    let Ok(module) = parser.parse_module() else {
-        // The compiler reports syntax errors with a rendered diagnostic.
-        return Ok(());
-    };
-    let Some(root) = module.functions.iter().find(|top| top.default) else {
-        return Err(Error::NoRootExport {
-            path: path.to_path_buf(),
-        });
-    };
-    if !root.func.params.is_empty() {
-        return Err(Error::RootTakesProps {
-            path: path.to_path_buf(),
-        });
-    }
-    Ok(())
 }
 
 /// The Windows `.ico` (16, 20, 24, 32, 40, 48, 64, 256) built from
@@ -484,9 +419,7 @@ pub fn zant_ui_root() -> PathBuf {
 /// (the project directories so added/removed files are seen, then every file
 /// the compiler read) and the fallback warnings.
 pub fn cargo_directives(report: &BuildReport, app_root: &Path) -> Vec<String> {
-    let mut out = vec!["cargo:rerun-if-changed=build.rs".to_owned()];
-    // Directories first: cargo scans them recursively, so a new `.tsx` /
-    // `.ts` / `native/` file is noticed even before it is in a source list.
+    let mut out = vec!["cargo:rerun-if-changed=native/build.rs".to_owned()];
     for directory in ["src", "native", "assets"] {
         let path = app_root.join(directory);
         if path.exists() {
@@ -496,12 +429,6 @@ pub fn cargo_directives(report: &BuildReport, app_root: &Path) -> Vec<String> {
     if let Some(config) = &report.config_path {
         out.push(format!("cargo:rerun-if-changed={}", config.display()));
     }
-    // The generated `native/spec.rs` is an output, but it lives in the
-    // watched `native/` directory: name it so deleting it reruns the script
-    // (which rewrites it) instead of failing on `pub mod spec;`.
-    if let Some(spec) = &report.spec_module {
-        out.push(format!("cargo:rerun-if-changed={}", spec.display()));
-    }
     let mut seen = std::collections::HashSet::new();
     for path in report
         .sources
@@ -509,8 +436,6 @@ pub fn cargo_directives(report: &BuildReport, app_root: &Path) -> Vec<String> {
         .chain(report.assets.iter())
         .chain(report.icons.iter().map(|icon| &icon.path))
     {
-        // `sources` are app-relative (`src/App.tsx`) while assets and icons are
-        // absolute; print each once, the build script's cwd is the app root.
         if seen.insert(path.to_string_lossy().into_owned()) {
             out.push(format!("cargo:rerun-if-changed={}", path.display()));
         }
@@ -520,13 +445,6 @@ pub fn cargo_directives(report: &BuildReport, app_root: &Path) -> Vec<String> {
             "cargo:warning=zant-build: {} has no app.config.json; the app uses the defaults",
             app_root.display()
         ));
-    }
-    if report.config.is_some() && !app_root.join("src/app_config.rs").is_file() {
-        out.push(
-            "cargo:warning=zant-build: src/app_config.rs is missing; it is generated from \
-             app.config.json — run `zant sync` (or `zant run`) before `cargo build`"
-                .to_owned(),
-        );
     }
     if report.icons.is_empty() {
         out.push(format!(
@@ -559,16 +477,6 @@ fn write_file(path: &Path, data: &[u8]) -> Result<(), Error> {
         path: path.to_path_buf(),
         message: error.to_string(),
     })
-}
-
-/// [`write_file`] only when the content changes: the generated file lives in
-/// the app's watched `native/` directory, so rewriting identical bytes would
-/// touch its mtime and rebuild the app again.
-fn write_if_changed(path: &Path, data: &[u8]) -> Result<(), Error> {
-    if std::fs::read(path).is_ok_and(|existing| existing == data) {
-        return Ok(());
-    }
-    write_file(path, data)
 }
 
 fn path_string(path: &Path) -> String {

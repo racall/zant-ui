@@ -39,3 +39,5 @@ pub use str::Str;
 pub mod theme;
 pub mod tsx;
 pub mod ui;
+
+mod app_macro;

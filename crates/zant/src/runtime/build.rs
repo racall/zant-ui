@@ -52,6 +52,7 @@ impl Runtime {
     /// Theme / window style / build states, then `render` and
     /// [`Runtime::reconcile_root`].
     pub(crate) fn build_tree(&mut self) {
+        let _lists = super::view_state::ListBuildGuard::enter(Rc::clone(&self.view_lists));
         let theme = self.app.borrow().theme();
         if let Some(theme) = theme {
             self.set_theme(theme);
@@ -122,6 +123,9 @@ impl Runtime {
         } else {
             eprintln!("Zant UI: render() must return a container (ui.column/ui.row/ui.card)");
         }
+        self.view_lists
+            .borrow_mut()
+            .retain(|key, state| state.strong_count() > 0 && self.tree.id_of_key(key).is_some());
         self.needs_build = false;
         // Keep the hook installed for the rest of the frame: layout followers
         // (`notify_resizes`, app `on_resize` callbacks) still ask `ui::key_bounds`

@@ -1,14 +1,12 @@
 //! Implementation of the template's example native module (`native/system.ts`).
 //!
 //! The spec is the single source of truth for the interface: `build.rs`
-//! compiles `native/system.ts` into `native/spec.rs`
+//! compiles `native/system.ts` into `OUT_DIR/zant_app.rs`
 //! (`crate::native::spec::system`), which holds the `Os` / `SystemInfo` types
 //! and the `SystemSpec` trait; this file implements it and TSX calls the
 //! functions directly — no bridge, no serialization. A missing or mistyped
 //! function is a rustc error at the `impl`.
 //!
-//! The runtime registry (`zant::tsx::native`) is what `native/lib.rs`
-//! registers; it is independent of the static, generated call path.
 
 use std::sync::OnceLock;
 

@@ -30,13 +30,18 @@
 - 发布构建：`zant build [配置文件]`（`build.config.json`，`docs/build.md`）：zant 读配置、提问、编译签名，
   平台步骤在 `crates/zant-cli/src/distribute.rs` 与 `scripts/` 下的打包脚本
   （macOS DMG / 公证 / App Store，Windows Inno Setup 安装包 / MSIX）。
-- 热更新：`zant run --watch`（重启式，非沙盒，监视 `src/`、`native/`、`app.config.json`、`Cargo.toml`、`build.rs`）。
+- 热更新：`zant run` 默认原地刷新 TSX / `native/`，保留窗口、兼容状态及稳定 key 的滚动 / 焦点 / 光标 / 选区；
+  不兼容字段单独重置，配置 / Cargo 清单改动重启。全局 store / Rust 资源不自动恢复，旧库映射累积。
+  `--watch` 选旧重启模式，`--no-hot` 运行一次（验证 App Sandbox 用此模式）。
+  `ZANT_HOT_TRACE=1` 计时、`ZANT_HOT_SNAPSHOT=<目录>` 截图与状态、`ZANT_HOT_POLL=1` 受限环境轮询，
+  `ZANT_HOT_CONTROL=<FIFO>` 仅显式启用回调回放；完整限制及验证脚本见 `docs/development.md`。
 - macOS 上 `zant run` 会隐藏输入法框架的无害日志（IMKCFRunLoopWakeUpReliable 等），
   需要原始输出时设 `ZANT_RAW_LOGS=1`。
 - PDF：阅读器 `PdfViewer`（`crates/zant/src/pdf/`：连续滚动、缩放、选择复制、搜索、批注与导出；
   算法参照 EmbedPDF），单页预览 `PdfPreview`；macOS PDFKit，Windows PDFium。
 - TSX：`crates/zant-tsx/`（TSX → Rust，编译期完成，无 JS 运行时），规范与进度见 `docs/tsx.md`；
-  应用 `build.rs` 调 `zant_build::tsx_app()`，生成到 `OUT_DIR/app.rs` 由 `src/main.rs` `include!`。
+  应用 `native/build.rs` 调 `zant_build::tsx_app()`，所有生成代码留在 `OUT_DIR`；
+  `native/main.rs` 只写 `zant::app!();`，`src/` 只放 TSX/TS，原生模块自动声明与注册。
 - TS 应用的 Rust 代码放 `native/`（`<名字>.ts` 规范 + `.rs` 实现，编译期由 trait 检查），见 `docs/tsx-native.md`。
 - 原始指针输入：`PointerArea`（拖动捕获、多击、滚轮、按键）；尺寸变化 `onResize`；
   内存图片 `zant::image::Image` + `<Image image>`；后台线程唤醒 UI `ui::post_wake()`。

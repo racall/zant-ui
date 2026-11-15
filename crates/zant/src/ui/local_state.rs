@@ -35,6 +35,14 @@ pub fn local_state<T: 'static>(id: u64, init: impl FnOnce() -> T) -> Rc<RefCell<
     with_store(|store| store.slot(id, init).value)
 }
 
+/// Component-local state that participates in hot reload snapshots.
+pub fn local_state_hot<T: crate::tsx::hot::Hot + 'static>(
+    id: u64,
+    init: impl FnOnce() -> T,
+) -> Rc<RefCell<T>> {
+    with_store(|store| store.slot_hot(id, init).value)
+}
+
 /// `local_state` without discarding `fresh` (`ui::local_slot`): the caller can
 /// initialise the value only on the first build.
 pub fn local_slot<T: 'static>(id: u64, init: impl FnOnce() -> T) -> Slot<T> {

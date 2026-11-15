@@ -54,7 +54,9 @@ cargo build --release --workspace                # Release（看性能、打包�
 zant create my-app
 cd my-app
 zant run
-zant run --watch              # 重启式热更新，非沙盒
+zant run                      # TSX 默认原地热刷新
+zant run --watch              # 旧重启模式，非沙盒
+zant run --no-hot             # 编译并运行一次
 zant compile --release        # 只编译
 zant package                  # 本机测试：macOS 生成 .app 并 codesign，Windows 生成 target/<标题>/ 目录
 zant build                    # 发布：签名、DMG / 公证 / App Store，或 Windows 安装包 / MSIX（docs/build.md）
@@ -87,7 +89,7 @@ crates/
   zant-build/           应用 build.rs 辅助：TSX → OUT_DIR、图标、Windows manifest、pdfium
   zant-cli/             zant 命令：create / run / compile / package / build / sync / update
   zant-examples/        示例：demo、gallery、components、markdown、md-stream、math、pdf
-scaffold/template-ts/   生成项目的模板（Cargo.toml + build.rs + src/App.tsx + native/）
+scaffold/template-ts/   生成项目的模板（Cargo.toml + src/App.tsx + native/{main,build}.rs）
 scripts/                Skia 依赖、cargo 包装、帧基准闸门、发布打包、Windows 测试机脚本
 docs/                   中文文档和截图
 third_party/            Skia 预编译依赖（不提交到 Git）
@@ -229,7 +231,7 @@ ui::styled(node, ui::Style {
   应用代码用 `include_bytes!("../assets/icons/<文件>")` 引用（TSX 里 `import icon from "…png"` 得到
   `Uint8Array`），Windows 编译时由 `zant_build` 生成 .ico 资源，`zant package` 在 macOS 生成 .icns；
   PNG 读写与缩放在 `crates/zant-cli/src/png.rs`（CLI 与 `zant-icon` 工具共用）。
-- 生成文件：`src/app_config.rs`（两端）、`Info.plist`、`app.entitlements`（仅 macOS），
+- 生成文件：`OUT_DIR/zant_app.rs`（构建器生成配置与模块树）、`Info.plist`、`app.entitlements`（仅 macOS），
   不要手改。Windows 上 `bundle_id` 用作 `%APPDATA%` 下的数据目录名（`zant::core::paths::app_data_dir`）。
 - 配置字段：标题、`bundle_id`、版本，`window` 下的 style/width/height/min/background/
   resizable/always_on_top/movable_by_background/center，以及 `macos.sandbox`、
@@ -283,12 +285,18 @@ ui::styled(node, ui::Style {
 
 ## 热更新
 
-- `zant run --watch`：监听 `src/`（`.rs` / `.tsx` / `.ts`，任意深度）、`native/`、
-  `app.config.json`、`Cargo.toml`、`build.rs`，自动重编译并重启。
-- 这是**重启式热更新**：窗口和内存状态会重建。
-- App Sandbox 模式下不支持自动重启。
-- macOS：编译失败时保留旧窗口并等待下一次改动。Windows 不能覆盖正在运行的 exe，
-  所以先结束应用再编译，编译失败时重新打开上一次的版本。
+- `zant run`：TSX 项目默认热刷新，监听 `src/` 的 `.tsx` / `.ts` 与 `native/` 的 Rust / 规范；
+  宿主持有窗口，只替换 UI 动态库。隐藏 crate 使用 `zant::hot_app!()` 与 `zant_build::hot_app(root)`。
+- 保留兼容的根 / 组件本地状态；按稳定 key 恢复滚动、列表、焦点、光标与选区。不兼容字段单独重置。
+  全局 store、任意 Rust 全局变量与外部资源不自动序列化；旧库暂不卸载，长会话会累积映射。
+- TSX / Rust 编译错误显示在运行中 UI 上，修复后清除；未改内容不重建，构建中的保存合并为下一轮。
+  `Cargo.toml` / `app.config.json` 修改会重启宿主并重建状态。
+- `--watch` 是旧重启模式（macOS 编译失败保留旧窗口；Windows 先关旧 exe，失败后打开旧版本）；
+  `--no-hot` 运行一次。热刷新走开发宿主，验证 App Sandbox 用 `--no-hot`；沙盒下 `--watch` 不自动重启。
+- 调试：`ZANT_HOT_TRACE=1` 分阶段计时，`ZANT_HOT_SNAPSHOT=<目录>` 每次加载截图及保存状态 JSON；
+  `ZANT_HOT_POLL=1` 为不能使用原生文件通知的环境启用 100 ms 内容轮询（正常开发不用）。
+  `ZANT_HOT_CONTROL=<FIFO>` 显式启用 host 回调回放；不代表真实桌面输入验证。
+  `scripts/tsx/hot-check.py` 与 `hot-profile.py` 的使用见 `docs/development.md`。
 - 修改框架本身后执行 `zant update` 更新全局二进制（工作区有未提交修改时只重新编译，不拉取）。
 - 一键安装：`install.sh` / `install.ps1` 下载 GitHub Release 的发布包（`scripts/release/package.sh` /
   `package.ps1` 打包，`.github/workflows/release.yml` 在推送 `v*` 标签时构建并发布）。发布包布局：
@@ -353,7 +361,7 @@ ui::styled(node, ui::Style {
     （扩展名由调用方给）。
 - Windows 构建：`crates/zant-sys/build.rs` 用 MSVC 把 Skia 桥接、PDF 与 `window.c` 直接编进可执行文件
   （不再有 `zant_skia.dll`；预编译 Skia 是 MSVC STL，ICU 数据与 STIX Two Math 用 `include_bytes!` 嵌入）；
-  应用的 `build.rs` 调 `zant_build::tsx_app()` 嵌入 manifest、把 `pdfium.dll` 拷到 exe 旁。
+  应用的 `native/build.rs` 调 `zant_build::tsx_app()` 嵌入 manifest、把 `pdfium.dll` 拷到 exe 旁。
 - 测试机：主机与目录写在不提交的 `scripts/win/.env`（`ZANT_WIN_HOST` / `ZANT_WIN_DIR`）；
   `scripts/win/sync.sh [../app]` 同步，`scripts/win/remote.sh <dir> '<cmd>'`
   远程执行，`scripts/win/run-desktop.ps1` 在可见桌面运行（SSH 会话看不到窗口）。

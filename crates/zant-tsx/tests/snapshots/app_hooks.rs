@@ -22,6 +22,24 @@ impl Default for App {
         }
     }
 }
+impl tsx::hot::Hot for App {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "dirty", self.dirty);
+        zant::hot_put!(snapshot, "asked", self.asked);
+        zant::hot_put!(snapshot, "last", self.last);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        zant::hot_get!(restore, "dirty", instance.dirty);
+        zant::hot_get!(restore, "asked", instance.asked);
+        zant::hot_get!(restore, "last", instance.last);
+        Some(instance)
+    }
+}
 impl App {
     fn _root_on_close_request(&mut self) -> bool {
         let dirty: bool = self.dirty;
@@ -44,6 +62,19 @@ impl App {
 impl ui::App for App {
     fn render(&mut self) -> ui::Node {
         return ui::text("stub", ui::TextOptions::default());
+    }
+    fn hot_save(&self) -> Option<String> {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "dirty", self.dirty);
+        zant::hot_put!(snapshot, "asked", self.asked);
+        zant::hot_put!(snapshot, "last", self.last);
+        Some(snapshot.finish())
+    }
+    fn hot_load(&mut self, state: &str) {
+        let restore = tsx::hot::Restore::parse(state);
+        zant::hot_get!(restore, "dirty", self.dirty);
+        zant::hot_get!(restore, "asked", self.asked);
+        zant::hot_get!(restore, "last", self.last);
     }
     fn on_close_request(&mut self) -> bool {
         Self::_root_on_close_request(self)

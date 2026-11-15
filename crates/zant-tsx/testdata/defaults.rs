@@ -15,6 +15,34 @@ pub struct BadgeProps {
     pub tone: Option<_Enum2>,
     pub bold: Option<bool>,
 }
+impl tsx::hot::Hot for BadgeProps {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "text", self.text);
+        zant::hot_put!(snapshot, "size", self.size);
+        zant::hot_put!(snapshot, "tone", self.tone);
+        zant::hot_put!(snapshot, "bold", self.bold);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        if !zant::hot_get!(restore, "text", instance.text) {
+            return None;
+        }
+        if !zant::hot_get!(restore, "size", instance.size) {
+            return None;
+        }
+        if !zant::hot_get!(restore, "tone", instance.tone) {
+            return None;
+        }
+        if !zant::hot_get!(restore, "bold", instance.bold) {
+            return None;
+        }
+        Some(instance)
+    }
+}
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum _Enum2 {
     #[default]
@@ -26,6 +54,18 @@ impl _Enum2 {
         match self {
             _Enum2::Info => "info",
             _Enum2::Warn => "warn",
+        }
+    }
+}
+impl tsx::hot::Hot for _Enum2 {
+    fn save(&self) -> tsx::hot::Value {
+        tsx::hot::Value::from(self.as_str())
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        match value.as_str()? {
+            "info" => Some(Self::Info),
+            "warn" => Some(Self::Warn),
+            _ => None,
         }
     }
 }
@@ -53,6 +93,15 @@ impl Default for Badge {
             props: Default::default(),
             _state: Default::default(),
         }
+    }
+}
+impl tsx::hot::Hot for Badge {
+    fn save(&self) -> tsx::hot::Value {
+        tsx::hot::Snapshot::new().value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        Some(Self::default())
     }
 }
 impl Badge {
@@ -86,6 +135,20 @@ pub struct App {
 impl Default for App {
     fn default() -> Self {
         Self { count: 0.0f64 }
+    }
+}
+impl tsx::hot::Hot for App {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "count", self.count);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        zant::hot_get!(restore, "count", instance.count);
+        Some(instance)
     }
 }
 impl App {
@@ -123,5 +186,14 @@ impl ui::App for App {
             ],
             ..Default::default()
         });
+    }
+    fn hot_save(&self) -> Option<String> {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "count", self.count);
+        Some(snapshot.finish())
+    }
+    fn hot_load(&mut self, state: &str) {
+        let restore = tsx::hot::Restore::parse(state);
+        zant::hot_get!(restore, "count", self.count);
     }
 }

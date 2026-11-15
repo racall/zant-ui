@@ -14,6 +14,30 @@ pub struct Todo {
     pub title: zant::Str,
     pub done: bool,
 }
+impl tsx::hot::Hot for Todo {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "id", self.id);
+        zant::hot_put!(snapshot, "title", self.title);
+        zant::hot_put!(snapshot, "done", self.done);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        if !zant::hot_get!(restore, "id", instance.id) {
+            return None;
+        }
+        if !zant::hot_get!(restore, "title", instance.title) {
+            return None;
+        }
+        if !zant::hot_get!(restore, "done", instance.done) {
+            return None;
+        }
+        Some(instance)
+    }
+}
 #[derive(Clone)]
 pub struct RowProps {
     pub todo: Todo,
@@ -29,6 +53,34 @@ impl Default for RowProps {
             onRemove: std::rc::Rc::new(|_: &mut ui::ActionCx<'_>, _: u32| ()),
             onRename: None,
         }
+    }
+}
+impl tsx::hot::Hot for RowProps {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "todo", self.todo);
+        zant::hot_put!(snapshot, "onToggle", self.onToggle);
+        zant::hot_put!(snapshot, "onRemove", self.onRemove);
+        zant::hot_put!(snapshot, "onRename", self.onRename);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        if !zant::hot_get!(restore, "todo", instance.todo) {
+            return None;
+        }
+        if !zant::hot_get!(restore, "onToggle", instance.onToggle) {
+            return None;
+        }
+        if !zant::hot_get!(restore, "onRemove", instance.onRemove) {
+            return None;
+        }
+        if !zant::hot_get!(restore, "onRename", instance.onRename) {
+            return None;
+        }
+        Some(instance)
     }
 }
 #[derive(Clone)]
@@ -48,6 +100,34 @@ impl Default for PanelProps {
         }
     }
 }
+impl tsx::hot::Hot for PanelProps {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "title", self.title);
+        zant::hot_put!(snapshot, "count", self.count);
+        zant::hot_put!(snapshot, "children", self.children);
+        zant::hot_put!(snapshot, "onClear", self.onClear);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        if !zant::hot_get!(restore, "title", instance.title) {
+            return None;
+        }
+        if !zant::hot_get!(restore, "count", instance.count) {
+            return None;
+        }
+        if !zant::hot_get!(restore, "children", instance.children) {
+            return None;
+        }
+        if !zant::hot_get!(restore, "onClear", instance.onClear) {
+            return None;
+        }
+        Some(instance)
+    }
+}
 pub struct TodoRow {
     props: TodoRowProps_,
     _state: std::rc::Weak<std::cell::RefCell<TodoRow>>,
@@ -59,6 +139,15 @@ impl Default for TodoRow {
             props: Default::default(),
             _state: Default::default(),
         }
+    }
+}
+impl tsx::hot::Hot for TodoRow {
+    fn save(&self) -> tsx::hot::Value {
+        tsx::hot::Snapshot::new().value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        Some(Self::default())
     }
 }
 impl TodoRow {
@@ -110,6 +199,15 @@ impl Default for Panel {
         }
     }
 }
+impl tsx::hot::Hot for Panel {
+    fn save(&self) -> tsx::hot::Value {
+        tsx::hot::Snapshot::new().value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        Some(Self::default())
+    }
+}
 impl Panel {
     pub fn build(props: PanelProps_) -> ui::Node {
         let mut instance = Panel {
@@ -148,6 +246,22 @@ impl Default for App {
             ),
             last: zant::Str::from(""),
         }
+    }
+}
+impl tsx::hot::Hot for App {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "todos", self.todos);
+        zant::hot_put!(snapshot, "last", self.last);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        zant::hot_get!(restore, "todos", instance.todos);
+        zant::hot_get!(restore, "last", instance.last);
+        Some(instance)
     }
 }
 impl App {
@@ -221,5 +335,16 @@ impl ui::App for App {
             ],
             ..Default::default()
         });
+    }
+    fn hot_save(&self) -> Option<String> {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "todos", self.todos);
+        zant::hot_put!(snapshot, "last", self.last);
+        Some(snapshot.finish())
+    }
+    fn hot_load(&mut self, state: &str) {
+        let restore = tsx::hot::Restore::parse(state);
+        zant::hot_get!(restore, "todos", self.todos);
+        zant::hot_get!(restore, "last", self.last);
     }
 }

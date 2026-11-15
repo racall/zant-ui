@@ -14,6 +14,30 @@ pub struct Item {
     pub title: zant::Str,
     pub done: bool,
 }
+impl tsx::hot::Hot for Item {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "id", self.id);
+        zant::hot_put!(snapshot, "title", self.title);
+        zant::hot_put!(snapshot, "done", self.done);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        if !zant::hot_get!(restore, "id", instance.id) {
+            return None;
+        }
+        if !zant::hot_get!(restore, "title", instance.title) {
+            return None;
+        }
+        if !zant::hot_get!(restore, "done", instance.done) {
+            return None;
+        }
+        Some(instance)
+    }
+}
 pub struct Feed {
     items: tsx::List<Item>,
     picked: u32,
@@ -33,6 +57,26 @@ impl Default for Feed {
             _list1: Default::default(),
             _list3: Default::default(),
         }
+    }
+}
+impl tsx::hot::Hot for Feed {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "items", self.items);
+        zant::hot_put!(snapshot, "picked", self.picked);
+        zant::hot_put!(snapshot, "_list1", self._list1);
+        zant::hot_put!(snapshot, "_list3", self._list3);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        zant::hot_get!(restore, "items", instance.items);
+        zant::hot_get!(restore, "picked", instance.picked);
+        zant::hot_get!(restore, "_list1", instance._list1);
+        zant::hot_get!(restore, "_list3", instance._list3);
+        Some(instance)
     }
 }
 #[derive(Clone)]
@@ -105,5 +149,20 @@ impl ui::App for Feed {
             ],
             ..Default::default()
         });
+    }
+    fn hot_save(&self) -> Option<String> {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "items", self.items);
+        zant::hot_put!(snapshot, "picked", self.picked);
+        zant::hot_put!(snapshot, "_list1", self._list1);
+        zant::hot_put!(snapshot, "_list3", self._list3);
+        Some(snapshot.finish())
+    }
+    fn hot_load(&mut self, state: &str) {
+        let restore = tsx::hot::Restore::parse(state);
+        zant::hot_get!(restore, "items", self.items);
+        zant::hot_get!(restore, "picked", self.picked);
+        zant::hot_get!(restore, "_list1", self._list1);
+        zant::hot_get!(restore, "_list3", self._list3);
     }
 }

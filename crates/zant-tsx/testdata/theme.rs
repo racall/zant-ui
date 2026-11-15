@@ -20,6 +20,22 @@ impl Default for Themed {
         }
     }
 }
+impl tsx::hot::Hot for Themed {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "active", self.active);
+        zant::hot_put!(snapshot, "last", self.last);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        zant::hot_get!(restore, "active", instance.active);
+        zant::hot_get!(restore, "last", instance.last);
+        Some(instance)
+    }
+}
 #[derive(Clone)]
 struct _Capture2 {
     theme: zant::theme::tokens::Theme,
@@ -66,5 +82,16 @@ impl ui::App for Themed {
             ],
             ..Default::default()
         });
+    }
+    fn hot_save(&self) -> Option<String> {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "active", self.active);
+        zant::hot_put!(snapshot, "last", self.last);
+        Some(snapshot.finish())
+    }
+    fn hot_load(&mut self, state: &str) {
+        let restore = tsx::hot::Restore::parse(state);
+        zant::hot_get!(restore, "active", self.active);
+        zant::hot_get!(restore, "last", self.last);
     }
 }

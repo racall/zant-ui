@@ -35,6 +35,7 @@ pub mod patch;
 pub mod pointer;
 pub mod reconcile;
 pub mod selection;
+pub mod view_state;
 pub mod window;
 
 use std::cell::{RefCell, RefMut};
@@ -89,6 +90,8 @@ pub struct Runtime {
     /// `ui::local_state` slots of this window's components.
     pub local_states: Rc<RefCell<Store>>,
     pub needs_build: bool,
+    pub(crate) pending_view_state: Option<view_state::Pending>,
+    pub(crate) view_lists: view_state::Lists,
     /// Hot reload: a message shown over the UI (a build error of the next
     /// version); `None` hides it.
     pub hot_notice: Option<String>,
@@ -200,6 +203,8 @@ impl Runtime {
             tree,
             local_states: Rc::new(RefCell::new(Store::new())),
             needs_build: true,
+            pending_view_state: None,
+            view_lists: Rc::default(),
             hot_notice: None,
             dispatch_depth: 0,
             layout_file: None,

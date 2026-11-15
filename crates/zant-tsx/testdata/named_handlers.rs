@@ -21,6 +21,26 @@ impl Default for _Object0 {
         }
     }
 }
+impl tsx::hot::Hot for _Object0 {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "label", self.label);
+        zant::hot_put!(snapshot, "onStep", self.onStep);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        if !zant::hot_get!(restore, "label", instance.label) {
+            return None;
+        }
+        if !zant::hot_get!(restore, "onStep", instance.onStep) {
+            return None;
+        }
+        Some(instance)
+    }
+}
 pub struct Stepper {
     props: StepperProps_,
     _state: std::rc::Weak<std::cell::RefCell<Stepper>>,
@@ -32,6 +52,15 @@ impl Default for Stepper {
             props: Default::default(),
             _state: Default::default(),
         }
+    }
+}
+impl tsx::hot::Hot for Stepper {
+    fn save(&self) -> tsx::hot::Value {
+        tsx::hot::Snapshot::new().value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        Some(Self::default())
     }
 }
 impl Stepper {
@@ -74,6 +103,26 @@ impl Default for App {
             said: zant::Str::from(""),
             _hotkey7: Default::default(),
         }
+    }
+}
+impl tsx::hot::Hot for App {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "count", self.count);
+        zant::hot_put!(snapshot, "name", self.name);
+        zant::hot_put!(snapshot, "said", self.said);
+        zant::hot_put!(snapshot, "_hotkey7", self._hotkey7);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        zant::hot_get!(restore, "count", instance.count);
+        zant::hot_get!(restore, "name", instance.name);
+        zant::hot_get!(restore, "said", instance.said);
+        zant::hot_get!(restore, "_hotkey7", instance._hotkey7);
+        Some(instance)
     }
 }
 #[derive(Clone)]
@@ -182,5 +231,20 @@ impl ui::App for App {
             ],
             ..Default::default()
         });
+    }
+    fn hot_save(&self) -> Option<String> {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "count", self.count);
+        zant::hot_put!(snapshot, "name", self.name);
+        zant::hot_put!(snapshot, "said", self.said);
+        zant::hot_put!(snapshot, "_hotkey7", self._hotkey7);
+        Some(snapshot.finish())
+    }
+    fn hot_load(&mut self, state: &str) {
+        let restore = tsx::hot::Restore::parse(state);
+        zant::hot_get!(restore, "count", self.count);
+        zant::hot_get!(restore, "name", self.name);
+        zant::hot_get!(restore, "said", self.said);
+        zant::hot_get!(restore, "_hotkey7", self._hotkey7);
     }
 }

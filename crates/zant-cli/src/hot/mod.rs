@@ -9,15 +9,17 @@
 //! Changes the library swap cannot apply (`Cargo.toml`, `app.config.json`:
 //! dependencies, window options) restart the host instead.
 
+mod process;
 mod project;
+mod workspace;
 
 use std::io::{BufRead, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Child, ChildStdin, Command, Stdio};
+use std::process::{ChildStdin, Command, Stdio};
 use std::sync::mpsc;
 use std::time::Instant;
 
-use notify::{RecommendedWatcher, RecursiveMode, Watcher};
+use notify::{RecursiveMode, Watcher};
 
 use crate::{IS_WINDOWS, fail, generate, load_config, ok, step};
 use generate::Need;
@@ -25,8 +27,8 @@ use project::Paths;
 
 /// What wakes the session loop.
 enum Event {
-    Changed,
-    HostExited,
+    Changed(Instant),
+    HostExited(u32),
 }
 
 /// Hot reload applies to TSX apps (`src/App.tsx`); other projects just run.
@@ -65,15 +67,17 @@ pub fn cmd_hot(release: bool) -> std::io::Result<()> {
     let mut last = crate::sources::stamp(&root);
     let mut restart_inputs = restart_stamp(&root);
     loop {
-        match rx.recv() {
-            Ok(Event::HostExited) | Err(_) => return Ok(()),
-            Ok(Event::Changed) => {}
-        }
+        let event_at = match rx.recv() {
+            Ok(Event::HostExited(id)) if id == host.id => return Ok(()),
+            Ok(Event::HostExited(_)) => continue,
+            Err(_) => return Ok(()),
+            Ok(Event::Changed(at)) => at,
+        };
         // coalesce the burst of events one save produces
         std::thread::sleep(std::time::Duration::from_millis(60));
         let mut exited = false;
         while let Ok(event) = rx.try_recv() {
-            exited |= matches!(event, Event::HostExited);
+            exited |= matches!(event, Event::HostExited(id) if id == host.id);
         }
         if exited {
             return Ok(());
@@ -84,6 +88,12 @@ pub fn cmd_hot(release: bool) -> std::io::Result<()> {
         }
         last = now;
         let begin = Instant::now();
+        if std::env::var_os("ZANT_HOT_TRACE").is_some() {
+            eprintln!(
+                "[zant-hot] event_debounce_ms={:.3}",
+                event_at.elapsed().as_secs_f64() * 1000.0
+            );
+        }
         let inputs = restart_stamp(&root);
         let restart = inputs != restart_inputs;
         restart_inputs = inputs;
@@ -120,7 +130,7 @@ pub fn cmd_hot(release: bool) -> std::io::Result<()> {
 /// Builds `zant-hot-host` and the shared native library (once per checkout;
 /// cargo makes later runs a no-op).
 fn build_host(zant_root: &Path, paths: &Paths) -> Result<(), String> {
-    let status = Command::new(crate::cargo_exe())
+    let status = process::cargo()
         .args(["build", "-p", "zant-hot-host", "--manifest-path"])
         .arg(zant_root.join("Cargo.toml"))
         .env("CARGO_TARGET_DIR", &paths.zant_dir)
@@ -166,7 +176,7 @@ fn copy_if_newer(from: &Path, to: &Path) -> Result<(), String> {
 /// Builds the UI library and copies it to a fresh numbered file. On failure
 /// returns the compiler errors (also printed).
 fn build_library(paths: &Paths, release: bool, generation: &mut u32) -> Result<PathBuf, String> {
-    let mut command = Command::new(crate::cargo_exe());
+    let mut command = process::cargo();
     command
         .args(["build", "--lib", "--manifest-path"])
         .arg(paths.crate_dir.join("Cargo.toml"))
@@ -203,7 +213,22 @@ fn build_library(paths: &Paths, release: bool, generation: &mut u32) -> Result<P
     *generation += 1;
     let name = project::library_file(&format!("ui-{generation}"));
     let copy = paths.gen_dir.join(name);
-    std::fs::copy(paths.built_library(release), &copy).map_err(|error| error.to_string())?;
+    let started = Instant::now();
+    // Each generation must keep its inode: never overwrite a mapped library.
+    // Cargo atomically replaces its output on the next build. A hard link
+    // retains the linker's signature cache; cross-device copies still work.
+    if copy.exists() {
+        std::fs::remove_file(&copy).map_err(|error| error.to_string())?;
+    }
+    if std::fs::hard_link(paths.built_library(release), &copy).is_err() {
+        std::fs::copy(paths.built_library(release), &copy).map_err(|error| error.to_string())?;
+    }
+    if std::env::var_os("ZANT_HOT_TRACE").is_some() {
+        eprintln!(
+            "[zant-hot] copy_ms={:.3}",
+            started.elapsed().as_secs_f64() * 1000.0
+        );
+    }
     Ok(copy)
 }
 
@@ -261,25 +286,46 @@ fn restart_stamp(root: &str) -> Vec<u8> {
     out
 }
 
-fn watch(root: &str, tx: mpsc::Sender<Event>) -> RecommendedWatcher {
-    let mut watcher: RecommendedWatcher =
-        notify::recommended_watcher(move |event: notify::Result<notify::Event>| {
-            if event.is_ok() {
-                let _ = tx.send(Event::Changed);
-            }
-        })
-        .unwrap_or_else(|err| fail(format!("无法监听文件变化：{err}")));
+fn watch(root: &str, tx: mpsc::Sender<Event>) -> Box<dyn Watcher> {
+    let handler = move |event: notify::Result<notify::Event>| match event {
+        Ok(_) => {
+            let _ = tx.send(Event::Changed(Instant::now()));
+        }
+        Err(error) => eprintln!("[zant] 文件监听失败：{error}"),
+    };
+    let mut watcher: Box<dyn Watcher> = if std::env::var_os("ZANT_HOT_POLL").is_some() {
+        eprintln!("[zant] 使用 100 ms 内容轮询（ZANT_HOT_POLL）");
+        Box::new(
+            notify::PollWatcher::new(
+                handler,
+                notify::Config::default()
+                    .with_poll_interval(std::time::Duration::from_millis(100))
+                    .with_compare_contents(true),
+            )
+            .unwrap_or_else(|error| fail(error.to_string())),
+        )
+    } else {
+        Box::new(
+            notify::recommended_watcher(handler).unwrap_or_else(|error| fail(error.to_string())),
+        )
+    };
     let mut watched_any = false;
     for dir in crate::sources::WATCH_DIRS {
         let path = Path::new(root).join(dir);
-        if path.is_dir() && watcher.watch(&path, RecursiveMode::Recursive).is_ok() {
-            watched_any = true;
+        if path.is_dir() {
+            match watcher.watch(&path, RecursiveMode::Recursive) {
+                Ok(()) => watched_any = true,
+                Err(error) => eprintln!("[zant] {}: {error}", path.display()),
+            }
         }
     }
     for file in crate::sources::WATCH_FILES {
         let path = Path::new(root).join(file);
-        if path.is_file() && watcher.watch(&path, RecursiveMode::NonRecursive).is_ok() {
-            watched_any = true;
+        if path.is_file() {
+            match watcher.watch(&path, RecursiveMode::NonRecursive) {
+                Ok(()) => watched_any = true,
+                Err(error) => eprintln!("[zant] {}: {error}", path.display()),
+            }
         }
     }
     if !watched_any {
@@ -288,10 +334,11 @@ fn watch(root: &str, tx: mpsc::Sender<Event>) -> RecommendedWatcher {
     watcher
 }
 
-/// The running `zant-hot-host`.
+/// The running `zant-hot-host`. Its waiter blocks in the OS, without polling.
 struct Host {
-    child: Child,
+    id: u32,
     stdin: Option<ChildStdin>,
+    waiter: Option<std::thread::JoinHandle<()>>,
 }
 
 impl Host {
@@ -307,23 +354,25 @@ impl Host {
             .current_dir(root)
             .stdin(Stdio::piped())
             .stdout(Stdio::inherit());
-        let filter = !(crate::raw_logs() || IS_WINDOWS);
-        if filter {
+        if !(crate::raw_logs() || IS_WINDOWS) {
             command.stderr(Stdio::piped());
         }
-        let mut child = command.spawn().map_err(|error| {
-            std::io::Error::other(format!("无法启动 {}: {error}", paths.host_exe().display()))
-        })?;
+        let mut child = command.spawn()?;
         if let Some(stderr) = child.stderr.take() {
             std::thread::spawn(move || crate::filter_stderr(stderr));
         }
         let stdin = child.stdin.take();
         let id = child.id();
-        std::thread::spawn(move || {
-            wait_for(id);
-            let _ = tx.send(Event::HostExited);
+        eprintln!("[zant] host_pid={id}");
+        let waiter = std::thread::spawn(move || {
+            let _ = child.wait();
+            let _ = tx.send(Event::HostExited(id));
         });
-        Ok(Host { child, stdin })
+        Ok(Host {
+            id,
+            stdin,
+            waiter: Some(waiter),
+        })
     }
 
     fn send(&mut self, line: &str) {
@@ -335,52 +384,12 @@ impl Host {
     }
 
     fn stop(mut self) {
+        // EOF asks the host to quit. The same mechanism handles a CLI killed
+        // by Ctrl+C, even when only the parent receives the signal.
         self.stdin = None;
-        let _ = self.child.kill();
-        let _ = self.child.wait();
-    }
-}
-
-/// Blocks until the process `id` ended (polling; the `Child` stays with
-/// [`Host`] so it can be killed for a restart).
-fn wait_for(id: u32) {
-    loop {
-        std::thread::sleep(std::time::Duration::from_millis(250));
-        if !process_alive(id) {
-            return;
+        if let Some(waiter) = self.waiter.take() {
+            let _ = waiter.join();
         }
-    }
-}
-
-#[cfg(unix)]
-fn process_alive(id: u32) -> bool {
-    unsafe extern "C" {
-        fn kill(pid: i32, signal: i32) -> i32;
-    }
-    // SAFETY: signal 0 only checks that the process exists.
-    unsafe { kill(id as i32, 0) == 0 }
-}
-
-#[cfg(windows)]
-fn process_alive(id: u32) -> bool {
-    #[link(name = "kernel32")]
-    unsafe extern "system" {
-        fn OpenProcess(access: u32, inherit: i32, id: u32) -> *mut std::ffi::c_void;
-        fn GetExitCodeProcess(process: *mut std::ffi::c_void, code: *mut u32) -> i32;
-        fn CloseHandle(handle: *mut std::ffi::c_void) -> i32;
-    }
-    const PROCESS_QUERY_LIMITED_INFORMATION: u32 = 0x1000;
-    const STILL_ACTIVE: u32 = 259;
-    // SAFETY: plain Win32 calls on a handle we own.
-    unsafe {
-        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, id);
-        if handle.is_null() {
-            return false;
-        }
-        let mut code = 0u32;
-        let ok = GetExitCodeProcess(handle, &mut code);
-        CloseHandle(handle);
-        ok != 0 && code == STILL_ACTIVE
     }
 }
 

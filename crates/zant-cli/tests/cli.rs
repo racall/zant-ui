@@ -105,13 +105,11 @@ fn create_then_sync_writes_the_ts_template_and_generated_config() {
     for file in [
         "app.config.json",
         "Cargo.toml",
-        "build.rs",
+        "native/build.rs",
         "rust-toolchain.toml",
-        "src/main.rs",
+        "native/main.rs",
         "src/App.tsx",
         "src/components/Dashboard.tsx",
-        "src/app_config.rs",
-        "native/lib.rs",
         "native/system.rs",
         "native/system.ts",
         "assets/icons/app-macos.png",
@@ -141,33 +139,16 @@ fn create_then_sync_writes_the_ts_template_and_generated_config() {
     // `zant sync` generates the per-platform files; no cargo build involved.
     let output = run(zant().current_dir(&project).arg("sync"));
     assert!(output.status.success(), "{}", stderr(&output));
-    let generated = std::fs::read_to_string(project.join("src/app_config.rs")).expect("config rs");
-    assert!(
-        generated.contains("pub const title: &str = \"Demo App\";"),
-        "{generated}"
-    );
-    assert!(
-        generated.contains("style: zant::WindowStyle::Native,"),
-        "{generated}"
-    );
+    assert!(!project.join("src/app_config.rs").exists());
     if cfg!(target_os = "macos") {
         assert!(project.join("Info.plist").is_file());
         let config = std::fs::read_to_string(project.join("app.config.json")).expect("config");
         assert!(config.contains("\"macos\""), "{config}");
         assert!(config.contains("\"sandbox\": false"), "{config}");
     }
-    // Running sync again does not rewrite the generated file (watch mode
-    // must not see its own output as an edit).
-    let before = std::fs::metadata(project.join("src/app_config.rs"))
-        .and_then(|meta| meta.modified())
-        .expect("mtime");
-    std::thread::sleep(std::time::Duration::from_millis(10));
     let output = run(zant().current_dir(&project).arg("sync"));
     assert!(output.status.success());
-    let after = std::fs::metadata(project.join("src/app_config.rs"))
-        .and_then(|meta| meta.modified())
-        .expect("mtime");
-    assert_eq!(before, after);
+    assert!(!project.join("src/app_config.rs").exists());
 }
 
 /// A minimal plain-Rust application project (no TSX, no build script):

@@ -7,7 +7,7 @@ TSX 在编译期转成 Rust，没有 JS 运行时，也不需要 npm。应用标
 zant run
 zant run --watch      # 修改 src/ 后重新编译并重启，状态会重建
 zant compile          # 只编译
-zant sync             # 从 app.config.json 重新生成 src/app_config.rs
+zant sync             # 重新生成本平台的打包文件（macOS：Info.plist / entitlements）
 zant package          # 本机测试包
 zant build            # 发布构建
 ```
@@ -16,11 +16,10 @@ zant build            # 发布构建
 
 - `src/App.tsx`：根组件，持有输入框和计数状态。
 - `src/components/`：Dashboard / StatCard / CounterCard，通过 props 和回调共享状态。
-- `src/main.rs`：入口；include `build.rs` 生成的组件树，注册原生模块，用 `zant::tsx::app::run` 启动。
-- `src/app_config.rs`：`zant` 从 `app.config.json` 生成（`zant create` / `zant sync`），不要手改。
-- `native/`：原生模块。`system.ts` 是接口规范，`system.rs` 是 Rust 实现，`lib.rs` 登记；
+- `native/main.rs`：一行 `zant::app!();`，引入构建生成的模块与入口。
+- `native/`：原生模块。`system.ts` 是接口规范，`system.rs` 是 Rust 实现，构建时自动登记；
   TSX 用 `import { info } from "native/system"` 直接调用，类型不一致时编译报错。
-- `build.rs`：调用 `zant_build::tsx_app()`：`src/**/*.tsx` → `OUT_DIR`（模块 + `main.rs`），
+- `native/build.rs`：调用 `zant_build::tsx_app()`：`src/**/*.tsx` → `OUT_DIR`（模块 + `main.rs`），
   Windows 的 manifest / `.ico` 与 `pdfium.dll` 也在这一步处理。
 - `Cargo.toml` / `rust-toolchain.toml`：单个 Cargo package，stable 工具链；
   Zant UI 的依赖是相对路径（由 `zant create` 写入）。项目是独立 workspace，
@@ -34,3 +33,10 @@ zant build            # 发布构建
 原生模块：[native 文档](https://github.com/racall/zant-ui/blob/main/docs/tsx-native.md)；
 脚手架：[docs/scaffold.md](https://github.com/racall/zant-ui/blob/main/docs/scaffold.md)；
 发布：[构建文档](https://github.com/racall/zant-ui/blob/main/docs/build.md)。
+
+应用的 `src/` 只放 `.tsx` / `.ts`，所有 Rust 文件都在 `native/`。
+`Cargo.toml` 设置 `build = "native/build.rs"` 和 `[[bin]] path = "native/main.rs"`。
+构建器在 `$OUT_DIR/zant_app.rs` 生成配置、原生模块树、规范类型与注册、TSX 模块声明；
+`zant_main.rs` 启动应用，`zant_hot.rs` 提供热重载入口（`zant::hot_app!()`）。
+新增原生能力只需 `native/<名字>.ts` + `native/<名字>.rs`；顶层无规范的 `.rs` 是内部模块，
+自动声明但不注册，子目录由普通 `mod` 引入。生成代码不写回项目目录。

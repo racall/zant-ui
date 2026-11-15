@@ -56,6 +56,7 @@ pub mod builtins_format;
 pub mod desktop;
 #[forbid(unsafe_code)]
 pub mod hooks;
+pub mod hot;
 #[forbid(unsafe_code)]
 pub mod ids;
 #[forbid(unsafe_code)]

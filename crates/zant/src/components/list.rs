@@ -712,6 +712,7 @@ pub fn list(state: &Rc<RefCell<ListState>>, options: ListOptions) -> Node {
     let theme = current_theme();
     let key = options.key.clone();
     let viewport_key: Str = frame_string(&format!("{}-viewport", key.as_str()));
+    crate::runtime::view_state::register_list(viewport_key.as_str(), state);
     let content_key: Str = frame_string(&format!("{}-content", key.as_str()));
     let bar_key: Str = frame_string(&format!("{}-bar", key.as_str()));
 

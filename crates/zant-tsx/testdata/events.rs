@@ -22,6 +22,24 @@ impl Default for Events {
         }
     }
 }
+impl tsx::hot::Hot for Events {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "count", self.count);
+        zant::hot_put!(snapshot, "name", self.name);
+        zant::hot_put!(snapshot, "on", self.on);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        zant::hot_get!(restore, "count", instance.count);
+        zant::hot_get!(restore, "name", instance.name);
+        zant::hot_get!(restore, "on", instance.on);
+        Some(instance)
+    }
+}
 impl Events {
     fn twice(&mut self, count: u32) -> u32 {
         return count * 2u32;
@@ -201,5 +219,18 @@ impl ui::App for Events {
             ],
             ..Default::default()
         });
+    }
+    fn hot_save(&self) -> Option<String> {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "count", self.count);
+        zant::hot_put!(snapshot, "name", self.name);
+        zant::hot_put!(snapshot, "on", self.on);
+        Some(snapshot.finish())
+    }
+    fn hot_load(&mut self, state: &str) {
+        let restore = tsx::hot::Restore::parse(state);
+        zant::hot_get!(restore, "count", self.count);
+        zant::hot_get!(restore, "name", self.name);
+        zant::hot_get!(restore, "on", self.on);
     }
 }

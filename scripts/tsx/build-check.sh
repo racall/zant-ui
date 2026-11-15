@@ -35,6 +35,11 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.94"
 publish = false
+build = "native/build.rs"
+
+[[bin]]
+name = "zant-build-fixture"
+path = "native/main.rs"
 
 [dependencies]
 zant = { path = "$repo/crates/zant" }
@@ -48,7 +53,7 @@ overflow-checks = true
 [workspace]
 EOF
 
-cat >"$work/app/build.rs" <<'EOF'
+cat >"$work/app/native/build.rs" <<'EOF'
 fn main() {
     zant_build::tsx_app();
 }

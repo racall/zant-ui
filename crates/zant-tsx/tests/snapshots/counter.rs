@@ -20,6 +20,22 @@ impl Default for Counter {
         }
     }
 }
+impl tsx::hot::Hot for Counter {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "count", self.count);
+        zant::hot_put!(snapshot, "name", self.name);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        zant::hot_get!(restore, "count", instance.count);
+        zant::hot_get!(restore, "name", instance.name);
+        Some(instance)
+    }
+}
 impl Counter {
     fn _set_name(&mut self, value: &str) {
         let _ = value;
@@ -45,5 +61,16 @@ impl ui::App for Counter {
         let doubled: u32 = self.count * 2u32;
         let _ = doubled;
         return ui::text("stub", ui::TextOptions::default());
+    }
+    fn hot_save(&self) -> Option<String> {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "count", self.count);
+        zant::hot_put!(snapshot, "name", self.name);
+        Some(snapshot.finish())
+    }
+    fn hot_load(&mut self, state: &str) {
+        let restore = tsx::hot::Restore::parse(state);
+        zant::hot_get!(restore, "count", self.count);
+        zant::hot_get!(restore, "name", self.name);
     }
 }

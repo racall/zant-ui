@@ -4,8 +4,8 @@
 #   scripts/tsx/examples-check.sh
 #
 # The examples are Cargo workspace members under `crates/zant-examples/tsx/`
-# (the `scaffold/template-ts` shape: `build.rs` → `zant_build::try_tsx_app()`,
-# `src/main.rs` → `zant::tsx::app::run`), so a plain workspace build covers
+# (the `scaffold/template-ts` shape: `native/build.rs` → `zant_build::tsx_app()`,
+# `native/main.rs` → `zant::app!()`), so a plain workspace build covers
 # them. This script then runs each app headless and asserts:
 #
 #   1. it builds and starts with `ZANT_SNAPSHOT` (the runtime takes the window

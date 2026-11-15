@@ -42,14 +42,27 @@ impl Instance {
         window: *mut ffi::ZantWindow,
         state: Option<&str>,
     ) -> (Instance, ffi::ZantHost) {
-        if let Some(state) = state {
+        let envelope = state.and_then(|text| serde_json::from_str::<serde_json::Value>(text).ok());
+        if let Some(value) = envelope.as_ref().and_then(|v| v.get("app")) {
+            app.hot_load(&value.to_string());
+        } else if let Some(state) = state {
             app.hot_load(state);
         }
         crate::motion::motion::set_enabled(
             !(crate::ui::app::env_flag("ZANT_NO_MOTION")
+                || std::env::var_os("ZANT_HOT_SNAPSHOT").is_some()
                 || crate::platform::platform::reduce_motion()),
         );
         let core = Rc::new(RefCell::new(Runtime::init(app, options)));
+        if let Some(local) = envelope.as_ref().and_then(|v| v.get("local").cloned()) {
+            core.borrow()
+                .local_states
+                .borrow_mut()
+                .set_pending_hot(local);
+        }
+        if let Some(view) = envelope.as_ref().and_then(|v| v.get("view").cloned()) {
+            core.borrow_mut().restore_view_state(view);
+        }
         let (window, host) = Window::adopt(
             window,
             crate::runtime::host::RuntimeHost::boxed(Rc::clone(&core)),
@@ -69,7 +82,13 @@ impl Instance {
     /// The state the next version restores.
     pub fn save(&self) -> Option<String> {
         let app = self.core.borrow().shared_app();
-        app.borrow().hot_save()
+        let app = app
+            .borrow()
+            .hot_save()
+            .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok());
+        let local = self.core.borrow().local_states.borrow().save_hot();
+        let view = self.core.borrow().view_state();
+        Some(serde_json::json!({"app": app, "local": local, "view": view}).to_string())
     }
 
     /// Shows `text` over the UI (a build error); `None` hides it.

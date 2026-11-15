@@ -162,7 +162,7 @@ fn custom_hooks_are_inlined_into_their_callers() {
     contains(app, "useCounter_count");
     contains(app, "crate::config::step()");
     // the child component from the same file keeps its own local-state slot
-    contains(app, "ui::local_state::<");
+    contains(app, "ui::local_state::local_state_hot::<");
     let counter = module(&output, "useCounter.rs");
     assert!(
         !counter.contains("fn useCounter"),

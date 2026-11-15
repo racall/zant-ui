@@ -22,6 +22,24 @@ impl Default for App {
         }
     }
 }
+impl tsx::hot::Hot for App {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "draft", self.draft);
+        zant::hot_put!(snapshot, "copied", self.copied);
+        zant::hot_put!(snapshot, "until", self.until);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        zant::hot_get!(restore, "draft", instance.draft);
+        zant::hot_get!(restore, "copied", instance.copied);
+        zant::hot_get!(restore, "until", instance.until);
+        Some(instance)
+    }
+}
 impl App {
     fn copy(&mut self) {
         let draft: zant::Str = self.draft.clone();
@@ -67,5 +85,18 @@ impl ui::App for App {
         );
         let _ = hint;
         return ui::text("stub", ui::TextOptions::default());
+    }
+    fn hot_save(&self) -> Option<String> {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "draft", self.draft);
+        zant::hot_put!(snapshot, "copied", self.copied);
+        zant::hot_put!(snapshot, "until", self.until);
+        Some(snapshot.finish())
+    }
+    fn hot_load(&mut self, state: &str) {
+        let restore = tsx::hot::Restore::parse(state);
+        zant::hot_get!(restore, "draft", self.draft);
+        zant::hot_get!(restore, "copied", self.copied);
+        zant::hot_get!(restore, "until", self.until);
     }
 }

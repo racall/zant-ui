@@ -520,6 +520,7 @@ fn emit_component(
         out.push_str("}\n\n");
         out.push_str(&format!("{props_type}\n\n"));
         out.push_str(&default_impl(g, &name, &component_data)?);
+        out.push_str(&hot_impl(&name, &fields, false));
         out.push_str(&captures);
         out.push_str(&format!("impl {name} {{\n"));
         out.push_str(&builder_function(g, &name, &component_data, &props_name)?);
@@ -554,6 +555,7 @@ fn emit_component(
         // `useState` initial values
         out.push_str(&format!("pub struct {name} {{\n{fields}}}\n\n"));
         out.push_str(&default_impl(g, &name, &root_component_stub())?);
+        out.push_str(&hot_impl(&name, &fields, false));
         out.push_str(&captures);
         out.push_str(&format!("impl {name} {{\n"));
         for method in methods {
@@ -564,12 +566,65 @@ fn emit_component(
         out.push_str(&format!(
             "impl ui::App for {name} {{\nfn render(&mut self) -> ui::Node {{\n{render_body}}}\n"
         ));
+        let (save, load) = hot_fields(&fields);
+        let mutable = if fields.trim().is_empty() { "" } else { "mut " };
+        let restore_name = if fields.trim().is_empty() {
+            "_restore"
+        } else {
+            "restore"
+        };
+        out.push_str(&format!("fn hot_save(&self) -> Option<String> {{ let {mutable}snapshot = tsx::hot::Snapshot::new(); {save} Some(snapshot.finish()) }}\nfn hot_load(&mut self, state: &str) {{ let {restore_name} = tsx::hot::Restore::parse(state); {load} }}\n"));
         if let Some(hook) = g.extensions.app_lifecycle {
             out.push_str(&hook(g)?);
         }
         out.push_str("}\n");
     }
     Ok(out)
+}
+
+/// Emit field dispatch with concrete types so autoref specialization can skip
+/// bookkeeping and unsupported application values.
+fn hot_fields(fields: &str) -> (String, String) {
+    let mut save = String::new();
+    let mut load = String::new();
+    for line in fields.lines() {
+        let Some((field, _)) = line.trim().split_once(':') else {
+            continue;
+        };
+        save.push_str(&format!(
+            "zant::hot_put!(snapshot, {field:?}, self.{field});\n"
+        ));
+        load.push_str(&format!(
+            "zant::hot_get!(restore, {field:?}, self.{field});\n"
+        ));
+    }
+    (save, load)
+}
+
+pub(super) fn hot_impl(name: &str, fields: &str, strict: bool) -> String {
+    if fields.trim().is_empty() {
+        return parse_and_format(&format!("impl tsx::hot::Hot for {name} {{
+            fn save(&self) -> tsx::hot::Value {{ tsx::hot::Snapshot::new().value() }}
+            fn load(value: &tsx::hot::Value) -> Option<Self> {{ value.as_object()?; Some(Self::default()) }}
+        }}\n"));
+    }
+    let (save, load) = hot_fields(fields);
+    let load = load.replace("self.", "instance.");
+    let load = if strict {
+        load.lines()
+            .map(|line| format!("if !{} {{ return None; }}\n", line.trim_end_matches(';')))
+            .collect::<String>()
+    } else {
+        load
+    };
+    parse_and_format(&format!("impl tsx::hot::Hot for {name} {{
+        fn save(&self) -> tsx::hot::Value {{ let mut snapshot = tsx::hot::Snapshot::new(); {save} snapshot.value() }}
+        fn load(value: &tsx::hot::Value) -> Option<Self> {{
+            value.as_object()?;
+            let restore = tsx::hot::Restore::parse(&value.to_string());
+            let mut instance = Self::default(); {load} Some(instance)
+        }}
+    }}\n"))
 }
 
 /// A stand-in for the root "component data" (no props, no id).
@@ -679,7 +734,7 @@ fn builder_function(
     }
     Ok(format!(
         "\npub fn build({props_argument}, id: u64) -> ui::Node {{\n\
-         let state: std::rc::Rc<std::cell::RefCell<{name}>> = ui::local_state::<{name}>(id, {name}::default);\n\
+         let state: std::rc::Rc<std::cell::RefCell<{name}>> = ui::local_state::local_state_hot::<{name}>(id, {name}::default);\n\
          {{\n\
          let mut instance = state.borrow_mut();\n\
          instance.props = props;\n\

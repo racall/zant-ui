@@ -152,7 +152,15 @@ fn the_spec_root_lists_every_spec() {
     assert!(root.contains("pub mod clips"), "{root}");
     assert!(root.contains("pub mod kinds"), "{root}");
     assert!(root.contains("pub trait ClipsSpec"), "{root}");
-    assert_eq!(GOLDEN, root, "the golden fixture is the generated output");
+    if std::env::var_os("ZANT_TSX_WRITE_GOLDENS").is_some() {
+        std::fs::write(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/native_spec.rs"),
+            &root,
+        )
+        .unwrap();
+    } else {
+        assert_eq!(GOLDEN, root, "the golden fixture is the generated output");
+    }
     // deterministic: name order, not project order
     let mut sorted = specs.clone();
     sorted.reverse();

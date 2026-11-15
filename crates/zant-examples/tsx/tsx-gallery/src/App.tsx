@@ -1,3 +1,4 @@
+import { label } from "native/probe";
 // Zant components written in TSX and compiled to Rust at build time
 // (`docs/tsx.md`). Run it with `cargo run -p zant-tsx-gallery`. One page
 // with the components a TSX app uses most.
@@ -27,8 +28,9 @@ export default function Gallery() {
   return (
     <View flex={1}>
       <View key="page" padding={24} gap={16} overflow="scroll" height="100%" alignItems="flex-start">
-        <Heading level={2}>TSX component gallery</Heading>
+        <Heading level={2}>TSX component gallery measured before</Heading>
         <Paragraph>Every component on this page is written in TSX and compiled to native Rust.</Paragraph>
+        <Paragraph>{label()}</Paragraph>
         <Row gap={16} alignItems="flex-start">
           <Card key="inputs" title="Inputs" width={420} gap={12}>
             <Input key="name" value={name} placeholder="Your name" onChange={setName} />

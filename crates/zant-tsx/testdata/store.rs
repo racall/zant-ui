@@ -15,6 +15,34 @@ pub struct Settings {
     pub user: zant::Str,
     pub recent: tsx::List<zant::Str>,
 }
+impl tsx::hot::Hot for Settings {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "dark", self.dark);
+        zant::hot_put!(snapshot, "fontSize", self.fontSize);
+        zant::hot_put!(snapshot, "user", self.user);
+        zant::hot_put!(snapshot, "recent", self.recent);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        if !zant::hot_get!(restore, "dark", instance.dark) {
+            return None;
+        }
+        if !zant::hot_get!(restore, "fontSize", instance.fontSize) {
+            return None;
+        }
+        if !zant::hot_get!(restore, "user", instance.user) {
+            return None;
+        }
+        if !zant::hot_get!(restore, "recent", instance.recent) {
+            return None;
+        }
+        Some(instance)
+    }
+}
 thread_local! {
     static SETTINGS : std::cell::RefCell < zant::store::Store < Settings >> =
     std::cell::RefCell::new(zant::store::Store::new(Settings { dark : false, fontSize :
@@ -45,6 +73,15 @@ impl Default for ThemeToggle {
             props: Default::default(),
             _state: Default::default(),
         }
+    }
+}
+impl tsx::hot::Hot for ThemeToggle {
+    fn save(&self) -> tsx::hot::Value {
+        tsx::hot::Snapshot::new().value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        Some(Self::default())
     }
 }
 impl ThemeToggle {
@@ -91,6 +128,15 @@ impl Default for FontSize {
             props: Default::default(),
             _state: Default::default(),
         }
+    }
+}
+impl tsx::hot::Hot for FontSize {
+    fn save(&self) -> tsx::hot::Value {
+        tsx::hot::Snapshot::new().value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        Some(Self::default())
     }
 }
 #[derive(Clone)]
@@ -144,6 +190,20 @@ pub struct App {
 impl Default for App {
     fn default() -> Self {
         Self { _deps6: Default::default() }
+    }
+}
+impl tsx::hot::Hot for App {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "_deps6", self._deps6);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        zant::hot_get!(restore, "_deps6", instance._deps6);
+        Some(instance)
     }
 }
 #[derive(Clone)]
@@ -202,5 +262,14 @@ impl ui::App for App {
             ],
             ..Default::default()
         });
+    }
+    fn hot_save(&self) -> Option<String> {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "_deps6", self._deps6);
+        Some(snapshot.finish())
+    }
+    fn hot_load(&mut self, state: &str) {
+        let restore = tsx::hot::Restore::parse(state);
+        zant::hot_get!(restore, "_deps6", self._deps6);
     }
 }

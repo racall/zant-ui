@@ -22,9 +22,37 @@ impl Mode {
         }
     }
 }
+impl tsx::hot::Hot for Mode {
+    fn save(&self) -> tsx::hot::Value {
+        tsx::hot::Value::from(self.as_str())
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        match value.as_str()? {
+            "a" => Some(Self::A),
+            "b" => Some(Self::B),
+            _ => None,
+        }
+    }
+}
 #[derive(Clone, PartialEq, Default)]
 pub struct _Object2 {
     pub values: tsx::List<f64>,
+}
+impl tsx::hot::Hot for _Object2 {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "values", self.values);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        if !zant::hot_get!(restore, "values", instance.values) {
+            return None;
+        }
+        Some(instance)
+    }
 }
 fn NUMBERS() -> tsx::List<f64> {
     thread_local! {
@@ -44,6 +72,15 @@ impl Default for Sum {
             props: Default::default(),
             _state: Default::default(),
         }
+    }
+}
+impl tsx::hot::Hot for Sum {
+    fn save(&self) -> tsx::hot::Value {
+        tsx::hot::Snapshot::new().value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        Some(Self::default())
     }
 }
 impl Sum {
@@ -92,6 +129,28 @@ impl Default for App {
             visits: 0.0f64,
             _deps4: Default::default(),
         }
+    }
+}
+impl tsx::hot::Hot for App {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "result", self.result);
+        zant::hot_put!(snapshot, "mounted", self.mounted);
+        zant::hot_put!(snapshot, "items", self.items);
+        zant::hot_put!(snapshot, "visits", self.visits);
+        zant::hot_put!(snapshot, "_deps4", self._deps4);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        zant::hot_get!(restore, "result", instance.result);
+        zant::hot_get!(restore, "mounted", instance.mounted);
+        zant::hot_get!(restore, "items", instance.items);
+        zant::hot_get!(restore, "visits", instance.visits);
+        zant::hot_get!(restore, "_deps4", instance._deps4);
+        Some(instance)
     }
 }
 impl App {
@@ -453,5 +512,22 @@ impl ui::App for App {
             ],
             ..Default::default()
         });
+    }
+    fn hot_save(&self) -> Option<String> {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "result", self.result);
+        zant::hot_put!(snapshot, "mounted", self.mounted);
+        zant::hot_put!(snapshot, "items", self.items);
+        zant::hot_put!(snapshot, "visits", self.visits);
+        zant::hot_put!(snapshot, "_deps4", self._deps4);
+        Some(snapshot.finish())
+    }
+    fn hot_load(&mut self, state: &str) {
+        let restore = tsx::hot::Restore::parse(state);
+        zant::hot_get!(restore, "result", self.result);
+        zant::hot_get!(restore, "mounted", self.mounted);
+        zant::hot_get!(restore, "items", self.items);
+        zant::hot_get!(restore, "visits", self.visits);
+        zant::hot_get!(restore, "_deps4", self._deps4);
     }
 }

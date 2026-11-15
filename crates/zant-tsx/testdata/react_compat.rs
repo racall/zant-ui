@@ -30,9 +30,27 @@ impl Default for Child {
         }
     }
 }
+impl tsx::hot::Hot for Child {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "runs", self.runs);
+        zant::hot_put!(snapshot, "_memo2", self._memo2);
+        zant::hot_put!(snapshot, "_deps3", self._deps3);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        zant::hot_get!(restore, "runs", instance.runs);
+        zant::hot_get!(restore, "_memo2", instance._memo2);
+        zant::hot_get!(restore, "_deps3", instance._deps3);
+        Some(instance)
+    }
+}
 impl Child {
     pub fn build(props: ChildProps_, id: u64) -> ui::Node {
-        let state: std::rc::Rc<std::cell::RefCell<Child>> = ui::local_state::<
+        let state: std::rc::Rc<std::cell::RefCell<Child>> = ui::local_state::local_state_hot::<
             Child,
         >(id, Child::default);
         {
@@ -86,6 +104,22 @@ impl Default for App {
         Self { n: 0.0f64, visible: true }
     }
 }
+impl tsx::hot::Hot for App {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "n", self.n);
+        zant::hot_put!(snapshot, "visible", self.visible);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        zant::hot_get!(restore, "n", instance.n);
+        zant::hot_get!(restore, "visible", instance.visible);
+        Some(instance)
+    }
+}
 impl App {
     fn _on_click4(&mut self) {
         let n: f64 = self.n;
@@ -111,5 +145,16 @@ impl ui::App for App {
             ],
             ..Default::default()
         });
+    }
+    fn hot_save(&self) -> Option<String> {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "n", self.n);
+        zant::hot_put!(snapshot, "visible", self.visible);
+        Some(snapshot.finish())
+    }
+    fn hot_load(&mut self, state: &str) {
+        let restore = tsx::hot::Restore::parse(state);
+        zant::hot_get!(restore, "n", self.n);
+        zant::hot_get!(restore, "visible", self.visible);
     }
 }

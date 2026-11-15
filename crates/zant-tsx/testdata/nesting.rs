@@ -12,6 +12,22 @@ use zant::ui;
 pub struct CounterProps {
     pub label: zant::Str,
 }
+impl tsx::hot::Hot for CounterProps {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "label", self.label);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        if !zant::hot_get!(restore, "label", instance.label) {
+            return None;
+        }
+        Some(instance)
+    }
+}
 pub struct Counter {
     props: CounterProps_,
     _id: u64,
@@ -29,9 +45,23 @@ impl Default for Counter {
         }
     }
 }
+impl tsx::hot::Hot for Counter {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "n", self.n);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        zant::hot_get!(restore, "n", instance.n);
+        Some(instance)
+    }
+}
 impl Counter {
     pub fn build(props: CounterProps_, id: u64) -> ui::Node {
-        let state: std::rc::Rc<std::cell::RefCell<Counter>> = ui::local_state::<
+        let state: std::rc::Rc<std::cell::RefCell<Counter>> = ui::local_state::local_state_hot::<
             Counter,
         >(id, Counter::default);
         {
@@ -82,6 +112,26 @@ impl Default for App {
             cards: 0.0f64,
             page: 0.0f64,
         }
+    }
+}
+impl tsx::hot::Hot for App {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "open", self.open);
+        zant::hot_put!(snapshot, "clicks", self.clicks);
+        zant::hot_put!(snapshot, "cards", self.cards);
+        zant::hot_put!(snapshot, "page", self.page);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        zant::hot_get!(restore, "open", instance.open);
+        zant::hot_get!(restore, "clicks", instance.clicks);
+        zant::hot_get!(restore, "cards", instance.cards);
+        zant::hot_get!(restore, "page", instance.page);
+        Some(instance)
     }
 }
 impl App {
@@ -176,5 +226,20 @@ impl ui::App for App {
             ],
             ..Default::default()
         });
+    }
+    fn hot_save(&self) -> Option<String> {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "open", self.open);
+        zant::hot_put!(snapshot, "clicks", self.clicks);
+        zant::hot_put!(snapshot, "cards", self.cards);
+        zant::hot_put!(snapshot, "page", self.page);
+        Some(snapshot.finish())
+    }
+    fn hot_load(&mut self, state: &str) {
+        let restore = tsx::hot::Restore::parse(state);
+        zant::hot_get!(restore, "open", self.open);
+        zant::hot_get!(restore, "clicks", self.clicks);
+        zant::hot_get!(restore, "cards", self.cards);
+        zant::hot_get!(restore, "page", self.page);
     }
 }

@@ -21,6 +21,7 @@ type SlotValue = Rc<dyn Any>;
 
 struct Entry {
     value: SlotValue,
+    saver: Option<fn(&SlotValue) -> serde_json::Value>,
     /// Rebuild that last asked for this slot.
     seen: u64,
 }
@@ -35,6 +36,7 @@ pub struct Slot<T> {
 /// Runtime-owned store of local state slots.
 pub struct Store {
     entries: HashMap<u64, Entry>,
+    pending_hot: serde_json::Value,
     /// Rebuild counter; sweeping frees entries not seen in the current one.
     build: u64,
     /// Ids touched inside the memo build being reconciled (see `record`).
@@ -47,6 +49,7 @@ impl Store {
     pub fn new() -> Store {
         Store {
             entries: HashMap::new(),
+            pending_hot: serde_json::Value::Null,
             build: 0,
             recording: Vec::new(),
             building: false,
@@ -81,6 +84,7 @@ impl Store {
             id,
             Entry {
                 value: erased,
+                saver: None,
                 seen: self.build,
             },
         );
@@ -88,6 +92,45 @@ impl Store {
             list.push(id);
         }
         Slot { value, fresh: true }
+    }
+
+    /// A serializable slot, restored lazily on its first creation.
+    pub fn slot_hot<T: crate::tsx::hot::Hot + 'static>(
+        &mut self,
+        id: u64,
+        init: impl FnOnce() -> T,
+    ) -> Slot<T> {
+        let pending = self
+            .pending_hot
+            .as_object_mut()
+            .and_then(|map| map.remove(&id.to_string()));
+        let slot = self.slot(id, || {
+            pending.as_ref().and_then(T::load).unwrap_or_else(init)
+        });
+        self.entries.get_mut(&id).unwrap().saver = Some(|value| {
+            value
+                .downcast_ref::<RefCell<T>>()
+                .and_then(|cell| cell.try_borrow().ok())
+                .map_or(serde_json::Value::Null, |v| v.save())
+        });
+        slot
+    }
+
+    /// Snapshot every live slot with a registered saver.
+    pub fn save_hot(&self) -> serde_json::Value {
+        serde_json::Value::Object(
+            self.entries
+                .iter()
+                .filter_map(|(id, entry)| {
+                    entry.saver.map(|save| (id.to_string(), save(&entry.value)))
+                })
+                .collect(),
+        )
+    }
+
+    /// Values to consume when matching slots are first constructed.
+    pub fn set_pending_hot(&mut self, value: serde_json::Value) {
+        self.pending_hot = value;
     }
 
     /// Keeps the slots of a memo subtree that was skipped this rebuild.

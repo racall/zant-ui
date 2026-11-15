@@ -18,6 +18,38 @@ pub mod clips {
         pub pinned: Option<bool>,
     }
 
+    impl tsx::hot::Hot for ListEntry {
+        fn save(&self) -> tsx::hot::Value {
+            let mut snapshot = tsx::hot::Snapshot::new();
+            zant::hot_put!(snapshot, "row", self.row);
+            zant::hot_put!(snapshot, "kind", self.kind);
+            zant::hot_put!(snapshot, "preview", self.preview);
+            zant::hot_put!(snapshot, "from", self.from);
+            zant::hot_put!(snapshot, "pinned", self.pinned);
+            snapshot.value()
+        }
+        fn load(value: &tsx::hot::Value) -> Option<Self> {
+            value.as_object()?;
+            let restore = tsx::hot::Restore::parse(&value.to_string());
+            let mut instance = Self::default();
+            if !zant::hot_get!(restore, "row", instance.row) {
+                return None;
+            }
+            if !zant::hot_get!(restore, "kind", instance.kind) {
+                return None;
+            }
+            if !zant::hot_get!(restore, "preview", instance.preview) {
+                return None;
+            }
+            if !zant::hot_get!(restore, "from", instance.from) {
+                return None;
+            }
+            if !zant::hot_get!(restore, "pinned", instance.pinned) {
+                return None;
+            }
+            Some(instance)
+        }
+    }
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
     pub enum CopyResult {
         #[default]
@@ -36,9 +68,39 @@ pub mod clips {
         }
     }
 
+    impl tsx::hot::Hot for CopyResult {
+        fn save(&self) -> tsx::hot::Value {
+            tsx::hot::Value::from(self.as_str())
+        }
+        fn load(value: &tsx::hot::Value) -> Option<Self> {
+            match value.as_str()? {
+                "ok" => Some(Self::Ok),
+                "not_found" => Some(Self::NotFound),
+                "missing_content" => Some(Self::MissingContent),
+                _ => None,
+            }
+        }
+    }
     #[derive(Clone, PartialEq, Default)]
     pub struct Probe {
         pub hint: zant::Str,
+    }
+
+    impl tsx::hot::Hot for Probe {
+        fn save(&self) -> tsx::hot::Value {
+            let mut snapshot = tsx::hot::Snapshot::new();
+            zant::hot_put!(snapshot, "hint", self.hint);
+            snapshot.value()
+        }
+        fn load(value: &tsx::hot::Value) -> Option<Self> {
+            value.as_object()?;
+            let restore = tsx::hot::Restore::parse(&value.to_string());
+            let mut instance = Self::default();
+            if !zant::hot_get!(restore, "hint", instance.hint) {
+                return None;
+            }
+            Some(instance)
+        }
     }
 
     pub type Entries = tsx::List<ListEntry>;
@@ -62,6 +124,8 @@ pub mod clips {
 /// The spec `native/kinds.ts`: types shared with other specs.
 #[allow(dead_code)]
 pub mod kinds {
+    use zant::tsx;
+
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
     pub enum Kind {
         #[default]
@@ -76,6 +140,20 @@ pub mod kinds {
                 Kind::Text => "text",
                 Kind::Image => "image",
                 Kind::Files => "files",
+            }
+        }
+    }
+
+    impl tsx::hot::Hot for Kind {
+        fn save(&self) -> tsx::hot::Value {
+            tsx::hot::Value::from(self.as_str())
+        }
+        fn load(value: &tsx::hot::Value) -> Option<Self> {
+            match value.as_str()? {
+                "text" => Some(Self::Text),
+                "image" => Some(Self::Image),
+                "files" => Some(Self::Files),
+                _ => None,
             }
         }
     }
