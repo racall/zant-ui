@@ -2,7 +2,7 @@
 
 **推荐用 TSX 编写 Zant 应用**，用 Rust 实现原生能力。用 React 的写法写组件：`.tsx` 文件在**编译期**由 `zant-tsx` 转成 Rust，
 产物是纯原生代码，运行时没有 JS 引擎，也不需要 npm。示例：`scaffold/template-ts/` 生成的
-TS 项目（`src/App.tsx`）。
+TSX 项目（`src/App.tsx`）。
 
 > 编译器在 `crates/zant-tsx/`（词法 / 语法 / hooks / codegen、应用层的 imports、native trait、入口和
 > `zant-tsx` CLI），应用的 `native/build.rs` 通过 `zant_build::tsx_app()` 调用它；仓库内的 TSX 示例见下方「示例」。
@@ -67,7 +67,8 @@ fn main() { zant_build::tsx_app(); }
 不生成项目内的 Rust 文件，也不需要模块清单。图标与 Windows 资源仍由构建器处理。
 主题默认跟随系统，`ZANT_THEME=light|dark` 可以固定。
 
-仓库工具链固定为 Rust **1.94.1**（`rust-toolchain.toml`）；`zant create` 生成的应用工具链使用 `stable`。
+仓库工具链固定为 Rust **1.94.1**（`rust-toolchain.toml`）；`zant create` 将所用框架的
+工具链版本写进新应用的 `rust-toolchain.toml`（读不到框架配置时回退为 `stable`）。
 
 ### 新建 TSX 项目
 
@@ -97,7 +98,8 @@ TSX 模板在 `scaffold/template-ts/`：`src/App.tsx` 是根组件，`src/compon
 编辑器临时文件以及未导入的普通资源不触发构建。规则见 `crates/zant-cli/src/hot/classify.rs`。
 `--watch` 显式选择旧重启模式，`--no-hot` 运行一次。已有 UI 运行时编译失败会显示错误面板，修复后刷新。
 完整行为与沙盒限制见 [脚手架](scaffold.md#热更新)，调试开关见
-[开发指南](development.md#热刷新验证)。无 GUI 创建冒烟：`scripts/tsx/create-smoke.sh`。
+[开发指南](development.md#热刷新验证)。模板的创建、构建与无窗口截图检查：
+`scripts/tsx/build-template-check.sh`。
 
 ### 应用配置与系统菜单
 
@@ -119,7 +121,7 @@ macOS 还记录帧呈现到屏幕的时间；此开关用于诊断，不要在�
 
 ### 编辑器类型
 
-TS 模板包含 `tsconfig.json`（`jsx: "preserve"`、`strict`、`noEmit`、`types: []`）及 `zant.d.ts`，
+TSX 模板包含 `tsconfig.json`（`jsx: "preserve"`、`strict`、`noEmit`、`types: []`）及 `zant.d.ts`，
 `paths` 将 `import … from "zant"` 指向本地声明，无需安装 React 或 npm 依赖。安装了 TypeScript 时可运行：
 
 ```bash
@@ -146,7 +148,7 @@ Zant 的静态子集及精确的嵌套限制，最终仍由 `zant-tsx` 检查；
 `.png` 默认导出为 `Uint8Array`。
 
 多文件项目把 `.tsx` 一起编译，每个文件生成同名的 `.rs`，放在同一个输出目录里，
-文件之间的 `import { NoteCard, type Note } from "./NoteCard"` 变成 `use crate::note_card::{NoteCard, Note};`
+文件之间的 `import { NoteCard, type Note } from "./NoteCard"` 解析为 `crate::note_card` 下的组件和类型
 （模块名由文件 stem 转成 snake_case；同名输出冲突会报错，不按目录自动区分）。入口文件导出根组件，其他文件只导出子组件和类型，
 也可以导出常量（`export const promptMs = 8000;`，导入的一方按注解或字面量得到类型）。
 
@@ -608,7 +610,8 @@ export default function App() {
 ```
 
 Markdown 的 `source` 必填，也可以用字符串子节点（不能同时写两者，不能放元素子节点）。
-`streaming` 开启 Streamdown 的未完成语法修复，复用块缓存，只重新解析变化的块；
+`streaming` 配合默认开启的 `parseIncomplete` 进行 Streamdown 未完成语法修复；
+组件复用块缓存，只重新解析变化的块；
 `caret` 为 `none` / `block` / `circle`，只在 streaming 时显示。常用属性还包括
 `fontSize`、`contentWidth`、`lineNumbers`、`codeMaxHeight`、`codeCopy` / `codeDownload`、
 `tableCopy` / `tableDownload`、`mermaidCopy` / `mermaidDownload`、`onLink`、`baseDir`、
@@ -619,7 +622,7 @@ PDF 的 `src` 必填（空字符串显示提示），不接受子节点。`passw
 文件在协调后的 effect 中打开，页面仍由 PDF 阅读器的后台线程分块渲染。
 `toolbar`、`annotationTools`、`selectionMenu`、`pageGap`、`padding`、`background`、
 `onLink`、`onChange`、`onAnnotation` 同 `zant::pdf::ViewOptions`；`width` / `height` / `grow`
-控制容器尺寸，指定 height 时默认不伸长。空 / 加载提示可用 `emptyText` / `loadingText` 修改。
+控制容器尺寸，指定 height 时默认不伸长。空 / 加载 / 失败提示可用 `emptyText` / `loadingText` / `errorText` 修改。
 
 每个实例的缓存或 `Viewer` 都由 `ui::local_state` / `local_slot` 持有，卸载时自动释放；再次挂载从初始状态开始。
 内部节点 key 使用实例 id 命名空间，多个文档不会互相影响。手写 Rust 对应
@@ -705,7 +708,7 @@ export default function App() {
     const text = clipboard.text();          // string，没有文字时为 ""
     clipboard.setText(text);                // boolean
     const png = clipboard.image();          // 运行时 PNG 字节或 null（tsx::Bytes）
-    clipboard.setImage(pngAsset);            // boolean；当前只接收静态字节
+    clipboard.setImage(pngAsset);           // boolean；当前只接收静态字节
     const files = clipboard.files();        // string | null，绝对路径，一行一个
     if (files !== null) clipboard.setFiles(files);  // boolean
     console.log(clipboard.changeCount());   // 变化计数（包括自己写入）
@@ -853,7 +856,8 @@ export default function App() {
 
 ### 从 Rust 导入类型
 
-原生模块里的结构体和枚举可以直接在 TSX 里用：
+独立编译器也能读取 Rust 文件里的结构体和无数据枚举；结构体需实现 `Clone`，枚举需实现 `Copy` / `Clone`，
+供生成代码按值读取和克隆。可访问的字段应为 `pub`：
 
 ```tsx
 import { View, Text } from "zant";
@@ -873,7 +877,7 @@ export default function App() {
 - TSX 表示不了的字段（指针、互斥锁……）不出现在 TSX 类型里，读其他字段没问题；这种结构体不要在 TSX 里新建。
 - 返回的字符串和切片在 Rust 里是拥有的值（`Str` / `Vec`），过帧后仍然有效。
 
-### 共享状态：`createStore` / `useStore`
+## 共享状态：`createStore` / `useStore`
 
 跨组件、跨文件的应用状态，写法接近 Zustand（框架的 `zant::store` 是同一思路的 Rust 版）：
 
@@ -901,7 +905,7 @@ export default function App() {
 - 和根组件的状态一样，值按「要么 `Copy`，要么廉价 `Clone`」保存；多个窗口共用时，一个窗口在另一个窗口重建之前
   收到事件、并且回调里用到旧值，是目前已知的边界情况。
 
-### 字符串方法
+## 字符串方法
 
 字符串保持 UTF-8 存储，位置和长度按 UTF-16 码元计算（与 `.length` 一致）；实现在 `zant::tsx::strings`：
 
@@ -941,4 +945,3 @@ export default function App() {
   return <View>{visible.map((note, i) => <Text key={i}>{note.title}</Text>)}</View>;
 }
 ```
-

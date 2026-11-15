@@ -1,39 +1,24 @@
-# 图标 Icon / IconButton
-
-Zant 自带一套线性图标（24×24 网格、统一线宽，Lucide 风格），矢量绘制，任意尺寸清晰，
-颜色默认跟随主题。不要用文字字符（☰、⋯）冒充图标。
+# 图标 `Icon` / `IconButton`
 
 ```tsx
 <Icon name="search" size={16} />
-
-// 方形图标按钮（antd 文字按钮的悬停/按下底色）
-<IconButton
-  key="find"
-  icon="search"
-  size={17}            // 图标尺寸
-  box={30}             // 按钮边长
-  tooltip={`查找 ${keyLabel("mod+f")}`}   // ⌘F / Ctrl+F
-  active={searchOpen}  // 选中态底色
-  onClick={() => setSearchOpen(!searchOpen)}
-/>
+<IconButton icon="search" tooltip="查找" />
 ```
 
-`IconButton` 默认不抢焦点（工具栏按钮不应把焦点从输入框拿走），`focusable={true}` 可改。
+| 属性 | 默认 / 说明 |
+|---|---|
+| `Icon.name` | 必填，Zant 图标名 |
+| `Icon.size`、`color`、`stroke` | 18、主题文字色、随尺寸缩放（18px 时线宽 1.5px） |
+| `IconButton.icon` | 必填，Zant 图标名 |
+| `IconButton.size`、`box` | 图标 18、按钮边长 32 |
+| `IconButton.color`、`activeBackground` | 默认主题色；`active` 默认 false |
+| `IconButton.disabled`、`focusable` | false、false；工具栏按钮默认不抢输入框焦点 |
+| `IconButton.tooltip`、`onClick` | 提示文字、点击回调；也可用优先的 `indexAction` + `index`（默认 0） |
+| `key` | 两个组件均支持 |
 
-图标名：`menu list search eye eye_off more more_vertical close plus minus check
-chevron_down/up/left/right arrow_down/up file file_text folder save copy download upload
-link external_link pencil trash undo redo refresh settings sun moon columns keyboard book_open
-maximize minimize focus type_size heading bold italic strikethrough code code_block quote
-list_bullet list_ordered list_checks table sigma image minus_rule info alert lightbulb
-clipboard monitor wifi wifi_off clock power`；
-`window_minimize window_maximize window_restore window_close` 是 Windows 标题栏按钮用的
-10px 细线字形（见 [window-controls.md](window-controls.md)）。
-三种写法等价：`chevron_down` / `chevron-down` / `chevronDown`。
+24×24 网格的矢量线性图标；名字可用 `chevron_down` / `chevron-down` / `chevronDown`。
+完整集合见 `crates/zant/src/core/icons.rs` 的 `Icon` 枚举（`None` 表示无图标）。
+常用：`search`、`close`、`plus`、`check`、`folder`、`file_text`、`save`、`copy`、`trash`、`settings`、`more`。
+Windows 标题栏字形见 [标题栏按钮](window-controls.md)。
 
-## 选项
-
-`Icon`：`key`、`name`、`size`（默认 18）、`color`、`stroke`（线宽，默认随尺寸缩放）。
-`IconButton`：`key`、`icon`、`size`、`box`（默认 32）、`color`、`active`、
-`activeBackground`、`disabled`、`focusable`、`tooltip`、`onClick`、`indexAction`、`index`。
-手写 Rust：`ui::icon` / `ui::icon_button`，枚举是 `zant::ui::Icon`（PascalCase 变体）。
-新增图标在 `crates/zant/src/core/icons.rs` 中按同样的 24×24 网格和线宽绘制。
+Rust：`ui::icon(ui::IconOptions { .. })` / `ui::icon_button(ui::IconButtonOptions { .. })`，图标用 `ui::Icon` 枚举。

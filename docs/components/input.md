@@ -1,43 +1,35 @@
 # 输入框
 
 ```tsx
-const [name, setName] = useState("");
-<Input value={name} placeholder="项目名称" onChange={setName} />
+import { Input, useState } from "zant";
+
+export default function App() {
+  const [name, setName] = useState("");
+  return <Input value={name} placeholder="项目名称" onChange={setName} />;
+}
 ```
 
-## 选项
-
-`key`、`value`、`placeholder`、`disabled`、`readOnly`、`password`、`multiline`、
-`focusRing`、`width`、`height`、`fontSize`、`lineHeight`、`onChange`、
-`onSubmit`（单行回车）、`onUndo` / `onRedo`、`contentMaxWidth`（多行：文字居中成列，
-滚动条仍贴右边）。手写 Rust：`ui::input(ui::InputOptions { .. })`。
-
-手写 Rust 还支持受控选区与按键钩子（TSX 标签表暂不反射回调类型的这些字段）：
-`selection`（`Option<[usize; 2]>`，`anchor` / `cursor`，UTF-8 字节）+ `on_selection`（`ui::range_action`）、
-`on_key`（`ui::input_key_action`，返回 true 吞掉按键，用于列表续写、自定义快捷键）。
-
-## 键盘
-
-| 操作 | macOS | Windows |
-|---|---|---|
-| 全选 / 复制 / 剪切 / 粘贴 | ⌘A ⌘C ⌘X ⌘V | Ctrl+A/C/X/V |
-| 撤销 / 重做 | ⌘Z / ⇧⌘Z | Ctrl+Z / Ctrl+Shift+Z、Ctrl+Y |
-| 按词移动 | ⌥← / ⌥→ | Ctrl+← / Ctrl+→ |
-| 行首 / 行尾 | ⌘← / ⌘→ | Home / End |
-| 文档首 / 尾（多行） | ⌘↑ / ⌘↓ | Ctrl+Home / Ctrl+End |
-| 删除一个词 | — | Ctrl+Backspace / Ctrl+Delete |
-
-加 Shift 扩展选区。撤销/重做只在提供 `onUndo` / `onRedo` 时生效。
-
-## 密码输入
+| 属性 | 默认 / 说明 |
+|---|---|
+| `value`、`onChange(value: string)` | 不传 value 为非受控；传值后由应用在回调中更新 |
+| `placeholder` | 空字符串 |
+| `disabled`、`readOnly`、`password`、`multiline` | 均为 false |
+| `focusRing` | true，聚焦时显示激活边框 |
+| `width`、`height` | 自动、32；多行需要给足高度 |
+| `fontSize`、`lineHeight` | 14、0（字体自身行高） |
+| `contentMaxWidth` | 可选：多行文字居中成列，滚动条仍在右侧 |
+| `onSubmit` | 单行回车 |
+| `onUndo`、`onRedo` | 撤销 / 重做回调，需应用提供历史记录 |
+| `key` | 节点标识 |
 
 ```tsx
-<Input value={password} password placeholder="密码" onChange={setPassword} />
+<Input multiline height={240} placeholder="正文" />
+<Input password placeholder="密码" />
 ```
 
-密码模式显示为 `*`，但内部、回调和剪贴板仍使用真实文本；光标、选区和
-输入法偏移按原始字节对齐。
+支持光标、选区、剪贴板和输入法。密码显示为 `*`；回调和剪贴板仍使用真实文字。
+macOS 用 ⌘，Windows 用 Ctrl 执行全选、复制、剪切、粘贴、撤销；重做为 ⇧⌘Z / Ctrl+Shift+Z（Windows 另支持 Ctrl+Y）。
 
-`value != null` 时是受控输入；支持光标、选区、剪贴板和
-输入法组合事件（macOS `NSTextInputClient`，Windows IMM32）。Windows 微软拼音的组字、候选窗定位
-和上屏由 `scripts/win/smoke-stillmd.ps1` 端到端验证；macOS 拼音候选流程尚未自动化验证。
+Rust：`ui::input(ui::InputOptions { .. })`；另支持 `selection: Option<[usize; 2]>`（anchor / cursor，UTF-8 字节）、
+`on_selection`（`ui::range_action`）和 `on_key`（`ui::input_key_action`，返回 true 吞键），这些属性未暴露给 TSX。
+输入事件排查可设 `ZANT_INPUT_TRACE=1`（见 [开发与测试](../development.md)）。

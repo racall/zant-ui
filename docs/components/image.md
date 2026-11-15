@@ -1,14 +1,26 @@
 # 图片
 
 ```tsx
-<Image src="assets/cover.png" width={320} height={180} fit="cover" tooltip="封面" />
+<Image src="assets/cover.png" width={320} height={180} fit="cover" />
 ```
 
-## 选项
+| 属性 | 默认 / 说明 |
+|---|---|
+| `src` | 文件路径，默认空；相对进程工作目录，支持 PNG / JPEG / GIF / BMP / ICO |
+| `image` | 内存图片；有值时优先于 src |
+| `width`、`height` | 默认使用图片自然尺寸 |
+| `fit` | `"cover"` 裁切填满；`"contain"` 完整显示；`"fill"` 拉伸 |
+| `radius`、`tooltip`、`key` | 圆角默认 8；可选提示文字和节点标识 |
 
-`key`、`src`、`image`（内存图片 `zant::image::Image`，给出时代替 `src`）、`width`、`height`、
-`fit`（`"cover"` / `"contain"` / `"fill"`）、`radius`（默认 8）、`tooltip`。
-手写 Rust：`ui::image(ui::ImageOptions { .. })`。
+推荐导入打包资源（示例路径需存在）：
 
-`src` 支持 PNG / JPEG / GIF / BMP / ICO；路径相对于进程工作目录。加载失败时显示占位背景。
-TSX 里也可以用资源导入的字节：`<Image image={assetImage(iconBytes)} />`（`assetImage` 从 `"zant"` 导入）。
+```tsx
+import { Image, assetImage } from "zant";
+import cover from "../assets/cover.png";
+
+export default function App() {
+  return <Image image={assetImage(cover)} width={320} height={180} />;
+}
+```
+
+加载失败显示主题占位背景。Rust：`ui::image(ui::ImageOptions { .. })`，`image` 为 `Option<Rc<zant::image::Image>>`。

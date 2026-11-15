@@ -1,18 +1,24 @@
-# 点击外部关闭 DismissLayer
-
-铺满父容器的透明点击层，放在弹出层（菜单、面板）**之前**：点击弹层外任意位置调用
-`onDismiss`。默认不绘制；传 `background` 可作为遮罩（`Modal` 内部就是这样用的）。
+# 点击外部关闭 `DismissLayer`
 
 ```tsx
-{menuOpen && (
-  <>
-    <DismissLayer onDismiss={() => setMenuOpen(false)} />
-    {menu}
-  </>
-)}
+import { Button, DismissLayer, View, useState } from "zant";
+
+export default function App() {
+  const [open, setOpen] = useState(false);
+  return <View>
+    <Button onClick={() => setOpen(true)}>打开面板</Button>
+    {open && <DismissLayer onDismiss={() => setOpen(false)} />}
+    {open && <View absolute top={40} right={0} blockPointer padding={12}>
+      <Button onClick={() => setOpen(false)}>关闭</Button>
+    </View>}
+  </View>;
+}
 ```
 
-选项：`key`（默认 `"dismiss-layer"`，同屏多个时各给一个）、`onDismiss`、`background`。
-手写 Rust：`ui::dismiss_layer(ui::DismissLayerOptions { .. })`。
+铺满父容器（含 padding），放在弹层之前；需要覆盖整个窗口时放在根容器。
+弹层设 `blockPointer`，防止空白处点击穿透（`DropdownMenu` 已内置）。
 
-弹层本身应设 `blockPointer`（`DropdownMenu` 已默认），点在其空白处不会穿透。
+- `onDismiss`：点击回调；`background` 默认不绘制，设置后可作遮罩。
+- `key` 默认 `"dismiss-layer"`，同屏多个实例应分别指定。
+
+Rust：`ui::dismiss_layer(ui::DismissLayerOptions { .. })`。

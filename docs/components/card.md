@@ -1,14 +1,14 @@
 # 卡片
 
 ```tsx
-<Card title="项目" extra="详情" padding={20} gap={12}>
+<Card title="项目" extra="3 项">
   <Paragraph>说明文字</Paragraph>
 </Card>
 ```
 
-## 选项
+- `title`、`extra`：可选字符串；任一存在时显示标题行，`extra` 是右侧文字。
+- `children`：内容；`width`、`height` 默认随布局。
+- `gap` 默认 12，`padding` 默认四边 20（也可传边距对象），`bordered` 默认 true。
+- `key`：节点标识。背景与边框跟随主题。
 
-`key`、`title`、`extra`、`children`、`width`、`height`、`gap`、`padding`、
-`bordered`。手写 Rust：`ui::card(ui::CardOptions { .. })`。
-
-卡片是带主题背景、边框和圆角的容器，自定义组件可以直接组合它。
+Rust：`ui::card(ui::CardOptions { .. })`。

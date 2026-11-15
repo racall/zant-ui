@@ -1,10 +1,30 @@
 # 组件文档
 
-每个组件一份文档。应用里用 TSX 标签（PascalCase）；手写 Rust 时对应 `zant::ui` 的 builder（括号里注明）。
-全部组件的可交互示例：`crates/zant-examples/src/components_app/`
-（`cargo run -p zant-examples --bin zant-components`，`ZANT_DARK=1` 深色）。
-macOS 与 Windows 共用同一套 API；快捷键文字一律用 `keyLabel("mod+s")`
-（⌘S / Ctrl+S），判断命令键用 `e.mod`，不要写死 ⌘。
+推荐用 TSX 编写应用（编译为 Rust，没有 JS 运行时）。把下面内容放在 `src/App.tsx`：
+
+```tsx
+import { Button, View, useState } from "zant";
+
+export default function App() {
+  const [count, setCount] = useState(0);
+  return <View padding={24}>
+    <Button onClick={() => setCount(count + 1)}>点击：{count}</Button>
+  </View>;
+}
+```
+
+`src/` 只放 `.tsx` / `.ts`，Rust 放在 `native/`；生成项目已配置 `native/main.rs`（`zant::app!();`）与
+`native/build.rs`（`fn main() { zant_build::tsx_app(); }`），入口与模块注册由构建器生成。
+`zant run` 默认原地热刷新组件；配置变更重启，见 [脚手架与热更新](../scaffold.md)。
+
+示例片段中的组件与 hooks 均从 `"zant"` 导入；状态声明放在函数组件中。
+组件属性以 `crates/zant-tsx/zant.d.ts` 为准，通用覆盖见 [样式](style.md)。
+
+更多主题：[TSX 与 hooks](../tsx.md)、[原生模块](../tsx-native.md)、[状态](../state.md)、
+[窗口配置](../window-config.md)、[桌面集成](../desktop.md)、[动效](../motion.md)。
+界面遵循 [DESIGN.md](../../DESIGN.md)，颜色通过 `useTheme()` 获取主题 token。
+
+## 索引
 
 | 组件 | 文档 |
 |---|---|
@@ -41,23 +61,5 @@ macOS 与 Windows 共用同一套 API；快捷键文字一律用 `keyLabel("mod+
 | Markdown 编辑器/预览 | [markdown.md](markdown.md) |
 | 样式覆盖 | [style.md](style.md) |
 
-## 其他公共能力
-
-| TSX / `zant` 导入 | 手写 Rust | 说明 |
-|---|---|---|
-| `<RichText spans lineHeight onLink>` | `ui::rich_text(RichTextOptions { … })` | 富文本：一段里混排不同样式、链接（`RichSpan::link` + `onLink`）、行内绘制（`RichSpan::embed`）；`lineHeight` 默认 2.0，0 用字体自身行高 |
-| （无标签） | `ui::vector(VectorOptions { drawing, width, copy, … })` | 保留式矢量绘制（公式、图表）；尺寸取绘制内容，`copy` 是被选中复制时的文字 |
-| （无标签） | `ui::memo(ui::MemoOptions { key, hash }, build)` | 类似 React.memo：`hash` 不变时整棵子树跳过构建；build 要返回容器，闭包捕获的上下文要活过这一帧（用 `Rc`） |
-| 子组件里的 `useState` | `ui::local_state::<T>(id, init)` | 组件实例自己的状态（类似 React 的 `useState`）：第一次构建时用 init 创建，返回的 `Rc<RefCell<T>>` 在实例一直被构建期间不变；某次重建不再请求这个 `id` 时释放（卸载）。id 用 `ui::child_id(parent_id, key)` 从父实例的 id 和 key 派生；`ui::memo` 跳过的子树里的状态保留 |
-| （无标签） | `ui::with_key(node, key)` | 给一个已经建好的节点设置 key（为 memo 子树分配 key） |
-| （无标签） | `ui::focus(key)` / `ui::scroll_into_view(key)` / `ui::scroll_to_end(key)` | 下一次布局后聚焦 / 滚到顶部 / 滚到底（`scroll_to_end` 无动效，聊天跟随新内容） |
-| （无标签） | `ui::key_bounds(key)` | 上一次布局中这个 key 的位置和尺寸，浮层跟随控件定位用 |
-| `useState` / `useEffect` / `useMemo` / `useRef` | `ui::effect` / `ui::request_rebuild` / `tsx::hooks` | 状态、副作用与缓存 |
-
-自定义组件示例见生成项目的 `src/components/`（`Dashboard.tsx`、`StatCard.tsx`、`CounterCard.tsx`），
-以及 [窗口配置](../window-config.md)。
-
-更多主题：[桌面集成：多窗口、托盘、全局快捷键、剪贴板](../desktop.md)、[SQLite 持久化](../database.md)、
-[Flex 与 CSS](../flex.md)、[动效](../motion.md)、[Markdown 与数学](../markdown.md)、
-[TSX 语法与 hooks](../tsx.md)。所有组件外观以 Ant Design 5 为准，界面设计遵循
-[DESIGN.md](../../DESIGN.md)。
+交互示例：`./scripts/cargo.sh run -p zant-examples --bin zant-components`（`ZANT_DARK=1` 深色），源码在 `crates/zant-examples/src/components_app/`。
+快捷键文字用 `keyLabel("mod+s")`，按键判断用 `e.mod`，适配 macOS / Windows。

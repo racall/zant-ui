@@ -2,12 +2,12 @@
 
 ```tsx
 <Avatar text="XL" size={40} />
-<Avatar text="A" size={36} background={0xff1677ff} color={0xffffffff} />
 ```
 
-## 选项
+| 属性 | 默认 / 说明 |
+|---|---|
+| `text`、`size` | `"?"`、32；圆形文字头像，不加载图片 |
+| `background`、`color` | 主题 `colorPrimaryBg` / `colorPrimary`；只设背景时文字默认白色 |
+| `key` | 节点标识 |
 
-`key`、`text`、`size`、`background`、`color`。
-手写 Rust：`ui::avatar(ui::AvatarOptions { .. })`。
-
-显示文字头像；不加载图片。默认浅主色底 + 主色文字；只设 `background` 时文字默认白色。
+Rust：`ui::avatar(ui::AvatarOptions { .. })`。

@@ -1,25 +1,28 @@
 # 快捷键录入 `HotkeyInput`
 
-设置页里录入全局快捷键的控件：显示当前组合键（每个键一个键帽），点击后按下新组合即完成。
-录入状态由应用保存：
-
 ```tsx
-const [hotkey, setHotkey] = useState("");     // "" 表示没有
-const [recording, setRecording] = useState(false);
-<HotkeyInput
-  key="panel-hotkey"
-  value={hotkey}
-  recording={recording}
-  width={180}
-  onStart={() => { unregister(); setRecording(true); }}   // 录入期间先注销已注册的快捷键
-  onRecord={(shortcut: string) => { setHotkey(shortcut); setRecording(false); }}
-  onCancel={() => setRecording(false)}                    // Esc
-  onClear={() => setHotkey("")}                           // ✕ 按钮、Backspace / Delete
-/>
+import { HotkeyInput, useState } from "zant";
+
+export default function App() {
+  const [value, setValue] = useState("");
+  const [recording, setRecording] = useState(false);
+  return <HotkeyInput value={value} recording={recording}
+    onStart={() => setRecording(true)}
+    onRecord={(shortcut) => { setValue(shortcut); setRecording(false); }}
+    onCancel={() => setRecording(false)}
+    onClear={() => { setValue(""); setRecording(false); }} />;
+}
 ```
 
-录入时：带 Ctrl / Alt（⌥）/ ⌘（Win）的组合键会被记录；Esc 取消；Backspace / Delete 清除。
-`placeholder`、`recordingText` 可改文案；`width`（默认按内容）、`height`（默认 32）、`key`
-（默认 `"hotkey-input"`，同屏多个时各给一个）。
-手写 Rust：`ui::hotkey_input(ui::HotkeyInputOptions { .. })` + `ui::hotkey_action`。
-全局快捷键的注册见 [桌面集成](../desktop.md)。
+| 属性 | 默认 / 说明 |
+|---|---|
+| `value`、`recording` | 无快捷键（null 或空字符串）、false；录入状态由应用维护 |
+| `width`、`height` | 按内容、32 |
+| `placeholder`、`recordingText` | `"点击设置快捷键"`、`"按下组合键…"` |
+| `onStart`、`onRecord` | 点击或 Enter / Space 开始；记录回调收到快捷键字符串 |
+| `onCancel`、`onClear` | 录入时无修饰键的 Esc 取消，Backspace / Delete 清除；清除按钮也触发 onClear |
+| `key` | `"hotkey-input"`，同屏多个时分别指定 |
+
+组合键需带 Ctrl / Alt / Meta（⌘ / Win），仅 Shift 不可。
+若已注册全局快捷键，录入期间先注销，结束后重新注册，见 [桌面集成](../desktop.md)。
+Rust：`ui::hotkey_input(ui::HotkeyInputOptions { .. })` + `ui::hotkey_action`，value 为 `Option<Shortcut>`。

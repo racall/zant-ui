@@ -1,71 +1,47 @@
 # Zant Markdown 渲染一览
 
-原生渲染，不用 WebView：**粗体**、*斜体*、~~删除线~~、==高亮==、`行内代码`、[链接](https://www.rust-lang.org)、自动链接 https://www.rust-lang.org 和脚注[^1]。行内公式与正文基线对齐：$e^{i\pi} + 1 = 0$，$\sum_{k=1}^{n} k = \frac{n(n+1)}{2}$，其中 $U=[u_1\ \cdots\ u_m]$；金额 $20 与 $10 不会被当成公式。
+**粗体**、*斜体*、~~删除线~~、==高亮==、`行内代码`、[链接](https://www.rust-lang.org)与脚注[^1]。
+行内公式 $e^{i\pi}+1=0$；金额 $20 与 $10 保持普通文本。
 
 > [!TIP]
-> 支持 GFM 提示块（NOTE / TIP / IMPORTANT / WARNING / CAUTION）。
+> 提示块支持 NOTE / TIP / IMPORTANT / WARNING / CAUTION。
 
-> 引用可以嵌套
-> > 并包含 **行内格式**
-
-## 列表
+## 列表与表格
 
 - 无序列表
-  - 嵌套一层
-    - 再嵌套一层
-1. 有序列表
-2. 从任意序号开始
-- [x] 已完成的任务
-- [ ] 待办的任务
+  - 嵌套内容
+- [x] 已完成
+- [ ] 待办
 
-## 表格
+| 内容 | 实现 |
+|:--|--:|
+| Markdown | 原生绘制 |
+| 公式 | STIX Two Math |
 
-| 模块 | 状态 | 说明 |
-|:--|:--:|--:|
-| remend 修复 | ✅ | 522 条上游用例 |
-| 块级缓存 | ✅ | 只重解析变化的块 |
-| 数学排版 | ✅ | KaTeX 算法 + STIX Two Math |
-
-## 公式
+## 公式与化学式
 
 $$
-\int_{-\infty}^{\infty} e^{-x^2}\,dx = \sqrt{\pi}
-\qquad
-\lim_{n\to\infty}\left(1+\frac{1}{n}\right)^{n} = e
+\int_{-\infty}^{\infty}e^{-x^2}\,dx=\sqrt{\pi},\qquad
+A=\begin{pmatrix}a&b\\c&d\end{pmatrix}
 $$
 
 $$
-A = \begin{pmatrix} a & b \\ c & d \end{pmatrix},\quad
-\det A = ad - bc,\quad
-f(x) = \begin{cases} x^2 & x \ge 0 \\ -x & x < 0 \end{cases}
+\ce{N2 + 3H2 <=> 2NH3}\qquad\pu{123 kJ mol-1}
 $$
 
-$$
-\nabla \times \mathbf{E} = -\frac{\partial \mathbf{B}}{\partial t},
-\qquad
-\sum_{i=1}^{n} \binom{n}{i} = 2^{n} - 1,
-\qquad
-\sqrt[3]{x^{2} + y^{2}}
-$$
-
-## 代码
+## 代码与图表
 
 ```rust
 fn main() {
-    println!("hello, zant"); // 语法高亮
+    println!("hello, zant");
 }
 ```
 
-## 图表
-
 ```mermaid
 flowchart LR
-  A[Markdown 源码] --> B{remend}
-  B --> C[parse-blocks]
-  C --> D[块级缓存]
-  D --> E[原生渲染]
+  A[Markdown] --> B[remend]
+  B --> C[块缓存]
+  C --> D[原生绘制]
 ```
 
----
-
-[^1]: 脚注会收集到文末，并带返回编号。
+[^1]: 脚注集中显示在文末，支持返回引用位置。

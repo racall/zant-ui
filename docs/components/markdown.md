@@ -1,47 +1,32 @@
-# Markdown 编辑器 / 预览
-
-`zant::markdown` 是 Vercel Streamdown 的原生 Rust 移植（remend → parse-blocks → 块级缓存 →
-原生渲染），不用 WebView。数学公式由 `zant::math`（KaTeX 排版算法 + STIX Two Math）排版。
-完整说明见 [Markdown 与数学](../markdown.md)；渲染效果见仓库 README 的 stillmd 截图和
-[`docs/showcase.md`](../showcase.md)。
+# Markdown 预览 / 编辑
 
 ```tsx
-// 只读预览（流式/静态）：只重新解析变化的块
-<Markdown source={text} streaming={busy} />
-
-// 编辑器：编辑 / 分栏 / 预览、格式工具栏、快捷键（mod+B/I/K/E、mod+Shift+X：macOS ⌘，Windows Ctrl）、列表续写
-<Markdown
-  key="doc"
-  source={text}
-  mode="split"
-  onModeChange={setMode}
-  contentWidth={720}
-  codeCopy
-  tableCopy
-/>
+<Markdown source="# 标题\n\n正文 **加粗**" />
 ```
 
-预览的常用属性：`source`（或用字符串子节点 `<Markdown>{text}</Markdown>`）、`streaming`、
-`caret`（`"none"` / `"block"` / `"circle"`）、`parseIncomplete`、`singleDollarMath`、`latexDelimiters`、
-`fontSize`、`contentWidth`、`lineNumbers`、`codeMaxHeight`、`codeCopy` / `codeDownload`、
-`tableCopy` / `tableDownload`、`mermaidCopy` / `mermaidDownload`、`onLink`、`baseDir`、`selectable`。
-深色主题自动跟随 `useTheme()`（手写 Rust 用 `markdown::theme::dark()`）。
+流式预览（`text`、`busy` 为应用状态）：
 
-手写 Rust：`zant::markdown::streamdown(&mut cache, source, props)` 直接渲染，
-或用 `ui::markdown(id, ui::MarkdownOptions { .. })` 让框架按实例持有缓存（TSX 的 `Markdown` 就是它；
-实现位于 `zant::components::widgets`）。编辑器的其余 Rust 选项：
-`on_mode`（`markdown::editor::Mode`）、`on_undo` / `on_redo`、`preview`（`markdown::ViewProps`）、
-`placeholder`、`font_size`（16）、`line_height`（1.8）、`toolbar`、`mode_switch`、`shortcuts`、
-`preview_width`、`labels`（`markdown::Labels::zh()`）。`html::to_html` 导出独立 HTML 页面（KaTeX 渲染公式）。
+```tsx
+<Markdown source={text} streaming={busy} caret="block" />
+```
 
-## 支持
+| 属性 | 默认 / 说明 |
+|---|---|
+| `source` / 字符串子节点 | Markdown 源码，二者选一；`key` 为实例标识 |
+| `streaming`、`parseIncomplete` | false、true；流式模式缓存块并修复未闭合语法 |
+| `singleDollarMath`、`latexDelimiters` | true、false；后者启用 `\(…\)` / `\[…\]` |
+| `fontSize`、`contentWidth` | 16、680 |
+| `caret` | `"none"`；可选 `"block"` / `"circle"` |
+| `lineNumbers`、`codeMaxHeight` | true、400 |
+| `codeCopy` / `codeDownload` | 均为 true |
+| `tableCopy` / `tableDownload`、`mermaidCopy` / `mermaidDownload` | 均为 true |
+| `onLink`、`baseDir` | 链接回调、相对图片的基础目录（默认空） |
+| `selectable` | true；主题自动跟随当前 UI 主题 |
 
-- CommonMark + GFM：标题、段落、强调、删除线、高亮 `==…==`、上下标、行内代码、链接、
-  自动链接、图片、列表（嵌套、任务列表）、引用（嵌套）、分割线、表格（对齐）、脚注、
-  提示块 `> [!NOTE]` 等、HTML 块（安全转义）。
-- 数学：`$…$`（pandoc 规则，金额不误判）、`$$…$$` 行内与块级；分式、根式、上下标、
-  大型运算符、矩阵 / cases / aligned、`\left…\right`、字体命令、颜色等。
-- 代码块语法高亮（行号、复制、下载），表格复制 Markdown / CSV、下载，Mermaid
-  flowchart / sequence / pie（宽图自动缩放到内容列）。
-- 外链安全确认（`markdown::link_safety_modal`）、流式光标、未闭合语法修复（remend）。
-- 跳转：`markdown::heading_key` / `markdown::block_key_at_offset` + `ui::scroll_into_view`（大纲、查找）。
+支持 GFM、代码高亮、表格、Mermaid 和数学，详见 [Markdown 与数学](../markdown.md)。
+`Markdown` 标签是预览，不提供 `mode`、`onModeChange` 或编辑回调。
+
+Rust：`ui::markdown(id, ui::MarkdownOptions { .. })` 按实例管理缓存；手动缓存用
+`markdown::streamdown(&mut cache, source, props)`。Rust 还可设置 `theme`、`policy`、`labels`、`image_loader`、`block_renderers`。
+编辑器用 `markdown::editor::editor(Props { value, on_change, mode, .. })`，支持 Edit / Split / Preview；
+`on_mode` 是模式下标回调（`IndexAction`），分栏 / 预览需提供 `cache`。

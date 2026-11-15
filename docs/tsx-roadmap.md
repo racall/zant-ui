@@ -1,86 +1,51 @@
-# TS + TSX 应用路线图（目标：ClipHop 能用 TS + TSX 写）
+# TS + TSX 应用路线图
 
-> 本路线图记录 TSX 语言与原生模块逐项落地的过程。现在的用法以 [tsx.md](tsx.md) 与
-> [tsx-native.md](tsx-native.md) 为准：`zant create` 生成 TSX + Rust 项目，原生模块是
-> `native/<名字>.ts` 规范 + `native/<名字>.rs` 实现（编译期由 trait 检查）。
+```tsx
+import { useState, View, Button } from "zant";
 
-`zant create` 只生成 TS + TSX 项目。TS + TSX 项目里，**界面和应用逻辑都用 TS 写**（状态、托盘、全局快捷键、
-剪贴板、多窗口、计时器），只有多线程网络这类底层引擎留在项目里的原生模块（Rust 实现，TS 直接导入调用）。
-验收标准：ClipHop 的 TS + TSX 版（cliphop 仓库新分支）功能与原版一致，截图逐张对比、帧耗时持平。
+export default function App() {
+  const [count, setCount] = useState(0);
+  return <View padding={24}>
+    <Button onClick={() => setCount(prev => prev + 1)}>点击 {count}</Button>
+  </View>;
+}
+```
 
-每一项都是一个小任务：一份说明、一个分支、审查后一次提交。状态：⬜ 未开始、🔄 进行中、✅ 完成。
+TSX 是推荐的应用写法，编译期生成 Rust，无 JS 运行时。此表只记录本仓库实现；
+具体语法见 [TSX](tsx.md)，原生接口见 [原生模块](tsx-native.md)。✅ 已实现，⬜ 未实现。
 
-## A. 语言
+## 语言与组件
 
-| # | 内容 | 负责 | 状态 |
-|---|---|---|---|
-| A1 | 顶层普通函数（工具函数，不是组件）：`function bytes(n: number): string`，组件和函数里都能调用，可跨文件 `export` / `import` | Claude | ✅ |
-| A2 | 语句：`for (let i = 0; …)`、`for (const x of xs)`、`while`、`break` / `continue`、`switch` | Codex | ✅ |
-| A3 | 内置：`Math.*`、`Number()` / `String()`、`toFixed`、`parseInt` / `parseFloat`、`Date.now()` | Codex | ✅ |
-| A4 | 字节：`Uint8Array` ↔ Rust 字节切片（剪贴板图片、文件内容） | Claude | ✅ |
-| A5 | 从 Rust 导入类型：`import type { Peer } from "./sync.rs"`（结构体、枚举），原生函数的参数和返回值可以是它们和它们的切片 | Claude | ✅ |
-| A6 | 资源导入：`import trayIcon from "../assets/tray.png"`（编译期嵌入，`Uint8Array`） | Claude | ✅ |
+| 状态 | 能力 |
+|---|---|
+| ✅ | 普通函数、跨文件 export/import、自定义 hook 编译期内联 |
+| ✅ | for、for-of、while、break/continue、switch |
+| ✅ | Math、Number/String、toFixed、parseInt/parseFloat、Date.now、performance.now 的受支持子集 |
+| ✅ | 参数与解构 props 默认值、JSX 属性展开、JSX 实体解码 |
+| ✅ | 命名处理函数捕获本帧局部值；可选值条件判断与类型收窄 |
+| ✅ | Uint8Array、资源导入；原生规范共享 interface 与字符串联合类型 |
+| ✅ | 接受并忽略 React 默认 / 命名空间导入（不提供 React 运行时） |
+| ✅ | Image 内存图片、HotkeyInput、isMacos/isWindows、keyLabel、titlebarInsets、wakeAfter |
+| ⬜ | TypeScript `enum` 声明（字符串联合类型可用） |
+| ⬜ | 泛型函数与泛型类型声明 |
 
-以下几项来自 SWC 解析器测试集的统计（981 个 TS / TSX / JSX 输入，0 崩溃、0 卡死，
-按被拒绝的原因排序，就是真实代码里最常见、我们还不支持的写法）：
+## 运行时与工具链
 
-| # | 内容 | 负责 | 状态 |
-|---|---|---|---|
-| A7 | 兼容 `import React from "react"` / `import * as React from "react"`（接受并忽略，复制来的 React 代码常带） | Codex | ✅ |
-| A8 | 参数默认值：`function f(n = 1)`、解构 props 的默认值 `({ size = 14 }: Props)` | Claude | ✅ |
-| A9 | JSX 展开属性：`<Button {...common} onClick={…} />`（对象的字段必须是这个标签 / 组件的属性，按源码顺序合并） | Claude | ✅ |
-| A10 | `enum Kind { Text, Image }` / `enum Kind { Text = "text" }` → Rust 枚举 | Codex | ⬜ |
-| A11 | JSX 实体：完整 XHTML 实体表、数字实体规则与 SWC / Babel 一致（`&#x` 小写、码点范围） | Codex | ✅ |
-| A14 | 命名的处理函数读 render 局部变量：`const copy = () => …` 传给 `onClick={copy}` / 回调 prop / `useHotkey`，也可被其他处理函数调用 | Claude | ✅ |
-| A13 | 可选值当条件用并收窄类型：`peer ? peer.name : "none"`、`if (peer) { peer.name }`（TS 里很常见） | Claude | ✅ |
-| A12 | 泛型函数 `function first<T>(xs: T[]): T`（ClipHop 不需要，排在最后） | — | ⬜ |
+| 状态 | 能力 |
+|---|---|
+| ✅ | useState 组件本地状态、createStore/useStore 共享状态、系统主题 |
+| ✅ | 关闭 / 退出 / 键盘 / 窗口焦点、托盘、全局快捷键、剪贴板、唤醒与退出 hooks |
+| ✅ | createWindow 多窗口、剪贴板文字 / 图片 / 文件、开机启动、单实例 |
+| ✅ | setTimeout/clearTimeout 定时回调 |
+| ✅ | `zant create` 生成 `src/` TSX/TS + `native/` Rust 项目；模板带原生模块示例 |
+| ✅ | `native/main.rs` 用 `zant::app!()`；`native/build.rs` 调 `zant_build::tsx_app()` |
+| ✅ | 自动生成 `$OUT_DIR/zant_app.rs`、`zant_main.rs`、`zant_hot.rs`，自动声明并注册原生模块 |
+| ✅ | `native/<名字>.ts` 规范 + `.rs` 实现，Rust trait 检查接口；TS 从 `native/<名字>` 导入 |
+| ✅ | `zant run` 默认原地刷新；`--watch` 重启模式、`--no-hot` 单次运行；compile/package/build |
+| ✅ | 热更新框架动态库共享、成功替换后旧应用库默认卸载、兼容状态恢复、编译错误界面 |
+| ✅ | app.config.json 元数据、window.remember；macOS 标准菜单栏 |
+| ✅ | 从标签表生成 zant.d.ts、模板 tsconfig.json |
 
-## B. 组件属性
-
-| # | 内容 | 负责 | 状态 |
-|---|---|---|---|
-| B1 | `<Image image={img}>`：内存图片类型 `Image`（`import type { Image } from "zant"`） | Claude | ✅ |
-| B2 | `<HotkeyInput value onRecord>`：快捷键用字符串表示（`"ctrl+cmd+v"`），回调 `(shortcut: string) => void` | Claude | ✅ |
-| B3 | 平台信息：`isMacos` / `isWindows`、`keyLabel("mod+f")`、`titlebarInsets()`、`wakeAfter(ms)`（单调时钟用已有的 `performance.now()`） | Claude | ✅ |
-
-## C. 应用运行时
-
-| # | 内容 | 负责 | 状态 |
-|---|---|---|---|
-| C1 | 入口：TS 项目不手写入口逻辑，工具链按 `app.config.json` 和 `App.tsx` 的默认导出生成入口（模板里的 `src/main.rs` 只负责包含生成的模块） | Claude | ✅ |
-| C2 | 应用 hooks：`useCloseRequest`、`useQuitRequest`、`useKeyDown`、主题跟随系统 | Claude | ✅ |
-| C3 | 桌面事件：`useClipboardChange`、`useHotkey`、`useTray`（图标、菜单、点击）、`useReopen` | Claude | ✅ |
-| C4 | `useWake`：原生模块在后台线程完成后 `ui::post_wake()`，TS 在 UI 线程取结果 | Claude | ✅ |
-| C5 | 多窗口：`createWindow(Panel, { … })`，句柄 `show` / `hide` / `toggle` / `place` / `focus`，窗口自己的按键、关闭、失焦 | Claude | ✅ |
-| C6 | 桌面函数：剪贴板（文字 / 图片 / 文件 / 变化计数 / 监听）、`quit`、开机启动、下载目录、设备名、应用数据目录、单实例 | Claude | ✅ |
-| C7 | 退出钩子：`useAppExit`（根组件；macOS `applicationWillTerminate`、Windows 消息循环结束后），原生模块在这里停线程、保存 | Claude | ✅ |
-| C8 | 定时器：`setTimeout` / `clearTimeout`（根组件和窗口组件；回调捕获数字 / 布尔 / 枚举），ClipHop 的同步询问倒计时、提示消失要用 | Claude | ✅ |
-
-## D. 工具链
-
-| # | 内容 | 负责 | 状态 |
-|---|---|---|---|
-| D1 | `zant create` 生成 TS + TSX 项目（模板 `scaffold/template-ts/`） | Codex | ✅ |
-| D2 | `zant run` / `compile` / `build` / `run --watch` 支持 TS 项目 | Codex | ✅ |
-| D3 | 编辑器：从标签表生成 `zant.d.ts`，模板带 `tsconfig.json` | Codex | ✅ |
-| D4 | 原生模块（`docs/tsx-native.md`）：`native/<名字>.ts` 规范 + `.rs` 实现，编译期检查一致，TSX 用 `"native/<名字>"` 导入；模板带示例 | Claude | ✅ |
-| D5 | 自定义 hook（`function useX`）：编译期内联到调用的组件，跨文件自动补导入，错误指回 hook 文件 | Claude | ✅ |
-
-## E. ClipHop TS + TSX 版
-
-| # | 内容 | 负责 | 状态 |
-|---|---|---|---|
-| E1 | 新分支，原生模块整理：同步、传输、文件、存储留在原生模块，导出 TS 能调用的函数 | Codex | ✅（cliphop `ts-port`，`docs/ts-port.md`） |
-| E2 | 界面移植：列表行、历史页、设置页、面板、同步提示、对话框、标题栏（纯组件，props 向下、事件向上） | Codex | ✅ |
-| E3 | 应用逻辑改用 TS 写（`App.tsx` / `AppStore.tsx` / `AppActions.tsx` / `AppWindows.tsx`），旧的手写界面删除 | Claude | ✅ |
-| E5 | 按原生模块重组：`src/` 只留 TSX，原生代码移到 `native/`（规范 + 实现 + `engine/`），构建回到模板；两平台回归一致 | Codex + Claude | ✅ |
-| E6 | `App.tsx` 只做组合（13 行）：`useLifecycle` / `useTimers` / `useTrayAndHotkey` + `MainWindow`，actions 按功能拆分；两平台回归一致 | Codex + Claude | ✅ |
-| E4 | 两版逐控件点击 + 逐像素截图对比：macOS（深色）、Windows（深色）主窗口 / 设置 / 对话框 / 托盘 / 面板一致；待做：浅色、局域网同步与询问窗（需测试机防火墙放行）、帧耗时 | Claude | 进行中 |
-
-## 顺序
-
-1. A1（Claude）‖ A2 → A3 → A7 → A11（Codex）
-2. A4、A5、A9（Claude）‖ B1 → B2 → B3 → A6 → A8 → A10（Codex）
-3. C1、C2、C5（Claude）‖ D1 → D2 → D3 → C6（Codex）
-4. C3、C4（Claude）‖ E1（Codex）
-5. E2（Codex）‖ E3（Claude），最后 E4
+实现依据：`crates/zant-tsx/src/` 与 `tests/`、`crates/zant-build/src/entry.rs`、
+`crates/zant-cli/src/hot/`、`crates/zant/src/tsx/`、`scaffold/template-ts/`。
+这些能力仍受静态 TS 子集限制；不等于支持任意 TypeScript、npm 包或浏览器 API。
