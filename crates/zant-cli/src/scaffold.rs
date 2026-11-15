@@ -8,6 +8,26 @@ use std::path::Path;
 /// modules, and `zant_build::tsx_app()` compiles the TSX in `build.rs`.
 pub const TEMPLATE_TS: &str = "scaffold/template-ts";
 
+/// Where the generated project gets Zant UI from.
+pub enum Dependency {
+    /// The published release on GitHub (`git` + `tag`): what installed
+    /// toolchains write, so the project builds like anyone else's.
+    Git { url: String, tag: String },
+    /// A relative path to a Zant UI checkout: `zant` run from source, for
+    /// framework development.
+    Path(String),
+}
+
+impl Dependency {
+    /// The inline-table body for one framework crate (`zant`, `zant-build`).
+    fn table(&self, krate: &str) -> String {
+        match self {
+            Dependency::Git { url, tag } => format!("git = \"{url}\", tag = \"{tag}\""),
+            Dependency::Path(root) => format!("path = \"{root}/crates/{krate}\""),
+        }
+    }
+}
+
 pub struct Options {
     pub framework: String,
     pub target: String,
@@ -15,7 +35,7 @@ pub struct Options {
     pub bundle: String,
     /// The Cargo package name (snake_case).
     pub crate_name: String,
-    pub dependency: String,
+    pub dependency: Dependency,
     pub hidden_titlebar: bool,
 }
 
@@ -135,11 +155,14 @@ fn expand(source: &str, options: &Options, is_tsx: bool) -> Vec<u8> {
         "top: 24"
     };
     let toolchain = framework_toolchain(&options.framework);
-    let pairs: [(&str, &str); 8] = [
+    let zant = options.dependency.table("zant");
+    let zant_build = options.dependency.table("zant-build");
+    let pairs: [(&str, &str); 9] = [
         ("__RUST_TOOLCHAIN__", &toolchain),
         ("__APP_NAME_SNAKE__", &options.crate_name),
         ("__APP_FINGERPRINT__", &hex),
-        ("__ZANT_PATH__", &options.dependency),
+        ("__ZANT_DEPENDENCY__", &zant),
+        ("__ZANT_BUILD_DEPENDENCY__", &zant_build),
         ("__APP_TITLE__", &options.title),
         ("__BUNDLE_ID__", &options.bundle),
         ("top: 24 /* titlebar */", top),
@@ -211,7 +234,7 @@ mod tests {
             title: "My \"App\"".to_string(),
             bundle: "com.acme.myapp".to_string(),
             crate_name: "my_app".to_string(),
-            dependency: "../zant-ui".to_string(),
+            dependency: Dependency::Path("../zant-ui".to_string()),
             hidden_titlebar: true,
         }
     }
@@ -309,6 +332,35 @@ mod tests {
         assert_no_placeholders(&target);
     }
 
+    #[test]
+    fn installed_toolchains_depend_on_the_github_release() {
+        let dir = temp_dir("scaffold-git");
+        let target = dir.join("git-app");
+        let mut opts = options(&target);
+        opts.dependency = Dependency::Git {
+            url: "https://github.com/racall/zant-ui".to_string(),
+            tag: "v9.9.9".to_string(),
+        };
+        write(&opts).expect("scaffold");
+        let manifest = std::fs::read_to_string(target.join("Cargo.toml")).expect("Cargo.toml");
+        assert!(
+            manifest.contains(
+                "zant = { git = \"https://github.com/racall/zant-ui\", tag = \"v9.9.9\" }"
+            ),
+            "{manifest}"
+        );
+        assert!(
+            manifest.contains(
+                "zant-build = { git = \"https://github.com/racall/zant-ui\", tag = \"v9.9.9\" }"
+            ),
+            "{manifest}"
+        );
+        assert!(!manifest.contains("path = \"../"), "{manifest}");
+        let parsed: toml::Table = manifest.parse().expect("valid TOML");
+        assert!(parsed["dependencies"]["zant"]["git"].is_str());
+        assert_no_placeholders(&target);
+    }
+
     /// No `zant create` placeholder may survive in a generated project.
     fn assert_no_placeholders(dir: &Path) {
         let mut pending = vec![dir.to_path_buf()];
@@ -324,7 +376,8 @@ mod tests {
                 for needle in [
                     "__APP_NAME_SNAKE__",
                     "__APP_FINGERPRINT__",
-                    "__ZANT_PATH__",
+                    "__ZANT_DEPENDENCY__",
+                    "__ZANT_BUILD_DEPENDENCY__",
                     "__APP_TITLE__",
                     "__BUNDLE_ID__",
                     "__TOP_PADDING__",

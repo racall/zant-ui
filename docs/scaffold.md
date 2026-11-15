@@ -90,25 +90,29 @@ native/main.rs              一行 zant::app!();，生成入口与注册
 native/<名字>.ts            原生模块的规范（类型 + export declare function）
 native/<名字>.rs            原生模块的 Rust 实现
 native/build.rs             一行 fn main() { zant_build::tsx_app(); }
-Cargo.toml                  单个 Cargo package；zant / zant-build 是相对路径依赖
+Cargo.toml                  单个 Cargo package；zant / zant-build 是 GitHub 发布标签依赖
 rust-toolchain.toml         与框架相同的固定工具链（当前 1.94.1）
 assets/icons/               默认图标
 zant.d.ts / tsconfig.json   import … from "zant" 的类型与补全
 ```
 
-`zant create` 把 `Cargo.toml` 里的 `__ZANT_PATH__` 换成项目到 Zant UI 的相对路径，
-所以项目可以放在任意目录。项目和 Zant UI 不在同一个盘时（Windows），`zant create`
-用目录联接 `.zant/zant-ui` 引用 Zant UI，依赖路径变成 `.zant/zant-ui`。
-也可以改成 GitHub 上的发布版本（与已安装的 zant 同一版本）：
+`zant create` 写入的 Zant UI 依赖是 GitHub 上与已安装 zant 同版本的发布标签：
 
 ```toml
-zant = { git = "https://github.com/racall/zant-ui", tag = "v0.2.3" }
-zant-build = { git = "https://github.com/racall/zant-ui", tag = "v0.2.3" }   # build-dependencies
+[dependencies]
+zant = { git = "https://github.com/racall/zant-ui", tag = "v0.2.4" }
+
+[build-dependencies]
+zant-build = { git = "https://github.com/racall/zant-ui", tag = "v0.2.4" }
 ```
 
 git 依赖只含源码，`zant-sys` / `zant-build` 的构建脚本从已安装的发布版
 （`$ZANT_HOME/zant-ui`，默认 `~/.zant` / `%LOCALAPPDATA%\zant`）取 Skia、PDFium 和预编译原生库；
-预编译库仍按 git 源码的哈希校验，版本不一致时改为编译原生层。`zant run` 的热刷新始终用已安装的框架。
+预编译库仍按 git 源码的哈希校验，版本不一致时改为编译原生层。升级框架时改 `tag` 并重新安装对应版本的 zant。
+`zant run` 的热刷新始终用已安装的框架。
+
+从源码仓库运行的 `zant`（框架开发）改写相对路径依赖，项目可以放在任意目录；
+项目和 Zant UI 不在同一个盘时（Windows）用目录联接 `.zant/zant-ui` 引用 Zant UI。
 模板带一个示例原生模块 `native/system`（平台、CPU 核数、Rust 版本）。
 `zant.d.ts` 由框架的标签表生成（`zant-tsx-dts`），`zant create` 复制到项目里。
 

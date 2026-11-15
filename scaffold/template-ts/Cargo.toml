@@ -7,10 +7,10 @@ rust-version = "1.94"
 publish = false
 
 [dependencies]
-zant = { path = "__ZANT_PATH__/crates/zant" }
+zant = { __ZANT_DEPENDENCY__ }
 
 [build-dependencies]
-zant-build = { path = "__ZANT_PATH__/crates/zant-build" }
+zant-build = { __ZANT_BUILD_DEPENDENCY__ }
 
 [profile.release]
 overflow-checks = true

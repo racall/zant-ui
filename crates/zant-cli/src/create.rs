@@ -109,15 +109,23 @@ pub fn cmd_create(options: CreateOptions) -> std::io::Result<()> {
 
     step("写入模板、配置和自定义组件");
     let zroot = zant_root();
-    let mut zant_rel = zant_dependency_path(&target, zroot)?;
-    zant_rel = zant_rel.replace('\\', "/");
+    // An installed release depends on the same version on GitHub; `zant`
+    // run from a checkout keeps a relative path for framework development.
+    let dependency = if crate::release_home().is_some() {
+        scaffold::Dependency::Git {
+            url: FRAMEWORK_GIT.to_string(),
+            tag: format!("v{}", env!("CARGO_PKG_VERSION")),
+        }
+    } else {
+        scaffold::Dependency::Path(zant_dependency_path(&target, zroot)?.replace('\\', "/"))
+    };
     let scaffold_options = scaffold::Options {
         framework: zroot.to_string_lossy().into_owned(),
         target: target.to_string_lossy().into_owned(),
         title: title.clone(),
         bundle: bundle.clone(),
         crate_name,
-        dependency: zant_rel,
+        dependency,
         hidden_titlebar: style == "hidden-titlebar",
     };
     scaffold::write(&scaffold_options)?;
@@ -215,6 +223,9 @@ fn ask_bundle(suggested: &str) -> String {
     }
     fail("应用标识连续 3 次不符合规范，未创建项目")
 }
+
+/// The Zant UI repository generated projects depend on.
+const FRAMEWORK_GIT: &str = "https://github.com/racall/zant-ui";
 
 /// Path of Zant UI for the generated Cargo.toml, which only accepts paths
 /// relative to the project. On Windows a project on another drive than Zant UI
