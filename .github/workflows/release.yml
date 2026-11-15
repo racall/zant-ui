@@ -128,10 +128,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # only the platform archives; the prebuilt native libraries are inside
+      # them (zant-native-prebuilt-* artifacts stay out of the release)
       - uses: actions/download-artifact@v4
         with:
+          name: macos
           path: dist
-          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows
+          path: dist
       - name: Release
         env:
           GH_TOKEN: ${{ github.token }}

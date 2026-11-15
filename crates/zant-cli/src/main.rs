@@ -556,6 +556,10 @@ fn find_root() -> RootInfo {
             release_home: None,
         };
     };
+    // The installer links `zant` into ~/.local/bin; macOS reports the link's
+    // path, not the installed binary's, so resolve it before looking for
+    // the release next to it.
+    let executable = executable.canonicalize().unwrap_or(executable);
     let Some(home) = executable.parent().and_then(|dir| dir.parent()) else {
         return RootInfo {
             root: checkout,
