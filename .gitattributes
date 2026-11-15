@@ -9,3 +9,6 @@
 *.otf binary
 *.ttf binary
 *.dat binary
+# Inno Setup scripts and language files stay CRLF in the working tree
+*.iss text eol=crlf
+*.isl text eol=crlf
