@@ -478,6 +478,8 @@ pub struct Generator<'a> {
     /// (`components`; `None` while generating the root component).
     pub components: Vec<components::Component>,
     pub current_component: Option<usize>,
+    /// Whether emission of the current component has read its props.
+    pub component_props_read: bool,
     /// Inline arrows passed to a child component's callback props.
     pub callback_events: Vec<components::CallbackEvent>,
     /// `useMemo` caches and `useEffect` dependency lists of the current
@@ -538,6 +540,7 @@ impl<'a> Generator<'a> {
             header: String::new(),
             components: Vec::new(),
             current_component: None,
+            component_props_read: false,
             callback_events: Vec::new(),
             hook_fields: Vec::new(),
             effects: Vec::new(),

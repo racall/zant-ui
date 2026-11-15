@@ -450,6 +450,7 @@ fn emit_component(
     }
     g.name = String::from_utf8_lossy(&f.name).into_owned();
     g.current_component = component;
+    g.component_props_read = false;
     g.child_component = component.is_some();
     collect(g, f)?;
     scope::module_names(g)?;
@@ -506,7 +507,9 @@ fn emit_component(
             None => format!("#[derive(Default)]\npub struct {props_name};"),
         };
         out.push_str(&format!("pub struct {name} {{\n"));
-        out.push_str(&format!("    props: {props_name},\n"));
+        if g.component_props_read {
+            out.push_str(&format!("    props: {props_name},\n"));
+        }
         if component_data.stateful {
             out.push_str("    _id: u64,\n");
         }
@@ -659,7 +662,9 @@ fn default_impl(
     if component.props.is_none() && component.name.is_empty() {
         // root
     } else {
-        values.push_str("            props: Default::default(),\n");
+        if g.component_props_read {
+            values.push_str("            props: Default::default(),\n");
+        }
         if component.stateful {
             values.push_str("            _id: 0,\n");
         }
@@ -718,26 +723,35 @@ fn builder_function(
     component: &components::Component,
     props_name: &str,
 ) -> Result<String> {
-    let _ = g;
-    let props_argument = format!("props: {props_name}");
+    let props_param = if g.component_props_read {
+        "props"
+    } else {
+        "_props"
+    };
+    let props_argument = format!("{props_param}: {props_name}");
     if !component.stateful {
-        let props = if component.props.is_some() {
-            "props"
+        let props_field = if g.component_props_read {
+            "props: props, "
         } else {
-            "Default::default()"
+            ""
         };
         return Ok(format!(
             "\npub fn build({props_argument}) -> ui::Node {{\n\
-             let mut instance = {name} {{ props: {props}, _state: Default::default() }};\n\
+             let mut instance = {name} {{ {props_field}_state: Default::default() }};\n\
              instance.render()\n}}\n"
         ));
     }
+    let props_assignment = if g.component_props_read {
+        "instance.props = props;\n"
+    } else {
+        ""
+    };
     Ok(format!(
         "\npub fn build({props_argument}, id: u64) -> ui::Node {{\n\
          let state: std::rc::Rc<std::cell::RefCell<{name}>> = ui::local_state::local_state_hot::<{name}>(id, {name}::default);\n\
          {{\n\
          let mut instance = state.borrow_mut();\n\
-         instance.props = props;\n\
+         {props_assignment}\
          instance._id = id;\n\
          instance._state = std::rc::Rc::downgrade(&state);\n\
          instance.render()\n\

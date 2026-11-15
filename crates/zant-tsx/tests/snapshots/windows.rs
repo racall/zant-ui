@@ -37,7 +37,6 @@ pub fn panel_with<R>(
         })
 }
 pub struct Panel {
-    props: PanelProps_,
     _id: u64,
     _state: std::rc::Weak<std::cell::RefCell<Panel>>,
     shown: f64,
@@ -47,7 +46,6 @@ pub struct PanelProps_;
 impl Default for Panel {
     fn default() -> Self {
         Self {
-            props: Default::default(),
             _id: 0,
             _state: Default::default(),
             shown: 0.0f64,
@@ -69,13 +67,12 @@ impl tsx::hot::Hot for Panel {
     }
 }
 impl Panel {
-    pub fn build(props: PanelProps_, id: u64) -> ui::Node {
+    pub fn build(_props: PanelProps_, id: u64) -> ui::Node {
         let state: std::rc::Rc<std::cell::RefCell<Panel>> = ui::local_state::local_state_hot::<
             Panel,
         >(id, Panel::default);
         {
             let mut instance = state.borrow_mut();
-            instance.props = props;
             instance._id = id;
             instance._state = std::rc::Rc::downgrade(&state);
             instance.render()

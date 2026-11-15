@@ -62,17 +62,13 @@ pub fn settings_update(update: impl FnOnce(&mut Settings)) {
     SETTINGS.with(|store| store.borrow_mut().update(update));
 }
 pub struct ThemeToggle {
-    props: ThemeToggleProps_,
     _state: std::rc::Weak<std::cell::RefCell<ThemeToggle>>,
 }
 #[derive(Default)]
 pub struct ThemeToggleProps_;
 impl Default for ThemeToggle {
     fn default() -> Self {
-        Self {
-            props: Default::default(),
-            _state: Default::default(),
-        }
+        Self { _state: Default::default() }
     }
 }
 impl tsx::hot::Hot for ThemeToggle {
@@ -85,9 +81,8 @@ impl tsx::hot::Hot for ThemeToggle {
     }
 }
 impl ThemeToggle {
-    pub fn build(props: ThemeToggleProps_) -> ui::Node {
+    pub fn build(_props: ThemeToggleProps_) -> ui::Node {
         let mut instance = ThemeToggle {
-            props: Default::default(),
             _state: Default::default(),
         };
         instance.render()
@@ -117,17 +112,13 @@ impl ThemeToggle {
     }
 }
 pub struct FontSize {
-    props: FontSizeProps_,
     _state: std::rc::Weak<std::cell::RefCell<FontSize>>,
 }
 #[derive(Default)]
 pub struct FontSizeProps_;
 impl Default for FontSize {
     fn default() -> Self {
-        Self {
-            props: Default::default(),
-            _state: Default::default(),
-        }
+        Self { _state: Default::default() }
     }
 }
 impl tsx::hot::Hot for FontSize {
@@ -144,9 +135,8 @@ struct _Capture2 {
     size: u32,
 }
 impl FontSize {
-    pub fn build(props: FontSizeProps_) -> ui::Node {
+    pub fn build(_props: FontSizeProps_) -> ui::Node {
         let mut instance = FontSize {
-            props: Default::default(),
             _state: Default::default(),
         };
         instance.render()

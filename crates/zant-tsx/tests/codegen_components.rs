@@ -171,6 +171,77 @@ fn generated(src: &str) -> generate::GeneratedFile {
     }
 }
 
+#[test]
+fn unused_child_props_are_not_stored() {
+    for parameter in ["", "props: Props", "{ label }: Props"] {
+        for state in ["", "const [count, setCount] = useState<u32>(0);"] {
+            let source = generated(&format!(
+                r#"
+import {{ useState, Text }} from "zant";
+import type {{ u32 }} from "zant";
+interface Props {{ label: string; }}
+function Child({parameter}) {{
+  {state}
+  return <Text>Child</Text>;
+}}
+export default function App() {{ return <Text>App</Text>; }}
+"#
+            ))
+            .source;
+            assert!(
+                !struct_fields(&source, "Child").contains(&"props: ChildProps_,".to_owned()),
+                "{source}"
+            );
+            assert!(
+                source.contains("pub fn build(_props: ChildProps_"),
+                "{source}"
+            );
+            assert!(!source.contains("props: Default::default()"), "{source}");
+            assert!(!source.contains("instance.props ="), "{source}");
+        }
+    }
+}
+
+#[test]
+fn child_props_read_only_in_handlers_are_kept() {
+    for parameter in ["props: Props", "{ label }: Props"] {
+        let label = if parameter.starts_with("props:") {
+            "props.label"
+        } else {
+            "label"
+        };
+        let source = generated(&format!(
+            r#"
+import {{ Button, Text }} from "zant";
+interface Props {{ label: string; }}
+function Child({parameter}) {{
+  return <Button onClick={{() => console.log({label})}}>Child</Button>;
+}}
+function Empty() {{ return <Text>Empty</Text>; }}
+export default function App() {{ return <Text>App</Text>; }}
+"#
+        ))
+        .source;
+        assert!(
+            struct_fields(&source, "Child").contains(&"props: ChildProps_,".to_owned()),
+            "{source}"
+        );
+        assert!(
+            source.contains("pub fn build(props: ChildProps_"),
+            "{source}"
+        );
+        assert!(source.contains("self.props"), "{source}");
+        assert!(
+            !struct_fields(&source, "Empty").contains(&"props: EmptyProps_,".to_owned()),
+            "{source}"
+        );
+        assert!(
+            source.contains("pub fn build(_props: EmptyProps_"),
+            "{source}"
+        );
+    }
+}
+
 /// The fields of the generated root struct, in order.
 fn struct_fields(source: &str, name: &str) -> Vec<String> {
     let start = source

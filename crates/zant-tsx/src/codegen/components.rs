@@ -306,6 +306,7 @@ pub fn read_prop(g: &mut Generator<'_>, n: &str) -> Result<Option<Value>> {
         if String::from_utf8_lossy(&d.name) != n {
             continue;
         }
+        g.component_props_read = true;
         let ty = field_type(g, props, &d.name).expect("destructured prop");
         let code = format!("self.props.{}", rust_text::id_at(g, &d.name, 0)?);
         if let Some(default) = component
@@ -318,6 +319,7 @@ pub fn read_prop(g: &mut Generator<'_>, n: &str) -> Result<Option<Value>> {
         return Ok(Some(super::scope::owned_read(g, ty, code)));
     }
     if component.destructure.is_empty() && component.param == n {
+        g.component_props_read = true;
         return Ok(Some(super::scope::owned_read(
             g,
             props,

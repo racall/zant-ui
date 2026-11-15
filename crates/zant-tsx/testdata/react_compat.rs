@@ -9,7 +9,6 @@ use zant::tsx;
 #[allow(unused_imports)]
 use zant::ui;
 pub struct Child {
-    props: ChildProps_,
     _id: u64,
     _state: std::rc::Weak<std::cell::RefCell<Child>>,
     runs: f64,
@@ -21,7 +20,6 @@ pub struct ChildProps_;
 impl Default for Child {
     fn default() -> Self {
         Self {
-            props: Default::default(),
             _id: 0,
             _state: Default::default(),
             runs: 0.0f64,
@@ -49,13 +47,12 @@ impl tsx::hot::Hot for Child {
     }
 }
 impl Child {
-    pub fn build(props: ChildProps_, id: u64) -> ui::Node {
+    pub fn build(_props: ChildProps_, id: u64) -> ui::Node {
         let state: std::rc::Rc<std::cell::RefCell<Child>> = ui::local_state::local_state_hot::<
             Child,
         >(id, Child::default);
         {
             let mut instance = state.borrow_mut();
-            instance.props = props;
             instance._id = id;
             instance._state = std::rc::Rc::downgrade(&state);
             instance.render()

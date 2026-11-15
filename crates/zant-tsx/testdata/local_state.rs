@@ -176,7 +176,6 @@ impl Section {
     }
 }
 pub struct Feed {
-    props: FeedProps_,
     _id: u64,
     _state: std::rc::Weak<std::cell::RefCell<Feed>>,
     _list2: std::rc::Rc<std::cell::RefCell<ui::ListState>>,
@@ -186,7 +185,6 @@ pub struct FeedProps_;
 impl Default for Feed {
     fn default() -> Self {
         Self {
-            props: Default::default(),
             _id: 0,
             _state: Default::default(),
             _list2: Default::default(),
@@ -208,13 +206,12 @@ impl tsx::hot::Hot for Feed {
     }
 }
 impl Feed {
-    pub fn build(props: FeedProps_, id: u64) -> ui::Node {
+    pub fn build(_props: FeedProps_, id: u64) -> ui::Node {
         let state: std::rc::Rc<std::cell::RefCell<Feed>> = ui::local_state::local_state_hot::<
             Feed,
         >(id, Feed::default);
         {
             let mut instance = state.borrow_mut();
-            instance.props = props;
             instance._id = id;
             instance._state = std::rc::Rc::downgrade(&state);
             instance.render()
