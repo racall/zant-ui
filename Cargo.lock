@@ -746,7 +746,7 @@ dependencies = [
 
 [[package]]
 name = "zant"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "rusqlite",
  "serde",
@@ -758,7 +758,7 @@ dependencies = [
 
 [[package]]
 name = "zant-build"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "embed-resource",
  "png",
@@ -772,7 +772,7 @@ dependencies = [
 
 [[package]]
 name = "zant-cli"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "clap",
  "notify",
@@ -787,7 +787,7 @@ dependencies = [
 
 [[package]]
 name = "zant-dylib"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "libsqlite3-sys",
  "zant",
@@ -795,7 +795,7 @@ dependencies = [
 
 [[package]]
 name = "zant-examples"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "serde_json",
  "zant",
@@ -805,14 +805,14 @@ dependencies = [
 
 [[package]]
 name = "zant-hot-host"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "zant-sys",
 ]
 
 [[package]]
 name = "zant-macros"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -821,14 +821,14 @@ dependencies = [
 
 [[package]]
 name = "zant-sys"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "cc",
 ]
 
 [[package]]
 name = "zant-tsx"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "clap",
  "prettyplease",
@@ -843,7 +843,7 @@ dependencies = [
 
 [[package]]
 name = "zant-tsx-bench-app"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "zant",
  "zant-build",
@@ -851,7 +851,7 @@ dependencies = [
 
 [[package]]
 name = "zant-tsx-counter"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "zant",
  "zant-build",
@@ -859,7 +859,7 @@ dependencies = [
 
 [[package]]
 name = "zant-tsx-demo"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "zant",
  "zant-build",
@@ -867,7 +867,7 @@ dependencies = [
 
 [[package]]
 name = "zant-tsx-gallery"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "zant",
  "zant-build",
@@ -875,7 +875,7 @@ dependencies = [
 
 [[package]]
 name = "zant-tsx-notes"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "zant",
  "zant-build",
@@ -883,7 +883,7 @@ dependencies = [
 
 [[package]]
 name = "zant-tsx-reader"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "zant",
  "zant-build",
@@ -891,7 +891,7 @@ dependencies = [
 
 [[package]]
 name = "zant-tsx-todos"
-version = "0.2.7"
+version = "0.2.8"
 dependencies = [
  "zant",
  "zant-build",
