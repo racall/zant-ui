@@ -753,15 +753,36 @@ pub fn paint(
     color: u32,
     stroke: Option<f32>,
 ) {
+    let width = stroke.unwrap_or_else(|| default_stroke(size));
+    // A translucent colour (disabled / secondary text) would darken wherever
+    // the strokes overlap and blur the glyph: draw it opaque into a layer and
+    // apply the alpha once.
+    let alpha = color >> 24;
+    let layered = alpha > 0 && alpha < 0xff;
+    if layered {
+        let pad = width + 1.0;
+        canvas.save_layer_alpha(
+            Rect::init(
+                cx - size / 2.0 - pad,
+                cy - size / 2.0 - pad,
+                size + pad * 2.0,
+                size + pad * 2.0,
+            ),
+            alpha as f32 / 255.0,
+        );
+    }
     let mut sink = CanvasSink {
         canvas,
         x: cx - size / 2.0,
         y: cy - size / 2.0,
         scale: size / 24.0,
-        color,
-        width: stroke.unwrap_or_else(|| default_stroke(size)),
+        color: if layered { color | 0xff00_0000 } else { color },
+        width,
     };
     trace(icon, &mut sink);
+    if layered {
+        canvas.restore();
+    }
 }
 
 // ── retained drawings (ui.icon) ───────────────────────────────────────────
