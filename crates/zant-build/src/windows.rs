@@ -142,7 +142,7 @@ fn install_pdfium(out_dir: &Path) -> Result<(), Error> {
             }
         }
     }
-    return fallback(
+    fallback(
         release,
         format!(
             "could not copy {} next to the executable ({}); quit the running app and retry, \
@@ -152,7 +152,7 @@ fn install_pdfium(out_dir: &Path) -> Result<(), Error> {
                 .map(|error| error.to_string())
                 .unwrap_or_default()
         ),
-    );
+    )
 }
 
 /// Same length and bytes (used to skip a `pdfium.dll` copy that another build

@@ -146,18 +146,14 @@ pub fn load_config(root: &str) -> std::io::Result<app_config::AppConfig> {
 // ---- child processes ----
 
 fn base_command(program: &str) -> Proc {
-    let command = Proc::new(program);
+    #[cfg_attr(not(windows), allow(unused_mut))]
+    let mut command = Proc::new(program);
     // PowerShell 7 puts its own module folders in PSModulePath; a Windows
     // PowerShell 5.1 started from here would then load PowerShell 7's
     // Microsoft.PowerShell.Utility and miss Get-FileHash. Without the
     // variable each PowerShell uses its own default.
     #[cfg(windows)]
-    {
-        let mut command = command;
-        command.env_remove("PSModulePath");
-        return command;
-    }
-    #[cfg(not(windows))]
+    command.env_remove("PSModulePath");
     command
 }
 
