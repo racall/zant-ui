@@ -22,6 +22,19 @@ impl Runtime {
         let prev_owner = crate::ui::set_command_owner(Some(self.owner_ptr()));
         self.sample_clock();
         let result = self.dispatch_event(&event);
+        if super::input_trace() && matches!(event, Event::PointerDown(_) | Event::PointerUp(_)) {
+            eprintln!(
+                "[trace] {:.1} {} needs_build={} result={}",
+                crate::platform::platform::monotonic_us() as f64 / 1000.0,
+                if matches!(event, Event::PointerDown(_)) {
+                    "down"
+                } else {
+                    "up"
+                },
+                self.needs_build,
+                result
+            );
+        }
         self.report_selection();
         // the app's state may have changed: other windows rebuild too (the
         // dispatching window itself is already borrowed, so `invalidate_all`

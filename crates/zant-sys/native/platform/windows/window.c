@@ -191,7 +191,19 @@ static void zant_request(ZantWindow *w) {
 static int zant_send(ZantWindow *w, ZantEvent *e) {
     if (!w || !w->host.event) return 0;
     const int handled = w->host.event(w->host.userdata, e);
-    if (handled) zant_request(w);
+    if (!handled) return handled;
+    /* A click or a key press shows its result in the next frame now:
+       WM_PAINT is the lowest-priority message and waits behind other input,
+       which made fast clicking visibly lag. Pointer moves keep the coalescing
+       invalidate (they arrive far faster than frames). */
+    const bool discrete = e->type == ZANT_EVENT_POINTER_DOWN || e->type == ZANT_EVENT_POINTER_UP ||
+                          e->type == ZANT_EVENT_KEY_DOWN || e->type == ZANT_EVENT_KEY_UP ||
+                          e->type == ZANT_EVENT_TEXT_INPUT;
+    if (discrete && w->hwnd && !w->closing && !w->in_draw) {
+        RedrawWindow(w->hwnd, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
+    } else {
+        zant_request(w);
+    }
     return handled;
 }
 

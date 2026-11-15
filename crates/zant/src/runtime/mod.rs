@@ -382,3 +382,11 @@ pub(crate) fn action_cx(app: &mut Box<dyn App>) -> ActionCx<'_> {
     let root: &mut dyn std::any::Any = app.as_mut();
     ActionCx::new(root)
 }
+
+/// `ZANT_INPUT_TRACE=1`: prints when pointer presses / releases are handled
+/// and when each frame starts (and on macOS when each frame reaches the
+/// screen), to measure input-to-screen latency. Read once.
+pub(crate) fn input_trace() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var_os("ZANT_INPUT_TRACE").is_some_and(|v| !v.is_empty()))
+}
