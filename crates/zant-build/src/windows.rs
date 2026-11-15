@@ -100,7 +100,7 @@ fn print_subsystem() {
 /// `PdfPreview`. Debug builds (`zant run`) only warn and keep every non-PDF
 /// feature working.
 fn install_pdfium(out_dir: &Path) -> Result<(), Error> {
-    let source = crate::zant_ui_root().join("third_party/pdfium-win/bin/pdfium.dll");
+    let source = crate::zant_ui_assets_root().join("third_party/pdfium-win/bin/pdfium.dll");
     let release = std::env::var("PROFILE").is_ok_and(|profile| profile != "debug");
     let Some(profile_dir) = profile_dir(out_dir) else {
         let message = format!(

@@ -77,6 +77,7 @@ fn main() {
             .expect("repo root (crates/zant-sys/../..)"),
     );
     let target_os = env::var("CARGO_CFG_TARGET_OS").expect("CARGO_CFG_TARGET_OS");
+    let assets = assets_root(&root);
 
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=prebuilt.rs");
@@ -88,6 +89,7 @@ fn main() {
     println!("cargo:rerun-if-env-changed={}", prebuilt::ENV_OUT);
     println!("cargo:rerun-if-env-changed={}", shared::ENV_SHARED);
     println!("cargo:rerun-if-changed=shared.rs");
+    println!("cargo:rerun-if-env-changed={ENV_HOME}");
 
     match target_os.as_str() {
         "macos" | "windows" => {}
@@ -111,7 +113,7 @@ fn main() {
     // Windows embeds the ICU data and the math font in the executable either
     // way: the prebuilt archive is only the C++/C objects.
     if target_os == "windows" {
-        write_static_data(&root);
+        write_static_data(&assets);
     }
 
     // ZANT_NATIVE_SHARED=<dir>: one shared library instead of static linking
@@ -125,11 +127,11 @@ fn main() {
         if !shared::is_current(&dir, &target_os, &hash) {
             LINK_STATIC.store(false, std::sync::atomic::Ordering::Relaxed);
             let objects = match target_os.as_str() {
-                "macos" => compile_macos(&root, &sources),
-                "windows" => compile_windows(&root, &sources),
+                "macos" => compile_macos(&root, &assets, &sources),
+                "windows" => compile_windows(&root, &assets, &sources),
                 other => unreachable!("checked above: {other}"),
             };
-            shared::link(&root, &target_os, &dir, &objects);
+            shared::link(&root, &assets, &target_os, &dir, &objects);
             shared::write_stamp(&dir, &hash);
         }
         shared::emit_link(&dir);
@@ -144,10 +146,10 @@ fn main() {
         .map(PathBuf::from);
 
     if generate.is_none() {
-        match detect_prebuilt(&root, &target_os) {
+        match detect_prebuilt(&root, &assets, &target_os) {
             Some(Ok(found)) => {
                 link_prebuilt(&found);
-                link_native_dependencies(&root, &target_os);
+                link_native_dependencies(&assets, &target_os);
                 return;
             }
             Some(Err(reason)) => println!(
@@ -159,14 +161,56 @@ fn main() {
     }
 
     let objects = match target_os.as_str() {
-        "macos" => compile_macos(&root, &sources),
-        "windows" => compile_windows(&root, &sources),
+        "macos" => compile_macos(&root, &assets, &sources),
+        "windows" => compile_windows(&root, &assets, &sources),
         other => unreachable!("checked above: {other}"),
     };
-    link_native_dependencies(&root, &target_os);
+    link_native_dependencies(&assets, &target_os);
 
     if let Some(out_dir) = generate {
         write_prebuilt(&root, &target_os, &out_dir, &objects);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Binary assets
+// ---------------------------------------------------------------------------
+
+/// Install folder of the release toolchain (`install.sh` / `install.ps1`).
+const ENV_HOME: &str = "ZANT_HOME";
+
+/// The tree whose `third_party/` holds the binary assets: Skia's archives and
+/// headers, the fonts, PDFium and the prebuilt native archive.
+///
+/// A source checkout (after `scripts/fetch_skia*`) and an installed release
+/// carry them next to the crates. A Cargo `git` dependency is only the
+/// tracked sources, so it borrows them from the installed release
+/// (`$ZANT_HOME/zant-ui`, default `~/.zant` / `%LOCALAPPDATA%\zant`). The
+/// prebuilt archive is still checked against *this* tree's sources, so a
+/// version mismatch compiles the native layer instead of linking stale code.
+fn assets_root(root: &Path) -> PathBuf {
+    if root.join("third_party").is_dir() {
+        return root.to_path_buf();
+    }
+    let home = env::var_os(ENV_HOME)
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+        .or_else(|| {
+            if cfg!(windows) {
+                env::var_os("LOCALAPPDATA").map(|dir| PathBuf::from(dir).join("zant"))
+            } else {
+                env::var_os("HOME").map(|dir| PathBuf::from(dir).join(".zant"))
+            }
+        });
+    match home.map(|home| home.join("zant-ui")) {
+        Some(installed) if installed.join("third_party").is_dir() => {
+            println!(
+                "cargo:rerun-if-changed={}",
+                installed.join("third_party").display()
+            );
+            installed
+        }
+        _ => root.to_path_buf(),
     }
 }
 
@@ -176,8 +220,12 @@ fn main() {
 
 /// Looks for the prebuilt archive. `None` means "nothing shipped/pointed at",
 /// `Some(Err(reason))` means "present but not usable with this tree".
-fn detect_prebuilt(root: &Path, target_os: &str) -> Option<Result<prebuilt::Prebuilt, String>> {
-    let candidate = match prebuilt::candidate(root, target_os) {
+fn detect_prebuilt(
+    root: &Path,
+    assets: &Path,
+    target_os: &str,
+) -> Option<Result<prebuilt::Prebuilt, String>> {
+    let candidate = match prebuilt::candidate(assets, target_os) {
         Ok(candidate) => candidate,
         Err(reason) => {
             println!("cargo:warning={WARNING_PREFIX}{IGNORING_PREBUILT}: {reason}");
@@ -244,12 +292,12 @@ fn write_prebuilt(root: &Path, target_os: &str, out_dir: &Path, objects: &[PathB
 /// "platform/platform.h" / "skia/skia_bridge.h" style paths from
 /// `crates/zant-sys/native/`, and Skia's headers come from
 /// `third_party/skia-headers`.
-fn add_includes(build: &mut cc::Build, root: &Path) {
+fn add_includes(build: &mut cc::Build, root: &Path, assets: &Path) {
     build
         .include(root.join("crates/zant-sys/native"))
-        .include(root.join("third_party/skia-headers"))
-        .include(root.join("third_party/skia-headers/include/private"))
-        .include(root.join("third_party/skia-headers/src"));
+        .include(assets.join("third_party/skia-headers"))
+        .include(assets.join("third_party/skia-headers/include/private"))
+        .include(assets.join("third_party/skia-headers/src"));
 }
 
 /// Paths from the canonical source list whose extension is in `extensions`.
@@ -278,7 +326,7 @@ fn build_archive(build: &cc::Build, name: &str) -> Vec<PathBuf> {
     objects
 }
 
-fn compile_macos(root: &Path, sources: &[String]) -> Vec<PathBuf> {
+fn compile_macos(root: &Path, assets: &Path, sources: &[String]) -> Vec<PathBuf> {
     let mut objects = Vec::new();
 
     // C++: the portable Skia bridge.
@@ -288,7 +336,7 @@ fn compile_macos(root: &Path, sources: &[String]) -> Vec<PathBuf> {
         .flag("-fno-exceptions")
         .flag("-fno-rtti")
         .flag("-Wno-deprecated-declarations");
-    add_includes(&mut cpp, root);
+    add_includes(&mut cpp, root, assets);
     for file in sources_with(sources, root, &[".cpp"]) {
         cpp.file(file);
     }
@@ -304,7 +352,7 @@ fn compile_macos(root: &Path, sources: &[String]) -> Vec<PathBuf> {
         // skia_bridge_mac.mm is compiled without exceptions like the portable
         // part; pdf.mm keeps the compiler default.
         .flag("-Wno-deprecated-declarations");
-    add_includes(&mut objcpp, root);
+    add_includes(&mut objcpp, root, assets);
     for file in sources_with(sources, root, &[".mm"]) {
         objcpp.file(file);
     }
@@ -317,7 +365,7 @@ fn compile_macos(root: &Path, sources: &[String]) -> Vec<PathBuf> {
         .flag("-fobjc-arc")
         .flag("-fblocks")
         .flag("-Wno-deprecated-declarations");
-    add_includes(&mut objc, root);
+    add_includes(&mut objc, root, assets);
     for file in sources_with(sources, root, &[".m"]) {
         objc.file(file);
     }
@@ -326,7 +374,7 @@ fn compile_macos(root: &Path, sources: &[String]) -> Vec<PathBuf> {
     objects
 }
 
-fn compile_windows(root: &Path, sources: &[String]) -> Vec<PathBuf> {
+fn compile_windows(root: &Path, assets: &Path, sources: &[String]) -> Vec<PathBuf> {
     let mut objects = Vec::new();
 
     // C++: portable bridge + Direct3D 12 backend + PDFium backend. No DLL
@@ -353,7 +401,7 @@ fn compile_windows(root: &Path, sources: &[String]) -> Vec<PathBuf> {
         .define("WIN32_LEAN_AND_MEAN", None)
         .define("NOMINMAX", None)
         .define("_CRT_SECURE_NO_WARNINGS", None);
-    add_includes(&mut cpp, root);
+    add_includes(&mut cpp, root, assets);
     for file in sources_with(sources, root, &[".cpp"]) {
         cpp.file(file);
     }
@@ -364,7 +412,7 @@ fn compile_windows(root: &Path, sources: &[String]) -> Vec<PathBuf> {
     c.std("c11")
         .define("WIN32_LEAN_AND_MEAN", None)
         .define("NOMINMAX", None);
-    add_includes(&mut c, root);
+    add_includes(&mut c, root, assets);
     for file in sources_with(sources, root, &[".c"]) {
         c.file(file);
     }

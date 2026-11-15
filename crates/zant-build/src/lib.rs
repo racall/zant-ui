@@ -417,6 +417,31 @@ pub fn zant_ui_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
 
+/// The tree whose `third_party/` holds the binary assets (PDFium, Skia…).
+/// A Cargo `git` dependency carries only tracked sources, so it falls back to
+/// the installed release, `$ZANT_HOME/zant-ui` (default `~/.zant` /
+/// `%LOCALAPPDATA%\zant`) — the same rule as `zant-sys`'s build script.
+pub fn zant_ui_assets_root() -> PathBuf {
+    let root = zant_ui_root();
+    if root.join("third_party").is_dir() {
+        return root;
+    }
+    let home = std::env::var_os("ZANT_HOME")
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+        .or_else(|| {
+            if cfg!(windows) {
+                std::env::var_os("LOCALAPPDATA").map(|dir| PathBuf::from(dir).join("zant"))
+            } else {
+                std::env::var_os("HOME").map(|dir| PathBuf::from(dir).join(".zant"))
+            }
+        });
+    match home.map(|home| home.join("zant-ui")) {
+        Some(installed) if installed.join("third_party").is_dir() => installed,
+        _ => root,
+    }
+}
+
 /// The Cargo directives the build script must emit for `report`: the rerun set
 /// (the project directories so added/removed files are seen, then every file
 /// the compiler read) and the fallback warnings.

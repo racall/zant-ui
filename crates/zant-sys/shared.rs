@@ -91,12 +91,12 @@ fn run(mut command: Command, what: &str) {
 
 /// Links `objects` and their dependencies into the shared library in `dir`
 /// and tells rustc to link against it.
-pub fn link(root: &Path, target_os: &str, dir: &Path, objects: &[PathBuf]) {
+pub fn link(root: &Path, assets: &Path, target_os: &str, dir: &Path, objects: &[PathBuf]) {
     std::fs::create_dir_all(dir)
         .unwrap_or_else(|error| panic!("zant-sys: cannot create {}: {error}", dir.display()));
     match target_os {
-        "macos" => link_macos(root, dir, objects),
-        "windows" => link_windows(root, dir, objects),
+        "macos" => link_macos(assets, dir, objects),
+        "windows" => link_windows(root, assets, dir, objects),
         other => panic!("zant-sys: unsupported target OS {other}"),
     }
 }
@@ -128,8 +128,8 @@ pub fn write_stamp(dir: &Path, hash: &str) {
         .unwrap_or_else(|error| panic!("zant-sys: write {}: {error}", path.display()));
 }
 
-fn link_macos(root: &Path, dir: &Path, objects: &[PathBuf]) {
-    let skia = root.join("third_party/skia/skia-binaries");
+fn link_macos(assets: &Path, dir: &Path, objects: &[PathBuf]) {
+    let skia = assets.join("third_party/skia/skia-binaries");
     let output = dir.join(format!("lib{LIBRARY}.dylib"));
     let mut compiler = cc::Build::new();
     compiler.cpp(true);
@@ -150,8 +150,8 @@ fn link_macos(root: &Path, dir: &Path, objects: &[PathBuf]) {
     run(command, "the shared native library");
 }
 
-fn link_windows(root: &Path, dir: &Path, objects: &[PathBuf]) {
-    let skia = root.join("third_party/skia-win/skia-binaries");
+fn link_windows(root: &Path, assets: &Path, dir: &Path, objects: &[PathBuf]) {
+    let skia = assets.join("third_party/skia-win/skia-binaries");
     // The export list: every ABI function plus the two data setters.
     let def = dir.join(format!("{LIBRARY}.def"));
     let mut text = format!("LIBRARY {LIBRARY}\nEXPORTS\n");
