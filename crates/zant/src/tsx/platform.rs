@@ -203,6 +203,16 @@ thread_local! {
     static ASSET_IMAGES: RefCell<Vec<AssetImage>> = const { RefCell::new(Vec::new()) };
 }
 
+pub(crate) fn release_app() {
+    ASSET_IMAGES.with(|images| images.borrow_mut().clear());
+    APP_ID.with(|id| *id.borrow_mut() = None);
+}
+
+#[cfg(test)]
+pub(crate) fn asset_image_count() -> usize {
+    ASSET_IMAGES.with(|images| images.borrow().len())
+}
+
 /// An imported image asset (`import icon from "./icon.png"`) as an
 /// `ImageOptions::image` value: decoded on first use and kept (assets are
 /// static bytes, cached by address); `None` when it is not a decodable image.

@@ -381,6 +381,41 @@ pub fn handle_app_event(cx: &mut ActionCx<'_>, event: &desktop::AppEvent) -> boo
     }
 }
 
+pub(crate) fn release_app() {
+    let hotkeys = HOTKEYS.with(|hotkeys| std::mem::take(&mut *hotkeys.borrow_mut()));
+    for state in hotkeys.into_iter().filter_map(|weak| weak.upgrade()) {
+        let action = {
+            let mut state = state.borrow_mut();
+            if state.registered && system_enabled() {
+                desktop::unregister_hotkey(state.id);
+            }
+            state.registered = false;
+            state.shortcut.clear();
+            state.action.take()
+        };
+        drop(action);
+    }
+    let tray = TRAY.with(|tray| tray.replace(Tray::default()));
+    drop(tray);
+    if system_enabled() {
+        // Also remove trays set through the hand-written desktop API.
+        desktop::remove_tray();
+        desktop::watch_clipboard(false);
+    }
+    // Keep hotkey ids monotonic: queued native events must not target new hooks.
+}
+
+#[cfg(test)]
+pub(crate) fn assert_app_released() {
+    TRAY.with(|tray| {
+        let tray = tray.borrow();
+        assert!(tray.applied.is_none());
+        assert!(tray.selects.is_empty());
+        assert!(tray.click_action.is_none());
+    });
+    HOTKEYS.with(|hotkeys| assert!(hotkeys.borrow().is_empty()));
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

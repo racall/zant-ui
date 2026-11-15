@@ -24,6 +24,9 @@ use crate::ui::{App, RunOptions};
 
 pub use zant_sys::hot::{ABI_VERSION, ZantHotApi};
 
+mod release;
+pub use release::release_app;
+
 /// One app running on a window the host owns.
 pub struct Instance {
     core: Rc<RefCell<Runtime>>,
@@ -108,6 +111,10 @@ impl Instance {
         }
         crate::tsx::timers::set_running(false);
         crate::ui::app::stop(&self.core);
+        // Drop instance-owned app values before clearing the registries: their
+        // destructors / effect cleanups may enqueue more work.
+        drop(self);
+        release_app();
     }
 }
 

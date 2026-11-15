@@ -22,6 +22,11 @@ thread_local! {
     static FALLBACK: RefCell<Store> = RefCell::new(Store::new());
 }
 
+pub(crate) fn release_app() {
+    let old = FALLBACK.with(|store| store.replace(Store::new()));
+    drop(old);
+}
+
 fn with_store<R>(f: impl FnOnce(&mut Store) -> R) -> R {
     match context::build_states() {
         Some(states) => f(&mut states.borrow_mut()),

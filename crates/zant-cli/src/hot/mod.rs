@@ -70,7 +70,7 @@ pub fn cmd_hot(release: bool) -> std::io::Result<()> {
     };
     ok("编译完成");
 
-    let mut host = Host::spawn(&paths, &library, &root, tx.clone())?;
+    let mut host = Host::spawn(&paths, &library, &root, release, tx.clone())?;
     eprintln!("\n热刷新已开启：保存 src/、native/ 下的文件后界面原地刷新；Ctrl+C 退出");
 
     loop {
@@ -192,7 +192,7 @@ fn copy_if_newer(from: &Path, to: &Path) -> Result<(), String> {
 fn build_library(paths: &Paths, release: bool, generation: &mut u32) -> Result<PathBuf, String> {
     let mut command = process::cargo();
     command
-        .args(["build", "--lib", "--manifest-path"])
+        .args(["rustc", "--lib", "--manifest-path"])
         .arg(paths.crate_dir.join("Cargo.toml"))
         .env("CARGO_TARGET_DIR", &paths.target_dir)
         .env("ZANT_NATIVE_SHARED", paths.native_dir())
@@ -205,6 +205,8 @@ fn build_library(paths: &Paths, release: bool, generation: &mut u32) -> Result<P
     if release {
         command.arg("--release");
     }
+    // Apply only to the UI crate, never via RUSTFLAGS (which rebuilds deps).
+    command.args(["--", "-C", "prefer-dynamic"]);
     let mut child = command
         .spawn()
         .map_err(|error| format!("无法运行 cargo：{error}"))?;
@@ -302,6 +304,7 @@ impl Host {
         paths: &Paths,
         library: &Path,
         root: &str,
+        release: bool,
         tx: mpsc::Sender<Event>,
     ) -> std::io::Result<Host> {
         let mut command = Command::new(paths.host_exe());
@@ -313,6 +316,7 @@ impl Host {
         if let Some(state) = std::env::var_os("ZANT_HOT_RESTART_STATE") {
             command.arg("--state").arg(state);
         }
+        command.arg("--deps").arg(paths.deps_dir(release));
         if !(crate::raw_logs() || IS_WINDOWS) {
             command.stderr(Stdio::piped());
         }

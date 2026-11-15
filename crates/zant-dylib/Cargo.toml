@@ -1,0 +1,14 @@
+[package]
+name = "zant-dylib"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Shared Rust framework for Zant UI hot reload"
+publish = false
+
+[lib]
+crate-type = ["dylib"]
+
+[dependencies]
+zant.workspace = true

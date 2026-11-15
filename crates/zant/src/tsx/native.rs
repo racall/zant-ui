@@ -110,7 +110,8 @@ pub fn registered(name: &str) -> bool {
 
 /// Forgets every registration (tests, or an app restart in the same process).
 pub fn clear() {
-    MODULES.with(|modules| modules.borrow_mut().clear());
+    let modules = MODULES.with(|modules| std::mem::take(&mut *modules.borrow_mut()));
+    drop(modules);
 }
 
 #[cfg(test)]

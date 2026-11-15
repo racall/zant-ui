@@ -180,6 +180,7 @@ pub fn run(app: impl App, options: RunOptions) -> Result<(), Error> {
     }
     window.run();
     stop(&core);
+    crate::hot::release_app();
     Ok(())
 }
 
@@ -212,7 +213,8 @@ pub(crate) fn start(core: &Rc<RefCell<crate::runtime::Runtime>>, window: &Rc<Win
 pub(crate) fn stop(core: &Rc<RefCell<crate::runtime::Runtime>>) {
     desktop::set_main_runtime(None);
     desktop::clear_app_hooks();
-    runtime_window::clear();
+    // Keep the weak window registry until release_app closes secondary
+    // windows and breaks app/window reference cycles.
     crate::platform::platform::set_post_wake_window(std::ptr::null_mut());
     // Break the Rc cycle Runtime -> Window -> Host -> Rc<RefCell<Runtime>> so
     // both are freed when this function returns.

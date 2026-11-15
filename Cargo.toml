@@ -4,6 +4,7 @@ members = [
     "crates/zant-sys",
     "crates/zant-macros",
     "crates/zant",
+    "crates/zant-dylib",
     "crates/zant-tsx",
     "crates/zant-build",
     "crates/zant-cli",
@@ -54,6 +55,7 @@ toml = "1.2"
 zant-sys = { path = "crates/zant-sys", version = "0.1.0" }
 zant-macros = { path = "crates/zant-macros", version = "0.1.0" }
 zant = { path = "crates/zant", version = "0.1.0" }
+zant-dylib = { path = "crates/zant-dylib", version = "0.1.0" }
 zant-tsx = { path = "crates/zant-tsx", version = "0.1.0" }
 zant-build = { path = "crates/zant-build", version = "0.1.0" }
 

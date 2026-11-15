@@ -743,6 +743,8 @@ thread_local! {
     /// The handler installed by [`install_app_event_handler`].
     static APP_EVENT_HANDLER: RefCell<Option<Box<dyn AppEventHandler>>> =
         const { RefCell::new(None) };
+    /// Includes registrations made directly through the Rust desktop API.
+    static HOTKEY_IDS: RefCell<Vec<i32>> = const { RefCell::new(Vec::new()) };
 }
 
 unsafe extern "C" fn app_event_trampoline(
@@ -776,11 +778,28 @@ pub fn install_app_event_handler(handler: impl AppEventHandler + 'static) {
 
 /// Stops delivering app-level events (the app is ending).
 pub fn clear_app_event_handler() {
-    APP_EVENT_HANDLER.with(|slot| *slot.borrow_mut() = None);
     if SUPPORTED {
         // SAFETY: installs the null handler; the trampoline is not called.
         unsafe { ffi::zant_app_set_handler(None, std::ptr::null_mut()) };
     }
+    let old = APP_EVENT_HANDLER.with(|slot| slot.take());
+    drop(old);
+}
+
+pub(crate) fn release_app() {
+    clear_app_event_handler();
+    set_post_wake_window(std::ptr::null_mut());
+    let ids = HOTKEY_IDS.with(|ids| std::mem::take(&mut *ids.borrow_mut()));
+    for id in ids {
+        unregister_hotkey(id);
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn assert_app_released() {
+    APP_EVENT_HANDLER.with(|slot| assert!(slot.borrow().is_none()));
+    HOTKEY_IDS.with(|ids| assert!(ids.borrow().is_empty()));
+    assert!(POST_WAKE_WINDOW.load(Ordering::Relaxed).is_null());
 }
 
 /// Serializes the tests that call native services which macOS does not expect
@@ -937,10 +956,19 @@ pub fn tray_icon_pixels() -> u32 {
 
 /// System-wide hotkey; false when the combination is taken or unsupported.
 pub fn register_hotkey(id: i32, key: i32, modifiers: i32) -> bool {
-    SUPPORTED && unsafe { ffi::zant_hotkey_register(id, key, modifiers) != 0 }
+    let registered = SUPPORTED && unsafe { ffi::zant_hotkey_register(id, key, modifiers) != 0 };
+    HOTKEY_IDS.with(|ids| {
+        let mut ids = ids.borrow_mut();
+        ids.retain(|&current| current != id);
+        if registered {
+            ids.push(id);
+        }
+    });
+    registered
 }
 
 pub fn unregister_hotkey(id: i32) {
+    HOTKEY_IDS.with(|ids| ids.borrow_mut().retain(|&current| current != id));
     if SUPPORTED {
         // SAFETY: no arguments beyond the id.
         unsafe { ffi::zant_hotkey_unregister(id) }

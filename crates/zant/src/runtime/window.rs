@@ -245,9 +245,43 @@ pub(crate) fn process_pending_closes() {
 }
 
 /// Forgets every window (the app is ending).
+#[cfg(test)]
 pub(crate) fn clear() {
     OPEN_RUNTIMES.with(|runtimes| runtimes.borrow_mut().clear());
     PENDING_CLOSES.with(|pending| pending.borrow_mut().clear());
+}
+
+/// Releases every app runtime, including cycles through app-owned window
+/// handles. The host's adopted window is detached, never destroyed.
+pub(crate) fn release_app() {
+    struct Released;
+    impl App for Released {
+        fn render(&mut self) -> Node {
+            Node::default()
+        }
+    }
+
+    // Hold all runtimes alive until every cycle is broken. Never drop app
+    // values under the registry or runtime borrow (destructors may re-enter).
+    let runtimes = OPEN_RUNTIMES.with(|slot| std::mem::take(&mut *slot.borrow_mut()));
+    let runtimes: Vec<_> = runtimes
+        .into_iter()
+        .filter_map(|weak| weak.upgrade())
+        .collect();
+    for core in &runtimes {
+        let old = std::mem::replace(
+            &mut *core.borrow_mut(),
+            Runtime::init(Released, crate::ui::RunOptions::default()),
+        );
+        drop(old);
+    }
+    PENDING_CLOSES.with(|pending| pending.borrow_mut().clear());
+}
+
+#[cfg(test)]
+pub(crate) fn assert_app_released() {
+    OPEN_RUNTIMES.with(|runtimes| assert!(runtimes.borrow().is_empty()));
+    PENDING_CLOSES.with(|pending| assert!(pending.borrow().is_empty()));
 }
 
 impl Runtime {

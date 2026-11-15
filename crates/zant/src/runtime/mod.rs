@@ -116,6 +116,9 @@ pub struct Runtime {
     pub next_delay_ms: i32,
     pub any_animation: bool,
     pub hovered: Option<NodeId>,
+    /// Last known logical window position; absent after the pointer leaves.
+    pub(crate) pointer_position: Option<[f32; 2]>,
+    pub(crate) pointer_pressed: bool,
     pub pressed_button: Option<NodeId>,
     pub pressed_toggle: Option<NodeId>,
     pub drag_input: Option<NodeId>,
@@ -217,6 +220,8 @@ impl Runtime {
             next_delay_ms: -1,
             any_animation: false,
             hovered: None,
+            pointer_position: None,
+            pointer_pressed: false,
             pressed_button: None,
             pressed_toggle: None,
             drag_input: None,
