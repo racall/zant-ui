@@ -11,8 +11,9 @@
 #![forbid(unsafe_code)]
 
 use crate::Str;
-use crate::core::node::{FlexStyle, HoverVisual, NodeKind, Visual};
+use crate::core::node::{FlexStyle, HoverVisual, MotionStyle, NodeKind, Visual};
 use crate::layout::flex;
+use crate::motion::motion;
 use crate::renderer::text;
 
 use super::context::current_theme;
@@ -92,6 +93,17 @@ fn visual_from(box_options: &BoxOptions) -> Visual {
     }
 }
 
+/// The enter / exit and layout transitions of a container.
+fn motion_from(box_options: &BoxOptions) -> MotionStyle {
+    MotionStyle {
+        presence: box_options.motion,
+        origin: box_options.motion_origin,
+        layout_transition: box_options
+            .layout_transition
+            .then(motion::Transition::default),
+    }
+}
+
 /// A hover look only when one of the colours is set.
 fn hover_from(box_options: &BoxOptions) -> Option<HoverVisual> {
     if box_options.hover_background.is_none() && box_options.hover_border_color.is_none() {
@@ -122,6 +134,7 @@ pub fn column(options: BoxOptions) -> Node {
     let layout = layout_from(&options, flex::Direction::Column);
     let visual = visual_from(&options);
     let hover_visual = hover_from(&options);
+    let motion = motion_from(&options);
     Node::new(Element {
         kind: NodeKind::Container,
         key: options.key,
@@ -130,6 +143,7 @@ pub fn column(options: BoxOptions) -> Node {
         children: options.children,
         on_resize: options.on_resize,
         hover_visual,
+        motion,
         ..Element::default()
     })
 }
@@ -139,6 +153,7 @@ pub fn row(options: BoxOptions) -> Node {
     let layout = layout_from(&options, flex::Direction::Row);
     let visual = visual_from(&options);
     let hover_visual = hover_from(&options);
+    let motion = motion_from(&options);
     Node::new(Element {
         kind: NodeKind::Container,
         key: options.key,
@@ -147,6 +162,7 @@ pub fn row(options: BoxOptions) -> Node {
         children: options.children,
         on_resize: options.on_resize,
         hover_visual,
+        motion,
         ..Element::default()
     })
 }
@@ -224,6 +240,22 @@ mod tests {
     use crate::theme::tokens;
     use crate::ui::actions::{action, index_action};
     use crate::ui::context::set_build_theme;
+
+    #[test]
+    fn containers_carry_their_motion() {
+        let plain = column(BoxOptions::default());
+        assert_eq!(plain.element().motion, MotionStyle::default());
+        let node = row(BoxOptions {
+            motion: motion::Presence::SlideUp,
+            motion_origin: motion::Origin::Top,
+            layout_transition: true,
+            ..Default::default()
+        });
+        let style = node.element().motion;
+        assert_eq!(style.presence, motion::Presence::SlideUp);
+        assert_eq!(style.origin, motion::Origin::Top);
+        assert_eq!(style.layout_transition, Some(motion::Transition::default()));
+    }
 
     #[test]
     fn column_builds_a_container_with_default_layout() {

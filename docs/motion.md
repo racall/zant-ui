@@ -24,11 +24,19 @@ export default function App() {
 | `slideUp` / `slideDown` | 从上 / 下边缘纵向缩放与透明度 | 200ms |
 | `moveUp` | 下移 8px 入场与透明度 | 200ms |
 
+`View` / `Column` / `Row` / `Clickable` 都有 `motion`、`motionOrigin`（默认 `center`）与
+`layoutTransition`；Rust 是 `BoxOptions` / `ViewOptions` 的同名字段，或 `ui::Style`。
 `motionOrigin` 支持 topLeft/top/topRight、left/center/right、bottomLeft/bottom/bottomRight。
 节点需有稳定 key；退场时继续绘制，但已退出布局、命中测试与焦点；同 key 再次出现会复活节点。
 DropdownMenu、Select 弹层与 Modal 等组件已内置过渡。
 
-## 布局过渡（Rust）
+## 布局过渡
+
+```tsx
+<View key="thumb" layoutTransition width={wide ? 240 : 120} />
+```
+
+`layoutTransition` 用默认的 200ms 过渡；自定义时长或 `anchor` 用 Rust：
 
 ```rust
 use zant::{motion::motion, ui};
@@ -48,7 +56,7 @@ let node = ui::styled(ui::column(ui::BoxOptions {
 ```
 
 叶容器布局位置或尺寸改变时，从旧盒子过渡到新盒子；窗口缩放不触发此过渡。
-Segmented 滑块与 Tabs 下划线使用此机制。TSX 当前没有 `anchor` / `layoutTransition` 属性。
+Segmented 滑块与 Tabs 下划线使用此机制。TSX 没有 `anchor` 属性。
 
 ## 组件实现与检查
 

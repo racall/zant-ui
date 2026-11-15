@@ -16,6 +16,7 @@ use crate::core::node::{Icon, ImageFit, RichSpan};
 use crate::core::vector::{Drawing, DrawingRef};
 use crate::image::Image;
 use crate::layout::flex;
+use crate::motion::motion;
 use crate::platform::platform::Cursor;
 use crate::renderer::text;
 
@@ -84,6 +85,13 @@ pub struct BoxOptions {
     /// Called after layout whenever this container's size changes (first
     /// layout included), then the UI is rebuilt in the same frame.
     pub on_resize: Option<Action>,
+    /// Enter / exit transition (antd presets, `docs/motion.md`); give the
+    /// container a stable `key`.
+    pub motion: motion::Presence,
+    /// Transform origin of the zoom / slide presets (default centre).
+    pub motion_origin: motion::Origin,
+    /// Animate position / size changes with antd's 200 ms ease (FLIP).
+    pub layout_transition: bool,
     pub children: Vec<Node>,
 }
 

@@ -13,6 +13,7 @@
 use crate::Str;
 use crate::core::geometry::Edges;
 use crate::layout::flex;
+use crate::motion::motion;
 use crate::platform::platform::Cursor;
 use crate::ui::actions::{Action, IndexAction};
 use crate::ui::builders::{clickable, column};
@@ -74,6 +75,11 @@ pub struct ViewOptions {
     pub focus_scope: bool,
     pub show_on_hover: bool,
     pub on_resize: Option<Action>,
+    /// Enter / exit transition, origin and layout transition (see
+    /// `ui::BoxOptions::motion`).
+    pub motion: motion::Presence,
+    pub motion_origin: motion::Origin,
+    pub layout_transition: bool,
     /// Drop shadow; use it sparingly (cards that float, popovers).
     pub shadow_color: Option<u32>,
     pub shadow_blur: f32,
@@ -140,6 +146,9 @@ impl Default for ViewOptions {
             focus_scope: false,
             show_on_hover: false,
             on_resize: None,
+            motion: motion::Presence::None,
+            motion_origin: motion::Origin::Center,
+            layout_transition: false,
             shadow_color: None,
             shadow_blur: 0.0,
             shadow_offset_y: 0.0,
@@ -235,6 +244,9 @@ pub fn box_options(options: &ViewOptions) -> BoxOptions {
         focus_scope: options.focus_scope,
         show_on_hover: options.show_on_hover,
         on_resize: options.on_resize.clone(),
+        motion: options.motion,
+        motion_origin: options.motion_origin,
+        layout_transition: options.layout_transition,
         children: options.children.clone(),
     }
 }
@@ -300,6 +312,9 @@ mod tests {
             focus_scope: true,
             show_on_hover: true,
             on_resize: Some(action(|s: &mut u32| *s += 1)),
+            motion: motion::Presence::Fade,
+            motion_origin: motion::Origin::Bottom,
+            layout_transition: true,
             shadow_color: Some(0xff55_5555),
             shadow_blur: 18.0,
             shadow_offset_y: 19.0,
@@ -377,6 +392,9 @@ mod tests {
         assert!(box_options.focus_scope);
         assert!(box_options.show_on_hover);
         assert!(box_options.on_resize.is_some());
+        assert_eq!(box_options.motion, motion::Presence::Fade);
+        assert_eq!(box_options.motion_origin, motion::Origin::Bottom);
+        assert!(box_options.layout_transition);
         assert_eq!(box_options.children.len(), 1);
     }
 

@@ -157,13 +157,14 @@ pub enum Presence {
     MoveUp,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum Origin {
     TopLeft,
     Top,
     TopRight,
     Left,
+    #[default]
     Center,
     Right,
     BottomLeft,

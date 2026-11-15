@@ -88,9 +88,9 @@ impl ui::App for Layout {
                 header.clone(), ui::row(ui::BoxOptions { grow : 2.0f32, shrink : 0.0f32,
                 basis : Some(10.0f32), align_self :
                 zant::layout::flex::AlignSelf::Center, padding : ui::inset(6.0f32),
-                margin : ui::inset(4.0f32), order : 1i32, clip : true, children :
-                nodes![ui::text(zant::Str::from("Row"), ui::TextOptions {
-                ..Default::default() })], ..Default::default() }),
+                margin : ui::inset(4.0f32), order : 1i32, clip : true, layout_transition
+                : true, children : nodes![ui::text(zant::Str::from("Row"),
+                ui::TextOptions { ..Default::default() })], ..Default::default() }),
                 ui::column(ui::BoxOptions { scroll : true, height : Some(100.0f32), width
                 : Some(200.0f32), justify : zant::layout::flex::Justify::End, wrap :
                 zant::layout::flex::Wrap::Nowrap, background : Some(if self.wide {
@@ -101,7 +101,16 @@ impl ui::App for Layout {
                 ui::text(zant::Str::from("Fragment expression"), ui::TextOptions {
                 ..Default::default() }), ui::view(ui::ViewOptions { padding :
                 zant::core::geometry::Edges { top : 0.0, right : 0.0, bottom : 5.0f32,
-                left : 0.0 }, ..Default::default() })
+                left : 0.0 }, ..Default::default() }), if self.wide {
+                Some(ui::view(ui::ViewOptions { key : Some(zant::Str::from("panel")),
+                motion : zant::motion::motion::Presence::SlideUp, motion_origin :
+                zant::motion::motion::Origin::Top, children :
+                nodes![ui::text(zant::Str::from("Panel"), ui::TextOptions {
+                ..Default::default() })], ..Default::default() })) } else { None },
+                ui::column(ui::BoxOptions { key : Some(zant::Str::from("fade")), motion :
+                zant::motion::motion::Presence::Fade, children :
+                nodes![ui::text(zant::Str::from("Fades"), ui::TextOptions {
+                ..Default::default() })], ..Default::default() })
             ],
             ..Default::default()
         });

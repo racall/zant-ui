@@ -18,7 +18,7 @@ export default function Layout(): JSX.Element {
       {header}
       <>
         <Row flex={1} grow={2} flexShrink={0} basis={10} alignSelf="center"
-          padding={6} margin={4} order={1} overflow="hidden">
+          padding={6} margin={4} order={1} overflow="hidden" layoutTransition>
           <Text>Row</Text>
         </Row>
         <Column position="relative" overflow="scroll" height={100} width={200}
@@ -27,6 +27,8 @@ export default function Layout(): JSX.Element {
         </Column>
       </>
       {<><Text>Fragment expression</Text><View paddingBottom={5} /></>}
+      {wide && <View key="panel" motion="slideUp" motionOrigin="top"><Text>Panel</Text></View>}
+      <Column key="fade" motion="fade"><Text>Fades</Text></Column>
     </View>
   );
 }

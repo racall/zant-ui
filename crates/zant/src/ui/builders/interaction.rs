@@ -19,7 +19,7 @@ use super::super::options::{
     ButtonOptions, ClickableOptions, DismissLayerOptions, PointerAreaOptions, TooltipOptions,
 };
 use super::super::styled::{Style, styled};
-use super::{button, hover_from, layout_from, visual_from};
+use super::{button, hover_from, layout_from, motion_from, visual_from};
 
 /// `ui::pointer_area`: a column container that handles raw pointer input.
 pub fn pointer_area(options: PointerAreaOptions) -> Node {
@@ -30,6 +30,7 @@ pub fn pointer_area(options: PointerAreaOptions) -> Node {
     let layout = layout_from(&options.r#box, direction);
     let visual = visual_from(&options.r#box);
     let hover_visual = hover_from(&options.r#box);
+    let motion = motion_from(&options.r#box);
     Node::new(Element {
         kind: NodeKind::Container,
         key: options.r#box.key,
@@ -46,6 +47,7 @@ pub fn pointer_area(options: PointerAreaOptions) -> Node {
         cursor: options.cursor,
         on_resize: options.r#box.on_resize,
         hover_visual,
+        motion,
         ..Element::default()
     })
 }

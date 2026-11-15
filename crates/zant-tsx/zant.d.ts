@@ -321,6 +321,41 @@ declare module "zant" {
     focusScope?: boolean;
     showOnHover?: boolean;
     onResize?: () => void;
+    motion?: "none"
+      | "fade"
+      | "zoom_big"
+      | "zoom-big"
+      | "zoomBig"
+      | "zoom_big_fast"
+      | "zoom-big-fast"
+      | "zoomBigFast"
+      | "slide_up"
+      | "slide-up"
+      | "slideUp"
+      | "slide_down"
+      | "slide-down"
+      | "slideDown"
+      | "move_up"
+      | "move-up"
+      | "moveUp";
+    motionOrigin?: "top_left"
+      | "top-left"
+      | "topLeft"
+      | "top"
+      | "top_right"
+      | "top-right"
+      | "topRight"
+      | "left"
+      | "center"
+      | "right"
+      | "bottom_left"
+      | "bottom-left"
+      | "bottomLeft"
+      | "bottom"
+      | "bottom_right"
+      | "bottom-right"
+      | "bottomRight";
+    layoutTransition?: boolean;
     paddingHorizontal?: Edges;
     paddingVertical?: Edges;
     paddingTop?: Edges;
@@ -452,6 +487,41 @@ declare module "zant" {
     focusScope?: boolean;
     showOnHover?: boolean;
     onResize?: () => void;
+    motion?: "none"
+      | "fade"
+      | "zoom_big"
+      | "zoom-big"
+      | "zoomBig"
+      | "zoom_big_fast"
+      | "zoom-big-fast"
+      | "zoomBigFast"
+      | "slide_up"
+      | "slide-up"
+      | "slideUp"
+      | "slide_down"
+      | "slide-down"
+      | "slideDown"
+      | "move_up"
+      | "move-up"
+      | "moveUp";
+    motionOrigin?: "top_left"
+      | "top-left"
+      | "topLeft"
+      | "top"
+      | "top_right"
+      | "top-right"
+      | "topRight"
+      | "left"
+      | "center"
+      | "right"
+      | "bottom_left"
+      | "bottom-left"
+      | "bottomLeft"
+      | "bottom"
+      | "bottom_right"
+      | "bottom-right"
+      | "bottomRight";
+    layoutTransition?: boolean;
     paddingHorizontal?: Edges;
     paddingVertical?: Edges;
     paddingTop?: Edges;
@@ -573,6 +643,41 @@ declare module "zant" {
     focusScope?: boolean;
     showOnHover?: boolean;
     onResize?: () => void;
+    motion?: "none"
+      | "fade"
+      | "zoom_big"
+      | "zoom-big"
+      | "zoomBig"
+      | "zoom_big_fast"
+      | "zoom-big-fast"
+      | "zoomBigFast"
+      | "slide_up"
+      | "slide-up"
+      | "slideUp"
+      | "slide_down"
+      | "slide-down"
+      | "slideDown"
+      | "move_up"
+      | "move-up"
+      | "moveUp";
+    motionOrigin?: "top_left"
+      | "top-left"
+      | "topLeft"
+      | "top"
+      | "top_right"
+      | "top-right"
+      | "topRight"
+      | "left"
+      | "center"
+      | "right"
+      | "bottom_left"
+      | "bottom-left"
+      | "bottomLeft"
+      | "bottom"
+      | "bottom_right"
+      | "bottom-right"
+      | "bottomRight";
+    layoutTransition?: boolean;
     onClick?: () => void;
     indexAction?: (index: number) => void;
     index?: number;
@@ -1876,6 +1981,41 @@ declare module "zant" {
     focusScope?: boolean;
     showOnHover?: boolean;
     onResize?: () => void;
+    motion?: "none"
+      | "fade"
+      | "zoom_big"
+      | "zoom-big"
+      | "zoomBig"
+      | "zoom_big_fast"
+      | "zoom-big-fast"
+      | "zoomBigFast"
+      | "slide_up"
+      | "slide-up"
+      | "slideUp"
+      | "slide_down"
+      | "slide-down"
+      | "slideDown"
+      | "move_up"
+      | "move-up"
+      | "moveUp";
+    motionOrigin?: "top_left"
+      | "top-left"
+      | "topLeft"
+      | "top"
+      | "top_right"
+      | "top-right"
+      | "topRight"
+      | "left"
+      | "center"
+      | "right"
+      | "bottom_left"
+      | "bottom-left"
+      | "bottomLeft"
+      | "bottom"
+      | "bottom_right"
+      | "bottom-right"
+      | "bottomRight";
+    layoutTransition?: boolean;
     shadowColor?: Color;
     shadowBlur?: number;
     shadowOffsetY?: number;
