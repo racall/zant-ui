@@ -14,7 +14,9 @@ zant build            # 发布构建
 
 ## 目录
 
-- `src/App.tsx`：根组件，持有输入框和计数状态。
+- `src/App.tsx`：主窗口，持有计数状态，提供设置窗口入口。
+- `src/windows/SettingsWindow.tsx`：独立设置窗口，重复打开会前置，关闭后主窗口继续运行。
+- `src/stores/profile.ts`：共享资料 store，在主窗口和设置窗口中修改名称会实时同步。
 - `src/components/`：Dashboard / StatCard / CounterCard，通过 props 和回调共享状态。
 - `native/main.rs`：一行 `zant::app!();`，引入构建生成的模块与入口。
 - `native/`：原生模块。`system.ts` 是接口规范，`system.rs` 是 Rust 实现，构建时自动登记；

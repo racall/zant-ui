@@ -1,7 +1,8 @@
-import { useState, useStore, useTheme, View, Row, Heading, Paragraph, Input, Switch, Text } from "zant";
+import { useState, useStore, useTheme, View, Row, Heading, Paragraph, Input, Switch, Text, Button } from "zant";
 import { Dashboard } from "./components/Dashboard";
 import { ProfilePreview } from "./components/ProfilePreview";
 import { profile } from "./stores/profile";
+import { settingsWindow } from "./windows/SettingsWindow";
 
 // 状态只有一个来源；子组件通过回调发事件。TSX 在编译期转成 Rust。
 export default function App() {
@@ -23,6 +24,7 @@ export default function App() {
           onChange={(on) => profile.update({ accent: on })} />
       </Row>
       <ProfilePreview />
+      <Button key="open-settings-window" onClick={() => settingsWindow.activate()}>打开设置窗口</Button>
       <Text color={theme.colorTextSecondary}>父组件读取的点击次数：{clicks}</Text>
       <Dashboard count={clicks} onIncrement={() => setClicks(clicks + 1)} onReset={() => setClicks(0)} />
     </View>
