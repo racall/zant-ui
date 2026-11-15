@@ -14,6 +14,8 @@
 //! ./target/release/zant-tsx-frame-bench                 # all six apps
 //! ./target/release/zant-tsx-frame-bench counter todos   # some of them
 //! ZANT_BENCH_REPEAT=5 ./target/release/zant-tsx-frame-bench
+//! ZANT_BENCH_SOAK=1 ./target/release/zant-tsx-frame-bench # memory soak only
+//! ./target/release/zant-tsx-frame-bench soak             # same soak mode
 //! ZANT_FRAME_STATS=1 ./target/release/zant-tsx-frame-bench list   # frame phases
 //! ```
 #![forbid(unsafe_code)]

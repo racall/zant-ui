@@ -87,6 +87,11 @@ const CASES: &[Case] = &[
         views: &[],
     },
     Case {
+        name: "local_soak",
+        input: "crates/zant-examples/src/bin/zant_tsx_frame_bench/tsx_views/LocalSoak.tsx",
+        views: &[],
+    },
+    Case {
         name: "markdown",
         input: "crates/zant-examples/tsx/corpus/markdown_bench.tsx",
         views: &["MarkdownView.tsx"],

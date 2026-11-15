@@ -46,6 +46,7 @@ fn counter_row(id: u32, odd: bool) -> ui::Node {
 pub struct LocalBench {
     ids: Vec<u32>,
     next: u32,
+    soak: bool,
 }
 
 impl LocalBench {
@@ -53,6 +54,14 @@ impl LocalBench {
         LocalBench {
             ids: Vec::new(),
             next: 1,
+            soak: false,
+        }
+    }
+
+    pub fn soak() -> LocalBench {
+        LocalBench {
+            soak: true,
+            ..Self::new()
         }
     }
 
@@ -71,6 +80,14 @@ impl App for LocalBench {
             on_click: Some(ui::action(|state: &mut LocalBench| state.add())),
             ..ButtonOptions::default()
         }));
+        if self.soak {
+            children.push(ui::button(ButtonOptions {
+                key: Some(Str::Static("clear")),
+                text: Str::Static("Clear rows"),
+                on_click: Some(ui::action(|state: &mut LocalBench| state.ids.clear())),
+                ..ButtonOptions::default()
+            }));
+        }
         for &id in &self.ids {
             children.push(counter_row(id, id % 2 == 1));
         }

@@ -164,6 +164,14 @@ pub(crate) fn shaping_finished(start: Option<Instant>) {
     }
 }
 
+/// Text layouts alive right now (created minus dropped), for leak checks.
+static LIVE_LAYOUTS: AtomicI64 = AtomicI64::new(0);
+
+/// How many `TextLayout`s are alive in this process (all threads).
+pub fn live_layouts() -> i64 {
+    LIVE_LAYOUTS.load(Ordering::Relaxed)
+}
+
 pub struct TextLayout {
     handle: *mut ffi::ZantTextLayout,
     metrics: Metrics,
@@ -186,6 +194,7 @@ impl TextLayout {
         }
         // SAFETY: fresh handle from the call above.
         let metrics = metrics_from_native(unsafe { ffi::zant_text_layout_metrics(handle) });
+        LIVE_LAYOUTS.fetch_add(1, Ordering::Relaxed);
         Ok(TextLayout { handle, metrics })
     }
 
@@ -252,6 +261,7 @@ impl Drop for TextLayout {
             // SAFETY: we own the handle; it is destroyed once.
             unsafe { ffi::zant_text_layout_destroy(self.handle) };
             self.handle = std::ptr::null_mut();
+            LIVE_LAYOUTS.fetch_sub(1, Ordering::Relaxed);
         }
     }
 }
