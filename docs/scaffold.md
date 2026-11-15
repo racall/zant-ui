@@ -99,6 +99,16 @@ zant.d.ts / tsconfig.json   import … from "zant" 的类型与补全
 `zant create` 把 `Cargo.toml` 里的 `__ZANT_PATH__` 换成项目到 Zant UI 的相对路径，
 所以项目可以放在任意目录。项目和 Zant UI 不在同一个盘时（Windows），`zant create`
 用目录联接 `.zant/zant-ui` 引用 Zant UI，依赖路径变成 `.zant/zant-ui`。
+也可以改成 GitHub 上的发布版本（与已安装的 zant 同一版本）：
+
+```toml
+zant = { git = "https://github.com/racall/zant-ui", tag = "v0.2.3" }
+zant-build = { git = "https://github.com/racall/zant-ui", tag = "v0.2.3" }   # build-dependencies
+```
+
+git 依赖只含源码，`zant-sys` / `zant-build` 的构建脚本从已安装的发布版
+（`$ZANT_HOME/zant-ui`，默认 `~/.zant` / `%LOCALAPPDATA%\zant`）取 Skia、PDFium 和预编译原生库；
+预编译库仍按 git 源码的哈希校验，版本不一致时改为编译原生层。`zant run` 的热刷新始终用已安装的框架。
 模板带一个示例原生模块 `native/system`（平台、CPU 核数、Rust 版本）。
 `zant.d.ts` 由框架的标签表生成（`zant-tsx-dts`），`zant create` 复制到项目里。
 
