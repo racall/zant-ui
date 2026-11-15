@@ -159,6 +159,29 @@ let _ = desktop::register_hotkey(
 编码成 PNG，耗时取决于图像大小。
 TSX：`clipboard.text()/setText/image/setImage/files/setFiles/changeCount()`。
 
+## 屏幕、窗口与截图
+
+截图类工具（Rust，在 `native/` 中调用）：
+
+```rust
+let screens = zant::desktop::screens();             // 连接的屏幕：桌面坐标、工作区、缩放
+let windows = zant::desktop::visible_windows();     // 各应用的可见窗口，前后顺序
+let shots = zant::desktop::capture_screens();       // 后台线程：每块屏幕原生像素，不含光标
+let lines = zant::desktop::ocr_recognize(&px, w, h, stride); // 系统文字识别（macOS Vision）
+```
+
+- 桌面坐标：macOS 为点，Windows 为物理像素；原点在主屏左上角，y 向下。换算到覆盖屏幕 `s`
+  的窗口逻辑点：`(x - s.x) / s.units_per_point`。
+- `screen_capture_access()` / `request_screen_capture_access()`：macOS 屏幕录制权限（首次弹系统
+  提示，之后需在系统设置开启，通常要重启应用）；Windows 始终为 true。`capture_screens()` 须在后台线程调用。
+- `ocr_available()`：系统内置识别器（macOS）；Windows 返回 false，应用可自带模型。
+- 全屏遮罩窗口：`WindowStyle::Overlay`（无边框、不透明、位于菜单栏 / 任务栏和全屏应用之上、无 Dock /
+  任务栏图标，macOS 上取得键盘但不激活应用），`window.cover_screen(index)` 铺满 `screens()[index]`。
+  遮罩不保存窗口位置；Windows 上覆盖在下一轮消息循环执行，不会在应用回调中重入。
+- 悬停 / 拖拽反馈只影响本窗口时，在事件回调里调用 `desktop::rebuild_only_this_window()`：
+  只重建该窗口，其余窗口不跟着重建（高频指针事件的性能关键）。
+- `local_utc_offset()`：本地时区相对 UTC 的秒数（显示本地时间）。
+
 ## 其他
 
 - `single_instance(bundle_id)`：在 `main` 开头调用；再次启动时把已运行的实例调到前台并返回 false

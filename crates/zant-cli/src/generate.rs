@@ -395,7 +395,9 @@ mod tests {
         )
         .expect("parse");
         let plist = generate_info_plist(&cfg);
-        assert!(plist.contains("<key>NSLocalNetworkUsageDescription</key><string>Find &lt;peers&gt;</string>"));
+        assert!(plist.contains(
+            "<key>NSLocalNetworkUsageDescription</key><string>Find &lt;peers&gt;</string>"
+        ));
         assert!(!plist.contains("evil"));
     }
 

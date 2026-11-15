@@ -53,6 +53,7 @@
 | `macos.sandbox` | 是否写入 App Sandbox entitlement 并用沙盒方式运行（仅 macOS） |
 | `macos.signing_identity` | `zant package` 和沙盒应用 `zant run --no-hot` 用的 `codesign` 身份；`none` 表示 ad-hoc（仅 macOS）。发布构建的证书在 `build.config.json`，见 [发布构建](build.md) |
 | `macos.entitlements` | 应用需要的其他权限，如 `{"com.apple.security.network.client": true}`；值是 true / false、字符串或字符串列表。签名时（`zant package` / `zant build`）一起写入 |
+| `macos.info_plist` | Info.plist 额外的字符串键，如 `{"NSLocalNetworkUsageDescription": "在局域网内发现其他设备"}`；不能覆盖生成器自己写的键 |
 | `window.style` | `native` / `hidden-titlebar` / `borderless` / `panel`（快捷面板，见 [桌面集成](desktop.md)） |
 | `window.width` / `height` | 初始窗口尺寸（逻辑像素，Windows 按显示器缩放） |
 | `window.min_width` / `min_height` | 最小尺寸 |

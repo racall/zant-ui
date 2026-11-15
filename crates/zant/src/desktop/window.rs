@@ -300,7 +300,9 @@ pub fn open_window(hooks: WindowHooks, options: OpenOptions) -> Result<Window, P
         RuntimeHost::boxed(Rc::clone(&core)),
     )?);
     // overlays are sized by cover_screen: no saved frame
-    if let Some(name) = autosave_name.filter(|_| options.window.style != crate::platform::platform::WindowStyle::Overlay) {
+    if let Some(name) = autosave_name
+        .filter(|_| options.window.style != crate::platform::platform::WindowStyle::Overlay)
+    {
         native.set_autosave(&name);
     }
     core.borrow_mut().attach_window(Rc::clone(&native));

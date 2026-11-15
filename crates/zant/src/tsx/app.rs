@@ -300,7 +300,8 @@ pub fn run<A: crate::ui::App + Default>(config: Config) -> crate::Result<()> {
     // already running (maybe hidden in the tray): it comes forward instead
     // ZANT_ALLOW_MULTI_INSTANCE=1 (development): a second copy with its own
     // data, e.g. to test two peers of a LAN feature on one machine
-    let allow_multi = cfg!(debug_assertions) && std::env::var_os("ZANT_ALLOW_MULTI_INSTANCE").is_some();
+    let allow_multi =
+        cfg!(debug_assertions) && std::env::var_os("ZANT_ALLOW_MULTI_INSTANCE").is_some();
     if config.single_instance && !allow_multi && !desktop::single_instance(&config.bundle_id) {
         return Ok(());
     }

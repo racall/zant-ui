@@ -94,7 +94,12 @@ pub fn windows() -> Vec<WindowInfo> {
     raw.truncate(count.clamp(0, 512) as usize);
     raw.iter()
         .map(|w| {
-            let name: Vec<u8> = w.app.iter().take_while(|c| **c != 0).map(|c| *c as u8).collect();
+            let name: Vec<u8> = w
+                .app
+                .iter()
+                .take_while(|c| **c != 0)
+                .map(|c| *c as u8)
+                .collect();
             WindowInfo {
                 x: w.x,
                 y: w.y,
@@ -129,7 +134,13 @@ pub fn capture_all() -> Vec<ScreenCapture> {
     let mut out = Vec::with_capacity(count);
     for slot in raw.iter().take(count) {
         if slot.pixels.is_null() {
-            out.push(ScreenCapture { screen_id: slot.screen_id, pixels: Vec::new(), width: 0, height: 0, stride: 0 });
+            out.push(ScreenCapture {
+                screen_id: slot.screen_id,
+                pixels: Vec::new(),
+                width: 0,
+                height: 0,
+                stride: 0,
+            });
             continue;
         }
         let len = slot.stride as usize * slot.height as usize;
@@ -184,7 +195,9 @@ pub fn ocr_recognize(pixels: &[u8], width: u32, height: u32, stride: u32) -> Opt
         return None;
     }
     // SAFETY: `pixels` holds `stride * height` bytes (checked above).
-    let result = unsafe { ffi::zant_ocr_recognize(pixels.as_ptr(), width as i32, height as i32, stride as i32) };
+    let result = unsafe {
+        ffi::zant_ocr_recognize(pixels.as_ptr(), width as i32, height as i32, stride as i32)
+    };
     if result.is_null() {
         return None;
     }
@@ -196,14 +209,24 @@ pub fn ocr_recognize(pixels: &[u8], width: u32, height: u32, stride: u32) -> Opt
         } else {
             std::slice::from_raw_parts(r.text.cast::<u8>(), r.text_len)
         };
-        let raw_lines = if r.lines.is_null() { &[][..] } else { std::slice::from_raw_parts(r.lines, r.line_count) };
-        let raw_tokens =
-            if r.tokens.is_null() { &[][..] } else { std::slice::from_raw_parts(r.tokens, r.token_count) };
+        let raw_lines = if r.lines.is_null() {
+            &[][..]
+        } else {
+            std::slice::from_raw_parts(r.lines, r.line_count)
+        };
+        let raw_tokens = if r.tokens.is_null() {
+            &[][..]
+        } else {
+            std::slice::from_raw_parts(r.tokens, r.token_count)
+        };
         let mut lines = Vec::with_capacity(raw_lines.len());
         for line in raw_lines {
             let start = line.start as usize;
             let end = (start + line.len as usize).min(text.len());
-            let Ok(line_text) = std::str::from_utf8(text.get(start..end).unwrap_or_default()) else { continue };
+            let Ok(line_text) = std::str::from_utf8(text.get(start..end).unwrap_or_default())
+            else {
+                continue;
+            };
             let first = line.first_token as usize;
             let tokens = raw_tokens
                 .get(first..(first + line.token_count as usize).min(raw_tokens.len()))
@@ -212,8 +235,17 @@ pub fn ocr_recognize(pixels: &[u8], width: u32, height: u32, stride: u32) -> Opt
                 .filter_map(|t| {
                     let ts = (t.start as usize).checked_sub(start)?;
                     let te = ts + t.len as usize;
-                    (te <= line_text.len() && line_text.is_char_boundary(ts) && line_text.is_char_boundary(te))
-                        .then_some(OcrToken { start: ts, end: te, x: t.x, y: t.y, width: t.width, height: t.height })
+                    (te <= line_text.len()
+                        && line_text.is_char_boundary(ts)
+                        && line_text.is_char_boundary(te))
+                    .then_some(OcrToken {
+                        start: ts,
+                        end: te,
+                        x: t.x,
+                        y: t.y,
+                        width: t.width,
+                        height: t.height,
+                    })
                 })
                 .collect();
             lines.push(OcrLine {

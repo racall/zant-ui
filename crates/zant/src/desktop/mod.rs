@@ -76,8 +76,9 @@ pub use clipboard::{
 };
 pub use hotkey::{Shortcut, register_hotkey, unregister_hotkey};
 pub use screen::{
-    OcrLine, OcrToken, ScreenCapture, ScreenInfo, WindowInfo, capture_screens, local_utc_offset, ocr_available, ocr_recognize,
-    request_screen_capture_access, screen_capture_access, screens, visible_windows,
+    OcrLine, OcrToken, ScreenCapture, ScreenInfo, WindowInfo, capture_screens, local_utc_offset,
+    ocr_available, ocr_recognize, request_screen_capture_access, screen_capture_access, screens,
+    visible_windows,
 };
 pub use tray::{
     TrayError, TrayIconOptions, TrayItem, TrayOptions, remove_tray, set_tray, set_tray_icon,

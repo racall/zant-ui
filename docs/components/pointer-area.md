@@ -38,7 +38,7 @@ ui::pointer_area(ui::PointerAreaOptions {
 })
 ```
 
-上例假设应用的 `State` 有 `point: (f32, f32)` 字段。
+上例假设应用的 `State` 有 `point: (f32, f32)` 字段。窗口根节点不接收指针：`pointer_area` 放在普通根容器内。
 
 | 选项 | 默认值 / 说明 |
 |---|---|

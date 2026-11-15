@@ -31,7 +31,10 @@ pub(crate) fn write(
             if path.is_file() && path.extension().is_some_and(|ext| ext == "rs") {
                 let stem = path.file_stem().unwrap().to_string_lossy().into_owned();
                 // editor / archive leftovers ("._core.rs", "core copy.rs") are not modules
-                let identifier = stem.chars().next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+                let identifier = stem
+                    .chars()
+                    .next()
+                    .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
                     && stem.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
                 if identifier && stem != "main" && stem != "build" {
                     modules.push((stem, path.canonicalize()?));
@@ -65,7 +68,10 @@ pub(crate) fn write(
     // `useClipboardChange` in the root or in a custom hook it calls
     let watch_clipboard = parser.parse_module().is_ok_and(|module| {
         zant_tsx::codegen::app_hooks::watches_clipboard(&module)
-            || zant_tsx::codegen::app_hooks::watches_clipboard_via_hooks(&module, &project_modules(&root.join("src")))
+            || zant_tsx::codegen::app_hooks::watches_clipboard_via_hooks(
+                &module,
+                &project_modules(&root.join("src")),
+            )
     });
     let config = "zant::tsx::app::Config { title: app_config::title.to_string(), window: app_config::window, bundle_id: app_config::bundle_id.to_string(), single_instance: app_config::single_instance, remember: app_config::remember, watch_clipboard: WATCH_CLIPBOARD }".replace("WATCH_CLIPBOARD", if watch_clipboard { "true" } else { "false" });
     let main = format!(
@@ -146,7 +152,9 @@ fn project_modules(src: &Path) -> Vec<zant_tsx::ast::Module> {
     let mut out = Vec::new();
     let mut dirs = vec![src.to_path_buf()];
     while let Some(dir) = dirs.pop() {
-        let Ok(entries) = std::fs::read_dir(&dir) else { continue };
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() {
