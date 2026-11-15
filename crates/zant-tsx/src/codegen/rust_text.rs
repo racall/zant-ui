@@ -61,8 +61,17 @@ pub fn id(name: &[u8]) -> Option<String> {
             out.push('_');
         }
     }
+    // `_` is not an identifier: "" is `Empty`, symbol-only members spell
+    // their bytes ("-" → `Sym2d`)
     if out.is_empty() {
-        out.push('_');
+        if text.is_empty() {
+            out.push_str("Empty");
+        } else {
+            out.push_str("Sym");
+            for byte in text.bytes() {
+                out.push_str(&format!("{byte:02x}"));
+            }
+        }
     }
     let is_keyword = matches!(
         out.as_str(),
@@ -190,8 +199,17 @@ pub fn enum_variant(member: &[u8]) -> Option<String> {
             upper = true;
         }
     }
+    // `_` is not an identifier: "" is `Empty`, symbol-only members spell
+    // their bytes ("-" → `Sym2d`)
     if out.is_empty() {
-        out.push('_');
+        if text.is_empty() {
+            out.push_str("Empty");
+        } else {
+            out.push_str("Sym");
+            for byte in text.bytes() {
+                out.push_str(&format!("{byte:02x}"));
+            }
+        }
     }
     if out.chars().next().is_some_and(|ch| ch.is_numeric()) {
         out.insert(0, '_');
@@ -561,6 +579,8 @@ mod tests {
         assert_eq!("InProgress", enum_variant(b"in-progress").unwrap());
         assert_eq!("SpaceBetween", enum_variant(b"space between").unwrap());
         assert_eq!("_2x", enum_variant(b"2x").unwrap());
+        assert_eq!("Empty", enum_variant(b"").unwrap());
+        assert_eq!("Sym2d", enum_variant(b"-").unwrap());
     }
 
     #[test]

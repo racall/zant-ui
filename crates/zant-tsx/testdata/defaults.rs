@@ -116,9 +116,9 @@ impl Badge {
         return ui::text(
             self.props.text.clone(),
             ui::TextOptions {
-                size: ((self.props.size).unwrap_or(14.0f64) as f32),
-                weight: if (self.props.tone).unwrap_or(_Enum2::Info) == _Enum2::Warn
-                    || (self.props.bold).unwrap_or(false)
+                size: ((self.props.size).clone().unwrap_or(14.0f64) as f32),
+                weight: if (self.props.tone).clone().unwrap_or(_Enum2::Info)
+                    == _Enum2::Warn || (self.props.bold).clone().unwrap_or(false)
                 {
                     zant::renderer::text::Weight::Semibold
                 } else {

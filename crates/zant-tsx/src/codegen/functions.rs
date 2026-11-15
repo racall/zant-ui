@@ -97,7 +97,7 @@ pub fn missing(g: &mut Generator<'_>, p: &ast::Param, ty: Type) -> Result<String
     Ok(default_value(g, default, ty)?.code)
 }
 
-/// `{ size = 14 }`: reading `size` gives `props.size.unwrap_or(14)`.
+/// `{ size = 14 }`: reading `size` gives `props.size.clone().unwrap_or(14)`.
 pub fn prop(
     g: &mut Generator<'_>,
     name: &ast::Name,
@@ -119,7 +119,8 @@ pub fn prop(
     let fallback = default_value(g, default, child)?;
     Ok(Value {
         ty: child,
-        code: format!("({code}).unwrap_or({})", fallback.code),
+        // clone: the prop is read through `&self` (an `Option<Str>` cannot move out)
+        code: format!("({code}).clone().unwrap_or({})", fallback.code),
         ..Value::default()
     })
 }
