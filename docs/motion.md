@@ -1,105 +1,61 @@
-# Motion
+# 动效
 
-Zant UI animates in the spirit of **Ant Design motion** (durations, easing
-curves, per-component transitions) using two ideas borrowed from **Framer
-Motion**: *presence* (enter / exit transitions) and *layout* transitions
-(FLIP). Everything is plain Rust in `crates/zant/src/motion/`; no dependency.
+```tsx
+import { useState, View, Button, Text } from "zant";
 
-Because the whole window is painted by Skia on one surface (a `CAMetalLayer`
-on macOS, a Direct3D 12 swap chain on Windows), the system compositor cannot
-animate individual nodes. The platform contributes only frame pacing while
-something animates (`CADisplayLink` on macOS; the swap chain's vsync /
-`DwmFlush` on Windows) and the system's reduced-motion setting (macOS
-**Reduce motion**, Windows **Animation effects**).
+export default function App() {
+  const [open, setOpen] = useState(false);
+  return <View padding={24} gap={12}>
+    <Button onClick={() => setOpen(prev => !prev)}>切换内容</Button>
+    {open && <View key="panel" motion="slideUp" motionOrigin="top">
+      <Text>内容出现和消失时过渡</Text>
+    </View>}
+  </View>;
+}
+```
 
-Measure frame times on a release build with `ZANT_FRAME_STATS=1`
-(`cargo run -p zant-examples --bin zant-components` with `ZANT_AUTOPLAY=quiet` animates on its own);
-see `docs/development.md`.
+## 进出场（presence）
 
-## Rules
+| `motion` | 效果 | 进入 / 退出时长 |
+|---|---|---|
+| `fade` | 透明度 | 200ms |
+| `zoomBig` | 0.8→1 缩放与透明度 | 200ms |
+| `zoomBigFast` | 同上，用于 Tooltip | 100ms |
+| `slideUp` / `slideDown` | 从上 / 下边缘纵向缩放与透明度 | 200ms |
+| `moveUp` | 下移 8px 入场与透明度 | 200ms |
 
-- **Animation frames repaint, they never rebuild.** `render_fn` runs only
-  when app state changes; transitions are advanced by the runtime between
-  builds. Do not drive animations from app state.
-- Every interactive component has antd-style state transitions (hover,
-  press, focus, check). New components must too: keep the boolean state as
-  the source of truth and ease a presented value towards it with
-  `motion::motion::Animated` (see `crates/zant/src/components/button.rs` `animate`).
-- Popups / overlays use a presence preset; give them a stable `key` so a
-  re-added node revives instead of being duplicated.
-- Node ids are recycled (nodes are freed, exiting nodes after their
-  transition). Never keep a `NodeId` outside the framework.
+`motionOrigin` 支持 topLeft/top/topRight、left/center/right、bottomLeft/bottom/bottomRight。
+节点需有稳定 key；退场时继续绘制，但已退出布局、命中测试与焦点；同 key 再次出现会复活节点。
+DropdownMenu、Select 弹层与 Modal 等组件已内置过渡。
 
-## Presence (enter / exit)
+## 布局过渡（Rust）
 
 ```rust
-// the key belongs to the node itself, e.g. ui::column(BoxOptions { key: Some("menu".into()), .. })
-ui::styled(panel, ui::Style {
-    motion: Some(zant::motion::motion::Presence::SlideUp),
-    motion_origin: Some(zant::motion::motion::Origin::TopRight),
+use zant::{motion::motion, ui};
+
+let node = ui::styled(ui::column(ui::BoxOptions {
+    key: Some("thumb".into()),
     ..Default::default()
-})
-```
-
-| preset          | effect                               | enter / exit (antd)                     |
-|-----------------|--------------------------------------|-----------------------------------------|
-| `fade`          | opacity                              | 200ms linear                            |
-| `zoom_big`      | scale 0.8→1 + opacity (modals)       | 200ms ease-out-circ / ease-in-out-circ  |
-| `zoom_big_fast` | same, tooltips                       | 100ms                                   |
-| `slide_up`      | vertical scale from the top edge     | 200ms ease-out-quint / ease-in-quint    |
-| `slide_down`    | same from the bottom edge            | 200ms                                   |
-| `move_up`       | 8px drop-in + opacity (messages)     | 200ms ease-out / ease-in-out            |
-
-When a node with a presence leaves the spec it keeps painting while its
-exit transition plays, but it is already out of layout, hit testing and
-focus. `DropdownMenu` (slide-up) and the Markdown link-safety modal
-(fade + zoom) use presences by default.
-
-## Layout transitions (FLIP) and anchors
-
-```rust
-ui::styled(
-    ui::column(ui::BoxOptions { key: Some("thumb".into()), ..Default::default() }),
-    ui::Style {
-        absolute: Some(true),
-        anchor: Some(selected), // follow the n-th in-flow sibling's box
-        layout_transition: Some(zant::motion::motion::Transition {
-            duration_ms: 300,
-            easing: zant::motion::easing::Easing::EaseInOut,
-            ..Default::default()
-        }),
+}), ui::Style {
+    absolute: Some(true),
+    anchor: Some(0),
+    layout_transition: Some(motion::Transition {
+        duration_ms: 300,
         ..Default::default()
-    },
-)
+    }),
+    ..Default::default()
+});
 ```
 
-After a layout pass a node with `layout_transition` whose parent-relative
-box moved animates from the old box to the new one (its own background,
-border and shadow). Supported on leaf containers. A window resize never
-starts a transition. `Segmented` (thumb) and `Tabs` (ink bar) use
-this.
+叶容器布局位置或尺寸改变时，从旧盒子过渡到新盒子；窗口缩放不触发此过渡。
+Segmented 滑块与 Tabs 下划线使用此机制。TSX 当前没有 `anchor` / `layoutTransition` 属性。
 
-## Built-in component motion
+## 组件实现与检查
 
-- Button: hover 200ms, press 100ms (ease-in-out); click wave 600ms on
-  primary / default buttons.
-- Input / Select: border colour and focus ring 200ms; Select popup
-  slide-up.
-- Checkbox: fill 300ms ease, tick pops in (ease-out-back, 100ms delay).
-- Radio: dot scale 300ms ease-in-out-circ. Switch: 200ms, handle stretches
-  while pressed.
-- Tooltip: 450ms show delay, zoom-big-fast.
-
-## Turning motion off
-
-`motion::motion::set_enabled(false)` (the runtime's flag) completes every transition immediately. The
-runtime sets it in its frame loop from the system setting (macOS *Reduce
-motion*, Windows *Animation effects*), `ZANT_NO_MOTION=1` and
-`ZANT_SNAPSHOT` (snapshots are static).
-
-## Testing
-
-Inject a fake clock: `runtime.clock = fake_clock`, advance a module-level
-timestamp between `renderFrame` calls and assert on the presented values
-(`hover_t`, `NodeAnim.fx`, `flip_delta`). See `crates/zant/tests/motion_test.rs`.
-Never sleep in tests.
+- 状态是唯一来源；组件 `animate` 用 `Animated::retarget` 计算呈现值，状态变化处 `tree.poke(id)`。
+  Runtime 只推进登记的动画节点；动画帧只重绘，不重建，不用应用状态逐帧驱动。
+- `Transition` 默认 200ms、`EaseInOut`、无延迟；缓动与 presence 实现在 `crates/zant/src/motion/`。
+- 节点 id 会复用，应用不要跨帧保存 `NodeId`。
+- `ZANT_NO_MOTION=1`、截图模式或系统“减少动态效果”会关闭动效。
+- 测试用 `runtime.clock` 注入假时钟，不 sleep；见 `crates/zant/tests/motion_test.rs`。
+  Release 下用 `ZANT_FRAME_STATS=1` 检查耗时，见 [开发与测试](development.md)。

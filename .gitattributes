@@ -1,0 +1,11 @@
+# Check every text file out with LF on all platforms: tests compare generated
+# code with checked-in fixtures byte for byte, and a Windows checkout with
+# CRLF would fail them. Binary files are detected and left alone.
+* text=auto eol=lf
+*.png binary
+*.ico binary
+*.icns binary
+*.pdf binary
+*.otf binary
+*.ttf binary
+*.dat binary

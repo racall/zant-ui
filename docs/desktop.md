@@ -1,10 +1,9 @@
 # 桌面集成 `zant::desktop`
 
 常驻型应用（剪贴板工具、同步工具、启动器）需要的系统能力：多窗口与快捷面板、托盘 / 状态栏、
-全局快捷键、剪贴板监听与图片、单实例、深色模式。macOS 与 Windows 行为一致，平台差异在框架内处理。
-完整示例：ClipHop（局域网剪贴板同步）。
+全局快捷键、剪贴板监听与图片、单实例、深色模式。macOS 与 Windows 的平台差异在框架内处理，具体行为见各节。
 
-TSX 应用直接用 [`docs/tsx.md`](tsx.md) 里的应用 hooks（`useTray` / `useHotkey` / `useClipboardChange` /
+推荐用 TSX 编写应用，直接用 [`docs/tsx.md`](tsx.md) 里的应用 hooks（`useTray` / `useHotkey` / `useClipboardChange` /
 `useReopen` / `useWake` / `useAppExit` / `createWindow` 与从 `"zant"` 导入的 `clipboard` / `app` /
 `mainWindow`）；本文件的手写 Rust 接口是它们的底层实现，写原生模块或手写 Rust 应用时使用。
 
@@ -18,7 +17,7 @@ TSX 应用直接用 [`docs/tsx.md`](tsx.md) 里的应用 hooks（`useTray` / `us
 | `on_exit(&mut self)` | 应用马上结束（退出、主窗口关闭）：停后台线程、保存；返回后进程退出 |
 | `on_close_request(&mut self) -> bool` | 关闭主窗口；返回 false 保持打开（例如改为隐藏到托盘） |
 | `on_quit_request(&mut self) -> bool` | ⌘Q / 程序坞“退出”；未实现时用 `on_close_request` |
-| `theme(&self) -> Option<Theme>` | 跟随系统：`if zant::desktop::system_dark_mode() { ant_dark() } else { ant_light() }`，系统切换外观时自动重建 |
+| `theme(&self) -> Option<Theme>` | 跟随系统：返回 `Some(if zant::desktop::system_dark_mode() { ant_dark() } else { ant_light() })`，系统切换外观时自动重建 |
 
 `AppEvent`（`zant::desktop::AppEvent`）：`TrayClick`（Windows 左键托盘）、`TrayMenu(id)`、
 `Hotkey(id)`、`Reopen`（macOS 点击程序坞 / 再次启动）、`Clipboard`。
@@ -28,38 +27,37 @@ TSX 对应：`useCloseRequest`、`useQuitRequest`、`useKeyDown`、`useWindowFoc
 
 ## 多窗口与快捷面板
 
-```rust
-use zant::desktop;
+```tsx
+import { createWindow, useHotkey, Column, Input, Button } from "zant";
 
-fn on_start(&mut self) {
-    self.panel = desktop::open_window(
-        desktop::WindowHooks::new(|| render_panel()),
-        desktop::OpenOptions {
-            title: String::from("History"),
-            window: desktop::WindowOptions {
-                style: desktop::WindowStyle::Panel,
-                width: 380.0,
-                height: 480.0,
-                hidden: true,
-                ..Default::default()
-            },
-            ..Default::default()
-        },
-    )
-    .ok();
-    if let Some(panel) = &self.panel {
-        panel.place(desktop::Place::TrayCorner, 12.0); // macOS 右上角（菜单栏下）/ Windows 托盘旁
-        panel.activate();
-        panel.focus("panel-search");
-    }
+function HistoryPanel() {
+  return <Column><Input key="panel-search" placeholder="搜索历史" /></Column>;
+}
+
+const panel = createWindow(HistoryPanel, {
+  title: "History",
+  style: "panel",
+  width: 380,
+  height: 480,
+});
+
+export default function App() {
+  useHotkey("ctrl+cmd+v", () => {
+    panel.place("trayCorner", 12);
+    panel.activate();
+    panel.focus("panel-search");
+  });
+  return <Column><Button onClick={() => panel.activate()}>打开历史</Button></Column>;
 }
 ```
 
-- 所有窗口渲染同一份应用状态；任何窗口里的动作改变了状态，所有窗口都会重建。
+- 窗口可通过 Store 共享状态；`createWindow` 的无 props 组件有自己的本地状态。任何窗口里的动作完成后，所有窗口都会重建。
+- `createWindow` 在文件顶层声明，首次 `show` / `activate` / `toggle` / `place` / `focus` 时才创建窗口；
+  `hide` 隐藏窗口并保留状态。Rust 底层为 `desktop::open_window(WindowHooks, OpenOptions)`。
+- `window.remember: true` 时主窗口和副窗口自动记忆位置 / 尺寸，副窗口使用声明变量名作稳定键，见 [窗口配置](window-config.md)。
 - `.panel` 窗口样式：无标题栏、系统圆角与阴影、置顶、不出现在程序坞 / 任务栏；macOS 上获得键盘焦点时
   不会把整个应用切到前台（用户复制后可以直接粘贴回原来的应用）。
-- `show()` 只显示、不抢键盘焦点（提示、确认这类小窗口：用户可以继续在原来的应用里输入，第一次点击
-  按钮就有效）；`activate()` 显示并获得键盘焦点（快捷面板）。
+- `show()` 只显示、不抢键盘焦点（用户可以继续在原来的应用里输入）；`activate()` 显示并获得键盘焦点（快捷面板）。
 - `Window`：`show` / `hide` / `activate` / `is_visible` / `is_active` / `is_minimized` / `place` /
   `focus` / `close`；主窗口用 `desktop::main_window()`。
 - `WindowOptions`：`hidden = true` 创建时不显示；`hidden_at_login = true` 只在系统登录时自动打开应用时不显示
@@ -71,9 +69,15 @@ fn on_start(&mut self) {
 ## 托盘 / 状态栏
 
 ```rust
-fn on_start(&mut self) {
+use zant::desktop;
+
+fn install_tray() {
     let _ = desktop::set_tray(desktop::TrayOptions {
-        icon: include_bytes!("../assets/icons/tray-dark.png"),
+        icon: if desktop::IS_MACOS {
+            include_bytes!("../assets/icons/statusbar.png")
+        } else {
+            include_bytes!("../assets/icons/tray-dark.png")
+        },
         icon_light: if desktop::IS_MACOS { None } else { Some(include_bytes!("../assets/icons/tray-light.png")) },
         template: desktop::IS_MACOS,
         tooltip: "My App",
@@ -86,13 +90,17 @@ fn on_start(&mut self) {
 }
 ```
 
+TSX 使用 `useTray({ icon, iconLight, template, tooltip, items, onClick })`，
+菜单项用 `onSelect` 回调（另有 `title` / `checked` / `disabled` / `separator`）；
+图标通过 `import` 导入 PNG。`useTray` 返回是否成功，`useHotkey` 也返回注册是否成功。
+
 - 图标为 PNG，框架按系统尺寸缩放（macOS 18 pt 模板图；Windows 小图标尺寸，按 DPI）。
   Windows 托盘图标随任务栏深浅色自动切换 `icon` / `icon_light`。脚手架自带符合两端规范的默认图标。
 - macOS 点击状态栏图标弹出菜单；Windows 左键发送 `AppEvent::TrayClick`，右键弹出菜单。
 - 状态（例如“同步中”）：`desktop::set_tray_icon(desktop::TrayIconOptions { .. })` 只换图标和
   提示文字，不重建菜单（菜单正打开时也不受影响），开销很小。状态图标和普通图标一样放进 `assets/icons/`
   （Rust 用 `include_bytes!`，TSX 用 `import`，见 [scaffold.md](scaffold.md)「图标」）。
-- 隐藏到托盘：`main_window().unwrap().hide()` 即可。调用过 `set_tray` 的应用和其他托盘 / 菜单栏应用一样：macOS 上
+- 隐藏到托盘：TSX 用 `mainWindow.hide()`，Rust 用 `desktop::main_window().unwrap().hide()` 即可。调用过 `set_tray` 的应用和其他托盘 / 菜单栏应用一样：macOS 上
   只有普通窗口开着（或最小化）时才显示程序坞图标和菜单栏（系统标准做法：在 regular / accessory 两种
   activation policy 之间切换，并修正切回时菜单栏不更新的已知问题）；Windows 上隐藏的窗口本来就没有
   任务栏按钮。应用不需要自己处理。“是否在托盘里”用 `!w.is_visible() && !w.is_minimized()` 判断。
@@ -102,21 +110,22 @@ fn on_start(&mut self) {
 ## 开机启动
 
 ```rust
-let item = desktop::launch_at_login(cfg.bundle_id);          // LoginItem::Off / On / NeedsApproval
-desktop::set_launch_at_login(cfg.bundle_id, true)?;          // LaunchAtLoginError::Unsupported / Failed
+let item = desktop::launch_at_login(crate::app_config::bundle_id);          // LoginItem::Off / On / NeedsApproval
+desktop::set_launch_at_login(crate::app_config::bundle_id, true)?;          // LaunchAtLoginError::Unsupported / Failed
 if desktop::launched_at_login() { /* 这次是登录时自动打开的 */ }
 ```
 
 - 用系统自己的机制：macOS 13+ 的 `SMAppService`（出现在“系统设置 › 通用 › 登录项”，系统会提示
-  “已添加登录项”；只有打包后的 .app 可以（`zant package` / `zant build`），`zant run` 运行时返回
+  “已添加登录项”；只有打包后的 .app 可以（`zant package` / `zant build`），未打包的开发宿主运行时返回
   `Unsupported`）；Windows 是当前用户的 `Run` 注册表项（名字为应用标识，启动参数 `--zant-login`），
   `zant build` 生成的安装包卸载时会删除它。
 - 状态每次从系统读取（用户也可以在系统设置 / 任务管理器里关掉）；默认关闭，由用户在设置里打开。
 - `NeedsApproval`：macOS 需要用户在“登录项”里允许。
-- 登录时打开：主窗口设 `.hidden_at_login = true`，应用只出现在托盘 / 菜单栏。macOS 通过启动时的
-  Apple 事件（`keyAELaunchedAsLogInItem`）判断，事件循环开始后才知道，所以带 `.hidden_at_login` 的窗口
+- 登录时打开：主窗口设 `app.config.json` 的 `window.hidden_at_login: true`，应用只出现在托盘 / 菜单栏。macOS 通过启动时的
+  Apple 事件（`keyAELaunchedAsLogInItem`）判断，事件循环开始后才知道，所以带 `hidden_at_login` 的窗口
   在启动完成时才显示。
-- TSX：`app.launchAtLogin()` / `app.setLaunchAtLogin(on)` / `app.launchedAtLogin()`。
+- TSX：`app.launchAtLogin()` 返回 `"off"` / `"on"` / `"needsApproval"`；
+  `app.setLaunchAtLogin(on)` 返回成功与否的布尔值，`app.launchedAtLogin()` 查询本次启动来源。
 
 ## 全局快捷键
 
@@ -129,7 +138,7 @@ let _ = desktop::register_hotkey(
 
 - 其他应用在前台时也有效（macOS Carbon `RegisterEventHotKey`，无需辅助功能权限；Windows `RegisterHotKey`）。
   被其他应用占用时返回 false。
-- `zant::desktop::Shortcut`：`label()`（"⌃⌘V" / "Ctrl+Alt+V"）、`parse()` / 格式化（存设置用的文本
+- `zant::desktop::Shortcut`：`label()`（`ctrl+alt+v` 显示为 "⌃⌥V" / "Ctrl+Alt+V"）、`parse()` / `format()`（存设置用的文本
   "ctrl+meta+v"）、`from_key_event`、`eql`。
 - 录入控件 `HotkeyInput`（见组件文档）；录入期间先 `unregister_hotkey`，已注册的组合键不会传到窗口。
 - TSX：`useHotkey("ctrl+cmd+v", cb)`、`shortcutLabel(str)`、`keyLabel("mod+f")`。
@@ -147,7 +156,7 @@ let _ = desktop::register_hotkey(
 读取顺序：先文件（访达还会把文件名作为文字放进剪贴板），再文字（复制文字时很多应用也会附带一张渲染图），
 最后图片。
 `clipboard_image()` 可以在后台线程调用，大图应当这样做：剪贴板里是位图时（Windows 截图和很多应用）要在这里
-编码成 PNG，1200 万像素的照片约需 1 秒（ClipHop 的 `state` 是参考写法）。
+编码成 PNG，耗时取决于图像大小。
 TSX：`clipboard.text()/setText/image/setImage/files/setFiles/changeCount()`。
 
 ## 其他
@@ -158,6 +167,8 @@ TSX：`clipboard.text()/setText/image/setImage/files/setFiles/changeCount()`。
 - `downloads_dir()`：用户的“下载”文件夹（Windows 用系统记录的位置，用户移动过也正确）。
 - `system_dark_mode()`：系统深色模式。
 - `invalidate_all()`：在动作之外改了状态时重建所有窗口。
+- TSX 的 `app.deviceName()` / `app.downloadsDir()` / `app.dataDir()` 提供相应路径与名称；
+  `dataDir()` 不创建目录。主题用 `useTheme()`，默认跟随系统。
 - 图片：`zant::image::Image::thumbnail(png, max_px)`（缩小解码，线程安全，列表缩略图用）、
   `Image::encode_png`。
 - 对话框：`zant::platform::dialog::{open_file, open_file_as, save_file, save_file_as, confirm, open_url}`。
@@ -167,8 +178,16 @@ TSX：`clipboard.text()/setText/image/setImage/files/setFiles/changeCount()`。
 ## 平台说明
 
 - 网络代码用阻塞调用放在独立线程里（`std::net` + `std::thread`），完成后用 `ui::post_wake()` 唤醒 UI；
-  不要在 UI 线程里做网络 I/O。ClipHop 的 `sync` 模块是参考写法。
-- Windows 首次监听网络端口时会弹出防火墙确认；macOS 向 255.255.255.255 广播会被拒绝
-  （EADDRNOTAVAIL），请向各网卡的广播地址发送。
-- macOS 的登录项 / 全局快捷键等能力只对打包后的 .app 完整可用；`zant run` 下部分接口返回
-  `Unsupported`。
+  不要在 UI 线程里做网络 I/O。
+- macOS 登录项需要 macOS 13+ 和打包后的 .app；全局快捷键不要求打包。
+
+## macOS 标准菜单栏与输入诊断
+
+框架自动安装应用菜单（关于、服务、隐藏、退出）、文件（关闭窗口）、编辑（撤销 / 重做、剪切 / 拷贝 /
+粘贴 / 全选）、显示（全屏）、窗口（最小化、缩放、前置全部窗口与窗口列表）和帮助菜单。
+菜单标题按系统首选语言使用中文或英文；编辑操作发送给当前窗口，沿用框架的键盘处理。
+AppKit 还会向编辑菜单补充听写和表情符号等系统项目。“关于”面板从打包后的 Info.plist 读取版本和版权。
+TSX 用 `useCloseRequest` / `useQuitRequest` 拦截关闭和退出；`app.quit()` 是直接退出。
+
+诊断输入到显示的延迟时可用 `ZANT_INPUT_TRACE=1 zant run`：输出指针按下 / 释放、帧开始，
+macOS 还输出提交到屏幕的时刻。此开关用于日志诊断，测性能时应关闭，避免日志开销影响结果。

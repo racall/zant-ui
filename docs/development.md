@@ -2,7 +2,8 @@
 
 ## 依赖
 
-- Rust 1.94+（edition 2024；`rust-toolchain.toml` 固定 `stable` 通道，`rust-version = "1.94"` 兜底最低版本）
+- Rust 1.94.1（edition 2024；工作区 `rust-toolchain.toml` 固定精确版本，`rust-version = "1.94"` 声明最低版本；
+  `zant create` 生成的应用复制框架固定的 channel，当前也是 `1.94.1`）
 - macOS 13+（Apple Silicon）、Xcode 命令行工具，Skia 预编译包（首次执行 `./scripts/fetch_skia.sh`）
 - 或 Windows 10/11 x64、Visual Studio 2022+ / Build Tools（「使用 C++ 的桌面开发」），
   依赖（Skia、头文件、PDFium、STIX Two Math）首次执行
@@ -18,13 +19,15 @@ Windows 上 Debug 构建是控制台程序（双击运行会带控制台窗口�
 
 TSX 项目默认 `zant run` 原地刷新，行为与限制见 [脚手架](scaffold.md#热更新)。
 普通模式 `zant run --no-hot` 用来对照帧耗时与沙盒行为；`--watch` 选择旧重启模式。
-构建宿主和共享原生层后，应用编辑只重新编译 UI crate；修改框架源码本身仍会正常重编译框架。
+构建宿主和共享原生层后，应用编辑只重新编译 UI crate。框架由 `crates/zant-dylib` 共享，
+会话内只加载一次；框架源码不在应用监听范围内，修改后须结束并重新运行 `zant run`，重建宿主和 UI 库。
+应用配置、Cargo 清单等触发 CLI 自身重启；完整分类规则见 `crates/zant-cli/src/hot/classify.rs`。
 
 - `ZANT_HOT_TRACE=1`：输出文件事件到防抖结束、代码生成、库发布、后台加载、UI 线程的保存 / 销毁 /
   创建与首帧耗时，以及每次替换后旧 UI 映像是否仍在加载列表中（`gone` / `still mapped`）。
   Cargo 的构建耗时包含代码生成与链接；不要把包含关系中的数值重复相加。
 - 旧 UI 库默认在旧实例销毁、新实例成功启动后卸载：框架（`zant-dylib`）只加载一次，
-  每次热刷新只换应用自己的小库，长时间反复刷新内存不再累积（60 次刷新常驻内存约 +8 MB）。
+  每次热刷新只换应用自己的小库，避免逐代保留应用库。
   停止实例时 `zant::hot::release_app()` 关闭副窗口并清理框架持有的应用回调、native 模块、
   定时器、桌面注册、构建上下文和资源地址缓存；宿主主窗口保留。
   应用自行创建的线程、全局变量与外部资源仍须自行停止 / 释放，不能在卸载后执行应用代码。
@@ -48,6 +51,14 @@ python3 scripts/tsx/hot-check.py /tmp/zant-hot-evidence
 
 脚本检查计数、类型变更只重置对应字段、滚动 / 焦点 / 光标保持，新增组件与布局，TSX / Rust 错误恢复，
 原生代码修改、不变保存、构建中多次保存合并、配置 / Cargo 清单重启以及关窗结束会话。
+
+单独检查模板的 TSX 与 native 规范代码生成（不链接或启动应用）：
+
+```bash
+./scripts/cargo.sh run -q -p zant-tsx --bin zant-tsx -- \
+  --out /tmp/zant-template-rust --src scaffold/template-ts/src --native scaffold/template-ts/native
+```
+
 有桌面权限时再用下文 `scripts/mac/ui-scenario.swift` 按 `ZANT_LAYOUT_FILE` 的 key 实际点击。
 
 需要分离 rustc 与链接耗时时可选用 Python wrapper（普通开发不启用）：
@@ -61,8 +72,8 @@ ZANT_HOT_PROFILE=/tmp/hot-profile ZANT_HOT_TRACE=1 zant run
 完整保存到首帧时间应再关闭 wrapper 单独测量。UI crate 使用较少调试信息，macOS 使用 `unpacked`
 避免生成 dSYM；依赖的 profile、features 和 `ZANT_NATIVE_SHARED` 在整个会话固定。
 每代库用新路径，优先硬链接（失败回退复制）；库加载在后台，UI 线程只保存、销毁和恢复状态。
-macOS 首次加载每个新编译的库会进行安全扫描，通常耗时约 0.4–0.6 秒，可在「系统设置 › 隐私与安全性 › 开发者工具」中加入终端以省去这段时间；后台加载超过 250 ms 时宿主每个进程只提示一次，`ZANT_HOT_QUIET=1` 可关闭提示。
-不额外签名：实验中额外 ad-hoc 签名没有缩短加载。Cargo 通过 nice / BELOW_NORMAL_PRIORITY_CLASS 降低优先级，
+macOS 加载新库可能受系统安全检查影响；后台加载超过 250 ms 时宿主每个进程只提示一次，
+`ZANT_HOT_QUIET=1` 可关闭提示。热刷新发布库时不额外执行 codesign。Cargo 通过 nice / BELOW_NORMAL_PRIORITY_CLASS 降低优先级，
 受限环境若拒绝 nice 会显示系统错误。发布构建保持普通静态链接与原有签名流程。
 
 ## 常用命令
@@ -90,21 +101,22 @@ cargo run -p zant-examples --bin zant-pdf -- a.pdf # PDF 阅读器（ZANT_PDF_PA
 - `ZANT_SNAPSHOT=/path/out.png`：绘制后保存 PNG，用于视觉检查（截图模式关闭动效）。
 - `ZANT_SNAPSHOT_EXIT=1`：截图后退出。
 - `ZANT_NO_MOTION=1`：关闭动效（系统“减少动态效果”打开时也会关闭）。
-- `ZANT_THEME=light|dark`：固定主题（截图、测试）；默认跟随系统。
+- `ZANT_THEME=light|dark`：固定 TSX 应用主题（截图、测试）；TSX 应用默认跟随系统。
 - `ZANT_DARK=1`：示例程序切到深色主题。
 - `ZANT_RAW_LOGS=1`：`zant run` 显示原始日志（macOS 默认隐藏输入法框架的无害日志；Windows 不过滤）。
 - `ZANT_LAYOUT_FILE=/path/layout.txt`：每帧写出带 key 节点的位置（`key x y 宽 高`，逻辑像素，
   Tab 分隔），供 UI 自动化按 key 点击。
+- `ZANT_INPUT_TRACE=1`：在 stderr 记录指针按下 / 松开进入运行时、每帧开始的时间；macOS Metal 后端还记录
+  从帧提交到实际呈现的间隔，用于定位输入到屏幕的延迟。需在启动前设置，日常测性能时关闭，避免日志影响结果。
 - `ZANT_FRAME_STATS=1`：每秒在 stderr 输出 `[frames]`：帧数、最慢一帧及其 rebuild / layout / paint
   耗时（Rust 与 Skia 录制，不含 GPU）、最长帧间隔、缩放时画出的新尺寸帧数与「尺寸变化 → 出帧」最长延迟；
   超过 8 ms 的帧另打一行 `[slow-frame]`（含当帧新建的文字排版数与耗时）。
 - `ZANT_AUTOPLAY=1`（`zant-components`）：示例自己循环菜单、对话框、提示、主题等动画，
   用来无人值守地测帧率；`=quiet` 不打印 `[event]`。
 - `ZANT_WINDOW_SIZE=WxH`：覆盖初始窗口尺寸（自动化截图用）。
-- `ZANT_APP_EVENT_*` / `ZANT_POINTER_*` / `ZANT_KEY_*`：headless 测试驱动事件（见 `crates/zant/tests/`）。
 
-性能要看 Release 构建（`cargo build --release`）：Debug 构建的 rebuild 会慢 10 倍以上。
-Windows 上写 stderr 很贵（每行约 10 ms），不要在每帧都会执行的路径里打印。
+性能要看 Release 构建（`cargo build --release`）：不要用 Debug 构建的耗时推断发布版性能。
+Windows 上写 stderr 会影响帧耗时，不要在每帧都会执行的路径里打印。
 
 视觉检查的示例文档：[`docs/showcase.md`](showcase.md) 覆盖全部 Markdown 与公式渲染。
 
@@ -150,9 +162,8 @@ curl -N … | ./target/release/zant-md-stream --sse                             
 ./target/release/zant-md-stream --sse-replay recorded.sse                          # 回放录制的 SSE
 ```
 
-参考（Apple Silicon / i7-13700KF，4K 150%）：真实对话接口回放最慢一帧约 7 ms；30 条长历史 +
-29 KB 回复以约 1200 字节/秒输出时稳定 60 帧。示例用虚拟列表渲染聊天，打开长对话只排版可见的消息。
-测试不依赖真实窗口。
+示例用虚拟列表渲染聊天，打开长对话只排版可见的消息；通过 `ZANT_FRAME_STATS=1` 记录本机结果。
+需要无窗口验证时设置 `ZANT_RENDERER=raster` 与 `ZANT_SNAPSHOT`；真实窗口的滚动与缩放检查见下文。
 
 ## macOS 界面场景测试
 
@@ -163,8 +174,10 @@ curl -N … | ./target/release/zant-md-stream --sse                             
 ```bash
 swiftc -O scripts/mac/ui-scenario.swift -o /tmp/ui-scenario
 ZANT_LAYOUT_FILE=/tmp/layout.txt ./target/debug/zant-components &
-CONTENT_HEIGHT=480 /tmp/ui-scenario zant-components /tmp/layout.txt /tmp/shots <步骤文件>
+CONTENT_HEIGHT=820 /tmp/ui-scenario zant-components /tmp/layout.txt /tmp/shots steps.txt
 ```
+
+`CONTENT_HEIGHT` 要填实际窗口内容高度（点），`zant-components` 初始内容高度为 820；改变窗口大小后需相应调整。
 
 步骤：`click <key> [次数]`、`hover <key>`、`away`（指针移出窗口，截图前用它避免悬停样式）、`type <文字>`
 （Unicode 按键，可以输入中文）、`key return|backspace|tab|escape`、`resize <宽> <高>`、`wait <毫秒>`、
@@ -209,13 +222,14 @@ SSH 会话里的窗口不可见、也拿不到真实缩放，所以视觉检查�
 | `scripts/win/smoke-stillmd.ps1 -App <still. app.exe>` | 驱动 still.：输入、保存（CRLF）、剪贴板、对话框、拼音输入法、标题栏、拖动、关闭确认 |
 | `scripts/win/docs-check.ps1 -App <still. app.exe>` | 用 still. 打开 `docs/` 下每个 md（预览 / 编辑）并截图 |
 | `scripts/win/resize-check.ps1` | 真实鼠标 120 Hz 拖动窗口右下角缩放（含缩到最小），统计缩放帧率与延迟；先跑 `ZANT_AUTOPLAY` 测动画帧率；检查布局与最小尺寸 |
-| `scripts/win/scaffold-check.ps1（Rust TSX 脚手架：create → cargo build → headless 快照）` | 在真实命令行窗口（代码页 936）运行 `zant create`，用 Unicode 按键输入中文标题，截图并检查生成的 `app.config.json` |
+| `scripts/win/scaffold-check.ps1` | 在真实命令行窗口（代码页 936）运行 `zant create`，用 Unicode 按键输入中文标题，检查生成项目并构建、保存无窗口快照 |
+| `scripts/win/hot-check.ps1` | 在真实桌面验证 TSX 热刷新与状态恢复；必须传 `-Work <可删除的测试目录>`，可用 `-Zant` 指定 CLI（脚本会重建 Work 目录） |
 | `scripts/win/stream-resize-check.ps1 -Sse <录制的 SSE>` | `zant-md-stream` 回放真实回复的同时，真实鼠标拖动标题栏移动窗口、拖右下角放大 / 缩到最小 / 还原，每步截图，统计帧时间 |
 | `scripts/win/pdf-check.ps1 -Folder <目录>` | 对目录里的 PDF 检查页数、文字、链接与目录、首页 / 中间页截图；真实鼠标拖选 + Ctrl+C、双击选词、缩放、滚轮、搜索、翻页 |
 | `scripts/win/desktop-checks.ps1` | 依次跑上面这些检查（同一时间只能一个程序占鼠标 / 前台），把每份 report 汇总到 `%TEMP%\zant-checks\desktop\summary.txt`（`-Out` 可改）；`-Checks resize,stream` 可选子集，`-ComponentsExe` / `-MdStreamExe` / `-PdfExe` 指定被测程序（默认 `target\release\`），`-StillExe` 指定 still. 应用（`smoke` / `docs` 两项用） |
 
 用 `run-desktop.ps1 -Exe powershell.exe -Arguments "-NoProfile -ExecutionPolicy Bypass -File <脚本>"`
-在桌面会话运行；结果与截图在 `%TEMP%\zant-checks\` 下。含中文的 `.ps1` 要保存为带 BOM 的
+在桌面会话运行；多数脚本的结果与截图在 `%TEMP%\zant-checks\` 下（`hot-check.ps1` 用 `-Work`）。含中文的 `.ps1` 要保存为带 BOM 的
 UTF-8（Windows PowerShell 5.1）。单个桌面脚本默认跑 `target\debug\` 里的示例；测 Release 时传
 `-Exe <repo>\target\release\<app>.exe`（`pdf-check.ps1` / `smoke-stillmd.ps1` / `docs-check.ps1` 传 `-App`）。
 `stream-resize-check.ps1 -Sse` 需要一份录制的 SSE；仓库里的合成样例是
@@ -230,9 +244,12 @@ cargo build -p zant-cli
 ./target/debug/zant create my-app
 ```
 
-生成项目是 TSX 应用：`Cargo.toml` + `build.rs`（调 `zant_build::tsx_app()`）+ `src/App.tsx` +
-`native/`，模板位于 `scaffold/template-ts/`，由 CLI 写入目标目录。`zant run` 用 `cargo build` 构建，
-产物在 `target/{debug,release}/<应用名>`。框架更新后执行 `zant update` 重编译全局 CLI。
+推荐用 TSX 编写应用。生成项目的 `src/` 只放 `.tsx` / `.ts`，所有 Rust 放在 `native/`：
+`native/main.rs` 是 `zant::app!();`，`native/build.rs` 是 `fn main() { zant_build::tsx_app(); }`。
+`Cargo.toml` 指定这两个路径；构建器生成 `$OUT_DIR/zant_app.rs`、`zant_main.rs`、`zant_hot.rs`，
+自动声明顶层原生模块，并注册带同名 `.ts` 规范的 `Native` 实现，无需手写模块树或注册表。
+模板位于 `scaffold/template-ts/`，由 CLI 写入目标目录。默认 `zant run` 使用开发宿主与应用动态库；`zant compile` / `zant run --no-hot` 构建
+普通可执行文件，产物在 `target/{debug,release}/<Cargo 二进制名>`（Windows 加 `.exe`）。框架更新后执行 `zant update` 重编译全局 CLI。
 详见 [脚手架](scaffold.md)。
 
 ## 发布
@@ -244,14 +261,17 @@ cargo build -p zant-cli
    提交到 main；
 2. 打标签并推送：`git tag v0.2.0 && git push origin v0.2.0`；
 3. GitHub Actions（`.github/workflows/release.yml`）在 macOS 和 Windows 上下载 Skia 等依赖，用 rustup
-   安装 `rust-toolchain.toml` 固定的工具链、`cargo build --release --locked` 编译 zant，用
+   安装 `rust-toolchain.toml` 固定的工具链，先用 `scripts/release/prebuilt.sh` / `prebuilt.ps1` 构建原生层，
+   并运行 `cargo test -p zant-sys` 验证预编译库可链接、可运行；再以 `ZANT_NATIVE_PREBUILT` 指向该库，
+   用 `cargo build --release --locked -p zant-cli --bin zant` 编译 zant，用
    `scripts/release/package.sh` / `package.ps1` 打包（发布包 = `bin/zant` + `zant-ui/`，含 Rust workspace、
-   原生源码和预编译的 Skia 库与头文件）；最后发布 Release，附件为
+   原生源码、Skia 库与头文件，以及 `third_party/zant-native-prebuilt/` 的原生静态库与源码哈希元数据）；最后发布 Release，附件为
    `zant-macos-arm64.tar.gz`、`zant-windows-x64.zip`、各自的 `.sha256`、`version.txt` 和两个安装脚本。
 
 手动运行这个工作流（Actions → release → Run workflow）只构建发布包作为 artifact，不发布。
 
-本地自检与试打包：`ZANT_DRY_RUN=1 ./scripts/release/package.sh dev dist` 只检查输入并列出会打进包里的
+本地自检与试打包（先准备 Skia 和 `scripts/release/prebuilt.sh` 生成的原生库，
+或用 `ZANT_NATIVE_PREBUILT` 指向现有库）：`ZANT_DRY_RUN=1 ./scripts/release/package.sh dev dist` 只检查输入并列出会打进包里的
 文件（不编译、不写文件，可离线）；`./scripts/release/package.sh v0.0.0-test /tmp/rel` 真正打包，再用
 `ZANT_HOME=/tmp/zh ZANT_DOWNLOAD=file:///tmp/rel bash install.sh` 安装测试（需要先把 `version.txt` 和
 `install.sh` 放进那个目录）。
@@ -267,6 +287,7 @@ cargo build -p zant-cli
 - `crates/zant/src/renderer/`：Skia 桥（可移植核心 + mac / win 平台文件）。
 - `crates/zant/src/platform/`：平台 ABI 的 Rust 包装；原生实现在 `crates/zant-sys/native/platform/`。
 - `crates/zant-tsx/`：TSX 编译器（lexer / parser / hooks / codegen / tags / d.ts）。
+- `crates/zant-dylib/`：热刷新共享的 Rust 框架；`crates/zant-hot-host/`：持有窗口、替换应用库的开发宿主。
 - `crates/zant-cli/`：`zant` 命令；`crates/zant-build/`：应用 `build.rs` 辅助。
 - `crates/zant/src/tsx/`：TSX 生成代码的运行时（hooks、字符串、内置、定时器、窗口）。
 - `crates/zant/src/core/keys.rs`、`crates/zant/src/core/paths.rs`：平台快捷键与应用数据目录。

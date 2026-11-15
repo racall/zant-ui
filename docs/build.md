@@ -9,7 +9,8 @@ zant build --yes                # 不提问（CI 用；设置了环境变量 CI 
 ```
 
 结果放在 `target/dist/`。只想编译用 `zant compile [--release]`，本机测试用的 .app / 程序目录用
-`zant package`。
+`zant package`。TSX 应用与手写 Rust 应用使用同一发布流程；TSX 在 `native/build.rs` 中
+由 `zant_build::tsx_app()` 编译成 Rust，发布产物没有 JS 运行时，也不使用热刷新宿主或开发动态库。
 
 | 平台 | 发布方式（`distribution`） | 结果 |
 |---|---|---|
@@ -33,11 +34,21 @@ zant build --yes                # 不提问（CI 用；设置了环境变量 CI 
 
 ## 第一次运行
 
+先检查 `app.config.json`：它提供应用标题、`bundle_id`、版本与平台元数据。
+`description`、`company`、`copyright` 写入 Windows exe 文件属性（描述为空时用标题）；
+macOS Info.plist 写入版权、`macos.category` 与 `macos.minimum_system_version`（默认 `13.0`）。
+`window.remember` 控制运行时记住窗口位置与尺寸，不是发布设置；新脚手架为 `true`，省略时为 `false`。
+TSX 应用的 Rust 入口与配置由构建器生成到 `$OUT_DIR`，不要手改生成文件。
+
+`build.config.json` 单独控制分发方式、发布证书、公证和商店上传；其签名身份不从
+`app.config.json` 的本机打包身份继承。Windows 安装包的 `windows.publisher` 也需单独提供；
+Mac App Store 发布仍需在构建配置中提供 `macos.category`，它覆盖应用配置中的分类。
+
 在项目目录的终端里运行 `zant build`，配置里缺什么就问什么：
 
 1. 发布方式（见上表）。
 2. 签名证书：
-   - macOS 列出钥匙串里的证书，推荐的排在前面并标「（推荐）」；也可以选 Ad-hoc，只能在本机测试；
+   - macOS 列出钥匙串里的证书，推荐的排在前面并标「（推荐）」；Developer ID 分发可以选 Ad-hoc 用于本机测试，App Store 方式不能选 Ad-hoc；
    - Windows 列出证书存储（当前用户 → 个人）里有效的代码签名证书，也可以输入 `f` 用 .pfx 文件，或输入 `0` 不签名。
 3. macOS 自己分发：签名完成后问要不要公证，要公证时问用哪个苹果帐户（见下文）；再问 DMG 的背景
    图片，直接回车用 zant 自带的默认背景。
@@ -45,8 +56,9 @@ zant build --yes                # 不提问（CI 用；设置了环境变量 CI 
    App Store Connect API key。
 5. Windows：安装包的发布者名称；Microsoft Store 的产品标识；没装 Inno Setup 时提议用 winget 安装。
 
-问完后询问是否保存到配置文件，下次（以及 CI 上）直接用。保存的内容只有证书名称、选项、文件路径
-和环境变量名；**密码和密钥内容不会写进去**。配置文件可以提交到仓库供 CI 使用；如果不想公开证书
+交互流程会询问是否保存到配置文件，下次（以及 CI 上）直接用。通过提示输入的密码只用于本次运行，
+提示收集的配置保存证书名称、选项、文件路径和环境变量引用。手工写进配置的字面值会原样保留，
+**不要直接把密码或密钥内容写进配置**。配置文件可以提交到仓库供 CI 使用；如果不想公开证书
 名称（里面有个人姓名），把它加进 `.gitignore`。
 
 ## 配置文件
@@ -152,8 +164,8 @@ security find-identity -v -p codesigning
 ### 公证
 
 公证是把签好名的 DMG 交给苹果检查，通过后，别人下载打开时系统不会拦截。zant 提交 DMG（或 zip）、
-等待结果（通常 1～10 分钟），通过后把公证票据装订到 DMG 和 .app 上（离线也能验证），再用 Gatekeeper
-检查一遍；没通过时打印苹果的检查日志。苹果限制每个团队每天最多公证 75 次。
+等待结果，通过后把公证票据装订到 DMG 和 .app 上（离线也能验证），再用 Gatekeeper
+检查一遍；没通过时打印苹果的检查日志。苹果建议每天不超过 75 次公证提交，见[公证工作流](https://developer.apple.com/documentation/security/customizing-the-notarization-workflow)。
 
 公证用的帐户有三种写法（`macos.notary`），本机推荐第一种：
 
@@ -176,7 +188,7 @@ security find-identity -v -p codesigning
 **2. App Store Connect API key（`{"api_key": true}`）**
 
 用 `app_store_connect` 里的 API key 公证，适合 CI。**必须是团队密钥**（个人密钥不能用于公证），获取方法见
-下文「App Store Connect API key」。
+下文「App Store Connect API key」，以及苹果的 [API key 说明](https://developer.apple.com/documentation/AppStoreConnectAPI/creating-api-keys-for-app-store-connect-api)。
 
 **3. Apple ID 和密码直接写成环境变量**
 
@@ -191,7 +203,7 @@ DMG 打开后显示一个带背景的窗口：左边是应用，右边是「应�
 - `dmg_background` 不写或写 `default`：zant 自带的默认背景（浅色渐变和一道箭头）；
 - 自己的背景：PNG 的尺寸就是窗口大小（单位是点），建议 640×400；同一目录下放一张两倍大的
   `名字@2x.png`（1280×800）给 Retina 屏幕。应用图标和「应用程序」文件夹的中心分别在宽度的 27% 和 73%、
-  高度的 47.5% 处（640×400 时是 (170, 190) 和 (470, 190)），图标 128 点，画背景时把这两处留空；
+  高度的 47.5% 处（640×400 时是 (172, 190) 和 (467, 190)），图标 128 点，画背景时把这两处留空；
 - `none`：普通窗口。
 
 窗口由「访达」排好后存进 DMG。第一次运行时 macOS 会询问是否允许终端控制「访达」（系统设置 →
@@ -233,7 +245,7 @@ DMG 打开后显示一个带背景的窗口：左边是应用，右边是「应�
 Mac App Store 要求 App Sandbox。`app-store` 方式总是带上沙盒权限，以及由描述文件里的团队 ID 组成的
 `com.apple.application-identifier`、`com.apple.developer.team-identifier`。上架前：
 
-- 在 `app.config.json` 设 `"macos": { "sandbox": true }`，用 `zant run` 检查沙盒里各功能是否正常；
+- 在 `app.config.json` 设 `"macos": { "sandbox": true }`，用 `zant run --no-hot` 检查沙盒里各功能是否正常（默认 `zant run` 使用不启用沙盒的开发宿主）；
 - 应用需要的其他权限写在 `app.config.json` 的 `macos.entitlements`，例如联网
   `{"com.apple.security.network.client": true}`、监听端口 `com.apple.security.network.server`、
   读写「下载」文件夹 `com.apple.security.files.downloads.read-write`。
@@ -250,12 +262,13 @@ Mac App Store 要求 App Sandbox。`app-store` 方式总是带上沙盒权限，
 | 方式 | 说明 |
 |---|---|
 | 不签名 | 免费；适合测试或小范围分发 |
-| OV 代码签名证书 | 向证书机构购买（每年约 150～300 美元）；2023 年 6 月起私钥必须放在硬件令牌 / HSM 里 |
+| OV 代码签名证书 | 向证书机构购买；硬件令牌 / HSM 等私钥保管要求按签发机构规定 |
 | EV 代码签名证书 | 更贵；2024 年起和 OV 一样，也要靠下载量积累 SmartScreen 信誉，不再立刻免除警告 |
 | Azure Artifact Signing（原 Trusted Signing） | 微软的云签名服务（按月付费，地区有限制）；zant 目前不直接支持，可以改 `windows.ps1` 接入 |
 | 自签名证书 | 只适合测试，用户那里一样会被拦截 |
 
-同一个证书长期签名，SmartScreen 信誉会逐渐积累。提交 Microsoft Store 的 MSIX 不需要自己签名（见下文）。
+签名仍可能触发 SmartScreen 提示；提交 Microsoft Store 的 MSIX 由商店重新签名（见下文）。
+签名选项和信誉规则见微软的[代码签名说明](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/code-signing-options)。
 
 ### 用证书存储里的证书（`signing_identity`）
 
@@ -285,7 +298,7 @@ zant 签 exe 和 `pdfium.dll`（Rust 版把 Skia 桥接静态链接进 exe，没
 
 ### 安装包
 
-需要 [Inno Setup](https://jrsoftware.org/isdl.php)（免费）。zant 用 6.7 版测试过（要求 6.3 以上）：
+需要 [Inno Setup](https://jrsoftware.org/isdl.php)，安装程序模板面向 6.3+（CLI 不检查版本号）：
 
 ```powershell
 winget install --id JRSoftware.InnoSetup -e
@@ -300,7 +313,7 @@ winget install --id JRSoftware.InnoSetup -e
 - 界面跟随系统语言显示中文或英文（简体中文翻译随 zant 提供）；
 - 创建开始菜单快捷方式，可选桌面快捷方式，装完可以直接启动；
 - 安装、卸载前结束正在运行的这个程序；
-- 卸载时删除 `zant.desktop.setLaunchAtLogin` 写的开机启动项，用户数据（`%APPDATA%\<应用标识>`）保留；
+- 卸载时删除框架开机启动 API（TSX：`app.setLaunchAtLogin`；Rust：`zant::desktop::set_launch_at_login`）写的启动项，用户数据（`%APPDATA%\<应用标识>`）保留；
 - 静默安装：`setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART`。
 
 ## Windows：Microsoft Store
@@ -318,10 +331,10 @@ winget install --id JRSoftware.InnoSetup -e
    证书主题必须和 `store.publisher` 完全一致。
 4. **第一次提交要在 Partner Center 网页上完成**：新建提交，上传 .msix，填写商店信息。
 
-之后的更新可以用 msstore 命令行（`store.upload: true`）。限制：只能更新已经在网页上首发过的应用，
-而且目前只支持免费应用。准备：
+之后的更新可以用 msstore 命令行（`store.upload: true`）；先在网页上完成首发，
+其他限制与运行时要求见微软的 [Developer CLI 文档](https://learn.microsoft.com/en-us/windows/apps/publish/msstore-dev-cli/overview)。准备：
 
-1. 安装：`winget install Microsoft.DotNet.DesktopRuntime.9`，再 `winget install "Microsoft Store Developer CLI"`；
+1. 安装：`winget install "Microsoft Store Developer CLI"`；所需 .NET 运行时按当前 CLI 安装要求准备；
 2. 关联 Microsoft Entra 应用：Partner Center → 帐户设置 → 用户管理 → **Microsoft Entra 应用程序** → 添加，
    角色选「管理员」（Manager）；点应用名可以看到租户 ID 和客户端 ID，**添加新密钥**得到客户端密钥
    （只显示一次）；
@@ -425,8 +438,9 @@ Windows 的步骤相同，环境变量换成 `WIN_PFX_BASE64`、`WIN_PFX_PASSWOR
 
 ## 打包脚本
 
-zant 负责读配置、提问、编译、生成并签名 .app / 程序目录，之后的平台步骤由 `crates/zant-cli/src/distribute.rs` 与 `scripts/` 里的
-脚本完成。要调整打包细节（DMG 外观、安装程序选项等）改这些文件即可，不用重新编译 zant：
+zant 负责读配置、提问、编译和生成 .app / 程序目录；macOS 应用签名由 CLI 执行，
+Windows 签名及后续平台步骤由 `crates/zant-cli/src/distribute.rs` 调用 `scripts/package/` 中的脚本完成。
+改脚本、背景和安装程序模板无需重新编译 zant；改 CLI Rust 代码则需要重新编译：
 
 | 文件 | 内容 |
 |---|---|
@@ -436,4 +450,6 @@ zant 负责读配置、提问、编译、生成并签名 .app / 程序目录，�
 | `windows-installer.iss` | Inno Setup 安装程序模板（参数由 windows.ps1 用 `/D` 传入） |
 | `ChineseSimplified.isl` | Inno Setup 的简体中文界面文字（来自 Inno Setup 仓库） |
 
-zant 用 `ZANT_*` 环境变量把设置传给脚本（每个脚本开头有完整列表），密码和密钥不会出现在命令行和日志里。
+zant 用 `ZANT_*` 环境变量把设置传给脚本（每个脚本开头有完整列表），不主动打印密码或密钥内容。
+脚本调用系统签名、公证和上传工具时，部分凭据会作为工具参数传递；Windows 安装包签名还经
+`cmd.exe` 展开环境变量，因此需遵守上文的 PFX 密码字符限制。

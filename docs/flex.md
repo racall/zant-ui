@@ -1,63 +1,53 @@
 # Flex 布局与 CSS 对照
 
-## 已支持
-
-| CSS | Zant |
-|---|---|
-| `display:flex` | `Column` / `Row`（Rust `ui::column` / `ui::row`） |
-| `flex-direction` | `Row` / `Column`，或 `flexDirection` |
-| `justify-content` | `justify` / `justifyContent` |
-| `align-items` | `alignItems` |
-| `align-self` | `alignSelf` |
-| `align-content` | `alignContent`（行换行时） |
-| `flex-wrap: wrap` | `wrap="wrap"`（横向） |
-| `gap` | `gap` |
-| `row-gap` / `column-gap` | `rowGap` / `columnGap` |
-| `order` | `order` |
-| `flex-grow` | `grow` |
-| `flex-shrink` | `shrink` |
-| `flex-basis` | `basis` |
-| `width: %` | `widthPercent`（或 `width="50%"`） |
-| `height: %` | `heightPercent`（或 `height="50%"`） |
-| `min/max-width/height` | 像素值 |
-| `padding/margin` | `padding` / `margin` |
-
-`align-content` 支持 start/center/end/space-between/space-around；`stretch`
-当前等同 start（不拉伸行高）。
-
-## 示例
-
 ```tsx
-<Row wrap="wrap" columnGap={12} rowGap={8} alignContent="space-between">
-  <Card widthPercent={33}>…</Card>
-  <Card widthPercent={33}>…</Card>
-  <Card widthPercent={33}>…</Card>
-</Row>
+import { View, Row, Text } from "zant";
+
+export default function App() {
+  return <View padding={24} gap={12}>
+    <Row gap={12} alignItems="center">
+      <View grow={1}><Text>随剩余空间伸展</Text></View>
+      <View width={120} shrink={0}><Text>固定宽度</Text></View>
+    </Row>
+    <Row wrap="wrap" columnGap={12} rowGap={8}>
+      <View width={200}><Text>第一项</Text></View>
+      <View width={200}><Text>第二项</Text></View>
+    </Row>
+  </View>;
+}
 ```
 
-手写 Rust 用 `ui::row(ui::BoxOptions { wrap: Some(flex::Wrap::Wrap), column_gap: 12.0,
-row_gap: 8.0, align_content: Some(flex::AlignContent::SpaceBetween), children: nodes![..], .. })`
-（或 `ui::styled` 设置 `width_percent`）。
+| CSS | TSX 属性 / 组件 |
+|---|---|
+| `display:flex` / `flex-direction` | `View`、`Column`、`Row` / `flexDirection` |
+| `justify-content` | `justify` / `justifyContent`：start、center、end、space-between、space-around、space-evenly |
+| `align-items` / `align-self` | `alignItems` / `alignSelf`：start、center、end、stretch；后者另有 auto |
+| `flex-wrap` / `align-content` | 横向 `wrap="wrap"` / `alignContent` |
+| `gap` / `row-gap` / `column-gap` | `gap` / `rowGap` / `columnGap` |
+| `order` / `flex-grow` / `flex-shrink` / `flex-basis` | `order` / `grow` / `shrink` / `basis` |
+| 宽高与百分比 | `width` / `height`；`widthPercent={50}` 或 `width="50%"` |
+| min/max、内外边距 | `minWidth` / `maxWidth` / `minHeight` / `maxHeight`、`padding` / `margin` |
+
+百分比取 0–100。横向多项的百分比宽度还需给 gap 留空间；不要用三个 33% 再加间距。
+固定高度控件默认不收缩；长文本用 `Paragraph`。Rust 对应用 `ui::BoxOptions` 与 `ui::Style`
+的 snake_case 字段，Flex 枚举位于 `zant::layout::flex`。
 
 ## 绝对定位
 
-- `absolute = true` 时相对父元素的**含内边距盒子**定位；`left` / `right` / `top` / `bottom`
-  与百分比尺寸同 CSS。同时设 `left` 与 `right`（且无宽度）时拉伸到两侧之间。
-- `anchor = n`：绝对定位子节点取第 n 个流式兄弟节点的 x / 宽度（未设置纵向位置时也取
-  y / 高度），配合 `layout_transition` 实现分段控制器滑块、标签页下划线的平滑移动。
+```tsx
+import { View, Text } from "zant";
 
-## 尚未支持
+export default function App() {
+  return <View height={120} padding={16}>
+    <View absolute left={16} right={16} top={16} height={32}>
+      <Text>左右同时指定、无 width 时横向拉伸</Text>
+    </View>
+  </View>;
+}
+```
 
-- **纵向 wrap**（`Column` 方向上的 flex-wrap）
-- `wrap-reverse`
-- `align-content: stretch`
-- `flex` 简写
-- `auto` / `calc()` / `min-content` / `max-content`
-- 百分比 min/max
-
-## 性能
-
-- `nowrap` 保持原有单行快速路径。
-- 只有使用 `wrap` 时才进入多行布局。
-- 布局测试覆盖：wrap、百分比、order、align-self，以及原有 grow/shrink/
-  min/max/gap/margin/justify。
+- 定位和百分比相对父元素的含内边距盒子；绝对定位节点不参与 Flex 分配。
+- Rust `Style.anchor = Some(n)` 跟随第 n 个流式兄弟的 x / 宽度；未指定纵向位置时也跟随 y / 高度。
+  配合 `layout_transition`，见 [动效](motion.md)。
+- 当前不支持纵向 wrap、wrap-reverse、flex 简写、auto/calc、min-content/max-content、百分比 min/max。
+- `alignContent` 支持 start/center/end/space-between/space-around；stretch 当前等同 start。

@@ -3,7 +3,7 @@
 ![生成项目](assets/scaffold.png)
 
 脚手架是一个编译后的 `zant` 工具。发布构建（`zant build`）的平台步骤调用 Zant UI 自带的打包脚本
-（`crates/zant-cli/src/distribute.rs` 与 `scripts/`），项目里不需要自己写脚本。
+（`crates/zant-cli/src/distribute.rs` 与 `scripts/package/`），项目里不需要自己写脚本。
 
 ## 安装
 
@@ -17,9 +17,11 @@ curl -fsSL https://raw.githubusercontent.com/racall/zant-ui/main/install.sh | ba
 irm https://raw.githubusercontent.com/racall/zant-ui/main/install.ps1 | iex
 ```
 
-安装脚本第一步检查 Rust（没有 rustup 就装 rustup，并安装 Zant UI 固定的工具链），然后下载最新的发布包：
-编译好的 `zant`、Zant UI 框架（`zant-ui/`，Rust workspace）和预编译依赖（Skia；Windows 还有 PDFium），
-放到 `~/.zant`（Windows `%LOCALAPPDATA%\zant`）并加到 PATH。不需要克隆源码，也不需要编译框架；
+安装脚本检查 Rust（没有 rustup 就装 rustup），下载最新的发布包后，安装包内 `rust-toolchain.toml`
+指定的工具链（当前工作区固定为 Rust 1.94.1）。发布包包含
+编译好的 `zant`、Zant UI 框架（`zant-ui/`，Rust workspace）和预编译依赖（Skia、Zant 原生层；Windows 还有 PDFium），
+放到 `~/.zant`（Windows `%LOCALAPPDATA%\zant`）并加到 PATH。不需要克隆源码或在安装时编译；应用构建仍会编译 Rust 框架代码，原生层在源码哈希匹配时直接链接预编译库，
+不匹配时回退到 C++ / Objective-C 源码构建；
 Windows 需要 Visual Studio 2022+ / Build Tools 的 C++ 工作负载（链接 Skia），macOS 需要 Xcode 命令行工具。
 详细说明和环境变量见 README「安装」。
 
@@ -29,7 +31,7 @@ Windows 需要 Visual Studio 2022+ / Build Tools 的 C++ 工作负载（链接 S
 
 macOS 与 Windows 用法相同。`zant create` 只问两端通用的设置，生成的项目在两端都能直接 `zant run`。平台专属的设置和文件
 由 `zant run` / `build` / `package` 在当前平台按需补充：macOS 上补 `app.config.json` 的
-`macos` 段（沙盒、签名账号）并生成 Info.plist、entitlements；Windows 暂无专属设置。
+`macos` 段（沙盒、签名账号）并生成 Info.plist、entitlements；Windows 可通过 `windows.titlebar_height` 覆盖自定义标题栏高度。
 
 ## 创建项目
 
@@ -78,18 +80,18 @@ Windows 的命令行窗口（包括代码页 936 的中文系统）中文显示�
 
 `--sandbox`、`--sign` 可选：给出时直接写入 `macos` 段。
 
-生成的是 TSX 应用：一个 Rust Cargo package，TSX 在编译期（`native/build.rs` 调用
+推荐用 TSX 编写应用；`zant create` 生成的就是 TSX 应用：一个 Rust Cargo package，TSX 在编译期（`native/build.rs` 调用
 `zant_build::tsx_app()`）转成 Rust，没有 JS 运行时：
 
 ```text
-src/App.tsx                 根组件（默认导出），界面和业务逻辑都用 TSX
+src/App.tsx                 根组件（无参数的默认导出函数），界面和业务逻辑用 TSX
 src/components/*.tsx        业务组件
 native/main.rs              一行 zant::app!();，生成入口与注册
 native/<名字>.ts            原生模块的规范（类型 + export declare function）
 native/<名字>.rs            原生模块的 Rust 实现
 native/build.rs             一行 fn main() { zant_build::tsx_app(); }
 Cargo.toml                  单个 Cargo package；zant / zant-build 是相对路径依赖
-rust-toolchain.toml         stable 工具链
+rust-toolchain.toml         与框架相同的固定工具链（当前 1.94.1）
 assets/icons/               默认图标
 zant.d.ts / tsconfig.json   import … from "zant" 的类型与补全
 ```
@@ -107,12 +109,12 @@ cd my-app
 /path/to/zant/target/debug/zant run
 ```
 
-`zant run` 读取配置，调用 `cargo build`，然后启动应用。无需手动执行 `cargo build`。
+`zant run` 读取配置并自动构建、启动应用；TSX 项目默认构建热刷新动态库，`--no-hot` 构建普通可执行文件。
+无需先手动执行 `cargo build`。
 
 常用命令：
 
 ```bash
-zant run
 zant run              # 热刷新：保存后界面原地刷新，窗口不关闭
 zant run --watch      # 旧的重启模式
 zant run --no-hot     # 编译并运行一次
@@ -125,9 +127,10 @@ zant update           # 安装版：更新到最新发布包；源码版：git p
                       # 检查依赖和 Rust 工具链、重新编译 zant
 ```
 
-`zant run` / `zant compile` 默认 Debug 构建（Windows 上是控制台程序）；`--release`、`zant package` 与 `zant build`
-用 release profile（`zant package` / `zant build` 在 Windows 上为 GUI 子系统），产物在
-`target/{debug,release}/<应用名>`。
+`zant compile`、非沙盒的 `zant run --no-hot` 默认 Debug 构建（Windows 上是控制台程序）；
+`--release` 改用 release profile。`zant package`、`zant build` 及 macOS 沙盒运行总是用 release profile，
+Windows Release 可执行文件为 GUI 子系统。普通可执行文件在 `target/{debug,release}/<Cargo 二进制名>`
+（Windows 加 `.exe`）；热刷新中间文件见下节。
 
 ## 热更新
 
@@ -155,7 +158,8 @@ zant run --no-hot     # 编译并运行一次（普通静态链接程序）
 改 key 或移除组件会失去对应视图状态。`createStore`、任意 Rust 全局变量、后台线程和外部资源不会自动序列化。
 手写 Rust 应用可实现 `App::hot_save` / `hot_load`；自定义状态类型可实现 `tsx::hot::Hot`。
 
-TSX 语法错误与 `native/` Rust 编译错误显示在仍运行的 UI 上，保留文件、行、列；修复后自动移除错误面板并刷新。
+会话运行后，TSX 语法错误与 `native/` Rust 编译错误显示在仍运行的 UI 上（显示编译器错误摘要，完整输出见终端）；
+修复后自动移除错误面板并刷新。首次构建失败则退出，尚无可保留的界面。
 库在后台线程加载，状态保存、销毁与恢复在 UI 线程执行；Cargo 以较低优先级运行。
 关闭窗口结束会话；Ctrl+C 结束 CLI，宿主在标准输入关闭时退出。
 
@@ -163,7 +167,7 @@ TSX 语法错误与 `native/` Rust 编译错误显示在仍运行的 UI 上，�
 `--watch` 保留旧模式：macOS 编译失败时保留旧窗口（沙盒下不支持自动重启），Windows 先结束旧 exe，
 编译失败再打开上一个版本。非 TSX 项目仍编译并运行一次。
 
-内部文件位于 `target/zant-hot/`：隐藏 crate 的 `lib.rs` 只有 `zant::hot_app!();`，
+内部文件位于 `target/zant-hot/`：隐藏 crate（`target/zant-hot/crate/`）的 `lib.rs` 只有 `zant::hot_app!();`，
 构建脚本调用 `zant_build::hot_app(app_root)`，与普通应用使用同一份 `OUT_DIR/zant_app.rs` / `zant_hot.rs`。
 隐藏 crate 和 `zant-dylib` 都使用 Rust `dylib`；隐藏 crate 以 `zant` 为依赖名引用 `zant-dylib`
 重导出的框架 API 和宏，
@@ -171,7 +175,9 @@ TSX 语法错误与 `native/` Rust 编译错误显示在仍运行的 UI 上，�
 将工具链 DLL 放到构建产物的 `deps/`，宿主在加载前用 `AddDllDirectory` 注册该目录。
 这些开发库必须由同一 Rust 工具链构建；普通编译、打包与发布不使用这条动态链接路径。
 框架编成只加载一次的共享库（`zant-dylib`），每次热刷新只加载应用自己的小库；新版本启动成功后，
-框架释放旧版本留下的回调、定时器、窗口等引用并卸载旧库，长时间反复刷新内存不累积。
+框架释放旧版本留下的回调、定时器、副窗口等引用并卸载旧库，避免逐代保留应用库。
+`ZANT_HOT_KEEP_LIBS=1` 可禁止卸载以便诊断。框架源码不在应用监听范围内，修改框架后须结束并重新运行
+`zant run`，使宿主与 UI 库使用同一版本。
 应用在 `native/` 里自己开的线程须在退出钩子里停止，否则卸载后仍会执行已释放的代码。
 热刷新 UI crate 默认使用较少调试信息，应用清单中 `[profile.dev.package.<包名>-hot]` 可覆盖。
 
@@ -188,23 +194,23 @@ zant package
 Windows：生成 `target/<应用标题>/` 目录（`<应用标题>.exe`、`pdfium.dll`、
 MSVC 运行库 `vcruntime140*.dll` / `msvcp140.dll`），GUI 子系统，压缩即可分发；不签名。
 exe 内带应用图标（`assets/icons/app-windows.png`）。项目和 Zant UI 不在同一个盘时，`zant create`
-用目录联接 `.zant/zant-ui` 引用 Zant UI（`Cargo.toml` 的 path 依赖只接受相对路径）。
+用目录联接 `.zant/zant-ui` 引用 Zant UI（脚手架保持相对 path 依赖）。
 
 macOS：生成 `target/<应用标题>.app`：
 
 - 读取应用标识（Bundle ID）、版本、窗口配置；缺少签名账号时先询问
 - 用 `assets/icons/app-macos.png` 生成 `AppIcon.icns`（见「图标」）
 - 生成 Info.plist
-- 沙盒开启时写入 entitlements
-- 使用配置中的 Developer ID 签名
+- 沙盒开启或配置了 `macos.entitlements` 时写入 entitlements
+- 使用配置中的签名身份签名
 - 无开发者账号时使用 ad-hoc 签名
 
-沙盒应用 `zant run` 也会先打包，再用 `open -n -W` 启动。
+沙盒应用用 `zant run --no-hot` 先打包，再用 `open -n -W` 经 LaunchServices 启动；默认热刷新宿主不启用沙盒。
 
 ## 发布构建
 
 `zant package` 只做本机测试用的版本。要发给别人用 `zant build`：macOS 用 Developer ID 签名、
-打包 DMG 并公证，或打包 .pkg 提交 App Store Connect；Windows 打包成签名的安装包，或 MSIX
+打包 DMG 并可选公证，或打包 .pkg 提交 App Store Connect；Windows 打包成可选签名的安装包，或 MSIX
 提交 Microsoft Store。设置放在独立的 `build.config.json`（`zant build <配置文件>` 可以指定别的），
 缺的设置在终端里询问并可保存；CI 上用 `zant build --yes` 不提问，密钥从环境变量读取。
 详见 [发布构建](build.md)。
@@ -271,8 +277,11 @@ App.tsx 持有 useState 状态
 在设置窗口改名称，主窗口实时更新；关闭设置窗口只隐藏它，应用继续运行。
 
 **标准程序配置**：`app.config.json` 带上描述、公司、版权、macOS 分类与「记住窗口位置」
-（`zant create` 从应用标识推出公司名并写入当前年份），写入 macOS 的 Info.plist 与 Windows exe 的文件属性；
-macOS 自动带标准菜单栏（关于、隐藏、退出，编辑菜单的撤销 / 剪切 / 拷贝 / 粘贴 / 全选，全屏，窗口菜单），
+（`zant create` 从应用标识推出公司名并写入当前年份）。Windows exe 文件属性包含标题、版本、描述、公司、版权；
+macOS Info.plist 包含标题、标识、版本、版权、分类与最低系统版本（`macos.minimum_system_version`，默认 `13.0`）。
+`window.remember` 在新项目中为 `true`，按 `bundle_id` 记住主窗口和 `createWindow` 窗口的位置与尺寸；
+旧配置省略时为 `false`。macOS 自动带标准菜单栏（关于、服务、隐藏、退出，关闭窗口，
+撤销 / 重做 / 剪切 / 拷贝 / 粘贴 / 全选，全屏与窗口菜单）；编辑操作转成快捷键交给当前控件处理，
 字段说明见 [窗口配置](window-config.md)。
 
 ## AI Coding Agent 文件
