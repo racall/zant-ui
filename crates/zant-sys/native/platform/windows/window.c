@@ -56,6 +56,10 @@
 /* zant_window_post_wake: hands background results to the UI thread. */
 #define ZANT_WM_WAKE (WM_APP + 7)
 #define ZANT_WM_TRAY (WM_APP + 8)
+/* zant_window_cover_screen, run on the next loop turn (wParam: screen index) */
+#define ZANT_WM_COVER (WM_APP + 9)
+struct ZantWindow;
+static void zant_cover_now(struct ZantWindow *window, int index);
 
 struct ZantWindow {
     ZantHost host;
@@ -615,6 +619,10 @@ static LRESULT CALLBACK zant_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) 
     if (!w) return DefWindowProcW(hwnd, msg, wp, lp);
 
     switch (msg) {
+        case ZANT_WM_COVER:
+            zant_cover_now(w, (int)wp);
+            return 0;
+
         case WM_NCCALCSIZE:
             /* panel: the whole window is client area */
             if (wp && w->style == ZANT_WINDOW_PANEL) return 0;
@@ -1584,7 +1592,15 @@ static BOOL CALLBACK zant_pick_monitor(HMONITOR monitor, HDC dc, LPRECT rect, LP
     return FALSE;
 }
 
+/* Deferred: moving / resizing / activating sends WM_SIZE, WM_DPICHANGED and
+   focus messages synchronously, which must not reach the runtime while the
+   caller (an app callback) holds the app state. */
 void zant_window_cover_screen(ZantWindow *window, int index) {
+    if (!window || !window->hwnd || window->closing) return;
+    PostMessageW(window->hwnd, ZANT_WM_COVER, (WPARAM)index, 0);
+}
+
+static void zant_cover_now(ZantWindow *window, int index) {
     if (!window || !window->hwnd || window->closing) return;
     ZantMonitorPick pick = {index, 0, {0}, false};
     EnumDisplayMonitors(NULL, NULL, zant_pick_monitor, (LPARAM)&pick);
