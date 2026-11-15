@@ -11,6 +11,9 @@
 //! skipped memo subtrees alive.
 #![forbid(unsafe_code)]
 
+use std::collections::HashMap;
+
+use crate::Str;
 use crate::core::node::{NodeId, NodeKind};
 use crate::motion::motion;
 use crate::ui::element::Node;
@@ -18,6 +21,19 @@ use crate::ui::memo::resolve_memo;
 
 use super::Runtime;
 use super::patch::apply_selection;
+
+/// Finds the old child a keyed spec matches without scanning every old child
+/// per spec (that was quadratic in long keyed lists).
+///
+/// Keyed children usually keep their order, so the old child right after the
+/// previous keyed match is tried first; the first miss builds a key → index
+/// map of the old children (the "map of remaining children" of React / Vue /
+/// Inferno). Duplicate keys or a kind mismatch fall back to the full scan.
+#[derive(Default)]
+struct KeyedLookup {
+    next: usize,
+    by_key: Option<HashMap<Str, usize>>,
+}
 
 /// The retained node must have the same kind as the spec.
 fn kind_compatible(node_kind: NodeKind, spec_kind: NodeKind) -> bool {
@@ -36,9 +52,10 @@ impl Runtime {
         let mut changed_children = false;
         // walks `old` for unkeyed specs
         let mut cursor = 0usize;
+        let mut keyed = KeyedLookup::default();
 
         for spec in specs {
-            let found = self.find_match(&old, &mut used, &mut cursor, spec);
+            let found = self.find_match(&old, &used, &mut cursor, &mut keyed, spec);
             let Some(index) = found else {
                 if let Some(id) = self.create_memo(spec.clone()) {
                     self.tree.get_mut(id).parent = Some(parent_id);
@@ -159,26 +176,19 @@ impl Runtime {
     fn find_match(
         &self,
         old: &[NodeId],
-        used: &mut [bool],
+        used: &[bool],
         cursor: &mut usize,
+        keyed: &mut KeyedLookup,
         spec: &Node,
     ) -> Option<usize> {
         let element = spec.element();
         if let Some(key) = element.key.as_deref() {
             // keyed specs only ever match a node with the same key
-            for (index, &id) in old.iter().enumerate() {
-                if used[index] {
-                    continue;
-                }
-                let node = self.tree.get(id);
-                if let Some(old_key) = node.key.as_deref()
-                    && old_key == key
-                    && kind_compatible(node.kind(), element.kind)
-                {
-                    return Some(index);
-                }
+            let found = self.find_keyed(old, used, keyed, key, element.kind);
+            if let Some(index) = found {
+                keyed.next = index + 1;
             }
-            return None;
+            return found;
         }
         // unkeyed specs match the next unused unkeyed node in order
         // (nodes playing an exit transition are never reused)
@@ -196,6 +206,39 @@ impl Runtime {
             return None;
         }
         None
+    }
+
+    fn find_keyed(
+        &self,
+        old: &[NodeId],
+        used: &[bool],
+        keyed: &mut KeyedLookup,
+        key: &str,
+        kind: NodeKind,
+    ) -> Option<usize> {
+        let matches = |index: usize| {
+            let node = self.tree.get(old[index]);
+            !used[index] && node.key.as_deref() == Some(key) && kind_compatible(node.kind(), kind)
+        };
+        // in order: the old child after the previous keyed match
+        if keyed.next < old.len() && matches(keyed.next) {
+            return Some(keyed.next);
+        }
+        let by_key = keyed.by_key.get_or_insert_with(|| {
+            let mut map = HashMap::with_capacity(old.len());
+            for (index, &id) in old.iter().enumerate() {
+                if let Some(old_key) = &self.tree.get(id).key {
+                    map.entry(old_key.clone()).or_insert(index);
+                }
+            }
+            map
+        });
+        match by_key.get(key) {
+            Some(&index) if matches(index) => Some(index),
+            // a duplicate key already used, or another kind: scan
+            Some(_) => (0..old.len()).find(|&index| matches(index)),
+            None => None,
+        }
     }
 
     /// Creates the node of a child spec, expanding (and
@@ -475,154 +518,4 @@ impl Runtime {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::core::node::NodeData;
-    use crate::theme::tokens::ant_light;
-    use crate::ui::builders::{column, text};
-    use crate::ui::options::{BoxOptions, TextOptions};
-    use crate::ui::{Node, RunOptions, app};
-
-    struct Keyed {
-        names: Vec<&'static str>,
-    }
-
-    impl app::App for Keyed {
-        fn render(&mut self) -> Node {
-            column(BoxOptions {
-                children: self
-                    .names
-                    .iter()
-                    .map(|name| {
-                        text(
-                            *name,
-                            TextOptions {
-                                key: Some((*name).into()),
-                                ..Default::default()
-                            },
-                        )
-                    })
-                    .collect(),
-                ..Default::default()
-            })
-        }
-    }
-
-    fn runtime_with(names: Vec<&'static str>) -> Runtime {
-        Runtime::init(Keyed { names }, RunOptions::default())
-    }
-
-    fn texts(runtime: &Runtime) -> Vec<String> {
-        runtime
-            .tree
-            .nodes
-            .iter()
-            .filter_map(|node| match &node.data {
-                NodeData::Text(data) => Some(data.content.to_string()),
-                _ => None,
-            })
-            .collect()
-    }
-
-    #[test]
-    fn keyed_children_are_reused_and_unkeyed_ones_follow_order() {
-        let mut runtime = runtime_with(vec!["a", "b"]);
-        runtime.rebuild_for_test();
-        let first_ids: Vec<NodeId> = runtime
-            .tree
-            .nodes
-            .iter()
-            .filter(|node| node.alive && node.key.is_some())
-            .map(|node| node.id)
-            .collect();
-        assert_eq!(texts(&runtime), ["a", "b"]);
-        // same keys: the retained nodes are reused (same ids), content patched
-        runtime.app_state_mut::<Keyed>().names = vec!["a", "b"];
-        runtime.rebuild_for_test();
-        let second_ids: Vec<NodeId> = runtime
-            .tree
-            .nodes
-            .iter()
-            .filter(|node| node.alive && node.key.is_some())
-            .map(|node| node.id)
-            .collect();
-        assert_eq!(first_ids.len(), 2);
-        assert_eq!(second_ids, first_ids);
-        // reordered keys are matched by key, not position
-        runtime.app_state_mut::<Keyed>().names = vec!["b", "a"];
-        runtime.rebuild_for_test();
-        let reordered: Vec<(String, NodeId)> = runtime
-            .tree
-            .nodes
-            .iter()
-            .filter(|node| node.alive && node.key.is_some())
-            .map(|node| (node.key.clone().unwrap().to_string(), node.id))
-            .collect();
-        let ids: std::collections::HashMap<String, NodeId> = reordered.into_iter().collect();
-        assert_eq!(ids["a"], first_ids[0]);
-        assert_eq!(ids["b"], first_ids[1]);
-    }
-
-    #[test]
-    fn removed_children_are_freed() {
-        let mut runtime = runtime_with(vec!["a", "b", "c"]);
-        runtime.rebuild_for_test();
-        assert_eq!(texts(&runtime), ["a", "b", "c"]);
-        runtime.app_state_mut::<Keyed>().names = vec!["a"];
-        runtime.rebuild_for_test();
-        assert_eq!(texts(&runtime), ["a"]);
-        // freed slots are recycled tombstones
-        assert_eq!(runtime.tree.free_ids.len(), 2);
-    }
-
-    #[test]
-    fn a_non_container_root_keeps_the_previous_tree() {
-        struct TextRoot;
-        impl app::App for TextRoot {
-            fn render(&mut self) -> Node {
-                text("not a container", TextOptions::default())
-            }
-        }
-        let mut runtime = Runtime::init(TextRoot, RunOptions::default());
-        runtime.rebuild_for_test();
-        assert!(!runtime.needs_build, "the build finished");
-        assert_eq!(runtime.tree.nodes.len(), 1, "only the root exists");
-    }
-
-    #[test]
-    fn set_theme_replaces_the_tree_theme_and_selection_colour() {
-        let mut runtime = runtime_with(vec!["a"]);
-        runtime.rebuild_for_test();
-        let dark = crate::theme::tokens::ant_dark();
-        runtime.set_theme(dark);
-        assert_eq!(runtime.theme, dark);
-        assert_eq!(runtime.tree.theme, dark);
-        assert_eq!(
-            runtime.tree.selection_color,
-            crate::theme::tokens::with_alpha(dark.color_primary, 0x4d)
-        );
-        assert!(runtime.tree.needs_layout());
-        // setting the same theme again is a no-op
-        runtime.tree.clear_paint();
-        runtime.tree.get_mut(runtime.tree.root).dirty.layout = false;
-        runtime.set_theme(dark);
-        assert!(!runtime.tree.needs_layout());
-    }
-
-    #[test]
-    fn the_default_tree_root_fills_the_window() {
-        let mut runtime = runtime_with(vec![]);
-        runtime.rebuild_for_test();
-        let root = runtime.tree.get(runtime.tree.root);
-        assert_eq!(root.style.width, None);
-        assert_eq!(root.style.height, None);
-        assert_eq!(root.style.grow, 0.0);
-        assert_eq!(root.visual.background, Some(ant_light().color_bg_base));
-        assert_eq!(
-            runtime.clear_color,
-            ant_light().color_bg_base,
-            "the frame clears to the app background"
-        );
-        assert_eq!(runtime.tree.root, 0);
-    }
-}
+mod tests;
