@@ -25,7 +25,7 @@ pub fn generate_info_plist_for(cfg: &AppConfig, extras: &PlistExtras) -> String 
     let bundle = escape_xml(&cfg.bundle_id);
     let version = escape_xml(&cfg.version);
     let build = escape_xml(extras.build_number.as_deref().unwrap_or(&cfg.version));
-    let category = match &extras.category {
+    let category = match extras.category.as_ref().or(cfg.category.as_ref()) {
         Some(category) => format!(
             "\n<key>LSApplicationCategoryType</key><string>{}</string>",
             escape_xml(category)
@@ -62,8 +62,20 @@ pub fn generate_info_plist_for(cfg: &AppConfig, extras: &PlistExtras) -> String 
     out.push_str(&format!(
         "<key>CFBundleVersion</key><string>{build}</string>{category}\n"
     ));
-    out.push_str("<key>LSMinimumSystemVersion</key><string>13.0</string>\n");
+    out.push_str(&format!(
+        "<key>LSMinimumSystemVersion</key><string>{}</string>\n",
+        escape_xml(&cfg.minimum_macos)
+    ));
     out.push_str("<key>NSHighResolutionCapable</key><true/>\n");
+    if !cfg.copyright.is_empty() {
+        // the About panel's copyright line
+        out.push_str(&format!(
+            "<key>NSHumanReadableCopyright</key><string>{}</string>\n",
+            escape_xml(&cfg.copyright)
+        ));
+    }
+    // Integrated GPU unless the app asks for more: better battery life.
+    out.push_str("<key>NSSupportsAutomaticGraphicsSwitching</key><true/>\n");
     out.push_str("<key>NSPrincipalClass</key><string>NSApplication</string>\n");
     out.push_str("</dict></plist>\n");
     out
@@ -363,6 +375,29 @@ mod tests {
     }
 
     #[test]
+    fn app_metadata_reaches_the_info_plist() {
+        let cfg = parse(
+            "{\"title\": \"Demo\", \"bundle_id\": \"io.x.demo\", \"copyright\": \"© 2026 Acme\",
+              \"macos\": {\"category\": \"public.app-category.productivity\",
+                        \"minimum_system_version\": \"14.0\"}}",
+            Os::Macos,
+        )
+        .expect("parse");
+        let plist = generate_info_plist(&cfg);
+        assert!(plist.contains("<key>NSHumanReadableCopyright</key><string>© 2026 Acme</string>"));
+        assert!(plist.contains(
+            "<key>LSApplicationCategoryType</key><string>public.app-category.productivity</string>"
+        ));
+        assert!(plist.contains("<key>LSMinimumSystemVersion</key><string>14.0</string>"));
+        // a category given for one build (`zant build`) wins over the config
+        let extras = PlistExtras {
+            category: Some("public.app-category.utilities".to_string()),
+            ..Default::default()
+        };
+        assert!(generate_info_plist_for(&cfg, &extras).contains("public.app-category.utilities"));
+    }
+
+    #[test]
     fn info_plist_and_entitlements_have_the_expected_text() {
         let cfg = parse(
             "{\"title\": \"A&B\", \"bundle_id\": \"io.x.app\", \"version\": \"1.2.3\",
@@ -391,6 +426,8 @@ mod tests {
         assert!(plist.contains(
             "<key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>"
         ));
+        assert!(plist.contains("<key>LSMinimumSystemVersion</key><string>13.0</string>"));
+        assert!(!plist.contains("NSHumanReadableCopyright"));
         let ent = entitlements_plist(&cfg, None);
         assert!(ent.contains("<key>com.apple.security.app-sandbox</key><true/>"));
         assert!(ent.contains("<key>com.apple.security.network.client</key><true/>"));

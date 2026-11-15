@@ -61,6 +61,17 @@ fn write_resources(app_root: &Path, out_dir: &Path) -> Result<Option<(PathBuf, P
             manifest.display()
         ),
     }
+    // Properties › Details: description, company, version, copyright
+    let config = std::fs::read_to_string(app_root.join("app.config.json"))
+        .ok()
+        .and_then(|text| crate::config::parse(&text, crate::config::Os::Windows).ok());
+    if let Some(cfg) = config {
+        let exe = format!(
+            "{}.exe",
+            std::env::var("CARGO_PKG_NAME").unwrap_or_else(|_| "app".into())
+        );
+        rc.push_str(&crate::version_info::rc_block(&cfg, &exe));
+    }
     if rc.is_empty() {
         return Ok(None);
     }

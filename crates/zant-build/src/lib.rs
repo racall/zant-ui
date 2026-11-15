@@ -20,6 +20,8 @@ mod icons;
 mod png;
 #[cfg(test)]
 mod tests;
+#[cfg_attr(not(windows), allow(dead_code))]
+mod version_info;
 
 #[cfg(windows)]
 mod windows;
