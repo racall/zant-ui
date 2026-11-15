@@ -239,30 +239,41 @@ PNG 要求 8 位、非隔行扫描（常见导出工具的默认格式）。
 
 ## 组件与状态示例
 
-生成的 TSX 项目包含完整的最小示例（Rust + TSX）：
+生成的项目是一个可以直接运行的完整示例，覆盖桌面应用最常用的几种写法：
 
 ```text
-src/App.tsx                  根组件，持有名称与点击次数
-src/components/Dashboard.tsx 自定义父组件（组合子组件，读取原生模块）
-src/components/StatCard.tsx   自定义展示组件（props）
-src/components/CounterCard.tsx 自定义子组件（props + 事件回调）
-native/system.ts             原生模块规范（平台、CPU、Rust 版本）
-native/system.rs             原生模块的 Rust 实现（impl SystemSpec for Native）
+src/App.tsx                       主窗口：持有点击次数，提供「打开设置窗口」按钮
+src/components/Dashboard.tsx      父组件：组合子组件，读取原生模块
+src/components/StatCard.tsx       展示组件（props）
+src/components/CounterCard.tsx    子组件（props + 事件回调）
+src/components/ProfilePreview.tsx 读取共享 store 的组件（不经过 props）
+src/stores/profile.ts             共享 store（createStore）
+src/windows/SettingsWindow.tsx    第二个窗口（createWindow），修改共享 store
+native/system.ts                  原生模块规范（平台、CPU、Rust 版本）
+native/system.rs                  原生模块的 Rust 实现（impl SystemSpec for Native）
+native/main.rs / native/build.rs  各一行，入口与构建都由框架生成
 ```
 
-数据流：
+**父子组件通信**：props 向下、事件向上。
 
 ```text
 App.tsx 持有 useState 状态
   → Dashboard 读取 count
   → CounterCard 接收 count / onIncrement / onReset
   → 子组件按钮触发回调
-  → App 的状态更新
-  → Runtime 重绘读取该状态的组件
+  → App 的状态更新，读取该状态的组件重绘
 ```
 
-这是最简单的跨组件状态和事件传递方式。需要全局或异步状态时，再使用
-`createStore` / `useStore`，见 [状态管理](state.md)。
+**跨组件共享状态**：`src/stores/profile.ts` 用 `createStore` 定义资料；主窗口的输入框写入，
+`ProfilePreview` 和设置窗口用 `useStore` 读取，互相不需要传 props，见 [状态管理](state.md)。
+
+**打开新窗口**：主窗口的「打开设置窗口」按钮调用 `settingsWindow.activate()`，首次打开、之后前置同一个窗口；
+在设置窗口改名称，主窗口实时更新；关闭设置窗口只隐藏它，应用继续运行。
+
+**标准程序配置**：`app.config.json` 带上描述、公司、版权、macOS 分类与「记住窗口位置」
+（`zant create` 从应用标识推出公司名并写入当前年份），写入 macOS 的 Info.plist 与 Windows exe 的文件属性；
+macOS 自动带标准菜单栏（关于、隐藏、退出，编辑菜单的撤销 / 剪切 / 拷贝 / 粘贴 / 全选，全屏，窗口菜单），
+字段说明见 [窗口配置](window-config.md)。
 
 ## AI Coding Agent 文件
 

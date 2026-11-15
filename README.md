@@ -81,8 +81,11 @@ my-app/
   native/build.rs          zant_build::tsx_app()：编译并生成入口到 OUT_DIR
   rust-toolchain.toml      stable 工具链
   native/main.rs           一行 zant::app!();，生成入口与注册
-  src/App.tsx              根组件：界面和业务逻辑都用 TSX
+  src/App.tsx              主窗口：界面和业务逻辑都用 TSX，含「打开设置窗口」按钮
   src/components/*.tsx     业务组件（props + 回调）
+  src/stores/profile.ts    跨组件共享的 store（createStore / useStore）
+  src/windows/*.tsx        第二个窗口（createWindow）
+  app.config.json          标题、应用标识、描述 / 公司 / 版权、窗口与平台设置
   native/system.ts         原生模块规范（类型 + export declare function）
   native/system.rs         原生模块的 Rust 实现
   assets/icons/            应用图标、托盘 / 菜单栏图标（两端规范的默认图标，可替换）
