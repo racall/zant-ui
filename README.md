@@ -96,8 +96,7 @@ my-app/
 ### 2. 运行与热更新
 
 ```bash
-zant run              # 编译并运行
-zant run              # 保存后原地刷新，保留窗口与兼容状态
+zant run              # 编译并运行；保存后原地刷新，保留窗口与兼容状态
 zant run --watch      # 可选：旧重启模式
 zant run --no-hot     # 可选：编译并运行一次
 ```
