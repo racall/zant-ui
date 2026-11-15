@@ -37,8 +37,10 @@ pub fn screen_capture_access() -> bool {
 }
 
 /// macOS: the system prompt the first time; afterwards the user enables it
-/// in System Settings (usually followed by a restart). Returns
-/// [`screen_capture_access`].
+/// in System Settings. Once requested, [`screen_capture_access`] notices the
+/// grant without a restart (it re-checks in the background, so the next call
+/// after the switch reports it); [`crate::desktop::relaunch`] remains the
+/// fallback. Returns [`screen_capture_access`].
 pub fn request_screen_capture_access() -> bool {
     capture::request_capture_access()
 }

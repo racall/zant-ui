@@ -85,7 +85,7 @@ pub use tray::{
 };
 pub use window::{
     IS_MACOS, OpenOptions, Place, Window, WindowHooks, invalidate_all, main_window, open_window,
-    quit, rebuild_only_this_window, set_main_runtime, single_instance,
+    quit, rebuild_only_this_window, relaunch, set_main_runtime, single_instance,
 };
 
 /// The window options of `open_window` (re-exported so apps do not import the

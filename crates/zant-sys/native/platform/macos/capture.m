@@ -11,6 +11,7 @@
 #import <ScreenCaptureKit/ScreenCaptureKit.h>
 #import <Vision/Vision.h>
 
+#include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -105,13 +106,41 @@ int zant_window_list(ZantWindowInfo *out, int capacity) {
 
 /* ---- capture ---- */
 
+/* CGPreflightScreenCaptureAccess keeps the answer the process started with:
+ * after the user switches the app on in System Settings it stays false until
+ * a restart. ScreenCaptureKit asks the system on every call, so once this
+ * process has requested access a background SCShareableContent query notices
+ * the grant; access() reports the last answer and starts the next query.
+ * Before a request nothing is queried: that query would show the system
+ * prompt itself. */
+static atomic_int zant_capture_requested = 0;
+static atomic_int zant_capture_granted_live = 0;
+static atomic_int zant_capture_probing = 0;
+
+static void zant_capture_probe(void) {
+    if (@available(macOS 14.0, *)) {
+        if (atomic_exchange(&zant_capture_probing, 1)) return;
+        [SCShareableContent getShareableContentExcludingDesktopWindows:YES
+                                                   onScreenWindowsOnly:YES
+                                                     completionHandler:^(SCShareableContent *result, NSError *error) {
+            if (result && !error) atomic_store(&zant_capture_granted_live, 1);
+            atomic_store(&zant_capture_probing, 0);
+        }];
+    }
+}
+
 int zant_screen_capture_access(void) {
-    return CGPreflightScreenCaptureAccess() ? 1 : 0;
+    if (CGPreflightScreenCaptureAccess() || atomic_load(&zant_capture_granted_live)) return 1;
+    if (atomic_load(&zant_capture_requested)) zant_capture_probe();
+    return 0;
 }
 
 int zant_screen_capture_request(void) {
-    if (CGPreflightScreenCaptureAccess()) return 1;
-    return CGRequestScreenCaptureAccess() ? 1 : 0;
+    if (zant_screen_capture_access()) return 1;
+    atomic_store(&zant_capture_requested, 1);
+    if (CGRequestScreenCaptureAccess()) return 1;
+    zant_capture_probe();
+    return 0;
 }
 
 void zant_capture_free(uint8_t *pixels) {
@@ -145,7 +174,7 @@ static uint8_t *zant_cgimage_pixels(CGImageRef image, int *width, int *height, i
 
 int zant_screen_capture_all(ZantCapture *out, int capacity) {
     if (!out || capacity <= 0 || [NSThread isMainThread]) return 0;
-    if (!CGPreflightScreenCaptureAccess()) return 0;
+    if (!zant_screen_capture_access()) return 0;
     if (@available(macOS 14.0, *)) {
         ZantScreenInfo screens[16];
         const int screen_count = MIN(zant_screen_list(screens, 16), MIN(capacity, 16));

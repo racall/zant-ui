@@ -332,6 +332,64 @@ pub fn quit() {
     platform::quit();
 }
 
+/// Quits and starts the app again once this process has exited (so a
+/// single-instance app does not hand over to the dying copy): for changes the
+/// system applies only to a new process, such as macOS privacy permissions.
+/// macOS reopens the `.app` bundle through LaunchServices, otherwise the same
+/// executable starts. Does nothing (and keeps running) when the helper
+/// cannot be started.
+pub fn relaunch() {
+    if spawn_relauncher().is_ok() {
+        quit();
+    }
+}
+
+fn spawn_relauncher() -> std::io::Result<()> {
+    use std::process::{Command, Stdio};
+    let exe = std::env::current_exe()?;
+    let pid = std::process::id().to_string();
+    let mut command;
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        let path = exe.to_string_lossy().replace('\'', "''");
+        let script = format!(
+            "Wait-Process -Id {pid} -ErrorAction SilentlyContinue; Start-Process -FilePath '{path}'"
+        );
+        command = Command::new("powershell");
+        command
+            .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+            .creation_flags(CREATE_NO_WINDOW);
+    }
+    #[cfg(not(windows))]
+    {
+        // …/Name.app/Contents/MacOS/exe → Name.app
+        let bundle = exe
+            .ancestors()
+            .nth(3)
+            .filter(|dir| dir.extension().is_some_and(|ext| ext == "app"))
+            .map(std::path::Path::to_path_buf);
+        let target = bundle.unwrap_or_else(|| exe.clone());
+        command = Command::new("/bin/sh");
+        command
+            .arg("-c")
+            .arg(
+                "while kill -0 \"$1\" 2>/dev/null; do sleep 0.1; done; \
+                 if [ -d \"$2\" ]; then exec /usr/bin/open \"$2\"; else exec \"$2\"; fi",
+            )
+            .arg("zant-relaunch")
+            .arg(&pid)
+            .arg(&target);
+    }
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map(|_| ())
+}
+
 /// The app's only running copy per user: true for the first process with
 /// `app_id` (the bundle id); a later launch brings the running one forward (it
 /// gets `AppEvent::Reopen`) and gets false — return from `main` then. Call it

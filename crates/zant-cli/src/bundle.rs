@@ -14,7 +14,7 @@ pub fn compile_app(root: &str, release: bool) {
     }
     let args = crate::build_args(release);
     step(if release {
-        "正在编译 ReleaseFast"
+        "正在编译（release）"
     } else {
         "正在编译"
     });
