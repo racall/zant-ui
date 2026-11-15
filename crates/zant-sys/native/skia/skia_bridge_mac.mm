@@ -80,7 +80,17 @@ void gpu_present(ZantRenderer *renderer) {
     if (!gpu) return;
     id<CAMetalDrawable> drawable = (__bridge_transfer id<CAMetalDrawable>)gpu->drawable;
     gpu->drawable = nil;
-    if (drawable) [drawable present];
+    if (drawable) {
+        static int trace = -1;
+        if (trace < 0) trace = getenv("ZANT_INPUT_TRACE") != NULL;
+        if (trace) {
+            const CFTimeInterval submitted = CACurrentMediaTime();
+            [drawable addPresentedHandler:^(id<MTLDrawable> d) {
+                fprintf(stderr, "[trace] presented +%.1f ms after submit\n", (d.presentedTime - submitted) * 1000.0);
+            }];
+        }
+        [drawable present];
+    }
 }
 
 void gpu_resize(ZantRenderer *renderer, int pixel_width, int pixel_height) {

@@ -49,6 +49,13 @@ impl Runtime {
         // a frame painted from inside an event callback (modal dialog loop)
         // shows the current tree as is; the rebuild waits for the event to end
         let nested = self.nested_frame();
+        if super::input_trace() {
+            eprintln!(
+                "[trace] {:.1} frame needs_build={}",
+                crate::platform::platform::monotonic_us() as f64 / 1000.0,
+                self.needs_build
+            );
+        }
         if self.needs_build && !nested {
             let start = self.stats_clock();
             self.rebuild();
