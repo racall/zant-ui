@@ -13,6 +13,7 @@
 //!   `\\` escaped);
 //! - `clear`: hide the message.
 
+mod checkpoint;
 mod control;
 mod debug;
 mod library;
@@ -40,6 +41,7 @@ enum Command {
     Load(Result<Library, String>, std::time::Duration),
     Notice(String),
     Clear,
+    Checkpoint(PathBuf),
     Quit,
     Control(control::Action),
 }
@@ -90,7 +92,8 @@ fn main() {
     }
     WINDOW.store(window, std::sync::atomic::Ordering::Release);
 
-    match start(library, window, None) {
+    let state = checkpoint::resume();
+    match start(library, window, state.as_deref()) {
         Ok(current) => CURRENT.with(|slot| *slot.borrow_mut() = Some(current)),
         Err(message) => {
             eprintln!("[zant] {message}");
@@ -144,6 +147,8 @@ fn read_commands() {
             Command::Load(library, started.elapsed())
         } else if let Some(text) = line.strip_prefix("notice ") {
             Command::Notice(unescape(text))
+        } else if let Some(path) = line.strip_prefix("checkpoint ") {
+            Command::Checkpoint(path.into())
         } else if line == "clear" {
             Command::Clear
         } else {
@@ -191,6 +196,10 @@ fn run_commands() {
             Command::Control(action) => control::dispatch(action),
             Command::Notice(text) => notice(&text),
             Command::Clear => notice(""),
+            Command::Checkpoint(path) => {
+                let state = CURRENT.with(|slot| slot.borrow().as_ref().and_then(save));
+                checkpoint::write(&path, state.as_deref());
+            }
             // SAFETY: command dispatch runs on the UI thread.
             Command::Quit => unsafe { ffi::zant_app_quit() },
         }

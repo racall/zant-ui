@@ -7,10 +7,14 @@
 //! error is shown over the running UI and disappears with the next good build.
 //!
 //! Changes the library swap cannot apply (`Cargo.toml`, `app.config.json`:
-//! dependencies, window options) restart the host instead.
+//! dependencies, window options) replace the CLI itself after a state handoff.
 
+mod classify;
+mod inputs;
 mod process;
 mod project;
+mod restart;
+mod watch;
 mod workspace;
 
 use std::io::{BufRead, Write};
@@ -19,9 +23,8 @@ use std::process::{ChildStdin, Command, Stdio};
 use std::sync::mpsc;
 use std::time::Instant;
 
-use notify::{RecursiveMode, Watcher};
-
 use crate::{IS_WINDOWS, fail, generate, load_config, ok, step};
+use classify::Change;
 use generate::Need;
 use project::Paths;
 
@@ -38,6 +41,11 @@ pub fn available() -> bool {
 
 pub fn cmd_hot(release: bool) -> std::io::Result<()> {
     let root = std::env::current_dir()?.to_string_lossy().into_owned();
+    let session = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    eprintln!("[zant] cli_pid={} session={session}", std::process::id());
     let mut config = load_config(&root)?;
     generate::complete_platform_config(&root, &mut config, Need::Run)?;
     generate::sync_project(&root, &config)?;
@@ -51,6 +59,9 @@ pub fn cmd_hot(release: bool) -> std::io::Result<()> {
     if let Err(message) = project::write(&root, &zant_root, &paths) {
         fail(message);
     }
+    let (tx, rx) = mpsc::channel();
+    let mut last = inputs::Inputs::scan(Path::new(&root));
+    let mut watches = watch::Watches::start(Path::new(&root), &last, tx.clone());
     step("首次编译");
     let mut generation = 0u32;
     let library = match build_library(&paths, release, &mut generation) {
@@ -59,13 +70,9 @@ pub fn cmd_hot(release: bool) -> std::io::Result<()> {
     };
     ok("编译完成");
 
-    let (tx, rx) = mpsc::channel();
-    let _watcher = watch(&root, tx.clone());
     let mut host = Host::spawn(&paths, &library, &root, tx.clone())?;
     eprintln!("\n热刷新已开启：保存 src/、native/ 下的文件后界面原地刷新；Ctrl+C 退出");
 
-    let mut last = crate::sources::stamp(&root);
-    let mut restart_inputs = restart_stamp(&root);
     loop {
         let event_at = match rx.recv() {
             Ok(Event::HostExited(id)) if id == host.id => return Ok(()),
@@ -82,11 +89,18 @@ pub fn cmd_hot(release: bool) -> std::io::Result<()> {
         if exited {
             return Ok(());
         }
-        let now = crate::sources::stamp(&root);
-        if now == last {
+        let now = inputs::Inputs::scan(Path::new(&root));
+        let changes = now.changes(&last);
+        watches.assets(Path::new(&root), &now);
+        last = now;
+        let action = changes
+            .iter()
+            .map(|(_, action)| *action)
+            .max()
+            .unwrap_or(Change::Ignore);
+        if action == Change::Ignore {
             continue;
         }
-        last = now;
         let begin = Instant::now();
         if std::env::var_os("ZANT_HOT_TRACE").is_some() {
             eprintln!(
@@ -94,26 +108,26 @@ pub fn cmd_hot(release: bool) -> std::io::Result<()> {
                 event_at.elapsed().as_secs_f64() * 1000.0
             );
         }
-        let inputs = restart_stamp(&root);
-        let restart = inputs != restart_inputs;
-        restart_inputs = inputs;
-        if restart {
-            eprintln!("\nCargo.toml / app.config.json 有改动，重新编译并重启应用...");
-            config = load_config(&root)?;
-            generate::sync_project(&root, &config)?;
-            if let Err(message) = project::write(&root, &zant_root, &paths) {
-                eprintln!("{message}");
-                continue;
-            }
-        } else {
-            eprintln!("\n检测到改动，重新编译...");
+        if action == Change::Restart {
+            let file = changes
+                .iter()
+                .find(|(_, action)| *action == Change::Restart)
+                .expect("restart path");
+            eprintln!("{} 改动，重启 zant run…", file.0.display());
+            let state = paths
+                .crate_dir
+                .parent()
+                .expect("hot directory")
+                .join("restart-state.json");
+            // Remove an earlier failed handoff; a failed save starts fresh.
+            let _ = std::fs::remove_file(&state);
+            host.send(&format!("checkpoint {}", state.display()));
+            host.stop();
+            drop(watches);
+            return restart::execute(&state);
         }
+        eprintln!("\n检测到改动，重新编译...");
         match build_library(&paths, release, &mut generation) {
-            Ok(library) if restart => {
-                host.stop();
-                host = Host::spawn(&paths, &library, &root, tx.clone())?;
-                eprintln!("已重启应用（{} ms）", begin.elapsed().as_millis());
-            }
             Ok(library) => {
                 host.send("clear");
                 host.send(&format!("load {}", library.display()));
@@ -276,64 +290,6 @@ fn escape(text: &str) -> String {
     text.replace('\\', "\\\\").replace('\n', "\\n")
 }
 
-/// Content of the inputs a library swap cannot apply.
-fn restart_stamp(root: &str) -> Vec<u8> {
-    let mut out = Vec::new();
-    for file in ["Cargo.toml", "app.config.json"] {
-        out.extend(std::fs::read(Path::new(root).join(file)).unwrap_or_default());
-        out.push(0);
-    }
-    out
-}
-
-fn watch(root: &str, tx: mpsc::Sender<Event>) -> Box<dyn Watcher> {
-    let handler = move |event: notify::Result<notify::Event>| match event {
-        Ok(_) => {
-            let _ = tx.send(Event::Changed(Instant::now()));
-        }
-        Err(error) => eprintln!("[zant] 文件监听失败：{error}"),
-    };
-    let mut watcher: Box<dyn Watcher> = if std::env::var_os("ZANT_HOT_POLL").is_some() {
-        eprintln!("[zant] 使用 100 ms 内容轮询（ZANT_HOT_POLL）");
-        Box::new(
-            notify::PollWatcher::new(
-                handler,
-                notify::Config::default()
-                    .with_poll_interval(std::time::Duration::from_millis(100))
-                    .with_compare_contents(true),
-            )
-            .unwrap_or_else(|error| fail(error.to_string())),
-        )
-    } else {
-        Box::new(
-            notify::recommended_watcher(handler).unwrap_or_else(|error| fail(error.to_string())),
-        )
-    };
-    let mut watched_any = false;
-    for dir in crate::sources::WATCH_DIRS {
-        let path = Path::new(root).join(dir);
-        if path.is_dir() {
-            match watcher.watch(&path, RecursiveMode::Recursive) {
-                Ok(()) => watched_any = true,
-                Err(error) => eprintln!("[zant] {}: {error}", path.display()),
-            }
-        }
-    }
-    for file in crate::sources::WATCH_FILES {
-        let path = Path::new(root).join(file);
-        if path.is_file() {
-            match watcher.watch(&path, RecursiveMode::NonRecursive) {
-                Ok(()) => watched_any = true,
-                Err(error) => eprintln!("[zant] {}: {error}", path.display()),
-            }
-        }
-    }
-    if !watched_any {
-        fail(format!("没有可监听的文件：{root}/src 不存在？"));
-    }
-    watcher
-}
-
 /// The running `zant-hot-host`. Its waiter blocks in the OS, without polling.
 struct Host {
     id: u32,
@@ -354,6 +310,9 @@ impl Host {
             .current_dir(root)
             .stdin(Stdio::piped())
             .stdout(Stdio::inherit());
+        if let Some(state) = std::env::var_os("ZANT_HOT_RESTART_STATE") {
+            command.arg("--state").arg(state);
+        }
         if !(crate::raw_logs() || IS_WINDOWS) {
             command.stderr(Stdio::piped());
         }

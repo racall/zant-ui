@@ -90,7 +90,7 @@ pub fn write(root: &str, zant_root: &Path, paths: &Paths) -> Result<(), String> 
     // the app's lock file keeps the dependency versions the app builds with
     let lock = root_path.join("Cargo.lock");
     let hot_lock = paths.crate_dir.join("Cargo.lock");
-    if lock.is_file() && !hot_lock.is_file() {
+    if lock.is_file() {
         let _ = std::fs::copy(&lock, &hot_lock);
     }
     Ok(())
