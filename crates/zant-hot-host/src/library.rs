@@ -1,17 +1,17 @@
 //! Loading a UI library and finding its entry (`dlopen` / `LoadLibraryW`).
 //!
-//! A loaded library is never unloaded: closures and threads of an old version
-//! may still exist when the next one takes over, and unloading their code
-//! would crash. Only app code is replaced; the Rust framework and std remain
-//! shared across generations. Unloading app libraries is a separate change.
+//! Only a successfully replaced, destroyed instance's library may be unloaded.
+//! There is deliberately no `Drop`: a failed start may leave callbacks behind,
+//! and a failed swap must keep the previous library available for restarting.
+//! Unloading is opt-in until the framework releases all pointers into app code.
 
 use std::ffi::c_void;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use zant_sys::hot::{ABI_VERSION, ENTRY, ZantHotApi};
 
 /// Register the shared Rust DLL directory once, before loading the first UI.
-/// The registration lives for the process, just like the loaded libraries.
+/// The registration lives for the process, including future library loads.
 pub fn dependencies(path: &Path) -> Result<(), String> {
     #[cfg(windows)]
     {
@@ -37,14 +37,22 @@ pub fn dependencies(path: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// The API table of a loaded UI library (valid for the rest of the process).
+/// A loaded UI library. Dropping this value keeps the image mapped.
 pub struct Library {
-    pub api: &'static ZantHotApi,
+    handle: *mut c_void,
+    api: *const ZantHotApi,
+    path: PathBuf,
 }
+
+// SAFETY: loading happens on the command thread; ownership then moves to the
+// UI thread. The handle and immutable API table can be transferred between
+// threads; app entry points and unloading are only called on the UI thread.
+unsafe impl Send for Library {}
 
 impl Library {
     pub fn load(path: &Path) -> Result<Library, String> {
-        let handle = open(path)?;
+        let path = path.canonicalize().map_err(|error| error.to_string())?;
+        let handle = open(&path)?;
         let entry = symbol(handle, ENTRY)
             .ok_or_else(|| format!("{}: no `zant_hot_api` export", path.display()))?;
         // SAFETY: `zant_hot_api` has this signature (zant::hot_entry!).
@@ -53,17 +61,99 @@ impl Library {
         if api.is_null() {
             return Err(format!("{}: `zant_hot_api` returned null", path.display()));
         }
-        // SAFETY: the table is a `static` of the library, which stays loaded.
-        let api: &'static ZantHotApi = unsafe { &*api };
-        if api.abi != ABI_VERSION {
+        // SAFETY: the entry returns the library's static API table.
+        let abi = unsafe { (*api).abi };
+        if abi != ABI_VERSION {
             return Err(format!(
                 "{}: hot-reload ABI {} (this host speaks {ABI_VERSION}); rebuild zant",
                 path.display(),
-                api.abi
+                abi
             ));
         }
-        Ok(Library { api })
+        Ok(Library { handle, api, path })
     }
+
+    pub fn api(&self) -> &ZantHotApi {
+        // SAFETY: this library stays loaded for the duration of the borrow.
+        unsafe { &*self.api }
+    }
+
+    /// # Safety
+    /// The instance must have been destroyed and its replacement successfully
+    /// started. No callbacks or other pointers into this image may be used again.
+    pub unsafe fn unload(self) {
+        let keep = std::env::var_os("ZANT_HOT_UNLOAD").is_none_or(|value| value != "1")
+            || std::env::var_os("ZANT_HOT_KEEP_LIBS").is_some_and(|value| value == "1");
+        if !keep {
+            // SAFETY: the caller guarantees that the old instance is gone.
+            if !unsafe { close(self.handle) } {
+                eprintln!("[zant-hot] cannot unload {}", self.path.display());
+            }
+        }
+        self.trace(if keep { "kept" } else { "unloaded" });
+    }
+
+    pub fn trace(&self, action: &str) {
+        if std::env::var_os("ZANT_HOT_TRACE").is_some() {
+            let images = mapped_images(&self.path);
+            let status = if images == 0 { "gone" } else { "still mapped" };
+            let name = self.path.file_stem().unwrap_or_default().to_string_lossy();
+            eprintln!(
+                "[zant-hot] {action} {} ({status}) images={images}",
+                name.strip_prefix("lib").unwrap_or(&name)
+            );
+        }
+    }
+}
+
+#[cfg(unix)]
+unsafe fn close(handle: *mut c_void) -> bool {
+    unsafe extern "C" {
+        fn dlclose(handle: *mut c_void) -> i32;
+    }
+    // SAFETY: the caller owns this live dlopen handle and will not use it again.
+    unsafe { dlclose(handle) == 0 }
+}
+
+#[cfg(windows)]
+unsafe fn close(handle: *mut c_void) -> bool {
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn FreeLibrary(module: *mut c_void) -> i32;
+    }
+    // SAFETY: the caller owns this live LoadLibraryExW handle.
+    unsafe { FreeLibrary(handle) != 0 }
+}
+
+#[cfg(target_os = "macos")]
+fn mapped_images(path: &Path) -> usize {
+    use std::ffi::CStr;
+    use std::os::unix::ffi::OsStrExt;
+    unsafe extern "C" {
+        fn _dyld_image_count() -> u32;
+        fn _dyld_get_image_name(index: u32) -> *const std::os::raw::c_char;
+    }
+    // SAFETY: dyld's image queries accept each index; a missing image is null.
+    (0..unsafe { _dyld_image_count() })
+        .filter(|&index| {
+            // SAFETY: dyld returns a NUL-terminated image path or null.
+            let name = unsafe { _dyld_get_image_name(index) };
+            !name.is_null()
+                && unsafe { CStr::from_ptr(name) }.to_bytes() == path.as_os_str().as_bytes()
+        })
+        .count()
+}
+
+#[cfg(windows)]
+fn mapped_images(path: &Path) -> usize {
+    use std::os::windows::ffi::OsStrExt;
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn GetModuleHandleW(name: *const u16) -> *mut c_void;
+    }
+    let wide: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+    // SAFETY: valid NUL-terminated full path; this does not add a reference.
+    usize::from(!unsafe { GetModuleHandleW(wide.as_ptr()) }.is_null())
 }
 
 #[cfg(unix)]

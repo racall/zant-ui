@@ -46,5 +46,10 @@ fn main() {
         }
         _ => {}
     }
-    zant_build::hot_app(std::path::Path::new(__APP_ROOT__)).expect("zant-build");
+    // A TSX error is the developer's: print it plainly (the window shows it),
+    // without a panic message and backtrace around it.
+    if let Err(error) = zant_build::hot_app(std::path::Path::new(__APP_ROOT__)) {
+        eprintln!("{error}");
+        std::process::exit(1);
+    }
 }

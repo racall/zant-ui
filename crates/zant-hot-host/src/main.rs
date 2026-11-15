@@ -93,7 +93,7 @@ fn main() {
         options: unsafe { std::mem::zeroed() },
     };
     // SAFETY: valid out pointer.
-    unsafe { (library.api.config)(&mut config) };
+    unsafe { (library.api().config)(&mut config) };
     let table = host_table();
     // SAFETY: NUL-terminated title (the library writes one), valid options and
     // table; the native side copies the table.
@@ -122,7 +122,7 @@ fn main() {
 
     if let Some(current) = CURRENT.with(|slot| slot.borrow_mut().take()) {
         // SAFETY: live instance of its own library; the app ends.
-        unsafe { (current.library.api.destroy)(current.instance, 1) };
+        unsafe { (current.library.api().destroy)(current.instance, 1) };
     }
     WINDOW.store(std::ptr::null_mut(), std::sync::atomic::Ordering::Release);
     // SAFETY: the window is ours; no instance uses it any more.
@@ -139,7 +139,7 @@ fn start(
     let mut table: ZantHost = unsafe { std::mem::zeroed() };
     let (data, len) = state.map_or((std::ptr::null(), 0), |state| (state.as_ptr(), state.len()));
     // SAFETY: live window, valid state buffer and out pointer.
-    let instance = unsafe { (library.api.create)(window, data, len, &mut table) };
+    let instance = unsafe { (library.api().create)(window, data, len, &mut table) };
     if instance.is_null() {
         return Err("the app failed to start (it panicked; see the output above)".into());
     }
@@ -236,7 +236,7 @@ fn notice(text: &str) {
     CURRENT.with(|slot| {
         if let Some(current) = slot.borrow().as_ref() {
             // SAFETY: live instance; the library copies the text.
-            unsafe { (current.library.api.notice)(current.instance, text.as_ptr(), text.len()) };
+            unsafe { (current.library.api().notice)(current.instance, text.as_ptr(), text.len()) };
         }
     });
 }
@@ -262,10 +262,13 @@ fn reload(loaded: Result<Library, String>, t_load: std::time::Duration) {
     // the old version goes first: both share the native app-event handler,
     // tray and hotkeys, which the new version installs again
     // SAFETY: live instance; it is a reload, not an exit.
-    unsafe { (old.library.api.destroy)(old.instance, 0) };
+    unsafe { (old.library.api().destroy)(old.instance, 0) };
     let t_destroy = begin.elapsed();
     let current = match start(library, window, state.as_deref()) {
         Ok(current) => {
+            // SAFETY: destroy returned above and the replacement is running.
+            // The old API and callback table must never be used again.
+            unsafe { old.library.unload() };
             eprintln!("[zant] reloaded in {} ms", begin.elapsed().as_millis());
             if std::env::var_os("ZANT_HOT_TRACE").is_some() {
                 eprintln!(
@@ -280,12 +283,13 @@ fn reload(loaded: Result<Library, String>, t_load: std::time::Duration) {
         }
         Err(message) => {
             eprintln!("[zant] {message}; keeping the previous version");
+            old.library.trace("kept");
             match start(old.library, window, state.as_deref()) {
                 Ok(current) => {
                     let current_ref = &current;
                     // SAFETY: live instance.
                     unsafe {
-                        (current_ref.library.api.notice)(
+                        (current_ref.library.api().notice)(
                             current_ref.instance,
                             message.as_ptr(),
                             message.len(),
@@ -316,7 +320,7 @@ fn save(current: &Current) -> Option<Vec<u8>> {
     let mut out: Vec<u8> = Vec::new();
     // SAFETY: live instance; `sink` copies during the call.
     unsafe {
-        (current.library.api.save)(current.instance, sink, (&mut out as *mut Vec<u8>).cast())
+        (current.library.api().save)(current.instance, sink, (&mut out as *mut Vec<u8>).cast())
     };
     (!out.is_empty()).then_some(out)
 }
