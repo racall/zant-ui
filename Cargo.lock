@@ -786,6 +786,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "zant-dylib"
+version = "0.1.0"
+dependencies = [
+ "zant",
+]
+
+[[package]]
 name = "zant-examples"
 version = "0.1.0"
 dependencies = [

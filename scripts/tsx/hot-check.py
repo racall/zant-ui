@@ -58,6 +58,16 @@ def state():
 
 try:
  wait(lambda:shots()>0,'initial',120)
+ # A generation must share the framework/std, with no template TLS of its own.
+ ui=a/'target/zant-hot/gen/libui-1.dylib'
+ load_commands=subprocess.check_output(['otool','-l',str(ui)],text=True)
+ assert '__thread' not in load_commands,'UI generation contains thread-local storage'
+ links=subprocess.check_output(['otool','-L',str(ui)],text=True)
+ assert 'libzant_dylib.dylib' in links and '@rpath/libstd-' in links,links
+ framework=a/'target/zant-hot/target/debug/deps/libzant_dylib.dylib'
+ def framework_stamp():
+  st=framework.stat();return st.st_ino,st.st_size,st.st_mtime_ns
+ framework_before=framework_stamp()
  control=fifo.open('w')
  for i in range(3):click('inc')
  click('name');send('key 97 8');send('text Keep me');send('key 4353 0');send('key 4353 0')
@@ -78,6 +88,7 @@ try:
  reload(lambda:p.write_text(good),'fixed-tsx')
  native=a/'native/system.rs';ns=native.read_text();native.write_text(ns+'\npub const BROKEN: = ;\n');old=output().count('编译失败，界面保持上一版本');wait(lambda:output().count('编译失败，界面保持上一版本')>old,'Rust error');send('snapshot');time.sleep(.2)
  reload(lambda:native.write_text(ns.replace('Str::copy(version)','Str::copy("native reloaded")')),'fixed-native')
+ assert framework_stamp()==framework_before,'framework rebuilt during app edits'
  count=output().count('检测到改动，重新编译');p.write_text(p.read_text());time.sleep(1);assert output().count('检测到改动，重新编译')==count,'unchanged save rebuilt'
  # Save twice after the build has started: exactly one follow-up build.
  count=output().count('检测到改动，重新编译');p.write_text(p.read_text().replace('Reloaded text','Burst first'))
@@ -92,7 +103,7 @@ try:
  cargo=a/'Cargo.toml';cargo.write_text(cargo.read_text().replace('version = "0.1.0"','version = "0.1.1"'))
  wait(lambda:len(re.findall(r'host_pid=(\d+)',output()))>=3,'manifest restart');assert re.findall(r'host_pid=(\d+)',output())[-1]!=pid
  control.close();control=fifo.open('w');send('close');proc.wait(timeout=10);assert proc.returncode==0,proc.returncode
- (D/'result.txt').write_text('PASS: callback replay, state/view preservation, errors, native, unchanged saves, burst, restarts, close\n')
+ (D/'result.txt').write_text('PASS: shared framework/std, no UI TLS, no framework rebuild, callback replay, state/view preservation, errors, native, unchanged saves, burst, restarts, close\n')
 except Exception as e:
  (D/'result.txt').write_text(repr(e)+'\n');raise
 finally:

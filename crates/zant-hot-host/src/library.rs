@@ -2,13 +2,40 @@
 //!
 //! A loaded library is never unloaded: closures and threads of an old version
 //! may still exist when the next one takes over, and unloading their code
-//! would crash. Each reload leaks one library, which is fine for a
-//! development session.
+//! would crash. Only app code is replaced; the Rust framework and std remain
+//! shared across generations. Unloading app libraries is a separate change.
 
 use std::ffi::c_void;
 use std::path::Path;
 
 use zant_sys::hot::{ABI_VERSION, ENTRY, ZantHotApi};
+
+/// Register the shared Rust DLL directory once, before loading the first UI.
+/// The registration lives for the process, just like the loaded libraries.
+pub fn dependencies(path: &Path) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStrExt;
+        #[link(name = "kernel32")]
+        unsafe extern "system" {
+            fn AddDllDirectory(path: *const u16) -> *mut c_void;
+        }
+        let path = path.canonicalize().map_err(|error| error.to_string())?;
+        let wide: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+        // SAFETY: absolute NUL-terminated wide path; keep the cookie registered
+        // for future loads (the OS releases it on process exit).
+        if unsafe { AddDllDirectory(wide.as_ptr()) }.is_null() {
+            return Err(format!(
+                "cannot register {}: {}",
+                path.display(),
+                std::io::Error::last_os_error()
+            ));
+        }
+    }
+    #[cfg(not(windows))]
+    let _ = path; // macOS uses the UI library's LC_RPATH entries.
+    Ok(())
+}
 
 /// The API table of a loaded UI library (valid for the rest of the process).
 pub struct Library {
@@ -83,12 +110,22 @@ fn open(path: &Path) -> Result<*mut c_void, String> {
     use std::os::windows::ffi::OsStrExt;
     #[link(name = "kernel32")]
     unsafe extern "system" {
-        fn LoadLibraryW(name: *const u16) -> *mut c_void;
+        fn LoadLibraryExW(name: *const u16, file: *mut c_void, flags: u32) -> *mut c_void;
         fn GetLastError() -> u32;
     }
     let wide: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
-    // SAFETY: valid NUL-terminated wide path.
-    let handle = unsafe { LoadLibraryW(wide.as_ptr()) };
+    // DEFAULT_DIRS includes the host directory (native/PDF DLLs), System32,
+    // and USER_DIRS registered by dependencies(). Avoid cwd / PATH lookup.
+    const LOAD_LIBRARY_SEARCH_DEFAULT_DIRS: u32 = 0x1000;
+    const LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR: u32 = 0x100;
+    // SAFETY: valid absolute NUL-terminated wide path, no file handle.
+    let handle = unsafe {
+        LoadLibraryExW(
+            wide.as_ptr(),
+            std::ptr::null_mut(),
+            LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR,
+        )
+    };
     if handle.is_null() {
         // SAFETY: plain Win32 call.
         let code = unsafe { GetLastError() };

@@ -1,8 +1,8 @@
 //! `zant-hot-host <ui library>`: the process `zant run` keeps alive.
 //!
 //! It owns the native window and the shared native layer. The app's UI (the
-//! generated TSX code, its `native/` modules and the Rust framework) is a
-//! dynamic library loaded at start and replaced on every rebuild: the host
+//! generated TSX code and its `native/` modules) is a dynamic library loaded
+//! at start and replaced on every rebuild; the Rust framework is shared. The host
 //! saves the state of the running version, stops it, loads the new library
 //! and starts it on the same window with that state. The window never closes.
 //!
@@ -61,9 +61,22 @@ thread_local! {
 
 fn main() {
     let Some(path) = std::env::args_os().nth(1).map(PathBuf::from) else {
-        eprintln!("usage: zant-hot-host <ui library>");
+        eprintln!("usage: zant-hot-host <ui library> [--deps <Rust dylib directory>]");
         std::process::exit(2);
     };
+    let mut args = std::env::args_os().skip(2);
+    while let Some(arg) = args.next() {
+        if arg == "--deps" {
+            let result = args
+                .next()
+                .ok_or_else(|| "missing --deps directory".to_string())
+                .and_then(|path| library::dependencies(Path::new(&path)));
+            if let Err(message) = result {
+                eprintln!("[zant] {message}");
+                std::process::exit(1);
+            }
+        }
+    }
     let library = match Library::load(&path) {
         Ok(library) => library,
         Err(message) => {
