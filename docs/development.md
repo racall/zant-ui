@@ -54,6 +54,7 @@ ZANT_HOT_PROFILE=/tmp/hot-profile ZANT_HOT_TRACE=1 zant run
 完整保存到首帧时间应再关闭 wrapper 单独测量。UI crate 使用较少调试信息，macOS 使用 `unpacked`
 避免生成 dSYM；依赖的 profile、features 和 `ZANT_NATIVE_SHARED` 在整个会话固定。
 每代库用新路径，优先硬链接（失败回退复制）；库加载在后台，UI 线程只保存、销毁和恢复状态。
+macOS 首次加载每个新编译的库会进行安全扫描，通常耗时约 0.4–0.6 秒，可在「系统设置 › 隐私与安全性 › 开发者工具」中加入终端以省去这段时间；后台加载超过 250 ms 时宿主每个进程只提示一次，`ZANT_HOT_QUIET=1` 可关闭提示。
 不额外签名：实验中额外 ad-hoc 签名没有缩短加载。Cargo 通过 nice / BELOW_NORMAL_PRIORITY_CLASS 降低优先级，
 受限环境若拒绝 nice 会显示系统错误。发布构建保持普通静态链接与原有签名流程。
 

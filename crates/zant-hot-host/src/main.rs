@@ -144,7 +144,20 @@ fn read_commands() {
         let command = if let Some(path) = line.strip_prefix("load ") {
             let started = Instant::now();
             let library = Library::load(Path::new(path));
-            Command::Load(library, started.elapsed())
+            let elapsed = started.elapsed();
+            #[cfg(target_os = "macos")]
+            if elapsed > std::time::Duration::from_millis(250)
+                && std::env::var_os("ZANT_HOT_QUIET").is_none_or(|value| value != "1")
+            {
+                static HINT: std::sync::Once = std::sync::Once::new();
+                HINT.call_once(|| {
+                    eprintln!(
+                        "[zant] 提示：macOS 每次加载新编译的库要做一次安全扫描（本次 {} ms）。在「系统设置 › 隐私与安全性 › 开发者工具」中加入你的终端，可省去这段时间。",
+                        elapsed.as_millis()
+                    );
+                });
+            }
+            Command::Load(library, elapsed)
         } else if let Some(text) = line.strip_prefix("notice ") {
             Command::Notice(unescape(text))
         } else if let Some(path) = line.strip_prefix("checkpoint ") {
