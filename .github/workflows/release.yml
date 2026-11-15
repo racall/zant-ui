@@ -42,7 +42,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        run: rustup show active-toolchain || rustup toolchain install
       - uses: Swatinem/rust-cache@v2
       - name: Skia (macOS)
         if: runner.os == 'macOS'
@@ -78,7 +78,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        run: rustup show active-toolchain || rustup toolchain install
       - uses: Swatinem/rust-cache@v2
       - name: Skia
         run: ./scripts/fetch_skia.sh
@@ -102,7 +102,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        run: rustup show active-toolchain || rustup toolchain install
       - uses: Swatinem/rust-cache@v2
       - name: Skia, PDFium, fonts
         shell: pwsh

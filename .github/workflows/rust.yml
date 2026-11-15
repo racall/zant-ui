@@ -7,7 +7,7 @@ name: rust
 
 on:
   push:
-    branches: ["feat/rust-port", main]
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -33,17 +33,17 @@ jobs:
         shell: pwsh
         run: ./scripts/fetch_skia_windows.ps1
 
+      # rust-toolchain.toml pins the exact release; rustup installs it (with
+      # rustfmt and clippy) on the first cargo call.
       - name: Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
+        run: rustup show active-toolchain || rustup toolchain install
 
       - uses: Swatinem/rust-cache@v2
 
       - name: checked-in bindings are up to date
         if: runner.os == 'macOS'
         run: |
-          cargo install bindgen-cli --locked
+          cargo install bindgen-cli --version 0.73.2 --locked
           ./scripts/gen_bindings.sh
           git diff --exit-code crates/zant-sys/src
 

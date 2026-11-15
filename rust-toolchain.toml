@@ -1,7 +1,10 @@
 # Pins the Rust toolchain of the workspace.
 #
-# The workspace targets the stable channel with edition 2024; `rust-version` in the workspace manifest enforces the minimum.
+# One exact release for everyone working on the framework and for CI, so a
+# new clippy lint or rustfmt change in a later stable cannot break the build
+# or the checked-in bindgen output. Bump it deliberately (and rerun
+# scripts/gen_bindings.sh). Apps created by `zant create` use stable.
 [toolchain]
-channel = "stable"
+channel = "1.94.1"
 components = ["rustfmt", "clippy"]
 profile = "minimal"
