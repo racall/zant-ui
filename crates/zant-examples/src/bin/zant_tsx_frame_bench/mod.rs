@@ -97,6 +97,14 @@ mod settings_case {
     ));
 }
 
+#[allow(clippy::all, dead_code)]
+mod local_soak_case {
+    include!(concat!(
+        env!("OUT_DIR"),
+        "/tsx-frame-bench/cases/local_soak/main.rs"
+    ));
+}
+
 mod controls;
 
 mod counter;
@@ -104,6 +112,7 @@ mod list;
 mod local;
 mod markdown;
 mod settings;
+mod soak;
 mod todos;
 
 /// The benchmark window size.
@@ -464,6 +473,10 @@ fn best_of(best: Option<Stats>, stats: Stats) -> Stats {
 pub fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     zant::motion::motion::set_enabled(false);
+    if soak::requested(&args) {
+        soak::run(&args);
+        return;
+    }
     let rounds = repeats();
     let gate = max_ratio();
     println!(

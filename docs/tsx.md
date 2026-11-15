@@ -499,6 +499,20 @@ export default function App() {
 假时钟、每帧 `render_frame` 全量重建/布局/绘制），交替重复取每侧最好一轮，逐场景（以及每个 app 的
 汇总行）判 ≤1.2×。`scripts/tsx/bench-tsx.sh` 构建 Release 并打印对照表与闸门结论。
 
+内存 soak 使用 `ZANT_BENCH_SOAK=1 ./target/release/zant-tsx-frame-bench` 或
+`./target/release/zant-tsx-frame-bench soak`；可追加 `todos-churn` / `local-churn` /
+`list-churn` / `counter-churn` 筛选。每个场景的 TSX 和手写对照各用独立进程、一个长期存活的
+runtime，先跑一个预热循环，再分别跑 50 轮（每轮新增、切换、筛选并逐项删除 200 todos）、
+500 次有状态子组件挂载/更新/卸载、200 次虚拟列表全程往返，以及 10 000 次计数点击 +
+100 次输入替换。普通帧基准的行为和输出不变。
+
+开始、中间、结束均在同一 UI 状态采样 RSS（macOS `task_info`、Windows `GetProcessMemoryInfo`）、
+存活节点数、local-state slot 数和帧耗时 avg / p95 / max（毫秒）。start 的耗时来自预热循环，
+middle / end 分别统计前半和后半，最终 verdict 的 avg 统计所有测量帧；计时缓冲区提前分配。
+`text_layouts` 是存活的文字布局数（`zant::renderer::text::live_layouts()`）。结束的节点数、slot 数或文字布局数高于
+预热后起点，或中间到结束 RSS 增长严格超过 10%，判 `leak`，否则 `stable`；全部场景跑完后，
+有 leak 返回 1，采样/执行失败返回 2。RSS 判定是回归信号，不等于已证明存在对象泄漏。
+
 编译基准是另一件事：`zant-tsx-bench` 把 `crates/zant-tsx/testdata/tsx/*.tsx` 逐个在进程内编译
 （预热 + 迭代）并打印每个文件的耗时，由 `scripts/tsx/examples-check.sh` 跑并检查编译通过的文件数。
 
