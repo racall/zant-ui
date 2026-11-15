@@ -59,9 +59,11 @@ pub(crate) fn write(
     ));
     let root_source = read_text(&root.join("src/App.tsx"))?;
     let mut parser = zant_tsx::parser::Parser::init(&root_source);
-    let watch_clipboard = parser
-        .parse_module()
-        .is_ok_and(|module| zant_tsx::codegen::app_hooks::watches_clipboard(&module));
+    // `useClipboardChange` in the root or in a custom hook it calls
+    let watch_clipboard = parser.parse_module().is_ok_and(|module| {
+        zant_tsx::codegen::app_hooks::watches_clipboard(&module)
+            || zant_tsx::codegen::app_hooks::watches_clipboard_via_hooks(&module, &project_modules(&root.join("src")))
+    });
     let config = "zant::tsx::app::Config { title: app_config::title.to_string(), window: app_config::window, bundle_id: app_config::bundle_id.to_string(), single_instance: app_config::single_instance, remember: app_config::remember, watch_clipboard: WATCH_CLIPBOARD }".replace("WATCH_CLIPBOARD", if watch_clipboard { "true" } else { "false" });
     let main = format!(
         "fn main() -> zant::Result<()> {{ native::register(); zant::tsx::app::run::<crate::app::App>({config}) }}\n"
@@ -134,4 +136,30 @@ pub(crate) fn validate_root(path: &Path, source: &str) -> Result<(), Error> {
         });
     }
     Ok(())
+}
+
+/// Every parsable `.ts` / `.tsx` module under `src`.
+fn project_modules(src: &Path) -> Vec<zant_tsx::ast::Module> {
+    let mut out = Vec::new();
+    let mut dirs = vec![src.to_path_buf()];
+    while let Some(dir) = dirs.pop() {
+        let Ok(entries) = std::fs::read_dir(&dir) else { continue };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                dirs.push(path);
+                continue;
+            }
+            let script = path.extension().is_some_and(|e| e == "ts" || e == "tsx");
+            if !script {
+                continue;
+            }
+            if let Ok(text) = std::fs::read_to_string(&path)
+                && let Ok(module) = zant_tsx::parser::Parser::init(&text).parse_module()
+            {
+                out.push(module);
+            }
+        }
+    }
+    out
 }
