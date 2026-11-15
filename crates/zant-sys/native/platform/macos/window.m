@@ -560,6 +560,30 @@ static void zant_request_view_redraw(ZantView *view) {
     [self interpretKeyEvents:@[ event ]];
 }
 
+/* The Edit menu's standard actions arrive here (the menu takes ⌘C / ⌘V /
+   … before keyDown): forward them as the key presses the runtime handles. */
+- (void)zant_sendMenuKey:(int)key modifiers:(int)modifiers {
+    if (!self.macWindow || !self.macWindow->host.event) return;
+    ZantEvent z;
+    memset(&z, 0, sizeof(z));
+    z.key = key;
+    z.modifiers = modifiers;
+    z.width = (int)lround(NSWidth(self.bounds));
+    z.height = (int)lround(NSHeight(self.bounds));
+    z.dpr = (float)self.window.backingScaleFactor;
+    z.type = ZANT_EVENT_KEY_DOWN;
+    const int handled = self.macWindow->host.event(self.macWindow->host.userdata, &z);
+    z.type = ZANT_EVENT_KEY_UP;
+    self.macWindow->host.event(self.macWindow->host.userdata, &z);
+    if (handled) zant_request_view_redraw(self);
+}
+- (void)copy:(id)sender { [self zant_sendMenuKey:'c' modifiers:ZANT_MOD_META]; }
+- (void)cut:(id)sender { [self zant_sendMenuKey:'x' modifiers:ZANT_MOD_META]; }
+- (void)paste:(id)sender { [self zant_sendMenuKey:'v' modifiers:ZANT_MOD_META]; }
+- (void)selectAll:(id)sender { [self zant_sendMenuKey:'a' modifiers:ZANT_MOD_META]; }
+- (void)undo:(id)sender { [self zant_sendMenuKey:'z' modifiers:ZANT_MOD_META]; }
+- (void)redo:(id)sender { [self zant_sendMenuKey:'z' modifiers:ZANT_MOD_META | ZANT_MOD_SHIFT]; }
+
 - (void)keyUp:(NSEvent *)event {
     if (!self.macWindow || !self.macWindow->host.event) return;
     ZantEvent z;
@@ -898,26 +922,83 @@ static bool zant_launch_event_is_login(void) {
 }
 @end
 
+/* Chinese menu titles when the user's first language is Chinese, English
+   otherwise (the template apps are Chinese; system items follow the OS). */
+static NSString *zant_menu_text(NSString *en, NSString *zh) {
+    NSString *language = [[NSLocale preferredLanguages] firstObject];
+    return [language hasPrefix:@"zh"] ? zh : en;
+}
+
+static NSMenuItem *zant_menu_item(NSMenu *menu, NSString *title, SEL action, NSString *key,
+                                  NSEventModifierFlags modifiers) {
+    NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:title action:action keyEquivalent:key];
+    item.keyEquivalentModifierMask = modifiers;
+    [menu addItem:item];
+    return item;
+}
+
+static NSMenu *zant_submenu(NSMenu *main_menu, NSString *title) {
+    NSMenuItem *item = [[NSMenuItem alloc] init];
+    [main_menu addItem:item];
+    NSMenu *menu = [[NSMenu alloc] initWithTitle:title];
+    item.submenu = menu;
+    return menu;
+}
+
+/* The menu bar every Mac app has: app menu (About, Hide, Quit), File (Close),
+   Edit (Undo … Select All, plus the system's dictation / emoji items), View
+   (full screen), Window (Minimize, Zoom, the window list) and Help. */
 static void zant_install_menu(const char *title) {
     NSString *name = [NSString stringWithUTF8String:title && title[0] ? title : "Zant UI"];
+    const NSEventModifierFlags cmd = NSEventModifierFlagCommand;
     NSMenu *main_menu = [[NSMenu alloc] init];
-    NSMenuItem *app_item = [[NSMenuItem alloc] init];
-    [main_menu addItem:app_item];
-    NSMenu *app_menu = [[NSMenu alloc] init];
-    NSMenuItem *quit_item = [[NSMenuItem alloc] initWithTitle:[@"Quit " stringByAppendingString:name]
-                                                        action:@selector(terminate:)
-                                                 keyEquivalent:@"q"];
-    [app_menu addItem:quit_item];
-    app_item.submenu = app_menu;
 
-    NSMenuItem *file_item = [[NSMenuItem alloc] init];
-    [main_menu addItem:file_item];
-    NSMenu *file_menu = [[NSMenu alloc] initWithTitle:@"File"];
-    NSMenuItem *close_item = [[NSMenuItem alloc] initWithTitle:@"Close Window"
-                                                         action:@selector(performClose:)
-                                                  keyEquivalent:@"w"];
-    [file_menu addItem:close_item];
-    file_item.submenu = file_menu;
+    NSMenu *app_menu = zant_submenu(main_menu, name);
+    zant_menu_item(app_menu, [zant_menu_text(@"About ", @"关于 ") stringByAppendingString:name],
+                   @selector(orderFrontStandardAboutPanel:), @"", 0);
+    [app_menu addItem:[NSMenuItem separatorItem]];
+    NSMenu *services = [[NSMenu alloc] init];
+    NSMenuItem *services_item = zant_menu_item(app_menu, zant_menu_text(@"Services", @"服务"), nil, @"", 0);
+    services_item.submenu = services;
+    NSApp.servicesMenu = services;
+    [app_menu addItem:[NSMenuItem separatorItem]];
+    zant_menu_item(app_menu, [zant_menu_text(@"Hide ", @"隐藏 ") stringByAppendingString:name],
+                   @selector(hide:), @"h", cmd);
+    zant_menu_item(app_menu, zant_menu_text(@"Hide Others", @"隐藏其他"), @selector(hideOtherApplications:),
+                   @"h", cmd | NSEventModifierFlagOption);
+    zant_menu_item(app_menu, zant_menu_text(@"Show All", @"全部显示"), @selector(unhideAllApplications:), @"", 0);
+    [app_menu addItem:[NSMenuItem separatorItem]];
+    zant_menu_item(app_menu, [zant_menu_text(@"Quit ", @"退出 ") stringByAppendingString:name],
+                   @selector(terminate:), @"q", cmd);
+
+    NSMenu *file_menu = zant_submenu(main_menu, zant_menu_text(@"File", @"文件"));
+    zant_menu_item(file_menu, zant_menu_text(@"Close Window", @"关闭窗口"), @selector(performClose:), @"w", cmd);
+
+    /* titled "Edit" in English too: AppKit adds Start Dictation / Emoji &
+       Symbols to the menu with the Edit role */
+    NSMenu *edit_menu = zant_submenu(main_menu, zant_menu_text(@"Edit", @"编辑"));
+    zant_menu_item(edit_menu, zant_menu_text(@"Undo", @"撤销"), @selector(undo:), @"z", cmd);
+    zant_menu_item(edit_menu, zant_menu_text(@"Redo", @"重做"), @selector(redo:), @"z", cmd | NSEventModifierFlagShift);
+    [edit_menu addItem:[NSMenuItem separatorItem]];
+    zant_menu_item(edit_menu, zant_menu_text(@"Cut", @"剪切"), @selector(cut:), @"x", cmd);
+    zant_menu_item(edit_menu, zant_menu_text(@"Copy", @"拷贝"), @selector(copy:), @"c", cmd);
+    zant_menu_item(edit_menu, zant_menu_text(@"Paste", @"粘贴"), @selector(paste:), @"v", cmd);
+    zant_menu_item(edit_menu, zant_menu_text(@"Select All", @"全选"), @selector(selectAll:), @"a", cmd);
+
+    NSMenu *view_menu = zant_submenu(main_menu, zant_menu_text(@"View", @"显示"));
+    zant_menu_item(view_menu, zant_menu_text(@"Enter Full Screen", @"进入全屏幕"), @selector(toggleFullScreen:),
+                   @"f", cmd | NSEventModifierFlagControl);
+
+    NSMenu *window_menu = zant_submenu(main_menu, zant_menu_text(@"Window", @"窗口"));
+    zant_menu_item(window_menu, zant_menu_text(@"Minimize", @"最小化"), @selector(performMiniaturize:), @"m", cmd);
+    zant_menu_item(window_menu, zant_menu_text(@"Zoom", @"缩放"), @selector(performZoom:), @"", 0);
+    [window_menu addItem:[NSMenuItem separatorItem]];
+    zant_menu_item(window_menu, zant_menu_text(@"Bring All to Front", @"前置全部窗口"), @selector(arrangeInFront:), @"", 0);
+    NSApp.windowsMenu = window_menu;
+
+    NSMenu *help_menu = zant_submenu(main_menu, zant_menu_text(@"Help", @"帮助"));
+    NSApp.helpMenu = help_menu;
+
     [NSApp setMainMenu:main_menu];
 }
 
@@ -1103,6 +1184,13 @@ ZantWindow *zant_window_create(const char *title, const ZantWindowOptions *optio
         zant_request_view_redraw(window->view);
         return window;
     }
+}
+
+void zant_window_set_autosave(ZantWindow *window, const char *name) {
+    if (!window || !window->window) return;
+    NSString *key = name && name[0] ? [NSString stringWithUTF8String:name] : @"";
+    if (!key || [window->window.frameAutosaveName isEqualToString:key]) return;
+    [window->window setFrameAutosaveName:key];
 }
 
 void zant_window_run(ZantWindow *window) {

@@ -194,10 +194,11 @@ pub fn collect(g: &mut Generator<'_>, module: &ast::Module) -> Result<String> {
             .strip_suffix("::build")
             .unwrap_or(&component.builder)
             .to_owned();
+        let window_name = rust_text::quote_at(g, &constant.name.name, constant.name.loc)?;
         let options = if call.args.len() == 2 {
-            options_value(g, &call.args[1])?
+            options_value(g, &call.args[1], &window_name)?
         } else {
-            default_options()
+            default_options(&window_name)
         };
         let rust_name = rust_text::id_at(g, &constant.name.name, constant.name.loc)?;
         let accessor = format!("{rust_name}_with");
@@ -255,11 +256,13 @@ fn global_window(g: &Generator<'_>, name: &str) -> bool {
         || g.extra_globals.iter().any(|global| global == name)
 }
 
-fn default_options() -> String {
-    "zant::desktop::OpenOptions { title: \"\".into(), ..Default::default() }".to_owned()
+fn default_options(name: &str) -> String {
+    format!(
+        "zant::desktop::OpenOptions {{ name: Some({name}.into()), title: \"\".into(), ..Default::default() }}"
+    )
 }
 
-fn options_value(g: &mut Generator<'_>, e: &ast::Expr) -> Result<String> {
+fn options_value(g: &mut Generator<'_>, e: &ast::Expr, window_name: &str) -> Result<String> {
     let ast::ExprData::Object(properties) = &e.data else {
         return fail(g, e.loc, "window options are an object literal");
     };
@@ -306,7 +309,7 @@ fn options_value(g: &mut Generator<'_>, e: &ast::Expr) -> Result<String> {
         fields.push_str(&format!("{}: {code}, ", option.rust));
     }
     Ok(format!(
-        "zant::desktop::OpenOptions {{\n    title: {title}.into(),\n    window: zant::desktop::WindowOptions {{\n        {fields}..Default::default()\n    }},\n    ..Default::default()\n}}"
+        "zant::desktop::OpenOptions {{\n    name: Some({window_name}.into()),\n    title: {title}.into(),\n    window: zant::desktop::WindowOptions {{\n        {fields}..Default::default()\n    }},\n    ..Default::default()\n}}"
     ))
 }
 

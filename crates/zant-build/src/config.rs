@@ -35,6 +35,8 @@ pub struct WindowConfig {
     pub always_on_top: bool,
     pub movable_by_background: bool,
     pub center: bool,
+    /// Restore window frames across launches (opt-in for existing configs).
+    pub remember: bool,
     /// `hidden-titlebar` style: the height of the app's own title bar
     /// (where the system buttons sit); 0 for the system's default.
     pub titlebar_height: f32,
@@ -55,6 +57,7 @@ impl Default for WindowConfig {
             always_on_top: false,
             movable_by_background: false,
             center: true,
+            remember: false,
             titlebar_height: 0.0,
             hidden_at_login: false,
         }
@@ -73,6 +76,18 @@ pub struct AppConfig {
     pub title: String,
     pub bundle_id: String,
     pub version: String,
+    /// One-line description: the Windows file description, shown in the
+    /// installer and in Explorer's properties.
+    pub description: String,
+    /// Publisher / company name (Windows version info, installer).
+    pub company: String,
+    /// Copyright line (macOS About panel, Windows version info).
+    pub copyright: String,
+    /// `macos.category`: LSApplicationCategoryType, e.g.
+    /// `public.app-category.productivity`.
+    pub category: Option<String>,
+    /// `macos.minimum_system_version`: LSMinimumSystemVersion (default 13.0).
+    pub minimum_macos: String,
     /// A second launch brings the running app forward and exits.
     pub single_instance: bool,
     pub sandbox: bool,
@@ -96,6 +111,11 @@ impl Default for AppConfig {
             title: "Zant App".to_string(),
             bundle_id: "dev.zant.app".to_string(),
             version: "0.1.0".to_string(),
+            description: String::new(),
+            company: String::new(),
+            copyright: String::new(),
+            category: None,
+            minimum_macos: "13.0".to_string(),
             single_instance: false,
             sandbox: false,
             signing_identity: "none".to_string(),
@@ -122,6 +142,7 @@ struct RawWindow {
     always_on_top: Option<bool>,
     movable_by_background: Option<bool>,
     center: Option<bool>,
+    remember: Option<bool>,
     titlebar_height: Option<f32>,
     hidden_at_login: Option<bool>,
 }
@@ -132,6 +153,8 @@ struct RawMacos {
     sandbox: Option<bool>,
     signing_identity: Option<String>,
     entitlements: Option<serde_json::Value>,
+    category: Option<String>,
+    minimum_system_version: Option<String>,
     /// Overrides `window.titlebar_height` on macOS.
     titlebar_height: Option<f32>,
 }
@@ -149,6 +172,9 @@ struct RawConfig {
     title: Option<String>,
     bundle_id: Option<String>,
     version: Option<String>,
+    description: Option<String>,
+    company: Option<String>,
+    copyright: Option<String>,
     single_instance: Option<bool>,
     sandbox: Option<bool>,
     signing_identity: Option<String>,
@@ -184,6 +210,15 @@ pub fn parse(data: &str, os: Os) -> Result<AppConfig, ParseError> {
     if let Some(v) = parsed.version {
         cfg.version = v;
     }
+    if let Some(v) = parsed.description {
+        cfg.description = v;
+    }
+    if let Some(v) = parsed.company {
+        cfg.company = v;
+    }
+    if let Some(v) = parsed.copyright {
+        cfg.copyright = v;
+    }
     if let Some(v) = parsed.sandbox {
         cfg.sandbox = v;
         cfg.has_sandbox = true;
@@ -210,6 +245,12 @@ pub fn parse(data: &str, os: Os) -> Result<AppConfig, ParseError> {
                 return Err(ParseError::InvalidEntitlements);
             }
             cfg.entitlements = Some(v.clone());
+        }
+        if let Some(v) = &m.category {
+            cfg.category = Some(v.clone());
+        }
+        if let Some(v) = &m.minimum_system_version {
+            cfg.minimum_macos = v.clone();
         }
     }
     if let Some(v) = parsed.single_instance {
@@ -251,6 +292,9 @@ pub fn parse(data: &str, os: Os) -> Result<AppConfig, ParseError> {
         }
         if let Some(v) = w.center {
             cfg.window.center = v;
+        }
+        if let Some(v) = w.remember {
+            cfg.window.remember = v;
         }
         if let Some(v) = w.titlebar_height {
             cfg.window.titlebar_height = v;
@@ -307,6 +351,10 @@ pub fn source(cfg: &AppConfig) -> String {
     ));
     out.push_str(&format!(
         "#[allow(non_upper_case_globals)]\npub const signing_identity: &str = \"{identity}\";\n"
+    ));
+    out.push_str(&format!(
+        "#[allow(non_upper_case_globals)]\npub const remember: bool = {};\n",
+        cfg.window.remember
     ));
     out.push_str("\n#[allow(non_upper_case_globals)]\npub const window: zant::WindowOptions = zant::WindowOptions {\n");
     out.push_str(&format!(

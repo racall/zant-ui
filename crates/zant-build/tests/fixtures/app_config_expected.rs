@@ -13,6 +13,8 @@ pub const single_instance: bool = true;
 pub const sandbox: bool = true;
 #[allow(non_upper_case_globals)]
 pub const signing_identity: &str = "Developer ID Application: Me (ABCDE12345)";
+#[allow(non_upper_case_globals)]
+pub const remember: bool = false;
 
 #[allow(non_upper_case_globals)]
 pub const window: zant::WindowOptions = zant::WindowOptions {

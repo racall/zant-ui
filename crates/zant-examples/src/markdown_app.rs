@@ -142,6 +142,7 @@ pub fn run_options(dark: bool) -> RunOptions {
             ..WindowOptions::default()
         },
         theme: app_theme(dark),
+        ..Default::default()
     }
 }
 

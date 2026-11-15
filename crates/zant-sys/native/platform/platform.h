@@ -171,6 +171,13 @@ typedef struct ZantHost {
 
 ZantWindow *zant_window_create(const char *title, const ZantWindowOptions *options,
                                const ZantHost *host);
+/* UI thread: restore and automatically save the window frame under a stable
+   UTF-8 name (macOS user defaults; Windows HKCU\Software\Zant\<name>, binary
+   WindowPlacement). Call immediately after creation, before app positioning,
+   so the saved frame overrides the initial size/center. Off-screen Windows
+   placements are ignored. NULL or "" disables saving without deleting data.
+   Reapplying the same name leaves the current frame unchanged. */
+void zant_window_set_autosave(ZantWindow *window, const char *name);
 void zant_window_run(ZantWindow *window);
 void zant_window_destroy(ZantWindow *window);
 void zant_window_request_redraw(ZantWindow *window, int delay_ms);

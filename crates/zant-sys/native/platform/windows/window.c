@@ -87,6 +87,7 @@ struct ZantWindow {
     WCHAR high_surrogate;
     uint32_t background;
     wchar_t title[512];
+    wchar_t *autosave_path;
     char backend_name[64];
     char snapshot_path[1024];
     volatile LONG wake_pending;
@@ -120,6 +121,91 @@ static char *zant_narrow(const wchar_t *wide, int length, int *out_len) {
     out[n] = '\0';
     if (out_len) *out_len = (length < 0 && n > 0) ? n - 1 : n;
     return out;
+}
+
+/* ---------- persistent window placement ---------- */
+
+static void zant_save_placement(ZantWindow *w) {
+    if (!w || !w->autosave_path) return;
+    WINDOWPLACEMENT placement = {0};
+    placement.length = sizeof(placement);
+    if (!GetWindowPlacement(w->hwnd, &placement)) return;
+    HKEY key;
+    if (RegCreateKeyExW(HKEY_CURRENT_USER, w->autosave_path, 0, NULL, 0,
+                        KEY_SET_VALUE, NULL, &key, NULL) == ERROR_SUCCESS) {
+        RegSetValueExW(key, L"WindowPlacement", 0, REG_BINARY,
+                       (const BYTE *)&placement, sizeof(placement));
+        RegCloseKey(key);
+    }
+}
+
+typedef struct ZantPlacementMonitor {
+    RECT normal;
+    bool tool_window;
+    bool visible;
+} ZantPlacementMonitor;
+
+static BOOL CALLBACK zant_placement_monitor(HMONITOR monitor, HDC dc, LPRECT rect, LPARAM data) {
+    (void)dc;
+    (void)rect;
+    ZantPlacementMonitor *check = (ZantPlacementMonitor *)data;
+    MONITORINFO info = {sizeof(info)};
+    if (!GetMonitorInfoW(monitor, &info)) return TRUE;
+    RECT screen = check->normal;
+    /* WINDOWPLACEMENT uses workspace coordinates except for tool windows.
+       Convert per monitor before testing against the current work areas. */
+    if (!check->tool_window) {
+        OffsetRect(&screen, info.rcWork.left - info.rcMonitor.left,
+                   info.rcWork.top - info.rcMonitor.top);
+    }
+    RECT intersection;
+    if (IntersectRect(&intersection, &screen, &info.rcWork)) {
+        check->visible = true;
+        return FALSE;
+    }
+    return TRUE;
+}
+
+void zant_window_set_autosave(ZantWindow *window, const char *name) {
+    if (!window || !window->hwnd) return;
+    wchar_t *path = NULL;
+    if (name && name[0]) {
+        wchar_t *wide = zant_widen(name);
+        if (!wide) return;
+        const wchar_t prefix[] = L"Software\\Zant\\";
+        const size_t count = wcslen(prefix) + wcslen(wide) + 1;
+        path = (wchar_t *)malloc(count * sizeof(wchar_t));
+        if (path) {
+            wcscpy(path, prefix);
+            wcscat(path, wide);
+        }
+        free(wide);
+        if (!path) return;
+    }
+    if (path && window->autosave_path && wcscmp(path, window->autosave_path) == 0) {
+        free(path);
+        return;
+    }
+    free(window->autosave_path);
+    window->autosave_path = path;
+    if (!path) return;
+    WINDOWPLACEMENT placement = {0};
+    DWORD size = sizeof(placement);
+    if (RegGetValueW(HKEY_CURRENT_USER, path, L"WindowPlacement", RRF_RT_REG_BINARY,
+                     NULL, &placement, &size) != ERROR_SUCCESS ||
+        size != sizeof(placement) || placement.length != sizeof(placement) ||
+        placement.rcNormalPosition.right <= placement.rcNormalPosition.left ||
+        placement.rcNormalPosition.bottom <= placement.rcNormalPosition.top) return;
+    ZantPlacementMonitor check = {placement.rcNormalPosition,
+        (GetWindowLongPtrW(window->hwnd, GWL_EXSTYLE) & WS_EX_TOOLWINDOW) != 0, false};
+    EnumDisplayMonitors(NULL, NULL, zant_placement_monitor, (LPARAM)&check);
+    if (!check.visible) return;
+    /* Reopen minimized windows normally; restoring a hidden createWindow or a
+       login window must not show it before the app requests it. */
+    if (!IsWindowVisible(window->hwnd)) placement.showCmd = SW_HIDE;
+    else if (placement.showCmd != SW_SHOWMAXIMIZED) placement.showCmd = SW_SHOWNORMAL;
+    placement.flags = 0;
+    SetWindowPlacement(window->hwnd, &placement);
 }
 
 /* ---------- geometry / DPI ---------- */
@@ -822,6 +908,7 @@ static LRESULT CALLBACK zant_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) 
 
         case WM_CLOSE:
             if (zant_close_vetoed(w)) return 0;
+            zant_save_placement(w);
             DestroyWindow(hwnd);
             return 0;
 
@@ -834,6 +921,7 @@ static LRESULT CALLBACK zant_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) 
             break;
 
         case WM_DESTROY:
+            zant_save_placement(w);
             w->closing = true;
             KillTimer(hwnd, ZANT_TIMER_REDRAW);
             KillTimer(hwnd, ZANT_TIMER_MODAL);
@@ -1007,6 +1095,8 @@ void zant_window_run(ZantWindow *window) {
        it first (ZANT_APP_EVENT_EXIT) to stop its workers and save */
     zant_app_emit(ZANT_APP_EVENT_EXIT, 0);
     zant_tray_remove();
+    /* PostQuitMessage / the main close also exits with secondary HWNDs alive. */
+    for (ZantWindow *w = g_windows; w; w = w->next) zant_save_placement(w);
     fflush(stdout);
     fflush(stderr);
     exit((int)msg.wParam);
@@ -1014,6 +1104,7 @@ void zant_window_run(ZantWindow *window) {
 
 void zant_window_destroy(ZantWindow *window) {
     if (!window) return;
+    zant_save_placement(window);
     window->closing = true;
     if (window->renderer) {
         zant_renderer_destroy(window->renderer);
@@ -1030,6 +1121,7 @@ void zant_window_destroy(ZantWindow *window) {
         }
     }
     if (g_main == window) g_main = NULL;
+    free(window->autosave_path);
     free(window);
 }
 

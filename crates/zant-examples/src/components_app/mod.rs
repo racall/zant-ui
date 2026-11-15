@@ -325,6 +325,7 @@ pub fn run_options() -> RunOptions {
             ..Default::default()
         },
         theme: Theme::default(),
+        ..Default::default()
     }
 }
 

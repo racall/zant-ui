@@ -2,6 +2,9 @@
   "title": "__APP_TITLE__",
   "bundle_id": "__BUNDLE_ID__",
   "version": "0.1.0",
+  "description": "__APP_TITLE__ 桌面应用",
+  "company": "__COMPANY__",
+  "copyright": "© __COPYRIGHT_YEAR__ __COMPANY__",
   "window": {
     "style": "native",
     "width": 680,
@@ -12,6 +15,10 @@
     "resizable": true,
     "always_on_top": false,
     "movable_by_background": false,
-    "center": true
+    "center": true,
+    "remember": true
+  },
+  "macos": {
+    "category": "public.app-category.productivity"
   }
 }
