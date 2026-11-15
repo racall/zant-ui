@@ -63,13 +63,17 @@ pub fn settings_update(update: impl FnOnce(&mut Settings)) {
     SETTINGS.with(|store| store.borrow_mut().update(update));
 }
 pub struct ThemeToggle {
+    _id: u64,
     _state: std::rc::Weak<std::cell::RefCell<ThemeToggle>>,
 }
 #[derive(Default)]
 pub struct ThemeToggleProps_;
 impl Default for ThemeToggle {
     fn default() -> Self {
-        Self { _state: Default::default() }
+        Self {
+            _id: 0,
+            _state: Default::default(),
+        }
     }
 }
 impl tsx::hot::Hot for ThemeToggle {
@@ -82,11 +86,16 @@ impl tsx::hot::Hot for ThemeToggle {
     }
 }
 impl ThemeToggle {
-    pub fn build(_props: ThemeToggleProps_) -> ui::Node {
-        let mut instance = ThemeToggle {
-            _state: Default::default(),
-        };
-        instance.render()
+    pub fn build(_props: ThemeToggleProps_, id: u64) -> ui::Node {
+        let state: std::rc::Rc<std::cell::RefCell<ThemeToggle>> = ui::local_state::local_state_hot::<
+            ThemeToggle,
+        >(id, ThemeToggle::default);
+        {
+            let mut instance = state.borrow_mut();
+            instance._id = id;
+            instance._state = std::rc::Rc::downgrade(&state);
+            instance.render()
+        }
     }
     pub fn render(&mut self) -> ui::Node {
         let dark: bool = (|s: Settings| { s.clone().dark })(settings_read());
@@ -113,13 +122,17 @@ impl ThemeToggle {
     }
 }
 pub struct FontSize {
+    _id: u64,
     _state: std::rc::Weak<std::cell::RefCell<FontSize>>,
 }
 #[derive(Default)]
 pub struct FontSizeProps_;
 impl Default for FontSize {
     fn default() -> Self {
-        Self { _state: Default::default() }
+        Self {
+            _id: 0,
+            _state: Default::default(),
+        }
     }
 }
 impl tsx::hot::Hot for FontSize {
@@ -136,11 +149,16 @@ struct _Capture2 {
     size: u32,
 }
 impl FontSize {
-    pub fn build(_props: FontSizeProps_) -> ui::Node {
-        let mut instance = FontSize {
-            _state: Default::default(),
-        };
-        instance.render()
+    pub fn build(_props: FontSizeProps_, id: u64) -> ui::Node {
+        let state: std::rc::Rc<std::cell::RefCell<FontSize>> = ui::local_state::local_state_hot::<
+            FontSize,
+        >(id, FontSize::default);
+        {
+            let mut instance = state.borrow_mut();
+            instance._id = id;
+            instance._state = std::rc::Rc::downgrade(&state);
+            instance.render()
+        }
     }
     pub fn render(&mut self) -> ui::Node {
         let size: u32 = (|s: Settings| { s.clone().fontSize })(settings_read());
@@ -244,12 +262,12 @@ impl ui::App for App {
                 zant::Str::from("light") }, tsx::builtins::string(s.clone().fontSize),
                 tsx::builtins::string(s.clone().recent.clone().len()))), ui::TextOptions
                 { key : Some(zant::Str::from("summary")), ..Default::default() }),
-                ThemeToggle::build(Default::default()),
-                FontSize::build(Default::default()), ui::button(ui::ButtonOptions { key :
-                Some(zant::Str::from("remember")), text : zant::Str::from("Remember"),
-                on_click : Some(ui::action({ let _capture = _Capture5 { s : (s).clone(),
-                }; move | s : & mut App | s._on_click5(& _capture) })),
-                ..Default::default() })
+                ThemeToggle::build(Default::default(), tsx::site_id(0, "ThemeToggle",
+                1)), FontSize::build(Default::default(), tsx::site_id(0, "FontSize", 2)),
+                ui::button(ui::ButtonOptions { key : Some(zant::Str::from("remember")),
+                text : zant::Str::from("Remember"), on_click : Some(ui::action({ let
+                _capture = _Capture5 { s : (s).clone(), }; move | s : & mut App | s
+                ._on_click5(& _capture) })), ..Default::default() })
             ],
             ..Default::default()
         });

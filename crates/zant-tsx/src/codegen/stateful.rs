@@ -137,7 +137,8 @@ impl Walker<'_> {
                     self.expr(e);
                 }
             }
-            ast::StmtData::Func(f) => self.body(&f.body),
+            // a local function is a method; handlers reach it through the slot
+            ast::StmtData::Func(_) => self.found = true,
             ast::StmtData::Ret(e) => {
                 if let Some(v) = e.as_deref() {
                     self.expr(v);
@@ -233,6 +234,12 @@ impl Walker<'_> {
         }
         for a in &j.attrs {
             if let Some(v) = a.value.as_deref() {
+                // an inline handler becomes a method reached through the
+                // instance's state slot: without a slot the event is lost
+                if matches!(v.data, ast::ExprData::Arrow(_)) {
+                    self.found = true;
+                    return;
+                }
                 self.expr(v);
             }
         }

@@ -44,6 +44,7 @@ impl tsx::hot::Hot for _Object0 {
 }
 pub struct Stepper {
     props: StepperProps_,
+    _id: u64,
     _state: std::rc::Weak<std::cell::RefCell<Stepper>>,
 }
 pub type StepperProps_ = _Object0;
@@ -51,6 +52,7 @@ impl Default for Stepper {
     fn default() -> Self {
         Self {
             props: Default::default(),
+            _id: 0,
             _state: Default::default(),
         }
     }
@@ -65,12 +67,17 @@ impl tsx::hot::Hot for Stepper {
     }
 }
 impl Stepper {
-    pub fn build(props: StepperProps_) -> ui::Node {
-        let mut instance = Stepper {
-            props: props,
-            _state: Default::default(),
-        };
-        instance.render()
+    pub fn build(props: StepperProps_, id: u64) -> ui::Node {
+        let state: std::rc::Rc<std::cell::RefCell<Stepper>> = ui::local_state::local_state_hot::<
+            Stepper,
+        >(id, Stepper::default);
+        {
+            let mut instance = state.borrow_mut();
+            instance.props = props;
+            instance._id = id;
+            instance._state = std::rc::Rc::downgrade(&state);
+            instance.render()
+        }
     }
     pub fn render(&mut self) -> ui::Node {
         return ui::row(ui::BoxOptions {
@@ -228,7 +235,8 @@ impl ui::App for App {
                 label : greeting.clone(), onStep : std::rc::Rc::new({ let _capture =
                 _Capture6 { step : step, }; move | _cx : & mut ui::ActionCx <'_ >, _a0 :
                 f64 | { let _root = _cx.state::< App > (); App::_onStep6(_root, &
-                _capture, _a0) } }), }), zant::Str::from("stepper"))
+                _capture, _a0) } }), }, tsx::child_id(0, "Stepper",
+                (zant::Str::from("stepper")).as_str())), zant::Str::from("stepper"))
             ],
             ..Default::default()
         });

@@ -64,6 +64,7 @@ fn NUMBERS() -> tsx::List<f64> {
 }
 pub struct Sum {
     props: SumProps_,
+    _id: u64,
     _state: std::rc::Weak<std::cell::RefCell<Sum>>,
 }
 pub type SumProps_ = _Object2;
@@ -71,6 +72,7 @@ impl Default for Sum {
     fn default() -> Self {
         Self {
             props: Default::default(),
+            _id: 0,
             _state: Default::default(),
         }
     }
@@ -85,12 +87,17 @@ impl tsx::hot::Hot for Sum {
     }
 }
 impl Sum {
-    pub fn build(props: SumProps_) -> ui::Node {
-        let mut instance = Sum {
-            props: props,
-            _state: Default::default(),
-        };
-        instance.render()
+    pub fn build(props: SumProps_, id: u64) -> ui::Node {
+        let state: std::rc::Rc<std::cell::RefCell<Sum>> = ui::local_state::local_state_hot::<
+            Sum,
+        >(id, Sum::default);
+        {
+            let mut instance = state.borrow_mut();
+            instance.props = props;
+            instance._id = id;
+            instance._state = std::rc::Rc::downgrade(&state);
+            instance.render()
+        }
     }
     pub fn render(&mut self) -> ui::Node {
         return ui::text(
@@ -491,14 +498,14 @@ impl ui::App for App {
                 ui::text(zant::Str::copy(& format!("{}", tsx::builtins::string(self
                 .visits.clone()))), ui::TextOptions { key :
                 Some(zant::Str::from("visits")), ..Default::default() }),
-                Sum::build(_Object2 { values : self.items.clone(), }),
-                ui::button(ui::ButtonOptions { key : Some(zant::Str::from("classic")),
-                text : zant::Str::from("For"), on_click : Some(ui::action(| s : & mut App
-                | s.classic())), ..Default::default() }), ui::button(ui::ButtonOptions {
-                key : Some(zant::Str::from("each")), text : zant::Str::from("For of"),
-                on_click : Some(ui::action(| s : & mut App | s.each())),
-                ..Default::default() }), ui::button(ui::ButtonOptions { key :
-                Some(zant::Str::from("conditions")), text :
+                Sum::build(_Object2 { values : self.items.clone(), }, tsx::site_id(0,
+                "Sum", 1)), ui::button(ui::ButtonOptions { key :
+                Some(zant::Str::from("classic")), text : zant::Str::from("For"), on_click
+                : Some(ui::action(| s : & mut App | s.classic())), ..Default::default()
+                }), ui::button(ui::ButtonOptions { key : Some(zant::Str::from("each")),
+                text : zant::Str::from("For of"), on_click : Some(ui::action(| s : & mut
+                App | s.each())), ..Default::default() }), ui::button(ui::ButtonOptions {
+                key : Some(zant::Str::from("conditions")), text :
                 zant::Str::from("While and do"), on_click : Some(ui::action(| s : & mut
                 App | s.conditions())), ..Default::default() }),
                 ui::button(ui::ButtonOptions { key : Some(zant::Str::from("select")),

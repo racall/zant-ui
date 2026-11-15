@@ -131,6 +131,7 @@ impl tsx::hot::Hot for PanelProps {
 }
 pub struct TodoRow {
     props: TodoRowProps_,
+    _id: u64,
     _state: std::rc::Weak<std::cell::RefCell<TodoRow>>,
 }
 pub type TodoRowProps_ = RowProps;
@@ -138,6 +139,7 @@ impl Default for TodoRow {
     fn default() -> Self {
         Self {
             props: Default::default(),
+            _id: 0,
             _state: Default::default(),
         }
     }
@@ -152,12 +154,17 @@ impl tsx::hot::Hot for TodoRow {
     }
 }
 impl TodoRow {
-    pub fn build(props: TodoRowProps_) -> ui::Node {
-        let mut instance = TodoRow {
-            props: props,
-            _state: Default::default(),
-        };
-        instance.render()
+    pub fn build(props: TodoRowProps_, id: u64) -> ui::Node {
+        let state: std::rc::Rc<std::cell::RefCell<TodoRow>> = ui::local_state::local_state_hot::<
+            TodoRow,
+        >(id, TodoRow::default);
+        {
+            let mut instance = state.borrow_mut();
+            instance.props = props;
+            instance._id = id;
+            instance._state = std::rc::Rc::downgrade(&state);
+            instance.render()
+        }
     }
     pub fn render(&mut self) -> ui::Node {
         return ui::row(ui::BoxOptions {
@@ -328,11 +335,12 @@ impl ui::App for App {
                 let _root = _cx.state::< App > (); App::toggle(_root, _a0) } }), onRemove
                 : std::rc::Rc::new({ move | _cx : & mut ui::ActionCx <'_ >, _a0 : u32 | {
                 let _root = _cx.state::< App > (); App::_onRemove4(_root, _a0) } }),
-                ..Default::default() }), zant::Str::copy(& format!("{}", t.clone().id)))
-                }).collect::< Vec < _ >> ()) }).as_slice().to_vec(), if
-                tsx::utf16_length((self.last.clone()).as_str()) > 0usize {
-                Some(ui::text(zant::Str::copy(& format!("Last: {}", self.last.clone())),
-                ui::TextOptions { ..Default::default() })) } else { None }]), })
+                ..Default::default() }, tsx::child_id(0, "TodoRow", t.clone().id)),
+                zant::Str::copy(& format!("{}", t.clone().id))) }).collect::< Vec < _ >>
+                ()) }).as_slice().to_vec(), if tsx::utf16_length((self.last.clone())
+                .as_str()) > 0usize { Some(ui::text(zant::Str::copy(& format!("Last: {}",
+                self.last.clone())), ui::TextOptions { ..Default::default() })) } else {
+                None }]), })
             ],
             ..Default::default()
         });

@@ -17,7 +17,7 @@ export function Rows(props: RowsProps) {
       keyExtractor={(d) => d.row}
       itemHeight={40}
       height={120}
-      renderItem={(d) => <Row entry={d} onPick={props.onPick} />}
+      renderItem={(d) => <Row key={d.row} entry={d} onPick={props.onPick} />}
     />
   );
 }
