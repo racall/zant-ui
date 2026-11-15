@@ -100,10 +100,10 @@ zant.d.ts / tsconfig.json   import … from "zant" 的类型与补全
 
 ```toml
 [dependencies]
-zant = { git = "https://github.com/racall/zant-ui", tag = "v0.2.4" }
+zant = { git = "https://github.com/racall/zant-ui", tag = "v0.2.5" }
 
 [build-dependencies]
-zant-build = { git = "https://github.com/racall/zant-ui", tag = "v0.2.4" }
+zant-build = { git = "https://github.com/racall/zant-ui", tag = "v0.2.5" }
 ```
 
 git 依赖只含源码，`zant-sys` / `zant-build` 的构建脚本从已安装的发布版
