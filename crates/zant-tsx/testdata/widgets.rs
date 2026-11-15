@@ -12,6 +12,22 @@ use zant::ui;
 pub struct _Object0 {
     pub source: zant::Str,
 }
+impl tsx::hot::Hot for _Object0 {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "source", self.source);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        if !zant::hot_get!(restore, "source", instance.source) {
+            return None;
+        }
+        Some(instance)
+    }
+}
 #[derive(Clone)]
 pub struct _Object1 {
     pub src: zant::Str,
@@ -23,6 +39,26 @@ impl Default for _Object1 {
             src: Default::default(),
             onChange: ui::Action::new(|_cx| ()),
         }
+    }
+}
+impl tsx::hot::Hot for _Object1 {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "src", self.src);
+        zant::hot_put!(snapshot, "onChange", self.onChange);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        if !zant::hot_get!(restore, "src", instance.src) {
+            return None;
+        }
+        if !zant::hot_get!(restore, "onChange", instance.onChange) {
+            return None;
+        }
+        Some(instance)
     }
 }
 pub struct Reply {
@@ -40,9 +76,18 @@ impl Default for Reply {
         }
     }
 }
+impl tsx::hot::Hot for Reply {
+    fn save(&self) -> tsx::hot::Value {
+        tsx::hot::Snapshot::new().value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        Some(Self::default())
+    }
+}
 impl Reply {
     pub fn build(props: ReplyProps_, id: u64) -> ui::Node {
-        let state: std::rc::Rc<std::cell::RefCell<Reply>> = ui::local_state::<
+        let state: std::rc::Rc<std::cell::RefCell<Reply>> = ui::local_state::local_state_hot::<
             Reply,
         >(id, Reply::default);
         {
@@ -82,9 +127,18 @@ impl Default for Document {
         }
     }
 }
+impl tsx::hot::Hot for Document {
+    fn save(&self) -> tsx::hot::Value {
+        tsx::hot::Snapshot::new().value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        Some(Self::default())
+    }
+}
 impl Document {
     pub fn build(props: DocumentProps_, id: u64) -> ui::Node {
-        let state: std::rc::Rc<std::cell::RefCell<Document>> = ui::local_state::<
+        let state: std::rc::Rc<std::cell::RefCell<Document>> = ui::local_state::local_state_hot::<
             Document,
         >(id, Document::default);
         {
@@ -126,6 +180,26 @@ impl Default for App {
         }
     }
 }
+impl tsx::hot::Hot for App {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "source", self.source);
+        zant::hot_put!(snapshot, "path", self.path);
+        zant::hot_put!(snapshot, "visible", self.visible);
+        zant::hot_put!(snapshot, "changes", self.changes);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        zant::hot_get!(restore, "source", instance.source);
+        zant::hot_get!(restore, "path", instance.path);
+        zant::hot_get!(restore, "visible", instance.visible);
+        zant::hot_get!(restore, "changes", instance.changes);
+        Some(instance)
+    }
+}
 impl App {
     fn _on_change1(&mut self) {
         let changes: f64 = self.changes;
@@ -159,5 +233,20 @@ impl ui::App for App {
             ],
             ..Default::default()
         });
+    }
+    fn hot_save(&self) -> Option<String> {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "source", self.source);
+        zant::hot_put!(snapshot, "path", self.path);
+        zant::hot_put!(snapshot, "visible", self.visible);
+        zant::hot_put!(snapshot, "changes", self.changes);
+        Some(snapshot.finish())
+    }
+    fn hot_load(&mut self, state: &str) {
+        let restore = tsx::hot::Restore::parse(state);
+        zant::hot_get!(restore, "source", self.source);
+        zant::hot_get!(restore, "path", self.path);
+        zant::hot_get!(restore, "visible", self.visible);
+        zant::hot_get!(restore, "changes", self.changes);
     }
 }

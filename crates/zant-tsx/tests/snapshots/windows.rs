@@ -53,9 +53,23 @@ impl Default for Panel {
         }
     }
 }
+impl tsx::hot::Hot for Panel {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "shown", self.shown);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        zant::hot_get!(restore, "shown", instance.shown);
+        Some(instance)
+    }
+}
 impl Panel {
     pub fn build(props: PanelProps_, id: u64) -> ui::Node {
-        let state: std::rc::Rc<std::cell::RefCell<Panel>> = ui::local_state::<
+        let state: std::rc::Rc<std::cell::RefCell<Panel>> = ui::local_state::local_state_hot::<
             Panel,
         >(id, Panel::default);
         {
@@ -121,6 +135,15 @@ impl Default for App {
         Self {}
     }
 }
+impl tsx::hot::Hot for App {
+    fn save(&self) -> tsx::hot::Value {
+        tsx::hot::Snapshot::new().value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        Some(Self::default())
+    }
+}
 impl App {
     fn _on_click3(&mut self) {
         panel_with(|window| window.toggle());
@@ -142,5 +165,12 @@ impl App {
 impl ui::App for App {
     fn render(&mut self) -> ui::Node {
         return ui::text("stub", ui::TextOptions::default());
+    }
+    fn hot_save(&self) -> Option<String> {
+        let snapshot = tsx::hot::Snapshot::new();
+        Some(snapshot.finish())
+    }
+    fn hot_load(&mut self, state: &str) {
+        let _restore = tsx::hot::Restore::parse(state);
     }
 }

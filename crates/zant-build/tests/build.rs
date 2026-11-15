@@ -161,12 +161,7 @@ fn tsx_app_in_writes_the_generated_project_into_out_dir() {
     assert_eq!(config.window.background, 0xff10_1010);
 
     // Every input is in the rerun set, absolute so cargo can watch it.
-    for expected in [
-        "src/App.tsx",
-        "src/components/Greeting.tsx",
-        "src/main.rs",
-        "src/app_config.rs",
-    ] {
+    for expected in ["src/App.tsx", "src/components/Greeting.tsx"] {
         assert!(
             report
                 .sources
@@ -340,7 +335,10 @@ fn the_directives_cover_the_rerun_set() {
     let has = |expected: &str| directives.iter().any(|line| line.contains(expected));
 
     // The build script itself, then the project directories (new files).
-    assert!(has("cargo:rerun-if-changed=build.rs"), "{directives:?}");
+    assert!(
+        has("cargo:rerun-if-changed=native/build.rs"),
+        "{directives:?}"
+    );
     for directory in ["src", "native", "assets"] {
         assert!(
             has(&format!(
@@ -356,7 +354,10 @@ fn the_directives_cover_the_rerun_set() {
         has("cargo:rerun-if-changed=src/components/Greeting.tsx"),
         "{directives:?}"
     );
-    assert!(has("cargo:rerun-if-changed=src/main.rs"), "{directives:?}");
+    assert!(
+        has("cargo:rerun-if-changed=native/build.rs"),
+        "{directives:?}"
+    );
     assert!(
         has(&format!(
             "cargo:rerun-if-changed={}",
@@ -376,17 +377,15 @@ fn the_directives_cover_the_rerun_set() {
 }
 
 #[test]
-fn a_project_without_the_generated_config_warns_about_zant_sync() {
+fn config_is_generated_without_needing_zant_sync() {
     let root = temp_dir("directives-config");
     copy_tree(&fixture_root(), &root);
-    std::fs::remove_file(root.join("src/app_config.rs")).expect("remove app_config.rs");
+
     let out = temp_dir("directives-config-out");
     let report = zant_build::tsx_app_in(&root, &out).expect("compile");
     let directives = zant_build::cargo_directives(&report, &root);
     assert!(
-        directives
-            .iter()
-            .any(|line| line.contains("src/app_config.rs is missing") && line.contains("zant sync")),
+        directives.iter().all(|line| !line.contains("zant sync")),
         "{directives:?}"
     );
     let _ = std::fs::remove_dir_all(&root);
@@ -418,7 +417,7 @@ fn native_specs_become_the_apps_generated_spec_module() {
     // handwritten `native/<name>.rs` implementations), not into `$OUT_DIR`:
     // the app declares `pub mod spec;` in `native/lib.rs`.
     let spec_path = report.spec_module.clone().expect("the spec module path");
-    assert_eq!(root.join("native/spec.rs"), spec_path);
+    assert_eq!(out.join("zant_app.rs"), spec_path);
     let spec = read(&spec_path);
     assert!(spec.contains("pub mod clip"), "{spec}");
     assert!(spec.contains("pub struct Clip"), "{spec}");
@@ -454,10 +453,9 @@ fn native_specs_become_the_apps_generated_spec_module() {
     );
     let directives = zant_build::cargo_directives(&report, &root);
     assert!(
-        directives
+        !directives
             .iter()
-            .any(|line| line.contains(&spec_path.display().to_string())),
-        "{directives:?}"
+            .any(|line| line.contains(&spec_path.display().to_string()))
     );
 
     // The write is idempotent in content: a stale file is regenerated, and a
@@ -481,3 +479,6 @@ fn an_app_without_native_specs_gets_no_spec_module() {
     let _ = std::fs::remove_dir_all(&root);
     let _ = std::fs::remove_dir_all(&out);
 }
+
+#[path = "support/entry_checks.rs"]
+mod entry_checks;

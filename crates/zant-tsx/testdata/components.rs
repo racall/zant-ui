@@ -26,6 +26,28 @@ impl Default for Components {
         }
     }
 }
+impl tsx::hot::Hot for Components {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "index", self.index);
+        zant::hot_put!(snapshot, "narrow", self.narrow);
+        zant::hot_put!(snapshot, "real", self.real);
+        zant::hot_put!(snapshot, "enabled", self.enabled);
+        zant::hot_put!(snapshot, "label", self.label);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        zant::hot_get!(restore, "index", instance.index);
+        zant::hot_get!(restore, "narrow", instance.narrow);
+        zant::hot_get!(restore, "real", instance.real);
+        zant::hot_get!(restore, "enabled", instance.enabled);
+        zant::hot_get!(restore, "label", instance.label);
+        Some(instance)
+    }
+}
 impl Components {
     fn action(&mut self) {
         {
@@ -252,5 +274,22 @@ impl ui::App for Components {
             ],
             ..Default::default()
         });
+    }
+    fn hot_save(&self) -> Option<String> {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "index", self.index);
+        zant::hot_put!(snapshot, "narrow", self.narrow);
+        zant::hot_put!(snapshot, "real", self.real);
+        zant::hot_put!(snapshot, "enabled", self.enabled);
+        zant::hot_put!(snapshot, "label", self.label);
+        Some(snapshot.finish())
+    }
+    fn hot_load(&mut self, state: &str) {
+        let restore = tsx::hot::Restore::parse(state);
+        zant::hot_get!(restore, "index", self.index);
+        zant::hot_get!(restore, "narrow", self.narrow);
+        zant::hot_get!(restore, "real", self.real);
+        zant::hot_get!(restore, "enabled", self.enabled);
+        zant::hot_get!(restore, "label", self.label);
     }
 }

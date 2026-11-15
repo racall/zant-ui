@@ -225,7 +225,11 @@ pub struct Point {
 }
 
 "#,
-        compiled.declarations
+        compiled
+            .declarations
+            .split("impl tsx::hot::Hot")
+            .next()
+            .unwrap()
     );
 }
 
@@ -459,8 +463,13 @@ impl Default for Cb {
 }
 
 "#,
-        compiled.declarations
+        compiled
+            .declarations
+            .split("impl tsx::hot::Hot")
+            .next()
+            .unwrap()
     );
+    assert!(compiled.declarations.contains("impl tsx::hot::Hot for Cb"));
     assert_contains(&compiled.functions, "pub fn make(cb: Cb) -> f64 {");
 }
 

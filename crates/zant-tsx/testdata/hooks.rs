@@ -14,13 +14,69 @@ pub struct Item {
     pub title: zant::Str,
     pub done: bool,
 }
+impl tsx::hot::Hot for Item {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "id", self.id);
+        zant::hot_put!(snapshot, "title", self.title);
+        zant::hot_put!(snapshot, "done", self.done);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        if !zant::hot_get!(restore, "id", instance.id) {
+            return None;
+        }
+        if !zant::hot_get!(restore, "title", instance.title) {
+            return None;
+        }
+        if !zant::hot_get!(restore, "done", instance.done) {
+            return None;
+        }
+        Some(instance)
+    }
+}
 #[derive(Clone, PartialEq, Default)]
 pub struct StatsProps {
     pub items: tsx::List<Item>,
 }
+impl tsx::hot::Hot for StatsProps {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "items", self.items);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        if !zant::hot_get!(restore, "items", instance.items) {
+            return None;
+        }
+        Some(instance)
+    }
+}
 #[derive(Clone, PartialEq, Default)]
 pub struct TickerProps {
     pub label: zant::Str,
+}
+impl tsx::hot::Hot for TickerProps {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "label", self.label);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        if !zant::hot_get!(restore, "label", instance.label) {
+            return None;
+        }
+        Some(instance)
+    }
 }
 pub struct Stats {
     props: StatsProps_,
@@ -41,9 +97,25 @@ impl Default for Stats {
         }
     }
 }
+impl tsx::hot::Hot for Stats {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "renders", self.renders);
+        zant::hot_put!(snapshot, "_memo2", self._memo2);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        zant::hot_get!(restore, "renders", instance.renders);
+        zant::hot_get!(restore, "_memo2", instance._memo2);
+        Some(instance)
+    }
+}
 impl Stats {
     pub fn build(props: StatsProps_, id: u64) -> ui::Node {
-        let state: std::rc::Rc<std::cell::RefCell<Stats>> = ui::local_state::<
+        let state: std::rc::Rc<std::cell::RefCell<Stats>> = ui::local_state::local_state_hot::<
             Stats,
         >(id, Stats::default);
         {
@@ -127,13 +199,31 @@ impl Default for Ticker {
         }
     }
 }
+impl tsx::hot::Hot for Ticker {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "runs", self.runs);
+        zant::hot_put!(snapshot, "_effect5", self._effect5);
+        zant::hot_put!(snapshot, "_deps6", self._deps6);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        zant::hot_get!(restore, "runs", instance.runs);
+        zant::hot_get!(restore, "_effect5", instance._effect5);
+        zant::hot_get!(restore, "_deps6", instance._deps6);
+        Some(instance)
+    }
+}
 #[derive(Clone)]
 struct _CleanupCapture3 {
     name: zant::Str,
 }
 impl Ticker {
     pub fn build(props: TickerProps_, id: u64) -> ui::Node {
-        let state: std::rc::Rc<std::cell::RefCell<Ticker>> = ui::local_state::<
+        let state: std::rc::Rc<std::cell::RefCell<Ticker>> = ui::local_state::local_state_hot::<
             Ticker,
         >(id, Ticker::default);
         {
@@ -223,6 +313,40 @@ impl Default for App {
             _effect13: Default::default(),
             _deps14: Default::default(),
         }
+    }
+}
+impl tsx::hot::Hot for App {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "items", self.items);
+        zant::hot_put!(snapshot, "query", self.query);
+        zant::hot_put!(snapshot, "loaded", self.loaded);
+        zant::hot_put!(snapshot, "nextId", self.nextId);
+        zant::hot_put!(snapshot, "lastQuery", self.lastQuery);
+        zant::hot_put!(snapshot, "cleanups", self.cleanups);
+        zant::hot_put!(snapshot, "ticking", self.ticking);
+        zant::hot_put!(snapshot, "_memo11", self._memo11);
+        zant::hot_put!(snapshot, "_deps12", self._deps12);
+        zant::hot_put!(snapshot, "_effect13", self._effect13);
+        zant::hot_put!(snapshot, "_deps14", self._deps14);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        zant::hot_get!(restore, "items", instance.items);
+        zant::hot_get!(restore, "query", instance.query);
+        zant::hot_get!(restore, "loaded", instance.loaded);
+        zant::hot_get!(restore, "nextId", instance.nextId);
+        zant::hot_get!(restore, "lastQuery", instance.lastQuery);
+        zant::hot_get!(restore, "cleanups", instance.cleanups);
+        zant::hot_get!(restore, "ticking", instance.ticking);
+        zant::hot_get!(restore, "_memo11", instance._memo11);
+        zant::hot_get!(restore, "_deps12", instance._deps12);
+        zant::hot_get!(restore, "_effect13", instance._effect13);
+        zant::hot_get!(restore, "_deps14", instance._deps14);
+        Some(instance)
     }
 }
 #[derive(Clone)]
@@ -350,5 +474,34 @@ impl ui::App for App {
             ],
             ..Default::default()
         });
+    }
+    fn hot_save(&self) -> Option<String> {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "items", self.items);
+        zant::hot_put!(snapshot, "query", self.query);
+        zant::hot_put!(snapshot, "loaded", self.loaded);
+        zant::hot_put!(snapshot, "nextId", self.nextId);
+        zant::hot_put!(snapshot, "lastQuery", self.lastQuery);
+        zant::hot_put!(snapshot, "cleanups", self.cleanups);
+        zant::hot_put!(snapshot, "ticking", self.ticking);
+        zant::hot_put!(snapshot, "_memo11", self._memo11);
+        zant::hot_put!(snapshot, "_deps12", self._deps12);
+        zant::hot_put!(snapshot, "_effect13", self._effect13);
+        zant::hot_put!(snapshot, "_deps14", self._deps14);
+        Some(snapshot.finish())
+    }
+    fn hot_load(&mut self, state: &str) {
+        let restore = tsx::hot::Restore::parse(state);
+        zant::hot_get!(restore, "items", self.items);
+        zant::hot_get!(restore, "query", self.query);
+        zant::hot_get!(restore, "loaded", self.loaded);
+        zant::hot_get!(restore, "nextId", self.nextId);
+        zant::hot_get!(restore, "lastQuery", self.lastQuery);
+        zant::hot_get!(restore, "cleanups", self.cleanups);
+        zant::hot_get!(restore, "ticking", self.ticking);
+        zant::hot_get!(restore, "_memo11", self._memo11);
+        zant::hot_get!(restore, "_deps12", self._deps12);
+        zant::hot_get!(restore, "_effect13", self._effect13);
+        zant::hot_get!(restore, "_deps14", self._deps14);
     }
 }

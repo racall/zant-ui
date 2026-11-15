@@ -15,6 +15,34 @@ pub struct Todo {
     pub done: bool,
     pub note: Option<zant::Str>,
 }
+impl tsx::hot::Hot for Todo {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "id", self.id);
+        zant::hot_put!(snapshot, "title", self.title);
+        zant::hot_put!(snapshot, "done", self.done);
+        zant::hot_put!(snapshot, "note", self.note);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        if !zant::hot_get!(restore, "id", instance.id) {
+            return None;
+        }
+        if !zant::hot_get!(restore, "title", instance.title) {
+            return None;
+        }
+        if !zant::hot_get!(restore, "done", instance.done) {
+            return None;
+        }
+        if !zant::hot_get!(restore, "note", instance.note) {
+            return None;
+        }
+        Some(instance)
+    }
+}
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Filter {
     #[default]
@@ -28,6 +56,19 @@ impl Filter {
             Filter::All => "all",
             Filter::Active => "active",
             Filter::Done => "done",
+        }
+    }
+}
+impl tsx::hot::Hot for Filter {
+    fn save(&self) -> tsx::hot::Value {
+        tsx::hot::Value::from(self.as_str())
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        match value.as_str()? {
+            "all" => Some(Self::All),
+            "active" => Some(Self::Active),
+            "done" => Some(Self::Done),
+            _ => None,
         }
     }
 }
@@ -45,6 +86,26 @@ impl Default for Todos {
             nextId: 1.0f64,
             filter: Filter::All,
         }
+    }
+}
+impl tsx::hot::Hot for Todos {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "todos", self.todos);
+        zant::hot_put!(snapshot, "name", self.name);
+        zant::hot_put!(snapshot, "nextId", self.nextId);
+        zant::hot_put!(snapshot, "filter", self.filter);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        zant::hot_get!(restore, "todos", instance.todos);
+        zant::hot_get!(restore, "name", instance.name);
+        zant::hot_get!(restore, "nextId", instance.nextId);
+        zant::hot_get!(restore, "filter", instance.filter);
+        Some(instance)
     }
 }
 #[derive(Clone)]
@@ -241,5 +302,20 @@ impl ui::App for Todos {
             ],
             ..Default::default()
         });
+    }
+    fn hot_save(&self) -> Option<String> {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "todos", self.todos);
+        zant::hot_put!(snapshot, "name", self.name);
+        zant::hot_put!(snapshot, "nextId", self.nextId);
+        zant::hot_put!(snapshot, "filter", self.filter);
+        Some(snapshot.finish())
+    }
+    fn hot_load(&mut self, state: &str) {
+        let restore = tsx::hot::Restore::parse(state);
+        zant::hot_get!(restore, "todos", self.todos);
+        zant::hot_get!(restore, "name", self.name);
+        zant::hot_get!(restore, "nextId", self.nextId);
+        zant::hot_get!(restore, "filter", self.filter);
     }
 }

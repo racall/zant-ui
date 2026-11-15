@@ -64,7 +64,7 @@ impl Counter {
 }
 ```
 
-`src/main.rs` 里用 `zant::tsx::app::run::<Counter>(..)` 就能运行（见模板的 `src/main.rs`）。
+应用中由 `native/main.rs` 的 `zant::app!()` 引入生成的运行入口。
 
 TSX 只是静态类型的 **TypeScript 子集**：能编译的代码在 TS 里语义相同；用到子集之外的语法时，
 编译器在 `.tsx` 的行列上报错，不会生成半成品。实现参考了 esbuild（解析）、Babel（JSX 文本空白规则）、
@@ -79,44 +79,25 @@ zant-tsx in.tsx out.rs                 # 单文件
 zant-tsx --out <目录> a.tsx b.tsx …    # 多文件项目（每个 .tsx 一个同名 .rs）
 ```
 
-**整个应用用 TS + TSX 写**时由应用的 `build.rs` 调用 `zant_build::tsx_app()`：
-`src/**/*.tsx` 生成到 `$OUT_DIR`（每个文件一个 `<文件名>.rs`，另写成 `main.rs` 声明这些模块的
-`#[path] mod …;`），`src/main.rs` 在 crate 根 `include!` 那个 `main.rs`，所以
-`src/App.tsx` 就是 `crate::app`。`native/*.ts` 规范生成 `native/spec.rs`（写进应用的 `native/` 目录，
-生成文件、已 gitignore；`native/lib.rs` 声明 `pub mod spec;`），TSX 里的 `native/<名字>` 调用编译成
-对 `native/<名字>.rs` 实现的 trait 方法调用。图标、Windows manifest、`pdfium.dll` 也在这一步处理，
-并打印 `cargo:rerun-if-changed`（`.tsx`、`native/`、`app.config.json`）。
-窗口标题、尺寸等配置来自 `app.config.json`（`zant` 生成 `src/app_config.rs`），项目里不用手写入口。
+**整个应用用 TS + TSX 写**时，`src/` 只放 `.tsx` / `.ts`，Rust 统一放在 `native/`。
+`Cargo.toml` 设置 `build = "native/build.rs"` 和 `[[bin]] path = "native/main.rs"`。
+
+```rust
+// native/main.rs
+zant::app!();
+```
+
+```rust
+// native/build.rs
+fn main() { zant_build::tsx_app(); }
+```
+
+构建器将组件、配置与规范编译到 `$OUT_DIR`。`zant_app.rs` 包含 `app_config`、
+`native::spec`、原生模块声明与自动注册、TSX 模块声明；`zant_main.rs` 先注册再启动，
+`zant_hot.rs` 先注册再 prepare（热重载库通过 `zant::hot_app!()` 引入）。
+`src/App.tsx` 对应 `crate::app`，原生实现沿用 `crate::native::spec::<名字>` 路径。
+不生成项目内的 Rust 文件，也不需要模块清单。图标与 Windows 资源仍由构建器处理。
 主题默认跟随系统，`ZANT_THEME=light|dark` 可以固定。
-
-```rust
-// src/main.rs（模板生成，通常不用改）
-mod app_config;
-
-#[path = "../native/lib.rs"]
-mod native;
-
-// 每个 src/**/*.tsx 一个模块（`crate::app` 是根组件），外加 `native/spec.rs`。
-include!(concat!(env!("OUT_DIR"), "/main.rs"));
-
-fn main() -> zant::Result<()> {
-    native::register();
-    zant::tsx::app::run::<crate::app::App>(zant::tsx::app::Config {
-        title: app_config::title.to_string(),
-        window: app_config::window,
-        bundle_id: app_config::bundle_id.to_string(),
-        single_instance: app_config::single_instance,
-        watch_clipboard: false,
-    })
-}
-```
-
-```rust
-// build.rs
-fn main() {
-    zant_build::tsx_app();
-}
-```
 
 ### 新建 TS 项目
 
@@ -125,16 +106,20 @@ zant create my-app          # 交互式
 zant create my-app --yes    # 非交互，适合 CI
 cd my-app
 zant run
-zant run --watch
+zant run --watch       # 可选：旧重启模式
+zant run --no-hot      # 可选：运行一次
 ```
 
 TS 模板在 `scaffold/template-ts/`：`src/App.tsx` 是根组件，`src/components/` 演示父子组件的 props 与
 回调；根组件持有输入值和计数，子组件只发事件。主题通过 `useTheme()` 跟随系统。
 `src/App.tsx` 存在即被识别为 TS 项目。完整脚手架说明见 [脚手架](scaffold.md)。
 
-`zant run --watch` 监听 src/ 任意深度的 `.tsx`、`.ts`、`.rs` 及 `native/`、配置文件，改动后重新编译并重启，
-内存状态会重建。编译错误保留 `文件:行:列: error:` 原始诊断；编译失败时的窗口行为和沙盒限制见
-[脚手架](scaffold.md)。无 GUI 冒烟：`scripts/tsx/create-smoke.sh`。
+`zant run` 默认热刷新：TSX / `native/` 修改后窗口与宿主 PID 保持不变，根状态按字段名、
+组件本地状态按实例恢复；稳定 key 的滚动、焦点、输入光标与选区也会恢复。类型不兼容只重置对应字段。
+`Cargo.toml` / `app.config.json` 改动会重启；`--watch` 显式选择重启模式，`--no-hot` 运行一次。
+编译失败时错误面板覆盖仍运行的 UI，修复后刷新。`createStore`、任意 Rust 全局状态和外部资源不自动恢复。
+完整行为、沙盒与旧库映射的限制见 [脚手架](scaffold.md#热更新)，调试开关见
+[开发指南](development.md#热刷新验证)。无 GUI 创建冒烟：`scripts/tsx/create-smoke.sh`。
 
 ### 编辑器类型
 
@@ -699,7 +684,7 @@ const insets = titlebarInsets();           // { left, right }：隐藏标题栏�
   `show` / `hide` / `activate` / `focus`）只能在事件处理函数和 effect 里调用，渲染时调用会报错；读取类函数在哪里都能用。
 - 返回的字符串在 Rust 里是 `zant::Str` / `String`，存进 state 时会被复制。
 - 单实例：`app.config.json` 里写 `"single_instance": true`，第二次打开应用时会把已运行的实例带到前面。
-  模板的 `src/main.rs` 把 `app_config::single_instance` 传给 `zant::tsx::app::Config`。
+  生成的 `zant_main.rs` 把 `app_config::single_instance` 传给 `zant::tsx::app::Config`。
 
 ### 定时器：`setTimeout` / `clearTimeout`
 
@@ -760,7 +745,7 @@ useTray({ icon: trayIcon, template: true, tooltip: "ClipHop" });
 ### 原生模块：`native/`（推荐）
 
 `src/` 只放 TS/TSX，Rust 代码放到 `native/`：`native/clips.ts` 用 `export declare function` 和类型
-写接口规范，`native/clips.rs` 按规范实现，`native/lib.rs` 登记模块；TSX 里
+写接口规范，`native/clips.rs` 按规范实现，构建器自动登记模块；TSX 里
 `import { copy } from "native/clips"` 直接调用，编译时由 trait 检查实现和规范是否一致。
 详见 [tsx-native.md](tsx-native.md)。
 
@@ -781,8 +766,7 @@ import { plural } from "./format.rs";
 原生模块需要进程的 I/O、环境变量或长期内存时写成 `native/` 模块（见 [tsx-native.md](tsx-native.md)），
 不要用 `.rs` 函数的返回值裸指针。
 
-把 `.rs` 文件也加进多文件编译（`zant-tsx --out <目录> App.tsx format.rs`），或让 `build.rs` 的
-`tsx_app()` 扫描 `src/**/*.rs`。编译器用 `syn` 读取签名，把手写文件原样复制到生成文件旁边；
+把 `.rs` 文件也加进多文件编译（`zant-tsx --out <目录> App.tsx format.rs`），独立编译器支持这种导入；应用的 `tsx_app()` 不允许 `src/` 放 Rust，请用 `native/*.ts` 规范。编译器用 `syn` 读取签名，把手写文件原样复制到生成文件旁边；
 `format.tsx` 和 `format.rs` 输出重名会报错。单文件模式（`in.tsx out.rs`）不支持 Rust 导入。
 
 ### 从 Rust 导入类型

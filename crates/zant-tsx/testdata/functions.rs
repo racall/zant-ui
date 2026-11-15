@@ -12,9 +12,41 @@ use zant::ui;
 pub struct Prefs {
     pub unit: zant::Str,
 }
+impl tsx::hot::Hot for Prefs {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "unit", self.unit);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        if !zant::hot_get!(restore, "unit", instance.unit) {
+            return None;
+        }
+        Some(instance)
+    }
+}
 #[derive(Clone, PartialEq, Default)]
 pub struct _Object2 {
     pub count: f64,
+}
+impl tsx::hot::Hot for _Object2 {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "count", self.count);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        if !zant::hot_get!(restore, "count", instance.count) {
+            return None;
+        }
+        Some(instance)
+    }
 }
 thread_local! {
     static PREFS : std::cell::RefCell < zant::store::Store < Prefs >> =
@@ -84,6 +116,15 @@ impl Default for Badge {
         }
     }
 }
+impl tsx::hot::Hot for Badge {
+    fn save(&self) -> tsx::hot::Value {
+        tsx::hot::Snapshot::new().value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        Some(Self::default())
+    }
+}
 impl Badge {
     pub fn build(props: BadgeProps_) -> ui::Node {
         let mut instance = Badge {
@@ -108,6 +149,20 @@ pub struct App {
 impl Default for App {
     fn default() -> Self {
         Self { count: 0.0f64 }
+    }
+}
+impl tsx::hot::Hot for App {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "count", self.count);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        zant::hot_get!(restore, "count", instance.count);
+        Some(instance)
     }
 }
 impl App {
@@ -147,5 +202,14 @@ impl ui::App for App {
             ],
             ..Default::default()
         });
+    }
+    fn hot_save(&self) -> Option<String> {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "count", self.count);
+        Some(snapshot.finish())
+    }
+    fn hot_load(&mut self, state: &str) {
+        let restore = tsx::hot::Restore::parse(state);
+        zant::hot_get!(restore, "count", self.count);
     }
 }

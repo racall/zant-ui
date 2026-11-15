@@ -13,6 +13,26 @@ pub struct ButtonLook {
     pub variant: _Enum1,
     pub size: _Enum2,
 }
+impl tsx::hot::Hot for ButtonLook {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "variant", self.variant);
+        zant::hot_put!(snapshot, "size", self.size);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        if !zant::hot_get!(restore, "variant", instance.variant) {
+            return None;
+        }
+        if !zant::hot_get!(restore, "size", instance.size) {
+            return None;
+        }
+        Some(instance)
+    }
+}
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum _Enum1 {
     #[default]
@@ -24,6 +44,18 @@ impl _Enum1 {
         match self {
             _Enum1::Primary => "primary",
             _Enum1::Default => "default",
+        }
+    }
+}
+impl tsx::hot::Hot for _Enum1 {
+    fn save(&self) -> tsx::hot::Value {
+        tsx::hot::Value::from(self.as_str())
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        match value.as_str()? {
+            "primary" => Some(Self::Primary),
+            "default" => Some(Self::Default),
+            _ => None,
         }
     }
 }
@@ -41,10 +73,42 @@ impl _Enum2 {
         }
     }
 }
+impl tsx::hot::Hot for _Enum2 {
+    fn save(&self) -> tsx::hot::Value {
+        tsx::hot::Value::from(self.as_str())
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        match value.as_str()? {
+            "small" => Some(Self::Small),
+            "middle" => Some(Self::Middle),
+            _ => None,
+        }
+    }
+}
 #[derive(Clone, PartialEq, Default)]
 pub struct CardProps {
     pub title: zant::Str,
     pub count: f64,
+}
+impl tsx::hot::Hot for CardProps {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "title", self.title);
+        zant::hot_put!(snapshot, "count", self.count);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        if !zant::hot_get!(restore, "title", instance.title) {
+            return None;
+        }
+        if !zant::hot_get!(restore, "count", instance.count) {
+            return None;
+        }
+        Some(instance)
+    }
 }
 pub struct Card {
     props: CardProps_,
@@ -57,6 +121,15 @@ impl Default for Card {
             props: Default::default(),
             _state: Default::default(),
         }
+    }
+}
+impl tsx::hot::Hot for Card {
+    fn save(&self) -> tsx::hot::Value {
+        tsx::hot::Snapshot::new().value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        Some(Self::default())
     }
 }
 impl Card {
@@ -88,6 +161,20 @@ pub struct App {
 impl Default for App {
     fn default() -> Self {
         Self { n: 0.0f64 }
+    }
+}
+impl tsx::hot::Hot for App {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "n", self.n);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        zant::hot_get!(restore, "n", instance.n);
+        Some(instance)
     }
 }
 impl App {
@@ -133,5 +220,14 @@ impl ui::App for App {
             ],
             ..Default::default()
         });
+    }
+    fn hot_save(&self) -> Option<String> {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "n", self.n);
+        Some(snapshot.finish())
+    }
+    fn hot_load(&mut self, state: &str) {
+        let restore = tsx::hot::Restore::parse(state);
+        zant::hot_get!(restore, "n", self.n);
     }
 }

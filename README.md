@@ -24,7 +24,7 @@ Zant UI 是一个原生桌面 UI 框架。界面用 **TSX** 写，在编译期�
 | **完整的组件** | 按 Ant Design 5 实现的按钮、表单、选择器、标签页、对话框、菜单、虚拟列表等，浅色 / 深色主题，antd 风格的过渡动效 |
 | **富内容** | Markdown（流式渲染，适合 AI 对话）、LaTeX 公式与化学式、Mermaid 图、代码高亮、可批注的 PDF 阅读器、跨节点选择复制 |
 | **桌面能力** | 多窗口与快捷面板、托盘 / 菜单栏、全局快捷键、剪贴板（文字 / 图片 / 文件）、开机启动、单实例、SQLite 持久化 |
-| **从开发到发布** | `zant create` 生成项目，`zant run --watch` 热更新，`zant build` 一条命令完成签名、公证、DMG / 安装包，或提交商店 |
+| **从开发到发布** | `zant create` 生成项目，`zant run` 原地热刷新，`zant build` 一条命令完成签名、公证、DMG / 安装包，或提交商店 |
 | **为 AI 编程准备** | 生成的项目自带 `DESIGN.md`、`AGENTS.md`、`CLAUDE.md`，Codex / Claude Code 按框架约定写代码 |
 
 ## 安装
@@ -78,15 +78,13 @@ cd my-app
 my-app/
   app.config.json          标题、应用标识、版本、窗口大小与风格
   Cargo.toml               单个 Cargo package（zant / zant-build 是相对路径依赖）
-  build.rs                 zant_build::tsx_app()：TSX → OUT_DIR/app.rs
+  native/build.rs          zant_build::tsx_app()：编译并生成入口到 OUT_DIR
   rust-toolchain.toml      stable 工具链
-  src/main.rs              入口：include 生成的组件树、注册原生模块、启动
+  native/main.rs           一行 zant::app!();，生成入口与注册
   src/App.tsx              根组件：界面和业务逻辑都用 TSX
   src/components/*.tsx     业务组件（props + 回调）
-  src/app_config.rs        由 zant 从 app.config.json 生成，不要手改
   native/system.ts         原生模块规范（类型 + export declare function）
   native/system.rs         原生模块的 Rust 实现
-  native/lib.rs            原生模块清单与注册
   assets/icons/            应用图标、托盘 / 菜单栏图标（两端规范的默认图标，可替换）
   zant.d.ts tsconfig.json  import … from "zant" 的类型与补全
   DESIGN.md AGENTS.md CLAUDE.md   给 AI 编程助手的设计与开发规范
@@ -96,8 +94,17 @@ my-app/
 
 ```bash
 zant run              # 编译并运行
-zant run --watch      # 改代码后自动重新编译、重启
+zant run              # 保存后原地刷新，保留窗口与兼容状态
+zant run --watch      # 可选：旧重启模式
+zant run --no-hot     # 可选：编译并运行一次
 ```
+
+`zant run` 按改动文件原地热刷新、重启自身或忽略，分类规则见 [热更新](docs/scaffold.md#热更新)。
+原地热刷新保留窗口，恢复兼容的组件状态及带稳定 key 的滚动、焦点、光标与选区；
+重启时状态尽量保留。编译错误显示在运行中的界面上。全局 store / Rust 资源不自动序列化，
+长时间热刷新会累积旧库映射；调试沙盒请用 `--no-hot`。
+行为与限制见 [热更新](docs/scaffold.md#热更新)，截图与计时开关见 [开发指南](docs/development.md#热刷新验证)。
+
 
 ### 3. 写界面
 
@@ -141,11 +148,11 @@ zant build --yes      # CI：不提问，密钥从环境变量读取
 | 命令 | 作用 |
 |---|---|
 | `zant create <名字>` | 生成 TSX 项目 |
-| `zant run [--watch] [--release]` | 编译并运行；`--watch` 热更新 |
+| `zant run [--watch / --no-hot] [--release]` | TSX 默认原地热刷新；`--watch` 重启，`--no-hot` 运行一次 |
 | `zant compile [--release]` | 只编译 |
 | `zant package` | 本机测试用的 .app / 程序目录 |
 | `zant build [配置文件] [--yes]` | 发布构建：签名、公证、DMG、安装包或提交商店 |
-| `zant sync` | 只重新生成 `src/app_config.rs`、Info.plist 等生成文件 |
+| `zant sync` | 只重新Info.plist 等生成文件 |
 | `zant update` | 更新 zant 和 Zant UI |
 
 沙箱 / AI 执行环境里 `~/.cargo` 不可写，仓库内的命令统一走 `./scripts/cargo.sh`
@@ -412,7 +419,7 @@ zant update               # 源码版：拉取新代码（工作区干净时）�
 
 ## 架构
 
-- 工作区是 Cargo workspace：`zant-sys`（原生 FFI / Skia 桥）、`zant`（框架）、`zant-macros`（`derive(TsxProps)` / `derive(Table)`）、`zant-tsx`（TSX → Rust 编译器）、`zant-build`（应用 `build.rs` 辅助）、`zant-cli`（`zant` 命令）、`zant-examples`（示例程序）。
+- 工作区是 Cargo workspace：`zant-sys`（原生 FFI / Skia 桥）、`zant`（框架）、`zant-macros`（`derive(TsxProps)` / `derive(Table)`）、`zant-tsx`（TSX → Rust 编译器）、`zant-build`（应用 `native/build.rs` 辅助）、`zant-cli`（`zant` 命令）、`zant-examples`（示例程序）。
 - 平台层是一套 C ABI（`crates/zant-sys/native/platform/platform.h`）：macOS 用 `NSWindow` / `NSView`，Windows 用 Win32；Skia 桥接层是可移植 C++（`crates/zant-sys/native/skia/`），平台部分（CoreText + Metal、DirectWrite + Direct3D 12）分文件实现。
 - `ui.*` 每帧构造轻量节点，Runtime 按 key 协调到保留树；`ui::memo` 跳过未变子树。
 - 节点被移除后释放并复用槽位；运行时对已释放节点的引用会被清理。
@@ -450,7 +457,7 @@ crates/zant-tsx/            TSX → Rust 编译器（lexer / parser / hooks / co
 crates/zant-build/          应用 build.rs 的辅助（TSX 编译、图标、Windows manifest）
 crates/zant-cli/            `zant` 命令：create / run / compile / package / build / sync / update
 crates/zant-examples/       示例：demo、gallery、components、markdown、stream、math、pdf
-scaffold/template-ts/       生成项目的模板（Cargo.toml + build.rs + src/App.tsx + native/）
+scaffold/template-ts/       生成项目的模板（Cargo.toml + src/App.tsx + native/{main,build}.rs）
 scripts/                    Skia 依赖、cargo 包装、帧基准闸门、发布打包、Windows 测试机脚本
 docs/                       中文文档、截图与 showcase.md
 third_party/                Skia 预编译依赖（不提交到 Git）
@@ -519,3 +526,10 @@ third_party/                Skia 预编译依赖（不提交到 Git）
 ## License
 
 MIT。Skia（BSD-3-Clause，含 HarfBuzz / ICU / libpng 等）、Windows 上的 PDFium、mhchem（Apache-2.0）、EmbedPDF（MIT）、数学字体 STIX Two Math（OFL）与 Streamdown / KaTeX 相关说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
+应用的 `src/` 只放 `.tsx` / `.ts`，所有 Rust 文件都在 `native/`。
+`Cargo.toml` 设置 `build = "native/build.rs"` 和 `[[bin]] path = "native/main.rs"`。
+构建器在 `$OUT_DIR/zant_app.rs` 生成配置、原生模块树、规范类型与注册、TSX 模块声明；
+`zant_main.rs` 启动应用，`zant_hot.rs` 提供热重载入口（`zant::hot_app!()`）。
+新增原生能力只需 `native/<名字>.ts` + `native/<名字>.rs`；顶层无规范的 `.rs` 是内部模块，
+自动声明但不注册，子目录由普通 `mod` 引入。生成代码不写回项目目录。

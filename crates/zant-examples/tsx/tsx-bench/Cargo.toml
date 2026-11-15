@@ -1,15 +1,5 @@
-# TSX benchmark workload app.
-#
-# The app renders the heavy stateful page of the TSX frame benchmark
-# (`zant-tsx-frame-bench`; the same page as `../corpus/settings.tsx`: 5
-# sections, 40 switches with their own state). It is a Cargo workspace member
-# so `cargo build --workspace` / `cargo test --workspace` build and check it;
-# `build.rs` is the template's TSX → Rust step (`../app_config_build.rs`).
-#
-# The compile-time benchmark is a separate binary (`zant-tsx-bench` in
-# `crates/zant-examples/src/bin/`); package and binary are named
-# `zant-tsx-bench-app` here so the two do not collide in `target/debug/`.
 [package]
+build = "native/build.rs"
 name = "zant-tsx-bench-app"
 version.workspace = true
 edition.workspace = true
@@ -23,3 +13,7 @@ zant.workspace = true
 
 [build-dependencies]
 zant-build.workspace = true
+
+[[bin]]
+name = "zant-tsx-bench-app"
+path = "native/main.rs"

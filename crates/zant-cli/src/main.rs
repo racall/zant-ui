@@ -257,9 +257,9 @@ pub fn ensure_rust_project(root: &str) -> std::io::Result<()> {
             "{root} 没有 Cargo.toml：zant run/compile/package 用 cargo build 构建 Cargo 应用；请用 zant create 生成 TSX 项目"
         ));
     }
-    if project::is_tsx_app(root) && !Path::new(root).join("build.rs").is_file() {
+    if project::is_tsx_app(root) && !Path::new(root).join("native/build.rs").is_file() {
         fail(format!(
-            "{root} 是 TSX 应用（src/App.tsx）但没有 build.rs：TSX → Rust 的编译由应用的 build.rs 调用 `zant_build::tsx_app()` 完成（把 src/**/*.tsx 生成到 OUT_DIR，由 src/main.rs include!）；请用 `zant create` 生成模板，或参照 scaffold/template-ts/build.rs 补上 build.rs"
+            "{root} 是 TSX 应用（src/App.tsx）但没有 native/build.rs：TSX → Rust 的编译由应用的 build.rs 调用 `zant_build::tsx_app()` 完成（把 src/**/*.tsx 生成到 OUT_DIR，由 native/main.rs 的 zant::app!() 引入）；请用 `zant create` 生成模板，或参照 scaffold/template-ts/native/build.rs 补上 build.rs"
         ));
     }
     Ok(())

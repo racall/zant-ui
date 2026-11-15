@@ -3,7 +3,7 @@
 //! A helper the TSX code cannot express lives where the rest of an app's
 //! Rust lives — a native module. The spec is the single source of truth
 //! for the interface: `build.rs` compiles `native/format.ts` into
-//! `native/spec.rs` (`crate::native::spec::format`), which holds the
+//! `OUT_DIR/zant_app.rs` (`crate::native::spec::format`), which holds the
 //! `FormatSpec` trait; this file implements it and TSX calls the function
 //! directly — no bridge, no serialization. A missing or mistyped function is
 //! a rustc error at the `impl`.

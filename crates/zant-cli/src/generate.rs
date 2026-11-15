@@ -1,7 +1,7 @@
-//! Config generation: `app_config.rs` / `Info.plist` / `app.entitlements`
+//! Platform generation: `Info.plist` / `app.entitlements`
 //! writers, the macOS section completion and the XML / JSON escaping helpers.
 
-use crate::app_config::{self, AppConfig};
+use crate::app_config::AppConfig;
 use crate::{escape_json, fail, ok, read_text, write_file};
 use std::path::Path;
 
@@ -127,20 +127,7 @@ pub fn entitlements_plist(cfg: &AppConfig, store_team: Option<&str>) -> String {
     out
 }
 
-/// `src/app_config.rs` (both platforms) for every Rust project, including TSX
-/// apps: their `src/main.rs` reads the generated constants, while
-/// `zant_build::tsx_app()` only compiles `src/**/*.tsx` into `OUT_DIR`.
-pub fn write_config_source(root: &str, cfg: &AppConfig) -> std::io::Result<()> {
-    let source = app_config::source(cfg);
-    write_generated(
-        &Path::new(root).join("src/app_config.rs"),
-        source.as_bytes(),
-    )
-}
-
-/// Writes a generated file only when its content changed: an unchanged mtime
-/// keeps `zant run --watch` (which watches src/) from seeing its own
-/// regenerated src/app_config.rs as an edit and rebuilding in a loop.
+/// Writes a generated platform file only when its contents change.
 pub fn write_generated(path: &Path, data: &[u8]) -> std::io::Result<()> {
     if let Ok(old) = crate::read_file(path)
         && old == data
@@ -150,11 +137,10 @@ pub fn write_generated(path: &Path, data: &[u8]) -> std::io::Result<()> {
     write_file(path, data)
 }
 
-/// Generated files for building on this platform: src/app_config.rs, plus
-/// Info.plist and app.entitlements on macOS.
+/// Generate Info.plist and app.entitlements on macOS.
 pub fn sync_project(root: &str, cfg: &AppConfig) -> std::io::Result<()> {
-    write_config_source(root, cfg)?;
     if crate::IS_WINDOWS {
+        crate::dim_line("本平台无需重新生成打包文件；Rust 配置由 Cargo 构建时生成到 OUT_DIR");
         return Ok(()); // Info.plist and entitlements are macOS bundle files
     }
     let plist = generate_info_plist(cfg);
@@ -469,17 +455,8 @@ mod tests {
         )
         .expect("parse");
         sync_project(root.to_str().unwrap(), &cfg).expect("sync");
-        let generated = root.join("src/app_config.rs");
-        assert!(generated.is_file());
-        let before = std::fs::metadata(&generated)
-            .and_then(|m| m.modified())
-            .expect("mtime");
-        std::thread::sleep(std::time::Duration::from_millis(10));
+        assert!(!root.join("src/app_config.rs").exists());
         sync_project(root.to_str().unwrap(), &cfg).expect("sync again");
-        let after = std::fs::metadata(&generated)
-            .and_then(|m| m.modified())
-            .expect("mtime");
-        assert_eq!(before, after, "unchanged generated file is not rewritten");
         if !crate::IS_WINDOWS {
             assert!(root.join("Info.plist").is_file());
         }

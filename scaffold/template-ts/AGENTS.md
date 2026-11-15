@@ -10,13 +10,12 @@
 ## 目录
 
 - `src/App.tsx`：根组件（默认导出）。界面和业务逻辑都写 TSX，自定义组件放 `src/components/*.tsx`。
-- `src/main.rs`：入口，只负责 include 生成的组件树、注册原生模块并调用 `zant::tsx::app::run`；
+- `native/main.rs`：一行 `zant::app!();`，引入构建生成的模块与入口；
   不要在这里写界面。
-- `src/app_config.rs`：由 `zant` 从 `app.config.json` 生成（`zant create` / `zant sync`），不要手改。
 - `native/<名字>.ts`：原生模块规范（唯一来源，只写类型与 `export declare function`）；
-  `native/<名字>.rs` 是 Rust 实现，`native/lib.rs` 登记并注册。示例模块是 `native/system`。
+  `native/<名字>.rs` 是 Rust 实现，构建时自动登记并注册。示例模块是 `native/system`。
   内部代码放 `native/` 的子目录；耗时工作放后台线程，不要放在渲染路径。
-- `build.rs`：调用 `zant_build::tsx_app()`，把 `src/**/*.tsx` 编译成 Rust（`OUT_DIR` 的模块 + `main.rs`）。
+- `native/build.rs`：调用 `zant_build::tsx_app()`，把 `src/**/*.tsx` 编译成 Rust（`OUT_DIR` 的模块 + `main.rs`）。
 - `Cargo.toml`：单个 Cargo package；`zant` / `zant-build` 是相对路径依赖（`zant create` 写入）。
 - `assets/icons/`：图标；代码里用 `include_bytes!("../assets/icons/<文件>")` 引用。
 - `zant.d.ts` / `tsconfig.json`：`import … from "zant"` 的类型与补全。
@@ -35,7 +34,7 @@
 zant run              # 编译并运行
 zant run --watch      # 重新编译并重启（内存状态会重建）
 zant compile          # 只编译
-zant sync             # 从 app.config.json 重新生成 src/app_config.rs
+zant sync             # 重新生成本平台的打包文件（macOS：Info.plist / entitlements）
 zant package          # 本机测试包
 zant build            # 发布构建
 cargo test            # 原生模块的 Rust 测试
@@ -45,3 +44,10 @@ cargo test            # 原生模块的 Rust 测试
 [原生模块](https://github.com/racall/zant-ui/blob/main/docs/tsx-native.md)
 [脚手架](https://github.com/racall/zant-ui/blob/main/docs/scaffold.md)
 [发布构建](https://github.com/racall/zant-ui/blob/main/docs/build.md)
+
+应用的 `src/` 只放 `.tsx` / `.ts`，所有 Rust 文件都在 `native/`。
+`Cargo.toml` 设置 `build = "native/build.rs"` 和 `[[bin]] path = "native/main.rs"`。
+构建器在 `$OUT_DIR/zant_app.rs` 生成配置、原生模块树、规范类型与注册、TSX 模块声明；
+`zant_main.rs` 启动应用，`zant_hot.rs` 提供热重载入口（`zant::hot_app!()`）。
+新增原生能力只需 `native/<名字>.ts` + `native/<名字>.rs`；顶层无规范的 `.rs` 是内部模块，
+自动声明但不注册，子目录由普通 `mod` 引入。生成代码不写回项目目录。

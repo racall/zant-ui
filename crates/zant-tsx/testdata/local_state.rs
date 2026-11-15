@@ -12,6 +12,22 @@ use zant::ui;
 pub struct CounterProps {
     pub label: zant::Str,
 }
+impl tsx::hot::Hot for CounterProps {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "label", self.label);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        if !zant::hot_get!(restore, "label", instance.label) {
+            return None;
+        }
+        Some(instance)
+    }
+}
 pub struct Counter {
     props: CounterProps_,
     _id: u64,
@@ -33,9 +49,27 @@ impl Default for Counter {
         }
     }
 }
+impl tsx::hot::Hot for Counter {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "count", self.count);
+        zant::hot_put!(snapshot, "draft", self.draft);
+        zant::hot_put!(snapshot, "log", self.log);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        zant::hot_get!(restore, "count", instance.count);
+        zant::hot_get!(restore, "draft", instance.draft);
+        zant::hot_get!(restore, "log", instance.log);
+        Some(instance)
+    }
+}
 impl Counter {
     pub fn build(props: CounterProps_, id: u64) -> ui::Node {
-        let state: std::rc::Rc<std::cell::RefCell<Counter>> = ui::local_state::<
+        let state: std::rc::Rc<std::cell::RefCell<Counter>> = ui::local_state::local_state_hot::<
             Counter,
         >(id, Counter::default);
         {
@@ -106,9 +140,18 @@ impl Default for Section {
         }
     }
 }
+impl tsx::hot::Hot for Section {
+    fn save(&self) -> tsx::hot::Value {
+        tsx::hot::Snapshot::new().value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        Some(Self::default())
+    }
+}
 impl Section {
     pub fn build(props: SectionProps_, id: u64) -> ui::Node {
-        let state: std::rc::Rc<std::cell::RefCell<Section>> = ui::local_state::<
+        let state: std::rc::Rc<std::cell::RefCell<Section>> = ui::local_state::local_state_hot::<
             Section,
         >(id, Section::default);
         {
@@ -150,9 +193,23 @@ impl Default for Feed {
         }
     }
 }
+impl tsx::hot::Hot for Feed {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "_list2", self._list2);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        zant::hot_get!(restore, "_list2", instance._list2);
+        Some(instance)
+    }
+}
 impl Feed {
     pub fn build(props: FeedProps_, id: u64) -> ui::Node {
-        let state: std::rc::Rc<std::cell::RefCell<Feed>> = ui::local_state::<
+        let state: std::rc::Rc<std::cell::RefCell<Feed>> = ui::local_state::local_state_hot::<
             Feed,
         >(id, Feed::default);
         {
@@ -201,6 +258,15 @@ impl Default for Title {
         }
     }
 }
+impl tsx::hot::Hot for Title {
+    fn save(&self) -> tsx::hot::Value {
+        tsx::hot::Snapshot::new().value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        Some(Self::default())
+    }
+}
 impl Title {
     pub fn build(props: TitleProps_) -> ui::Node {
         let mut instance = Title {
@@ -226,6 +292,20 @@ impl Default for App {
         Self {
             ids: tsx::List::from_vec(vec![1u32, 2u32]),
         }
+    }
+}
+impl tsx::hot::Hot for App {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "ids", self.ids);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        zant::hot_get!(restore, "ids", instance.ids);
+        Some(instance)
     }
 }
 impl App {
@@ -263,5 +343,14 @@ impl ui::App for App {
             ],
             ..Default::default()
         });
+    }
+    fn hot_save(&self) -> Option<String> {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "ids", self.ids);
+        Some(snapshot.finish())
+    }
+    fn hot_load(&mut self, state: &str) {
+        let restore = tsx::hot::Restore::parse(state);
+        zant::hot_get!(restore, "ids", self.ids);
     }
 }

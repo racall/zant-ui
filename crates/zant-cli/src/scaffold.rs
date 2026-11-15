@@ -165,13 +165,12 @@ mod tests {
         // sources, the Rust native modules and the shared icons / types.
         for file in [
             "Cargo.toml",
-            "build.rs",
+            "native/build.rs",
             "rust-toolchain.toml",
             ".gitignore",
-            "src/main.rs",
+            "native/main.rs",
             "src/App.tsx",
             "src/components/Dashboard.tsx",
-            "native/lib.rs",
             "native/system.rs",
             "native/system.ts",
             "assets/icons/app-macos.png",
@@ -194,16 +193,11 @@ mod tests {
             "{manifest}"
         );
         assert!(manifest.contains("[workspace]"), "{manifest}");
-        let build_rs = std::fs::read_to_string(target.join("build.rs")).expect("build.rs");
+        let build_rs =
+            std::fs::read_to_string(target.join("native/build.rs")).expect("native/build.rs");
         assert!(build_rs.contains("zant_build::tsx_app()"), "{build_rs}");
-        let main = std::fs::read_to_string(target.join("src/main.rs")).expect("main.rs");
-        // The template includes the generated module declarations at the crate
-        // root (`zant_build::tsx_app()` writes `main.rs` + the modules).
-        assert!(
-            main.contains("include!(concat!(env!(\"OUT_DIR\"), \"/main.rs\"))"),
-            "{main}"
-        );
-        assert!(main.contains("app_config::window"), "{main}");
+        let main = std::fs::read_to_string(target.join("native/main.rs")).expect("main.rs");
+        assert_eq!(main, "zant::app!();\n");
         let readme = std::fs::read_to_string(target.join("README.md")).expect("readme");
         assert!(readme.contains("com.acme.myapp"), "{readme}");
         assert!(readme.contains("My \"App\""), "{readme}");

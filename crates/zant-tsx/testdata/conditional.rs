@@ -20,6 +20,22 @@ impl Default for Conditional {
         }
     }
 }
+impl tsx::hot::Hot for Conditional {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "visible", self.visible);
+        zant::hot_put!(snapshot, "count", self.count);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        zant::hot_get!(restore, "visible", instance.visible);
+        zant::hot_get!(restore, "count", instance.count);
+        Some(instance)
+    }
+}
 impl Conditional {}
 impl ui::App for Conditional {
     fn render(&mut self) -> ui::Node {
@@ -94,5 +110,16 @@ impl ui::App for Conditional {
                 ..Default::default()
             });
         };
+    }
+    fn hot_save(&self) -> Option<String> {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "visible", self.visible);
+        zant::hot_put!(snapshot, "count", self.count);
+        Some(snapshot.finish())
+    }
+    fn hot_load(&mut self, state: &str) {
+        let restore = tsx::hot::Restore::parse(state);
+        zant::hot_get!(restore, "visible", self.visible);
+        zant::hot_get!(restore, "count", self.count);
     }
 }

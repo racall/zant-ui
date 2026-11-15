@@ -7,7 +7,7 @@ use std::path::Path;
 
 /// Config files that affect the app build (`app.config.json`, `build.rs`,
 /// `Cargo.toml`).
-pub const WATCH_FILES: [&str; 3] = ["app.config.json", "build.rs", "Cargo.toml"];
+pub const WATCH_FILES: [&str; 3] = ["app.config.json", "native/build.rs", "Cargo.toml"];
 
 /// Directories hashed recursively.
 pub const WATCH_DIRS: [&str; 2] = ["src", "native"];
@@ -16,25 +16,20 @@ pub const WATCH_DIRS: [&str; 2] = ["src", "native"];
 pub const SOURCE_EXTENSIONS: [&str; 3] = ["rs", "tsx", "ts"];
 
 fn hash_file_stamp(hasher: &mut impl Hasher, path: &Path) {
-    let Ok(metadata) = std::fs::metadata(path) else {
+    let Ok(contents) = std::fs::read(path) else {
         return;
     };
     path.to_string_lossy().hash(hasher);
-    let modified = metadata
-        .modified()
-        .ok()
-        .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    modified.hash(hasher);
-    metadata.len().hash(hasher);
+    contents.hash(hasher);
 }
 
 fn hash_tree(hasher: &mut impl Hasher, dir_path: &Path) {
     let Ok(entries) = std::fs::read_dir(dir_path) else {
         return;
     };
-    for entry in entries.flatten() {
+    let mut entries: Vec<_> = entries.flatten().collect();
+    entries.sort_by_key(|entry| entry.file_name());
+    for entry in entries {
         let path = entry.path();
         let Ok(file_type) = entry.file_type() else {
             continue;
@@ -92,11 +87,11 @@ mod tests {
             nested,
             "src/native.rs",
             "app.config.json",
-            "build.rs",
+            "native/build.rs",
             "Cargo.toml",
             "native/clips.ts",
             "native/clips.rs",
-            "native/lib.rs",
+            "native/main.rs",
             "native/engine/store.rs",
         ];
         for file in inputs {
@@ -105,6 +100,8 @@ mod tests {
             assert_ne!(added, previous, "{file} addition must change the stamp");
             std::fs::write(root.join(file), "edited and longer").expect("rewrite");
             let edited = stamp(root_str);
+            std::fs::write(root.join(file), "edited and longer").expect("unchanged save");
+            assert_eq!(stamp(root_str), edited, "{file} unchanged save");
             assert_ne!(edited, added, "{file} edit must change the stamp");
             previous = edited;
         }

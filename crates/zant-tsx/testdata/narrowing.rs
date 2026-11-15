@@ -13,14 +13,70 @@ pub struct Peer {
     pub name: zant::Str,
     pub files: tsx::List<zant::Str>,
 }
+impl tsx::hot::Hot for Peer {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "name", self.name);
+        zant::hot_put!(snapshot, "files", self.files);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        if !zant::hot_get!(restore, "name", instance.name) {
+            return None;
+        }
+        if !zant::hot_get!(restore, "files", instance.files) {
+            return None;
+        }
+        Some(instance)
+    }
+}
 #[derive(Clone, PartialEq, Default)]
 pub struct Session {
     pub peer: Option<Peer>,
+}
+impl tsx::hot::Hot for Session {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "peer", self.peer);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        if !zant::hot_get!(restore, "peer", instance.peer) {
+            return None;
+        }
+        Some(instance)
+    }
 }
 #[derive(Clone, PartialEq, Default)]
 pub struct _Object4 {
     pub peer: Option<Peer>,
     pub note: Option<zant::Str>,
+}
+impl tsx::hot::Hot for _Object4 {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "peer", self.peer);
+        zant::hot_put!(snapshot, "note", self.note);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        if !zant::hot_get!(restore, "peer", instance.peer) {
+            return None;
+        }
+        if !zant::hot_get!(restore, "note", instance.note) {
+            return None;
+        }
+        Some(instance)
+    }
 }
 pub fn describe(s: Session) -> zant::Str {
     if s.clone().peer.clone().is_none() {
@@ -69,6 +125,15 @@ impl Default for PeerCard {
         }
     }
 }
+impl tsx::hot::Hot for PeerCard {
+    fn save(&self) -> tsx::hot::Value {
+        tsx::hot::Snapshot::new().value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        Some(Self::default())
+    }
+}
 impl PeerCard {
     pub fn build(props: PeerCardProps_) -> ui::Node {
         let mut instance = PeerCard {
@@ -113,6 +178,24 @@ impl Default for App {
             label: None,
             picked: zant::Str::from(""),
         }
+    }
+}
+impl tsx::hot::Hot for App {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "peer", self.peer);
+        zant::hot_put!(snapshot, "label", self.label);
+        zant::hot_put!(snapshot, "picked", self.picked);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        zant::hot_get!(restore, "peer", instance.peer);
+        zant::hot_get!(restore, "label", instance.label);
+        zant::hot_get!(restore, "picked", instance.picked);
+        Some(instance)
     }
 }
 #[derive(Clone)]
@@ -193,5 +276,18 @@ impl ui::App for App {
             ],
             ..Default::default()
         });
+    }
+    fn hot_save(&self) -> Option<String> {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "peer", self.peer);
+        zant::hot_put!(snapshot, "label", self.label);
+        zant::hot_put!(snapshot, "picked", self.picked);
+        Some(snapshot.finish())
+    }
+    fn hot_load(&mut self, state: &str) {
+        let restore = tsx::hot::Restore::parse(state);
+        zant::hot_get!(restore, "peer", self.peer);
+        zant::hot_get!(restore, "label", self.label);
+        zant::hot_get!(restore, "picked", self.picked);
     }
 }

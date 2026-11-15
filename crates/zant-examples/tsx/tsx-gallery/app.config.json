@@ -14,5 +14,8 @@
     "always_on_top": false,
     "movable_by_background": false,
     "center": true
+  },
+  "macos": {
+    "sandbox": false
   }
 }

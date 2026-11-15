@@ -385,6 +385,8 @@ fn object(g: &mut Generator<'_>, fields: &[ast::TypeField], name: Option<&[u8]>)
             "impl Default for {rust} {{\n    fn default() -> Self {{\n        Self {{\n{defaults}        }}\n    }}\n}}\n\n"
         ));
     }
+    let hot_fields = code.replace("pub ", "");
+    declaration.push_str(&super::generate::hot_impl(&rust, &hot_fields, true));
     let info = info_mut(g, ty);
     info.fields = result;
     // declared by the other file
@@ -526,6 +528,16 @@ fn enumeration(g: &mut Generator<'_>, members: &[Vec<u8>], name: Option<&[u8]>) 
             "impl {rust} {{\n    pub fn as_str(self) -> &'static str {{\n        match self {{\n{as_strs}        }}\n    }}\n}}\n\n"
         ));
     }
+    let mut cases = String::new();
+    for member in &names {
+        let variant = rust_text::enum_variant(member).unwrap();
+        let text = rust_text::quote(member).unwrap();
+        cases.push_str(&format!("{text} => Some(Self::{variant}),"));
+    }
+    declaration.push_str(&super::parse_and_format(&format!("impl tsx::hot::Hot for {rust} {{
+        fn save(&self) -> tsx::hot::Value {{ tsx::hot::Value::from(self.as_str()) }}
+        fn load(value: &tsx::hot::Value) -> Option<Self> {{ match value.as_str()? {{ {cases} _ => None }} }}
+    }}\n")));
     add(
         g,
         Info {

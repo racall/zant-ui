@@ -14,9 +14,49 @@ pub struct Box {
     pub values: tsx::List<f64>,
     pub nested: _Object2,
 }
+impl tsx::hot::Hot for Box {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "title", self.title);
+        zant::hot_put!(snapshot, "values", self.values);
+        zant::hot_put!(snapshot, "nested", self.nested);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        if !zant::hot_get!(restore, "title", instance.title) {
+            return None;
+        }
+        if !zant::hot_get!(restore, "values", instance.values) {
+            return None;
+        }
+        if !zant::hot_get!(restore, "nested", instance.nested) {
+            return None;
+        }
+        Some(instance)
+    }
+}
 #[derive(Clone, PartialEq, Default)]
 pub struct _Object2 {
     pub enabled: bool,
+}
+impl tsx::hot::Hot for _Object2 {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "enabled", self.enabled);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        if !zant::hot_get!(restore, "enabled", instance.enabled) {
+            return None;
+        }
+        Some(instance)
+    }
 }
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Mode {
@@ -32,9 +72,37 @@ impl Mode {
         }
     }
 }
+impl tsx::hot::Hot for Mode {
+    fn save(&self) -> tsx::hot::Value {
+        tsx::hot::Value::from(self.as_str())
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        match value.as_str()? {
+            "all" => Some(Self::All),
+            "type" => Some(Self::Type),
+            _ => None,
+        }
+    }
+}
 #[derive(Clone, PartialEq, Default)]
 pub struct _Object6 {
     pub values: tsx::List<f64>,
+}
+impl tsx::hot::Hot for _Object6 {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "values", self.values);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        if !zant::hot_get!(restore, "values", instance.values) {
+            return None;
+        }
+        Some(instance)
+    }
 }
 fn PLANS() -> tsx::List<zant::Str> {
     thread_local! {
@@ -80,6 +148,20 @@ impl Default for Arrays {
                 ],
             ),
         }
+    }
+}
+impl tsx::hot::Hot for Arrays {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "boxes", self.boxes);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        zant::hot_get!(restore, "boxes", instance.boxes);
+        Some(instance)
     }
 }
 #[derive(Clone)]
@@ -418,5 +500,14 @@ impl ui::App for Arrays {
             ],
             ..Default::default()
         });
+    }
+    fn hot_save(&self) -> Option<String> {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "boxes", self.boxes);
+        Some(snapshot.finish())
+    }
+    fn hot_load(&mut self, state: &str) {
+        let restore = tsx::hot::Restore::parse(state);
+        zant::hot_get!(restore, "boxes", self.boxes);
     }
 }

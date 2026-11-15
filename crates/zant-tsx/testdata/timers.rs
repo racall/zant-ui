@@ -30,6 +30,32 @@ impl Default for App {
         }
     }
 }
+impl tsx::hot::Hot for App {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "note", self.note);
+        zant::hot_put!(snapshot, "left", self.left);
+        zant::hot_put!(snapshot, "timer", self.timer);
+        zant::hot_put!(snapshot, "_effect9", self._effect9);
+        zant::hot_put!(snapshot, "_deps10", self._deps10);
+        zant::hot_put!(snapshot, "_effect11", self._effect11);
+        zant::hot_put!(snapshot, "_deps12", self._deps12);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        zant::hot_get!(restore, "note", instance.note);
+        zant::hot_get!(restore, "left", instance.left);
+        zant::hot_get!(restore, "timer", instance.timer);
+        zant::hot_get!(restore, "_effect9", instance._effect9);
+        zant::hot_get!(restore, "_deps10", instance._deps10);
+        zant::hot_get!(restore, "_effect11", instance._effect11);
+        zant::hot_get!(restore, "_deps12", instance._deps12);
+        Some(instance)
+    }
+}
 #[derive(Clone)]
 struct _CleanupCapture1 {
     t: f64,
@@ -166,5 +192,26 @@ impl ui::App for App {
             ],
             ..Default::default()
         });
+    }
+    fn hot_save(&self) -> Option<String> {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "note", self.note);
+        zant::hot_put!(snapshot, "left", self.left);
+        zant::hot_put!(snapshot, "timer", self.timer);
+        zant::hot_put!(snapshot, "_effect9", self._effect9);
+        zant::hot_put!(snapshot, "_deps10", self._deps10);
+        zant::hot_put!(snapshot, "_effect11", self._effect11);
+        zant::hot_put!(snapshot, "_deps12", self._deps12);
+        Some(snapshot.finish())
+    }
+    fn hot_load(&mut self, state: &str) {
+        let restore = tsx::hot::Restore::parse(state);
+        zant::hot_get!(restore, "note", self.note);
+        zant::hot_get!(restore, "left", self.left);
+        zant::hot_get!(restore, "timer", self.timer);
+        zant::hot_get!(restore, "_effect9", self._effect9);
+        zant::hot_get!(restore, "_deps10", self._deps10);
+        zant::hot_get!(restore, "_effect11", self._effect11);
+        zant::hot_get!(restore, "_deps12", self._deps12);
     }
 }

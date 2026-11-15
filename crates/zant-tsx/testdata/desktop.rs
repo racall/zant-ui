@@ -30,6 +30,26 @@ impl Default for App {
         }
     }
 }
+impl tsx::hot::Hot for App {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "sync", self.sync);
+        zant::hot_put!(snapshot, "hotkey", self.hotkey);
+        zant::hot_put!(snapshot, "clips", self.clips);
+        zant::hot_put!(snapshot, "_hotkey5", self._hotkey5);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        zant::hot_get!(restore, "sync", instance.sync);
+        zant::hot_get!(restore, "hotkey", instance.hotkey);
+        zant::hot_get!(restore, "clips", instance.clips);
+        zant::hot_get!(restore, "_hotkey5", instance._hotkey5);
+        Some(instance)
+    }
+}
 impl App {
     fn _root_on_clipboard(&mut self) {
         let clips: f64 = self.clips;
@@ -93,6 +113,21 @@ impl ui::App for App {
             ],
             ..Default::default()
         });
+    }
+    fn hot_save(&self) -> Option<String> {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "sync", self.sync);
+        zant::hot_put!(snapshot, "hotkey", self.hotkey);
+        zant::hot_put!(snapshot, "clips", self.clips);
+        zant::hot_put!(snapshot, "_hotkey5", self._hotkey5);
+        Some(snapshot.finish())
+    }
+    fn hot_load(&mut self, state: &str) {
+        let restore = tsx::hot::Restore::parse(state);
+        zant::hot_get!(restore, "sync", self.sync);
+        zant::hot_get!(restore, "hotkey", self.hotkey);
+        zant::hot_get!(restore, "clips", self.clips);
+        zant::hot_get!(restore, "_hotkey5", self._hotkey5);
     }
     fn on_app_event(&mut self, event: &zant::desktop::AppEvent) -> bool {
         if *event == zant::desktop::AppEvent::Clipboard {

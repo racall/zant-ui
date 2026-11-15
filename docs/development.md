@@ -14,6 +14,50 @@
 
 Windows 上 Debug 构建是控制台程序（双击运行会带控制台窗口，便于看 stderr），Release 构建为 GUI 子系统。
 
+## 热刷新验证
+
+TSX 项目默认 `zant run` 原地刷新，行为与限制见 [脚手架](scaffold.md#热更新)。
+普通模式 `zant run --no-hot` 用来对照帧耗时与沙盒行为；`--watch` 选择旧重启模式。
+构建宿主和共享原生层后，应用编辑只重新编译 UI crate；修改框架源码本身仍会正常重编译框架。
+
+- `ZANT_HOT_TRACE=1`：输出文件事件到防抖结束、代码生成、库发布、后台加载、UI 线程的保存 / 销毁 /
+  创建与首帧耗时。Cargo 的构建耗时包含代码生成与链接；不要把包含关系中的数值重复相加。
+- `ZANT_HOT_SNAPSHOT=/path/shots`：首次加载与每次热刷新后保存 `reload-<PID>-NNNN.png`；加载前保存
+  `state-<PID>-NNNN.json`（包含应用状态和视图状态），同时关闭动效。快照可能包含输入内容，只存开发者指定目录。
+  截图在本机后端执行；没有 WindowServer 时只能验证 CPU 光栅结果。
+- `ZANT_HOT_POLL=1`：不能使用原生文件通知的网络盘 / 沙箱中，显式启用 100 ms 内容轮询。
+  会增加空闲扫描与最多约 100 ms 检测延迟，正常开发使用默认原生监听。相同内容保存不构建。
+- `ZANT_HOT_CONTROL=/path/fifo`：显式打开一条阻塞读的测试输入通道，接受 `pointer <类型> <x> <y>`
+  （1 移动 / 2 按下 / 3 松开）、`scroll <x> <y> <dy>`、`key <键码> <修饰位>`、`text <内容>`、
+  `snapshot`、`close`。坐标为逻辑像素，键码 / 修饰位来自 `platform.h`。所有事件在宿主 UI 线程转发。
+  这是 host/runtime 边界回放，不能替代真实 macOS 鼠标 / 输入法 / GPU 端到端检查。
+
+macOS 可重复的无桌面验证（保留新建应用、日志、PID、截图与状态 envelope；输出目录需为空）：
+
+```bash
+./scripts/cargo.sh build -p zant-cli
+python3 scripts/tsx/hot-check.py /tmp/zant-hot-evidence
+```
+
+脚本检查计数、类型变更只重置对应字段、滚动 / 焦点 / 光标保持，新增组件与布局，TSX / Rust 错误恢复，
+原生代码修改、不变保存、构建中多次保存合并、配置 / Cargo 清单重启以及关窗结束会话。
+有桌面权限时再用下文 `scripts/mac/ui-scenario.swift` 按 `ZANT_LAYOUT_FILE` 的 key 实际点击。
+
+需要分离 rustc 与链接耗时时可选用 Python wrapper（普通开发不启用）：
+
+```bash
+RUSTC_WRAPPER=/path/zant-ui/scripts/tsx/hot-profile.py \
+ZANT_HOT_PROFILE=/tmp/hot-profile ZANT_HOT_TRACE=1 zant run
+```
+
+`compiler.jsonl` 中 `rustc` 包含 `link`，相减得到编译器其余阶段；wrapper 本身有进程启动开销，
+完整保存到首帧时间应再关闭 wrapper 单独测量。UI crate 使用较少调试信息，macOS 使用 `unpacked`
+避免生成 dSYM；依赖的 profile、features 和 `ZANT_NATIVE_SHARED` 在整个会话固定。
+每代库用新路径，优先硬链接（失败回退复制）；库加载在后台，UI 线程只保存、销毁和恢复状态。
+macOS 首次加载每个新编译的库会进行安全扫描，通常耗时约 0.4–0.6 秒，可在「系统设置 › 隐私与安全性 › 开发者工具」中加入终端以省去这段时间；后台加载超过 250 ms 时宿主每个进程只提示一次，`ZANT_HOT_QUIET=1` 可关闭提示。
+不额外签名：实验中额外 ad-hoc 签名没有缩短加载。Cargo 通过 nice / BELOW_NORMAL_PRIORITY_CLASS 降低优先级，
+受限环境若拒绝 nice 会显示系统错误。发布构建保持普通静态链接与原有签名流程。
+
 ## 常用命令
 
 ```bash

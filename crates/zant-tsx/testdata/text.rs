@@ -22,6 +22,24 @@ impl Default for TextExamples {
         }
     }
 }
+impl tsx::hot::Hot for TextExamples {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "name", self.name);
+        zant::hot_put!(snapshot, "count", self.count);
+        zant::hot_put!(snapshot, "enabled", self.enabled);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        zant::hot_get!(restore, "name", instance.name);
+        zant::hot_get!(restore, "count", instance.count);
+        zant::hot_get!(restore, "enabled", instance.enabled);
+        Some(instance)
+    }
+}
 impl TextExamples {
     fn _on_click1(&mut self) {
         let count: u32 = self.count;
@@ -84,5 +102,18 @@ impl ui::App for TextExamples {
             ],
             ..Default::default()
         });
+    }
+    fn hot_save(&self) -> Option<String> {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "name", self.name);
+        zant::hot_put!(snapshot, "count", self.count);
+        zant::hot_put!(snapshot, "enabled", self.enabled);
+        Some(snapshot.finish())
+    }
+    fn hot_load(&mut self, state: &str) {
+        let restore = tsx::hot::Restore::parse(state);
+        zant::hot_get!(restore, "name", self.name);
+        zant::hot_get!(restore, "count", self.count);
+        zant::hot_get!(restore, "enabled", self.enabled);
     }
 }

@@ -13,6 +13,9 @@
 //!   `\\` escaped);
 //! - `clear`: hide the message.
 
+mod checkpoint;
+mod control;
+mod debug;
 mod library;
 
 use std::cell::RefCell;
@@ -35,9 +38,12 @@ static WINDOW: std::sync::atomic::AtomicPtr<ZantWindow> =
     std::sync::atomic::AtomicPtr::new(std::ptr::null_mut());
 
 enum Command {
-    Load(PathBuf),
+    Load(Result<Library, String>, std::time::Duration),
     Notice(String),
     Clear,
+    Checkpoint(PathBuf),
+    Quit,
+    Control(control::Action),
 }
 
 /// The running version of the UI.
@@ -86,14 +92,17 @@ fn main() {
     }
     WINDOW.store(window, std::sync::atomic::Ordering::Release);
 
-    match start(library, window, None) {
+    let state = checkpoint::resume();
+    match start(library, window, state.as_deref()) {
         Ok(current) => CURRENT.with(|slot| *slot.borrow_mut() = Some(current)),
         Err(message) => {
             eprintln!("[zant] {message}");
             std::process::exit(1);
         }
     }
+    debug::loaded(window);
     std::thread::spawn(read_commands);
+    control::start();
 
     // SAFETY: live window; returns when the app's last window closed.
     unsafe { ffi::zant_window_run(window) };
@@ -133,20 +142,42 @@ fn read_commands() {
     for line in std::io::stdin().lock().lines() {
         let Ok(line) = line else { break };
         let command = if let Some(path) = line.strip_prefix("load ") {
-            Command::Load(PathBuf::from(path))
+            let started = Instant::now();
+            let library = Library::load(Path::new(path));
+            let elapsed = started.elapsed();
+            #[cfg(target_os = "macos")]
+            if elapsed > std::time::Duration::from_millis(250)
+                && std::env::var_os("ZANT_HOT_QUIET").is_none_or(|value| value != "1")
+            {
+                static HINT: std::sync::Once = std::sync::Once::new();
+                HINT.call_once(|| {
+                    eprintln!(
+                        "[zant] 提示：macOS 每次加载新编译的库要做一次安全扫描（本次 {} ms）。在「系统设置 › 隐私与安全性 › 开发者工具」中加入你的终端，可省去这段时间。",
+                        elapsed.as_millis()
+                    );
+                });
+            }
+            Command::Load(library, elapsed)
         } else if let Some(text) = line.strip_prefix("notice ") {
             Command::Notice(unescape(text))
+        } else if let Some(path) = line.strip_prefix("checkpoint ") {
+            Command::Checkpoint(path.into())
         } else if line == "clear" {
             Command::Clear
         } else {
             continue;
         };
-        COMMANDS.lock().expect("commands").push_back(command);
-        let window = WINDOW.load(std::sync::atomic::Ordering::Acquire);
-        if !window.is_null() {
-            // SAFETY: thread-safe per platform.h.
-            unsafe { ffi::zant_window_post_wake(window) };
-        }
+        enqueue(command);
+    }
+    enqueue(Command::Quit);
+}
+
+fn enqueue(command: Command) {
+    COMMANDS.lock().expect("commands").push_back(command);
+    let window = WINDOW.load(std::sync::atomic::Ordering::Acquire);
+    if !window.is_null() {
+        // SAFETY: thread-safe per platform.h.
+        unsafe { ffi::zant_window_post_wake(window) };
     }
 }
 
@@ -174,9 +205,16 @@ fn run_commands() {
             return;
         };
         match command {
-            Command::Load(path) => reload(&path),
+            Command::Load(library, elapsed) => reload(library, elapsed),
+            Command::Control(action) => control::dispatch(action),
             Command::Notice(text) => notice(&text),
             Command::Clear => notice(""),
+            Command::Checkpoint(path) => {
+                let state = CURRENT.with(|slot| slot.borrow().as_ref().and_then(save));
+                checkpoint::write(&path, state.as_deref());
+            }
+            // SAFETY: command dispatch runs on the UI thread.
+            Command::Quit => unsafe { ffi::zant_app_quit() },
         }
     }
 }
@@ -191,9 +229,9 @@ fn notice(text: &str) {
 }
 
 /// Replaces the running UI with the library at `path`, carrying the state.
-fn reload(path: &Path) {
+fn reload(loaded: Result<Library, String>, t_load: std::time::Duration) {
     let begin = Instant::now();
-    let library = match Library::load(path) {
+    let library = match loaded {
         Ok(library) => library,
         Err(message) => {
             eprintln!("[zant] {message}");
@@ -205,8 +243,8 @@ fn reload(path: &Path) {
         return;
     };
     let window = WINDOW.load(std::sync::atomic::Ordering::Acquire);
-    let t_load = begin.elapsed();
     let state = save(&old);
+    debug::state(state.as_deref());
     let t_save = begin.elapsed();
     // the old version goes first: both share the native app-event handler,
     // tray and hotkeys, which the new version installs again
@@ -217,7 +255,13 @@ fn reload(path: &Path) {
         Ok(current) => {
             eprintln!("[zant] reloaded in {} ms", begin.elapsed().as_millis());
             if std::env::var_os("ZANT_HOT_TRACE").is_some() {
-                eprintln!("[zant] load {t_load:?} save {t_save:?} destroy {t_destroy:?}");
+                eprintln!(
+                    "[zant-hot] load_ms={:.3} save_ms={:.3} destroy_ms={:.3} create_ms={:.3}",
+                    t_load.as_secs_f64() * 1000.0,
+                    t_save.as_secs_f64() * 1000.0,
+                    (t_destroy - t_save).as_secs_f64() * 1000.0,
+                    (begin.elapsed() - t_destroy).as_secs_f64() * 1000.0
+                );
             }
             current
         }
@@ -244,6 +288,7 @@ fn reload(path: &Path) {
         }
     };
     CURRENT.with(|slot| *slot.borrow_mut() = Some(current));
+    debug::loaded(window);
     // SAFETY: live window.
     unsafe { ffi::zant_window_request_redraw(window, 0) };
 }
@@ -305,6 +350,7 @@ unsafe extern "C" fn on_draw(
     {
         // SAFETY: forwarding the native call to the instance's own callback.
         unsafe { draw(table.userdata, canvas, width, height, dpr) };
+        debug::frame();
     }
 }
 

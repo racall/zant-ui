@@ -762,6 +762,9 @@ version = "0.1.0"
 dependencies = [
  "embed-resource",
  "png",
+ "prettyplease",
+ "serde",
+ "serde_json",
  "syn",
  "thiserror",
  "zant-tsx",

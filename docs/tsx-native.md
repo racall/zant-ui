@@ -10,11 +10,12 @@ my-app/
   src/                 只有 TS/TSX
     App.tsx            import { copy, entries } from "native/clips";
   native/
-    lib.rs             模块清单：pub mod clips; pub use clips::Native; + register()
+    main.rs            一行 zant::app!();
+    build.rs           一行 fn main() { zant_build::tsx_app(); }
     clips.ts           规范：类型 + export declare function
     clips.rs           实现：impl clips::Spec for Native
     engine/…           内部代码（子目录不会被当成规范）
-  Cargo.toml  build.rs  rust-toolchain.toml  tsconfig.json
+  Cargo.toml  rust-toolchain.toml  tsconfig.json
 ```
 
 `zant create` 生成的项目自带一个示例模块 `native/system`（平台、CPU 核数、Rust 版本）。
@@ -64,31 +65,24 @@ export declare function copy(row: i64): CopyResult;
 
 ```rust
 // native/clips.rs（应用自己写）
-use crate::native::clips::{CopyResult, ListEntry, Spec};
+use crate::native::spec::clips::{CopyResult, ListEntry, ClipsSpec};
 
 pub struct Native;
 
-impl Spec for Native {
+impl ClipsSpec for Native {
     fn entries(query: &str) -> Vec<ListEntry> { … }
     fn copy(row: i64) -> CopyResult { … }
 }
 ```
 
-再在 `native/lib.rs` 里登记：
-
-```rust
-pub mod clips;
-pub use clips::Native;
-
-pub fn register() {
-    zant::tsx::native::register(clips::Native);
-}
-```
+模块声明与 `register()` 都由构建器生成，无需维护清单。顶层 `.rs` 自动声明；
+有同名 `.ts` 规范时还会注册 `Native`。无规范的内部辅助模块不注册，子目录通过普通 `mod` 引入。
+`main.rs` 和 `build.rs` 不参与模块扫描。
 
 原生模块可以导入：
 
 - `zant`：框架（`zant::ui`、`zant::db`、`zant::desktop`、`zant::image`、`zant::pdf` …）；
-- 生成的规范模块（`crate::native::clips`）：类型与 trait，和 TSX 用的是同一份 `.ts`；
+- 生成的规范模块（`crate::native::spec::clips`）：类型与 trait，和 TSX 用的是同一份 `.ts`；
 - `crate::app_config`：由 `app.config.json` 生成的配置（`title`、`bundle_id`、`window`）。
 
 返回的字符串和集合是 Rust 拥有的值（`String` / `Str` / `Vec`），可以跨帧保存，不需要帧分配器。
@@ -120,19 +114,11 @@ const list: ListEntry[] = entries(query);
 
 ## 构建与测试
 
-应用的 `build.rs` 调 `zant_build::tsx_app()`：它编译 `src/**/*.tsx`，扫描 `native/` 下的 `.ts`
-规范生成 Rust 类型与 trait（写到 `$OUT_DIR`），并把 `native/` 当成应用的模块树（`src/main.rs` 里
-`#[path = "../native/lib.rs"] mod native;`）。`rerun-if-changed` 覆盖 `native/**`，改规范或实现都会重编。
+应用的 `native/build.rs` 调用 `zant_build::tsx_app()`，`native/main.rs` 只写 `zant::app!();`。
+配置、规范类型、trait、模块声明与注册都生成在 `$OUT_DIR/zant_app.rs`，启动入口在 `zant_main.rs`；
+热重载库用 `zant::hot_app!()` 引入 `zant_hot.rs`。`crate::native::spec::<名字>` 路径保持稳定。
+`rerun-if-changed` 覆盖 `src/`、`native/`、配置和资源，改规范或实现都会重编。
+原生模块用 `cargo test` 测试；`zant run --watch` 也监视这些文件。
 
-原生模块就是普通 Rust 代码，直接用 `cargo test` 测试（模板里 `native/system.rs` 带示例测试）。
-`zant run --watch` 也会监视 `native/` 下的 `.ts` 与 `.rs` 文件。
-
-多个原生模块在一个应用里互不影响：每个 `.ts` 规范一个模块、一个 trait、一个 `Native` 实现；
-`native/lib.rs` 的 `register()` 只是给按名字解析用的运行时注册表（生成的静态调用路径不经过它），
-`src/main.rs` 在第一帧前调用一次。
-
-## 和直接导入 `.rs` 的区别
-
-TSX 仍然可以 `import { f } from "./util.rs"`（见 [tsx.md](tsx.md)「从 Rust 导入函数」），
-那种方式以 Rust 的签名为准，Rust 文件和 TSX 文件放在一起。新项目建议用原生模块：
-接口以 TS 写的规范为准，`src/` 里只有 TS，Rust 代码集中放在 `native/`。
+`src/` 中出现任何 `.rs` 都会报构建错误；请把 Rust 移到 `native/` 并为 TSX 调用提供 `.ts` 规范。
+底层编译器的独立 `.rs` 导入能力仍保留，应用构建器统一使用以上目录约定。

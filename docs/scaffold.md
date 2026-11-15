@@ -78,19 +78,16 @@ Windows 的命令行窗口（包括代码页 936 的中文系统）中文显示�
 
 `--sandbox`、`--sign` 可选：给出时直接写入 `macos` 段。
 
-生成的是 TSX 应用：一个 Rust Cargo package，TSX 在编译期（`build.rs` 调用
+生成的是 TSX 应用：一个 Rust Cargo package，TSX 在编译期（`native/build.rs` 调用
 `zant_build::tsx_app()`）转成 Rust，没有 JS 运行时：
 
 ```text
 src/App.tsx                 根组件（默认导出），界面和业务逻辑都用 TSX
 src/components/*.tsx        业务组件
-src/main.rs                 入口：include 生成的组件树、注册原生模块、启动
-src/app_config.rs           由 zant 从 app.config.json 生成，不要手改
+native/main.rs              一行 zant::app!();，生成入口与注册
 native/<名字>.ts            原生模块的规范（类型 + export declare function）
 native/<名字>.rs            原生模块的 Rust 实现
-native/lib.rs               原生模块清单与注册（含 `pub mod spec;`）
-native/spec.rs              由 build.rs 生成（native/*.ts 的类型与 trait），已 gitignore，不要手改
-build.rs                    zant_build::tsx_app()：TSX → OUT_DIR，native/*.ts → native/spec.rs
+native/build.rs             一行 fn main() { zant_build::tsx_app(); }
 Cargo.toml                  单个 Cargo package；zant / zant-build 是相对路径依赖
 rust-toolchain.toml         stable 工具链
 assets/icons/               默认图标
@@ -110,19 +107,20 @@ cd my-app
 /path/to/zant/target/debug/zant run
 ```
 
-`zant run` 会读取 `app.config.json`、生成 `src/app_config.rs`、
-调用 `cargo build`，然后启动应用。无需手动执行 `cargo build`。
+`zant run` 读取配置，调用 `cargo build`，然后启动应用。无需手动执行 `cargo build`。
 
 常用命令：
 
 ```bash
 zant run
-zant run --watch      # 热更新：改动后自动重编译并重启（重启式）
+zant run              # 热刷新：保存后界面原地刷新，窗口不关闭
+zant run --watch      # 旧的重启模式
+zant run --no-hot     # 编译并运行一次
 zant run --release
 zant compile          # 只编译（--release 用 release profile）
 zant package          # 本机测试用的 .app / 程序目录
 zant build            # 发布构建：签名、DMG、公证、安装包或提交商店，见「发布构建」
-zant sync             # 只重新生成 src/app_config.rs、Info.plist（沙盒或设了 macos.entitlements 时还有 app.entitlements）
+zant sync             # 只重新生成 Info.plist（沙盒或设了 macos.entitlements 时还有 app.entitlements）
 zant update           # 安装版：更新到最新发布包；源码版：git pull（工作区干净且有远程分支时）、
                       # 检查依赖和 Rust 工具链、重新编译 zant
 ```
@@ -134,24 +132,42 @@ zant update           # 安装版：更新到最新发布包；源码版：git p
 ## 热更新
 
 ```bash
-zant run --watch
+zant run              # TSX 项目默认原地热刷新
+zant run --watch      # 重编译并重启，重建窗口与内存状态
+zant run --no-hot     # 编译并运行一次（普通静态链接程序）
 ```
 
-监听：
+`zant run` 按改动文件决定行为：
 
-- `src/` 下所有 `.rs`、`.tsx`、`.ts`（任意深度）
-- `native/` 下的原生模块规范与实现
-- `app.config.json`
-- `Cargo.toml`、`build.rs`
+| 改动 | 行为 |
+| --- | --- |
+| `src/` 任意深度的 `.tsx` / `.ts`、`native/` 任意深度的 `.rs` / `.ts`（除 `native/build.rs`）、TSX 导入的资源（除下列重启或忽略项） | 原地热刷新 |
+| `Cargo.toml`、`Cargo.lock`、`app.config.json`、`native/build.rs`、`rust-toolchain.toml`、`assets/icons/` 下的文件（除下列忽略项） | `zant run` 重启自身 |
+| `tsconfig.json`、`README.md`、`docs/`、`.git/`、`target/`、点开头的文件 / 目录、编辑器临时 / 备份文件（`~`、`.swp`、`.swo`、`.tmp`、`.bak` 后缀）及其他未匹配文件 | 忽略 |
 
-TSX 编译错误会直接显示原始文件、行、列，不被应用的 macOS 日志过滤器隐藏。
+重启时终端会提示改动的文件，通过 `target/zant-hot/restart-state.json` 一次性传递状态，状态尽量保留。
+原地热刷新只构建应用的 UI 动态库，宿主进程持有同一个原生窗口；框架与依赖由 Cargo 增量缓存复用。
+内容没有变化的保存不触发构建；构建中的多次保存会合并为下一次构建，最终显示最后保存的内容。
 
-文件变化后自动重新编译并重启应用。当前是**重启式热更新**：
+根组件 `useState` 按字段名恢复，支持的子组件本地状态按组件实例恢复；新增字段用初始值，
+不兼容的类型只重置对应字段。带稳定 `key` 的滚动容器、虚拟列表、焦点、输入光标与文本选区会恢复；
+改 key 或移除组件会失去对应视图状态。`createStore`、任意 Rust 全局变量、后台线程和外部资源不会自动序列化。
+手写 Rust 应用可实现 `App::hot_save` / `hot_load`；自定义状态类型可实现 `tsx::hot::Hot`。
 
-- 会重新创建窗口和状态
-- macOS：编译失败时保留当前窗口，继续等待下一次改动；App Sandbox 模式暂不支持
-  （需要 LaunchServices 启动，无法可靠重启）
-- Windows：运行中的 exe 不能被覆盖，所以先结束旧进程再编译；编译失败时重新打开上一次的版本
+TSX 语法错误与 `native/` Rust 编译错误显示在仍运行的 UI 上，保留文件、行、列；修复后自动移除错误面板并刷新。
+库在后台线程加载，状态保存、销毁与恢复在 UI 线程执行；Cargo 以较低优先级运行。
+关闭窗口结束会话；Ctrl+C 结束 CLI，宿主在标准输入关闭时退出。
+
+热刷新使用开发宿主，不经过 App Sandbox / 发布签名流程；调试沙盒权限请用 `--no-hot`。
+`--watch` 保留旧模式：macOS 编译失败时保留旧窗口（沙盒下不支持自动重启），Windows 先结束旧 exe，
+编译失败再打开上一个版本。非 TSX 项目仍编译并运行一次。
+
+内部文件位于 `target/zant-hot/`：隐藏 crate 的 `lib.rs` 只有 `zant::hot_app!();`，
+构建脚本调用 `zant_build::hot_app(app_root)`，与普通应用使用同一份 `OUT_DIR/zant_app.rs` / `zant_hot.rs`。
+开发中旧动态库暂不卸载，避免残留回调与线程执行已释放代码；长时间反复刷新会累积库映射，需要时重启会话。
+热刷新 UI crate 默认使用较少调试信息，应用清单中 `[profile.dev.package.<包名>-hot]` 可覆盖。
+
+自动截图、分阶段计时与无桌面回放见 [开发指南](development.md#热刷新验证)。
 
 ## 打包与签名
 
@@ -224,8 +240,6 @@ src/components/StatCard.tsx   自定义展示组件（props）
 src/components/CounterCard.tsx 自定义子组件（props + 事件回调）
 native/system.ts             原生模块规范（平台、CPU、Rust 版本）
 native/system.rs             原生模块的 Rust 实现（impl SystemSpec for Native）
-native/lib.rs                原生模块清单与注册（含 `pub mod spec;`）
-native/spec.rs               由 build.rs 从 native/*.ts 生成，已 gitignore
 ```
 
 数据流：
@@ -253,3 +267,10 @@ App.tsx 持有 useState 状态
 - `CLAUDE.md`：Claude Code 入口，同样先声明 DESIGN.md，再引用 `AGENTS.md`。
 
 这些文件让 Codex / Claude Code 在修改项目前先理解约定，减少误改。
+
+应用的 `src/` 只放 `.tsx` / `.ts`，所有 Rust 文件都在 `native/`。
+`Cargo.toml` 设置 `build = "native/build.rs"` 和 `[[bin]] path = "native/main.rs"`。
+构建器在 `$OUT_DIR/zant_app.rs` 生成配置、原生模块树、规范类型与注册、TSX 模块声明；
+`zant_main.rs` 启动应用，`zant_hot.rs` 提供热重载入口（`zant::hot_app!()`）。
+新增原生能力只需 `native/<名字>.ts` + `native/<名字>.rs`；顶层无规范的 `.rs` 是内部模块，
+自动声明但不注册，子目录由普通 `mod` 引入。生成代码不写回项目目录。

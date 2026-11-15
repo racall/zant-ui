@@ -35,7 +35,10 @@ export default function App() { return <Counter/>; }\n";
     ] {
         let source = compile_ok(&format!("{prefix}{body}"), "react.tsx");
         // the stateful child becomes `ui::local_state`, like the "zant" hooks
-        assert!(source.contains("ui::local_state::<"), "{source}");
+        assert!(
+            source.contains("ui::local_state::local_state_hot::<"),
+            "{source}"
+        );
         // the React namespace and Fragment leave no trace in the output
         assert!(!source.contains("NS"), "{source}");
         assert!(!source.contains("Fragment"), "{source}");

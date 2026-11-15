@@ -886,6 +886,18 @@ static bool zant_launch_event_is_login(void) {
 }
 @end
 
+/* Offscreen snapshot sessions can have no NSScreen. AppKit's default
+   constraint then shrinks every window to its minimum frame. Keep the
+   requested frame when there is no screen to constrain it to. */
+@interface ZantNativeWindow : NSWindow
+@end
+@implementation ZantNativeWindow
+- (NSRect)constrainFrameRect:(NSRect)frameRect toScreen:(NSScreen *)screen {
+    if (!screen && NSScreen.screens.count == 0) return frameRect;
+    return [super constrainFrameRect:frameRect toScreen:screen];
+}
+@end
+
 static void zant_install_menu(const char *title) {
     NSString *name = [NSString stringWithUTF8String:title && title[0] ? title : "Zant UI"];
     NSMenu *main_menu = [[NSMenu alloc] init];
@@ -988,7 +1000,7 @@ ZantWindow *zant_window_create(const char *title, const ZantWindowOptions *optio
             }
             win = panel;
         } else {
-            win = [[NSWindow alloc] initWithContentRect:frame
+            win = [[ZantNativeWindow alloc] initWithContentRect:frame
                                               styleMask:mask
                                                 backing:NSBackingStoreBuffered
                                                   defer:NO];

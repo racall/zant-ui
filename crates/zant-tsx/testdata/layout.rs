@@ -16,6 +16,20 @@ impl Default for Layout {
         Self { wide: true }
     }
 }
+impl tsx::hot::Hot for Layout {
+    fn save(&self) -> tsx::hot::Value {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "wide", self.wide);
+        snapshot.value()
+    }
+    fn load(value: &tsx::hot::Value) -> Option<Self> {
+        value.as_object()?;
+        let restore = tsx::hot::Restore::parse(&value.to_string());
+        let mut instance = Self::default();
+        zant::hot_get!(restore, "wide", instance.wide);
+        Some(instance)
+    }
+}
 impl Layout {}
 impl ui::App for Layout {
     fn render(&mut self) -> ui::Node {
@@ -91,5 +105,14 @@ impl ui::App for Layout {
             ],
             ..Default::default()
         });
+    }
+    fn hot_save(&self) -> Option<String> {
+        let mut snapshot = tsx::hot::Snapshot::new();
+        zant::hot_put!(snapshot, "wide", self.wide);
+        Some(snapshot.finish())
+    }
+    fn hot_load(&mut self, state: &str) {
+        let restore = tsx::hot::Restore::parse(state);
+        zant::hot_get!(restore, "wide", self.wide);
     }
 }

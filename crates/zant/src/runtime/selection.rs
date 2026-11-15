@@ -46,7 +46,7 @@ impl Runtime {
 
     /// Marks the selected range on each text node
     /// (painted behind the text).
-    fn apply_text_selection(&mut self) {
+    pub(crate) fn apply_text_selection(&mut self) {
         for &id in &self.sel_marked {
             if (id as usize) < self.tree.nodes.len() {
                 self.tree.get_mut(id).text_sel = None;

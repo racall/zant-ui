@@ -94,6 +94,9 @@ impl Runtime {
         if resized && let Some(stats) = self.frame_stats.as_mut() {
             stats.resized(crate::platform::platform::monotonic_us());
         }
+        if !nested {
+            self.apply_view_state();
+        }
         self.run_commands();
         let paint_start = self.stats_clock();
         canvas.clear(self.clear_color);
@@ -278,7 +281,11 @@ impl Runtime {
     /// When the native side should ask for the next
     /// frame (-1 = no timer).
     fn compute_next_delay(&mut self) {
-        let mut delay: i32 = -1;
+        let mut delay: i32 = if self.pending_view_state.is_some() || self.needs_build {
+            16
+        } else {
+            -1
+        };
         // transitions may also start after `tick` (FLIP in layout, scroll
         // commands), so the animating list counts too
         if self.any_animation || !self.tree.animating.is_empty() {
