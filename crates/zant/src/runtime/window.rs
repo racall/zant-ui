@@ -53,6 +53,12 @@ impl SharedApp {
         self.inner.borrow_mut()
     }
 
+    /// Mutable access unless the state is already borrowed (an event that
+    /// arrives inside a modal loop run by app code).
+    pub fn try_borrow_mut(&self) -> Option<RefMut<'_, Box<dyn App>>> {
+        self.inner.try_borrow_mut().ok()
+    }
+
     /// True when both handles are the same state (the main window of this app).
     pub fn ptr_eq(&self, other: &SharedApp) -> bool {
         Rc::ptr_eq(&self.inner, &other.inner)

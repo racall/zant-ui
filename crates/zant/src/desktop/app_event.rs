@@ -61,9 +61,22 @@ impl platform::AppEventHandler for DesktopAppHandler {
         let Some(event) = translate(event) else {
             return;
         };
-        if self.app.borrow_mut().on_app_event(&event) {
-            crate::runtime::window::invalidate_all();
-        }
+        deliver(&self.app, event);
+    }
+}
+
+/// Runs the app hook, unless the app state is borrowed: an event that
+/// arrives inside a modal loop the app runs from one of its own hooks (a
+/// hotkey or tray click while a save dialog is open) is dropped rather than
+/// re-entering the app; the clipboard watcher catches up on the next change.
+fn deliver(app: &SharedApp, event: AppEvent) {
+    let Some(mut state) = app.try_borrow_mut() else {
+        return;
+    };
+    let changed = state.on_app_event(&event);
+    drop(state);
+    if changed {
+        crate::runtime::window::invalidate_all();
     }
 }
 

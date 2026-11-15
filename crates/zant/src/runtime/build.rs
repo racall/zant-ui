@@ -22,6 +22,14 @@ impl Runtime {
     /// Runs one rebuild: `build_tree` plus the `ui::effect` callbacks. An effect
     /// that changed state asks for another build (`needs_build`).
     pub(crate) fn rebuild(&mut self) {
+        // the app state is held by a hook running a modal loop: later
+        if self.app.try_borrow_mut().is_none() {
+            self.needs_build = true;
+            if let Some(window) = &self.window {
+                window.request_redraw(100);
+            }
+            return;
+        }
         self.build_tree();
         // `ui::effect` callbacks: after the tree is in place; they may set
         // state, so another build follows
