@@ -116,9 +116,12 @@ impl ThemeToggle {
         });
     }
     fn _on_change1(&mut self, on: bool) {
-        settings_update(|state| {
-            state.dark = on;
-        });
+        {
+            let _update_0 = on;
+            settings_update(move |state| {
+                state.dark = _update_0;
+            })
+        };
     }
 }
 pub struct FontSize {
@@ -183,14 +186,20 @@ impl FontSize {
         });
     }
     fn _on_click2(&mut self, cap: &_Capture2) {
-        settings_update(|state| {
-            state.fontSize = cap.size - 1u32;
-        });
+        {
+            let _update_0 = cap.size - 1u32;
+            settings_update(move |state| {
+                state.fontSize = _update_0;
+            })
+        };
     }
     fn _on_click3(&mut self) {
-        settings_update(|state| {
-            state.fontSize = settings_get().fontSize + 1u32;
-        });
+        {
+            let _update_0 = settings_get().fontSize + 1u32;
+            settings_update(move |state| {
+                state.fontSize = _update_0;
+            })
+        };
     }
 }
 pub struct App {
@@ -221,9 +230,12 @@ struct _Capture5 {
 }
 impl App {
     fn _effect4(&mut self) {
-        settings_update(|state| {
-            state.user = zant::Str::from("guest");
-        });
+        {
+            let _update_0 = zant::Str::from("guest");
+            settings_update(move |state| {
+                state.user = _update_0;
+            })
+        };
     }
     fn remember(&mut self, word: zant::Str) {
         settings_set({

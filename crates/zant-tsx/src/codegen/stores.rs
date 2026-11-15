@@ -337,8 +337,11 @@ fn update(
             "update takes an object literal with the fields to change",
         );
     };
+    // values are evaluated before the store is borrowed: one may read the
+    // store itself (`update({ n: counter.get().n + 1 })`)
+    let mut values = String::new();
     let mut fields = String::new();
-    for property in properties {
+    for (index, property) in properties.iter().enumerate() {
         if property.spread {
             return fail(
                 g,
@@ -350,10 +353,11 @@ fn update(
         let value = expr::emit(g, c, &property.value, Some(ty), false)?;
         let field = model::field_rust(g, store.ty, &property.key.name)
             .unwrap_or_else(|| rust_text::id(&property.key.name).unwrap_or_default());
-        fields.push_str(&format!("        state.{field} = {};\n", value.code));
+        values.push_str(&format!("    let _update_{index} = {};\n", value.code));
+        fields.push_str(&format!("        state.{field} = _update_{index};\n"));
     }
     Ok(format!(
-        "{}(\n    |state| {{\n{fields}    }},\n)",
+        "{{\n{values}    {}(\n    move |state| {{\n{fields}    }},\n)\n}}",
         store.accessor_fn("update")
     ))
 }

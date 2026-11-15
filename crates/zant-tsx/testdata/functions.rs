@@ -172,9 +172,12 @@ impl App {
         self.count = clamp(count + 1.0f64, 0.0f64, 5.0f64);
     }
     fn _on_click2(&mut self) {
-        prefs_update(|state| {
-            state.unit = zant::Str::from("MB");
-        });
+        {
+            let _update_0 = zant::Str::from("MB");
+            prefs_update(move |state| {
+                state.unit = _update_0;
+            })
+        };
     }
     fn _on_click3(&mut self) {
         reset();
