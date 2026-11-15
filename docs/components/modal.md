@@ -1,22 +1,33 @@
 # 对话框 Modal
 
-antd `Modal`：半透明遮罩（`rgba(0,0,0,.45)`）淡入，卡片以 zoom 动效弹出；标题、关闭按钮、
-内容与可选的底部按钮。点击遮罩（`maskClosable`）或 ✕ 调用 `onClose`；Esc 由应用的按键
-处理调用同一个关闭动作。打开时作为窗口根的最后一个子节点渲染（`Modal` 自己用 portal）。
-
 ```tsx
-{helpOpen && (
-  <Modal
-    key="help"
-    title="键盘快捷键"
-    width={null}                     // null = 按内容；默认 520
-    onClose={() => setHelpOpen(false)}
-    content={<ShortcutList groups={shortcutGroups} />}
-    footer={<Button text="知道了" variant="primary" onClick={() => setHelpOpen(false)} />}
-  />
-)}
+import { useState, useKeyDown, View, Button, Text, Modal } from "zant";
+
+export default function App() {
+  const [open, setOpen] = useState(false);
+  useKeyDown(e => {
+    if (open && e.key === "Escape") { setOpen(false); return true; }
+    return false;
+  });
+  return <View>
+    <Button text="帮助" onClick={() => setOpen(true)} />
+    {open && <Modal key="help" title="帮助" onClose={() => setOpen(false)}
+      footer={<Button text="知道了" onClick={() => setOpen(false)} />}>
+      <Text>按 Esc 或点击遮罩关闭。</Text>
+    </Modal>}
+  </View>;
+}
 ```
 
-选项：`key`、`title`、`content`、`footer`（null 无底栏）、`width`（默认 520，null 按内容）、
-`onClose`、`closable`（右上角关闭按钮）、`maskClosable`、`mask`（遮罩 ARGB，默认 `0x73000000`）。
-手写 Rust：`ui::modal(ui::ModalOptions { .. })`。
+| 属性 | 默认值 / 说明 |
+|---|---|
+| `content` / 唯一子元素 | 必填其一，内容节点 |
+| `title`、`footer` | 空标题、无底栏；`footer` 可为 `null` |
+| `width` | 520；TSX 传数字，Rust `None` 可按内容宽度 |
+| `onClose` | 关闭按钮或可关闭遮罩触发；应用负责移除弹窗 |
+| `closable`、`maskClosable` | 均为 `true` |
+| `mask` | `0x73000000`，遮罩颜色 |
+| `key` | `"modal"`；每个弹窗使用稳定且不同的 key |
+
+作为窗口根容器的最后一个子节点渲染，覆盖父容器。内置遮罩、进出动效和 Tab 焦点范围；Esc 需应用处理。
+Rust：`ui::modal(ui::ModalOptions { .. })`。

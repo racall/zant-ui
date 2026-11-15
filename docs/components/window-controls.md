@@ -1,25 +1,28 @@
 # 标题栏按钮 WindowControls（Windows）
 
-窗口风格为 `"hidden-titlebar"` 时，Windows 上由运行时自动在根节点右上角叠加
-Windows 11 风格的最小化 / 最大化（还原）/ 关闭按钮；macOS 保留系统红绿灯。应用不需要
-自己放这个组件，只要给它留出位置：
-
 ```tsx
-const insets = titlebarInsets(); // macOS: left = 红绿灯宽度；Windows: right = 3 × 46
-<Row height={52} padding={{ left: 16 + insets.left, right: 16 + insets.right }}>…</Row>
+import { titlebarInsets, Row, Text } from "zant";
+
+export default function App() {
+  const insets = titlebarInsets();
+  return <Row height={52} padding={{ left: 16 + insets.left, right: 16 + insets.right }}>
+    <Text>我的应用</Text>
+  </Row>;
+}
 ```
 
-`window.titlebarHeight`（`app.config.json`）设为自绘标题栏的高度，按钮会填满这个高度（未设置时为 32）。
+在 `app.config.json` 中设置：
 
-## 行为
+```json
+{ "window": { "style": "hidden-titlebar", "titlebar_height": 52 } }
+```
 
-- 尺寸：46 px 宽、10 px 线宽 1 px 的图标；悬停浅色底，关闭按钮悬停红底（#C42B1C）白色图标；
-  窗口失去焦点时图标变淡；深 / 浅色跟随主题。
-- 最大化按钮向系统报告为 `HTMAXBUTTON`，Windows 11 悬停时显示贴靠布局下拉。
-- 标题栏其余空白处可拖动窗口、双击最大化，交互控件仍可点击（`ZantHost.titlebar_hit`）。
-- 关闭按钮走 `onCloseRequest` / TSX `useCloseRequest`，可以否决（例如询问是否保存）。
+Windows 运行时自动添加最小化 / 最大化（还原）/ 关闭按钮，应用只需留位；macOS 使用系统红绿灯。TSX 没有 `WindowControls` 标签。
 
-## 手动使用
+- `titlebarInsets()`：隐藏标题栏时 macOS 左侧 84、Windows 右侧 138；其他风格两侧为 0。
+- `window.titlebar_height` 决定按钮高度（未设置或非正数时 Windows 用 32）；`macos.titlebar_height` / `windows.titlebar_height` 可分别覆盖。TSX `createWindow` 选项写作 `titlebarHeight`。
+- 每个按钮宽 46；支持深浅主题及窗口失焦状态。Windows 11 最大化按钮支持系统贴靠布局。
+- 标题栏空白处可拖动窗口、双击最大化；关闭走 `useCloseRequest`，回调可否决关闭。
 
-手写 Rust 可以用 `ui::window_controls(ui::WindowControlsOptions { height, maximized, active, on_minimize,
-on_maximize, on_close })` 返回同样的按钮组（绝对定位在父容器右上角），用于需要自行组合的场景。
+手动 Rust 接口：`ui::window_controls(ui::WindowControlsOptions { .. })`，定位在父容器右上角。
+选项：`height=32`、`maximized=false`、`active=true`，以及默认未设的 `on_minimize` / `on_maximize` / `on_close`（用 `ui::action`）。

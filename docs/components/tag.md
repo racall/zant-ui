@@ -1,13 +1,19 @@
 # 标签
 
 ```tsx
-<Tag text="Beta" />
-<Tag text="完成" color={0xff389e0d} background={0xfff6ffed} />
+import { useTheme, Row, Tag } from "zant";
+
+export default function App() {
+  const theme = useTheme();
+  return <Row gap={8}>
+    <Tag>测试版</Tag>
+    <Tag text="已完成" color={theme.colorSuccessText} background={theme.colorSuccessBg} />
+  </Row>;
+}
 ```
 
-## 选项
+- `text` / 文本子节点：默认空文字。
+- `color`：默认主题 `colorText`；`background`：默认 `colorFillSecondary`。
+- `key`：可选节点标识。颜色支持 ARGB 数字或颜色字符串。
 
-`key`、`text`、`color`（文字 ARGB）、`background`（背景 ARGB）。
-手写 Rust：`ui::tag(ui::TagOptions { .. })`。
-
-用于状态标记；颜色由调用方直接指定。
+Rust：`ui::tag(ui::TagOptions { .. })`。

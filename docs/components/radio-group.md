@@ -1,20 +1,21 @@
 # 单选组
 
 ```tsx
-<RadioGroup
-  options={[
-    { label: "Basic" },
-    { label: "Pro" },
-    { label: "Enterprise", disabled: true },
-  ]}
-  selected={plan}
-  onChange={setPlan}
-/>
+import { useState, RadioGroup } from "zant";
+
+export default function App() {
+  const [plan, setPlan] = useState(0);
+  return <RadioGroup options={[
+    { label: "基础版" }, { label: "专业版" }, { label: "企业版", disabled: true },
+  ]} selected={plan} onChange={setPlan} />;
+}
 ```
 
-## 选项
+| 属性 | 默认值 / 说明 |
+|---|---|
+| `options` | `[]`；每项 `label` 必填，`disabled` 默认 `false` |
+| `selected`、`onChange` | 默认索引 0；回调收到从 0 开始的索引 |
+| `direction`、`gap` | `"column"`、8；横排用 `direction="row"` |
+| `key` | 可选；同级多个单选组应分别设置 |
 
-`key`、`options`（`{ label, disabled }[]`）、`selected`、`direction`、`gap`、
-`onChange`。手写 Rust：`ui::radio_group(ui::RadioGroupOptions { .. })`，回调用 `ui::index_action`。
-
-`options` 每项包含 `label` 和 `disabled`。选中索引通过 `usize` 回调（TSX 里是 `number`）。
+应用保存选中索引。Rust：`ui::radio_group(ui::RadioGroupOptions { .. })`，回调用 `ui::index_action`。

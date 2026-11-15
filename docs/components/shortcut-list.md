@@ -1,28 +1,25 @@
 # 快捷键列表 ShortcutList
 
-分组的“操作 — 按键”列表，自动均衡到多列；通常作为 `Modal` 的内容
-（`keyLabel("mod+/")` 打开）。
-按键文字用 `keyLabel` 生成，macOS 显示 ⇧⌘S，Windows 显示 Ctrl+Shift+S。
-
 ```tsx
-const groups = [
-  { title: "文件", items: [
-    { label: "保存", keys: keyLabel("mod+s") },
-    { label: "另存为…", keys: keyLabel("mod+shift+s") },
-  ] },
-  { title: "查找", items: [
-    // 平台习惯不同时：macOS ⌥⌘F，Windows Ctrl+H —— 手写 Rust 用 keys::pick；TSX 用 isMacos
-    { label: "替换", keys: isMacos ? keyLabel("alt+mod+f") : keyLabel("mod+h") },
-    { label: "下一个 / 上一个", keys: keyLabel("enter shift+enter") },
-  ] },
-];
+import { ShortcutList, keyLabel } from "zant";
 
-<ShortcutList groups={groups} columns={2} />   // 默认列宽 macOS 250，Windows 310
+export default function App() {
+  return <ShortcutList columns={1} groups={[
+    { title: "文件", items: [
+      { label: "保存", keys: keyLabel("mod+s") },
+      { label: "另存为", keys: keyLabel("mod+shift+s") },
+    ] },
+  ]} />;
+}
 ```
 
-选项：`key`、`groups`（`{ title, items: { label, keys }[] }`）、`columns`（默认 2）、
-`columnWidth`、`columnGap`（40）、`rowHeight`（28）、`fontSize`（13）。
-手写 Rust：`ui::shortcut_list(ui::ShortcutListOptions { groups, .. })`，类型是
-`ui::ShortcutGroup` / `ui::Shortcut`。
+| 属性 | 默认值 / 说明 |
+|---|---|
+| `groups` | TSX 必填；`{ title, items: { label, keys }[] }[]`，各字段必填 |
+| `columns` | 2，限制在 1–8；按组分配到当前最短的列 |
+| `columnWidth` | macOS 250，Windows 310 |
+| `columnGap`、`rowHeight`、`fontSize` | 40、28、13 |
+| `key` | `"shortcuts"` |
 
-应用只写快捷键数据；列表样式与弹窗都来自框架，保证各应用一致。
+只展示快捷键，不注册按键处理。`keyLabel` 生成平台文字（如 ⇧⌘S / Ctrl+Shift+S）；可作为 [Modal](modal.md) 的内容，注意列表总宽度。
+Rust：`ui::shortcut_list`，使用 `ui::ShortcutListOptions` / `ui::ShortcutGroup` / `ui::Shortcut`。

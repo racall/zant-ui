@@ -1,18 +1,26 @@
 # 全局提示 Message
 
-antd `message`：窗口顶部居中的小药丸，success / info / warning / error 四种类型，
-move-up 动效进出；不拦截点击。显示时长由应用决定：在截止时间前渲染它，并用
-`wakeAfter`（手写 Rust 用 `ui::wake_after`）在到期时重建。
-
 ```tsx
-const now = performance.now();
-{now < toastUntil && (
-  <Message text={toastText} kind="success" top={60} />
-)}
-{now < toastUntil && wakeAfter(toastUntil - now)}
+import { useState, wakeAfter, View, Button, Message } from "zant";
+
+export default function App() {
+  const [until, setUntil] = useState(0);
+  const now = performance.now();
+  if (now < until) wakeAfter(until - now);
+  return <View>
+    <Button text="保存" onClick={() => setUntil(performance.now() + 1800)} />
+    {now < until && <Message key="saved" text="已保存" kind="success" />}
+  </View>;
+}
 ```
 
-选项：`key`（默认 `"message"`）、`text`、`kind`（默认 `"success"`；`"info"` / `"warning"` /
-`"error"`）、`top`（距窗口顶部，默认 16）、`iconColor`。手写 Rust：`ui::message(ui::MessageOptions { .. })`。
+| 属性 | 默认值 / 说明 |
+|---|---|
+| `text` | 必填，提示文字 |
+| `kind` | `"success"`；可选 `"info"` / `"warning"` / `"err"` |
+| `top` | 16，距父容器顶部的像素数 |
+| `iconColor` | 默认按类型取主题色 |
+| `key` | `"message"`；多个提示使用不同 key |
 
-设置提示：在动作回调里 `setToastUntil(performance.now() + 1800)`（手写 Rust 用 `ui::now_ms()`）。
+放在窗口根容器中，顶部居中，带进出动效；点击会穿透。没有内置显示时长，应用控制是否渲染，`wakeAfter` 安排到期重建。
+Rust：`ui::message(ui::MessageOptions { .. })`，错误类型为 `ui::MessageKind::Err`。
