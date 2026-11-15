@@ -222,7 +222,7 @@ fn write_matching_metadata(root: &Path, prebuilt_dir: &Path, platform: &str) -> 
 fn matching_prebuilt_is_accepted() {
     let (root, prebuilt_dir) = fake_tree("verify-ok");
     let meta = write_matching_metadata(&root, &prebuilt_dir, "macos");
-    let candidate = prebuilt::candidate(&root, "macos").expect("candidate");
+    let candidate = prebuilt::candidate_from(&root, "macos", None).expect("candidate");
     assert_eq!(candidate.source, prebuilt::Source::Default);
     let found = prebuilt::verify(&candidate, &root, "macos").expect("verify");
     assert_eq!(found.metadata, meta);
@@ -234,7 +234,7 @@ fn matching_prebuilt_is_accepted() {
 fn stale_prebuilt_is_rejected_with_the_reason() {
     let (root, prebuilt_dir) = fake_tree("verify-stale");
     write_matching_metadata(&root, &prebuilt_dir, "macos");
-    let candidate = prebuilt::candidate(&root, "macos").expect("candidate");
+    let candidate = prebuilt::candidate_from(&root, "macos", None).expect("candidate");
 
     // A changed native source must invalidate the archive.
     fs::write(root.join("native/a.cpp"), b"// a changed\n").unwrap();
@@ -247,7 +247,7 @@ fn stale_prebuilt_is_rejected_with_the_reason() {
     // A prebuilt for another platform is refused too.
     let (root, prebuilt_dir) = fake_tree("verify-platform");
     write_matching_metadata(&root, &prebuilt_dir, "windows");
-    let candidate = prebuilt::candidate(&root, "macos").expect("candidate");
+    let candidate = prebuilt::candidate_from(&root, "macos", None).expect("candidate");
     let error = prebuilt::verify(&candidate, &root, "macos").expect_err("wrong platform");
     assert!(error.contains("windows"), "unexpected error: {error}");
     let _ = fs::remove_dir_all(&root);
@@ -256,7 +256,7 @@ fn stale_prebuilt_is_rejected_with_the_reason() {
 #[test]
 fn missing_library_or_metadata_is_reported() {
     let (root, prebuilt_dir) = fake_tree("verify-missing");
-    let candidate = prebuilt::candidate(&root, "macos").expect("candidate");
+    let candidate = prebuilt::candidate_from(&root, "macos", None).expect("candidate");
 
     // No metadata next to the archive.
     let error = prebuilt::verify(&candidate, &root, "macos").expect_err("no metadata");
@@ -285,4 +285,20 @@ fn hash_and_library_names_are_per_platform() {
     );
     assert!(prebuilt::library_name("linux").is_err());
     assert!(prebuilt::sources_file("linux").is_err());
+}
+
+#[test]
+fn the_env_variable_names_the_directory_or_the_library() {
+    let (root, prebuilt_dir) = fake_tree("verify-env");
+    let dir = prebuilt_dir.to_str().expect("utf-8 path");
+    let candidate = prebuilt::candidate_from(&root, "macos", Some(dir)).expect("candidate");
+    assert_eq!(candidate.source, prebuilt::Source::Env);
+    assert_eq!(candidate.library, prebuilt_dir.join("libzant_native.a"));
+    let library = prebuilt_dir.join("libzant_native.a");
+    let candidate = prebuilt::candidate_from(&root, "macos", library.to_str()).expect("candidate");
+    assert_eq!(candidate.dir, prebuilt_dir);
+    // blank means unset
+    let candidate = prebuilt::candidate_from(&root, "macos", Some("  ")).expect("candidate");
+    assert_eq!(candidate.source, prebuilt::Source::Default);
+    let _ = fs::remove_dir_all(&root);
 }

@@ -435,8 +435,19 @@ pub struct Candidate {
 /// The prebuilt archive location `build.rs` looks at. `ENV_PREBUILT` wins and
 /// may name the directory or the library file itself.
 pub fn candidate(root: &Path, target_os: &str) -> Result<Candidate, String> {
+    candidate_from(root, target_os, env::var(ENV_PREBUILT).ok().as_deref())
+}
+
+/// [`candidate`] with the value of `ENV_PREBUILT` passed in (`None` when
+/// unset), so tests do not depend on the environment they run in (the
+/// release workflow sets the variable while running them).
+pub fn candidate_from(
+    root: &Path,
+    target_os: &str,
+    env_value: Option<&str>,
+) -> Result<Candidate, String> {
     let library_name = library_name(target_os)?;
-    if let Ok(value) = env::var(ENV_PREBUILT) {
+    if let Some(value) = env_value {
         let value = value.trim();
         if !value.is_empty() {
             let path = PathBuf::from(value);
