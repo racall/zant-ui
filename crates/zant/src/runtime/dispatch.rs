@@ -21,7 +21,12 @@ impl Runtime {
         self.dispatch_depth += 1;
         let prev_owner = crate::ui::set_command_owner(Some(self.owner_ptr()));
         self.sample_clock();
+        let outer_local = super::window::take_local_rebuild();
         let result = self.dispatch_event(&event);
+        let local_only = super::window::take_local_rebuild();
+        if outer_local {
+            super::window::rebuild_only_this_window();
+        }
         if super::input_trace() && matches!(event, Event::PointerDown(_) | Event::PointerUp(_)) {
             eprintln!(
                 "[trace] {:.1} {} needs_build={} result={}",
@@ -39,7 +44,7 @@ impl Runtime {
         // the app's state may have changed: other windows rebuild too (the
         // dispatching window itself is already borrowed, so `invalidate_all`
         // skips it)
-        if self.needs_build && window::open_count() > 1 {
+        if self.needs_build && !local_only && window::open_count() > 1 {
             window::invalidate_all();
         }
         let redraw = match &event {

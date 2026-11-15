@@ -908,7 +908,18 @@ static bool zant_launch_event_is_login(void) {
 - (BOOL)canBecomeMainWindow {
     return NO;
 }
+/* an overlay covers the menu bar too: no constraining below it */
+- (NSRect)constrainFrameRect:(NSRect)frameRect toScreen:(NSScreen *)screen {
+    if (self.level >= NSScreenSaverWindowLevel) return frameRect;
+    return [super constrainFrameRect:frameRect toScreen:screen];
+}
 @end
+
+/* Panels and overlays: NSPanels that take the keyboard without activating
+   the app and have no Dock presence. */
+static bool zant_style_is_panel(int style) {
+    return style == ZANT_WINDOW_PANEL || style == ZANT_WINDOW_OVERLAY;
+}
 
 /* Offscreen snapshot sessions can have no NSScreen. AppKit's default
    constraint then shrinks every window to its minimum frame. Keep the
@@ -1052,6 +1063,8 @@ ZantWindow *zant_window_create(const char *title, const ZantWindowOptions *optio
             mask |= NSWindowStyleMaskFullSizeContentView;
         } else if (style == ZANT_WINDOW_BORDERLESS) {
             mask = NSWindowStyleMaskBorderless | NSWindowStyleMaskResizable;
+        } else if (style == ZANT_WINDOW_OVERLAY) {
+            mask = NSWindowStyleMaskBorderless | NSWindowStyleMaskNonactivatingPanel;
         } else if (style == ZANT_WINDOW_PANEL) {
             /* titled with a hidden title bar: the system's rounded corners
                and shadow; non-activating: keyboard focus without bringing
@@ -1061,7 +1074,23 @@ ZantWindow *zant_window_create(const char *title, const ZantWindowOptions *optio
             if (options->resizable) mask |= NSWindowStyleMaskResizable;
         }
         NSWindow *win = nil;
-        if (style == ZANT_WINDOW_PANEL) {
+        if (style == ZANT_WINDOW_OVERLAY) {
+            ZantPanel *overlay = [[ZantPanel alloc] initWithContentRect:frame
+                                                              styleMask:mask
+                                                                backing:NSBackingStoreBuffered
+                                                                  defer:NO];
+            overlay.floatingPanel = YES;
+            overlay.hidesOnDeactivate = NO;
+            overlay.becomesKeyOnlyIfNeeded = NO;
+            overlay.level = NSScreenSaverWindowLevel;
+            overlay.collectionBehavior = NSWindowCollectionBehaviorCanJoinAllSpaces |
+                                         NSWindowCollectionBehaviorFullScreenAuxiliary |
+                                         NSWindowCollectionBehaviorStationary |
+                                         NSWindowCollectionBehaviorIgnoresCycle;
+            overlay.movable = NO;
+            overlay.animationBehavior = NSWindowAnimationBehaviorNone;
+            win = overlay;
+        } else if (style == ZANT_WINDOW_PANEL) {
             ZantPanel *panel = [[ZantPanel alloc] initWithContentRect:frame
                                                             styleMask:mask
                                                               backing:NSBackingStoreBuffered
@@ -1093,7 +1122,7 @@ ZantWindow *zant_window_create(const char *title, const ZantWindowOptions *optio
         win.title = [NSString stringWithUTF8String:title ? title : "Zant UI"];
         win.minSize = NSMakeSize(options->min_width, options->min_height);
         win.releasedWhenClosed = NO;
-        win.hasShadow = YES;
+        win.hasShadow = style != ZANT_WINDOW_OVERLAY;
         const uint32_t bg = options->background;
         win.backgroundColor = [NSColor colorWithSRGBRed:((bg >> 16) & 0xff) / 255.0
                                                   green:((bg >> 8) & 0xff) / 255.0
@@ -1101,7 +1130,7 @@ ZantWindow *zant_window_create(const char *title, const ZantWindowOptions *optio
                                                   alpha:((bg >> 24) & 0xff) / 255.0];
         win.opaque = ((bg >> 24) & 0xff) == 0xff;
         if (options->movable_by_background) win.movableByWindowBackground = YES;
-        if (options->always_on_top && style != ZANT_WINDOW_PANEL) [win setLevel:NSFloatingWindowLevel];
+        if (options->always_on_top && !zant_style_is_panel(style)) [win setLevel:NSFloatingWindowLevel];
         if (style == ZANT_WINDOW_HIDDEN_TITLEBAR) {
             win.titlebarAppearsTransparent = YES;
             win.titleVisibility = NSWindowTitleHidden;
@@ -1171,7 +1200,7 @@ ZantWindow *zant_window_create(const char *title, const ZantWindowOptions *optio
         const bool wait_for_launch = options->hidden_at_login && !g_launched;
         if (wait_for_launch) window->show_after_launch = true;
         if (!options->hidden && !wait_for_launch) {
-            if (style == ZANT_WINDOW_PANEL) {
+            if (zant_style_is_panel(style)) {
                 [win orderFrontRegardless];
                 [win makeKeyWindow];
             } else {
@@ -1256,7 +1285,7 @@ void zant_window_set_visible(ZantWindow *window, int visible) {
         zant_update_dock();
         return;
     }
-    if (window->style == ZANT_WINDOW_PANEL) {
+    if (zant_style_is_panel(window->style)) {
         [window->window orderFrontRegardless];
     } else {
         [window->window orderFront:nil];
@@ -1275,7 +1304,7 @@ int zant_window_is_minimized(ZantWindow *window) {
 
 void zant_window_activate(ZantWindow *window) {
     if (!window || !window->window || window->closing) return;
-    if (window->style == ZANT_WINDOW_PANEL) {
+    if (zant_style_is_panel(window->style)) {
         [window->window orderFrontRegardless];
         [window->window makeKeyWindow];
     } else {
@@ -1311,6 +1340,18 @@ void zant_window_place(ZantWindow *window, int place, float margin) {
     if (place == ZANT_PLACE_TOP_LEFT || place == ZANT_PLACE_TOP_RIGHT) y = NSMaxY(area) - size.height - margin;
     if (place == ZANT_PLACE_BOTTOM_LEFT || place == ZANT_PLACE_BOTTOM_RIGHT) y = NSMinY(area) + margin;
     [window->window setFrameOrigin:NSMakePoint(round(x), round(y))];
+}
+
+void zant_window_cover_screen(ZantWindow *window, int index) {
+    if (!window || !window->window || window->closing) return;
+    NSArray<NSScreen *> *screens = [NSScreen screens];
+    if (index < 0 || (NSUInteger)index >= screens.count) return;
+    window->show_after_launch = false;
+    [window->window setFrame:screens[(NSUInteger)index].frame display:NO];
+    [window->window orderFrontRegardless];
+    [window->window makeKeyWindow];
+    [window->window makeFirstResponder:window->view];
+    zant_request_view_redraw(window->view);
 }
 
 /* ---- app ---- */
@@ -1359,7 +1400,7 @@ static void zant_update_dock(void) {
     if (!g_dock_auto) return;
     bool shown = false;
     for (ZantWindow *w = g_windows; w; w = w->next) {
-        if (w->closing || w->style == ZANT_WINDOW_PANEL) continue;
+        if (w->closing || zant_style_is_panel(w->style)) continue;
         if (w->window.isVisible || w->window.isMiniaturized) {
             shown = true;
             break;

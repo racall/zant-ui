@@ -12,6 +12,7 @@ crates/zant-sys/native/skia/skia_bridge.h
 crates/zant-sys/native/skia/skia_bridge_internal.h
 crates/zant-sys/native/skia/skia_bridge_mac.mm
 crates/zant-sys/native/platform/macos/window.m
+crates/zant-sys/native/platform/macos/capture.m
 crates/zant-sys/native/platform/macos/window.h
 crates/zant-sys/native/platform/macos/pdf.mm
 crates/zant-sys/native/platform/platform.h

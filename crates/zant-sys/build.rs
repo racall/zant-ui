@@ -423,7 +423,7 @@ const MACOS_SKIA_LIBS: [&str; 5] = [
 const WINDOWS_SKIA_LIBS: [&str; 5] = MACOS_SKIA_LIBS;
 
 /// Frameworks the macOS native layer uses.
-const MACOS_FRAMEWORKS: [&str; 14] = [
+const MACOS_FRAMEWORKS: [&str; 16] = [
     "AppKit",
     "Metal",
     "MetalKit",
@@ -436,6 +436,8 @@ const MACOS_FRAMEWORKS: [&str; 14] = [
     "CoreVideo",
     "UniformTypeIdentifiers",
     "PDFKit",
+    "ScreenCaptureKit",
+    "Vision",
     "Carbon",
     "ServiceManagement",
 ];

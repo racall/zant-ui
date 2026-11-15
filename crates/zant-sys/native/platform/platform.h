@@ -82,6 +82,12 @@ enum {
        macOS it takes keyboard focus without activating the app, so the app
        the user was in stays frontmost. */
     ZANT_WINDOW_PANEL = 3,
+    /* Full-screen cover (screenshot / selection UIs): borderless, opaque, no
+       shadow, above everything including the menu bar / taskbar and
+       full-screen apps, no Dock / taskbar entry, not movable; takes the
+       keyboard without activating the app (macOS). Sized with
+       zant_window_cover_screen. */
+    ZANT_WINDOW_OVERLAY = 4,
 };
 
 /* zant_window_place: where in the work area (screen minus menu bar, Dock and
@@ -215,6 +221,87 @@ int zant_window_is_minimized(ZantWindow *window);
 void zant_window_activate(ZantWindow *window);
 /* Moves the window to a ZANT_PLACE_* spot, `margin` points from the edges. */
 void zant_window_place(ZantWindow *window, int place, float margin);
+
+/* ---- screens, other apps' windows, screen capture ----
+   Desktop units: macOS points, Windows physical pixels; global coordinates
+   with the origin at the top left of the primary screen, y down.
+   units_per_point converts desktop units to the logical points a window on
+   that screen lays out in (1 on macOS, the screen's scale on Windows). */
+typedef struct ZantScreenInfo {
+    uint32_t id; /* CGDirectDisplayID / enumeration index; stable while connected */
+    float x, y, width, height;                     /* full frame */
+    float work_x, work_y, work_width, work_height; /* minus menu bar / Dock / taskbar */
+    float scale;           /* pixels per logical point */
+    float units_per_point; /* desktop units per logical point */
+    int primary;
+} ZantScreenInfo;
+/* Connected screens (primary first on macOS); returns the count, writes at
+   most `capacity`. */
+int zant_screen_list(ZantScreenInfo *out, int capacity);
+
+typedef struct ZantWindowInfo {
+    float x, y, width, height; /* desktop units */
+    uint32_t pid;
+    char app[64]; /* owner name, UTF-8 (may be empty) */
+} ZantWindowInfo;
+/* Normal app windows that are on screen, front to back: no desktop, menu
+   bar, Dock / taskbar or invisible / cloaked / minimized windows, none
+   smaller than 40x40 points. Includes this app's own visible windows.
+   Any thread. */
+int zant_window_list(ZantWindowInfo *out, int capacity);
+
+/* Screen recording permission: 1 granted (always on Windows), 0 not. */
+int zant_screen_capture_access(void);
+/* macOS: shows the system prompt the first time (later: nothing; the user
+   enables it in System Settings and the app usually has to restart).
+   Returns zant_screen_capture_access(). */
+int zant_screen_capture_request(void);
+
+typedef struct ZantCapture {
+    uint32_t screen_id;
+    uint8_t *pixels; /* premultiplied 32-bit, zant_image_from_pixels order; free with zant_capture_free */
+    int width, height, stride;
+} ZantCapture;
+/* Captures every screen at native resolution without the cursor, in the
+   order of zant_screen_list. Blocks; call it from a background thread (never
+   the UI thread on macOS). Returns the count; 0 on failure / no permission. */
+int zant_screen_capture_all(ZantCapture *out, int capacity);
+void zant_capture_free(uint8_t *pixels);
+
+/* UI thread: sizes a ZANT_WINDOW_OVERLAY window to the full frame of screen
+   `index` of zant_screen_list, shows it on top and gives it the keyboard.
+   Hiding it hands the keyboard back to the previously active window. */
+void zant_window_cover_screen(ZantWindow *window, int index);
+
+/* Seconds east of UTC of the local time zone now (daylight saving included). */
+int zant_local_utc_offset(void);
+
+/* ---- text recognition (OCR) ----
+   Byte positions are UTF-8 offsets into `text`, lines joined by '\n'.
+   Rects are image pixels, top-left origin. */
+typedef struct ZantOcrToken {
+    uint32_t start, len;
+    float x, y, width, height;
+} ZantOcrToken;
+typedef struct ZantOcrLine {
+    uint32_t start, len;
+    float x, y, width, height;
+    uint32_t first_token, token_count;
+} ZantOcrLine;
+typedef struct ZantOcrResult {
+    char *text;
+    size_t text_len;
+    ZantOcrLine *lines;
+    size_t line_count;
+    ZantOcrToken *tokens;
+    size_t token_count;
+} ZantOcrResult;
+/* 1 when the system has a built-in recognizer (macOS Vision); 0 elsewhere. */
+int zant_ocr_available(void);
+/* Recognizes text in premultiplied 32-bit pixels (zant_image_from_pixels
+   order). Blocks; any thread. NULL when unavailable or on failure. */
+ZantOcrResult *zant_ocr_recognize(const uint8_t *pixels, int width, int height, int stride);
+void zant_ocr_free(ZantOcrResult *result);
 
 /* Ends the event loop (all windows close) without asking the app again. */
 void zant_app_quit(void);

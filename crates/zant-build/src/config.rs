@@ -97,6 +97,10 @@ pub struct AppConfig {
     /// `{ "com.apple.security.network.client": true }` (values: true / false,
     /// a string or a list of strings). `sandbox` adds app-sandbox itself.
     pub entitlements: Option<serde_json::Value>,
+    /// `macos.info_plist`: extra string keys for Info.plist, e.g.
+    /// `{ "NSLocalNetworkUsageDescription": "…" }` (usage descriptions).
+    /// Keys the generator writes itself cannot be overridden.
+    pub info_plist: std::collections::BTreeMap<String, String>,
     /// set in the file (`macos` section or legacy top-level keys)
     pub has_sandbox: bool,
     pub has_signing: bool,
@@ -121,6 +125,7 @@ impl Default for AppConfig {
             signing_identity: "none".to_string(),
             window: WindowConfig::default(),
             entitlements: None,
+            info_plist: std::collections::BTreeMap::new(),
             has_sandbox: false,
             has_signing: false,
             legacy_sandbox: false,
@@ -153,6 +158,7 @@ struct RawMacos {
     sandbox: Option<bool>,
     signing_identity: Option<String>,
     entitlements: Option<serde_json::Value>,
+    info_plist: Option<std::collections::BTreeMap<String, String>>,
     category: Option<String>,
     minimum_system_version: Option<String>,
     /// Overrides `window.titlebar_height` on macOS.
@@ -245,6 +251,9 @@ pub fn parse(data: &str, os: Os) -> Result<AppConfig, ParseError> {
                 return Err(ParseError::InvalidEntitlements);
             }
             cfg.entitlements = Some(v.clone());
+        }
+        if let Some(v) = &m.info_plist {
+            cfg.info_plist = v.clone();
         }
         if let Some(v) = &m.category {
             cfg.category = Some(v.clone());

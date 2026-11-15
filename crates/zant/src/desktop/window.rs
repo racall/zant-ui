@@ -209,6 +209,16 @@ impl Window {
         }
     }
 
+    /// `WindowStyle::Overlay` windows: covers screen `index` of
+    /// [`screens`](super::screens), shows the window on top and gives it the
+    /// keyboard.
+    pub fn cover_screen(&self, index: usize) {
+        self.invalidate();
+        if let Some(native) = self.native() {
+            native.cover_screen(index);
+        }
+    }
+
     /// Focuses the node with `key` in this window after its next layout
     /// (`ui::focus` from an app event — a hotkey, the tray — has no window).
     pub fn focus(&self, key: &str) {
@@ -289,7 +299,8 @@ pub fn open_window(hooks: WindowHooks, options: OpenOptions) -> Result<Window, P
         options.window,
         RuntimeHost::boxed(Rc::clone(&core)),
     )?);
-    if let Some(name) = autosave_name {
+    // overlays are sized by cover_screen: no saved frame
+    if let Some(name) = autosave_name.filter(|_| options.window.style != crate::platform::platform::WindowStyle::Overlay) {
         native.set_autosave(&name);
     }
     core.borrow_mut().attach_window(Rc::clone(&native));
@@ -299,6 +310,13 @@ pub fn open_window(hooks: WindowHooks, options: OpenOptions) -> Result<Window, P
         core,
         native: Rc::downgrade(&native),
     })
+}
+
+/// From an event handler whose change only affects its own window (hover /
+/// drag feedback of a window rendering its own state): only that window
+/// rebuilds, the other windows are left alone.
+pub fn rebuild_only_this_window() {
+    runtime_window::rebuild_only_this_window();
 }
 
 /// Rebuilds all windows (after changing state outside an action, e.g. in a

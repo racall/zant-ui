@@ -60,6 +60,7 @@ pub const ZANT_WINDOW_NATIVE: _bindgen_ty_5 = 0;
 pub const ZANT_WINDOW_HIDDEN_TITLEBAR: _bindgen_ty_5 = 1;
 pub const ZANT_WINDOW_BORDERLESS: _bindgen_ty_5 = 2;
 pub const ZANT_WINDOW_PANEL: _bindgen_ty_5 = 3;
+pub const ZANT_WINDOW_OVERLAY: _bindgen_ty_5 = 4;
 pub type _bindgen_ty_5 = ::std::os::raw::c_uint;
 pub const ZANT_PLACE_CENTER: _bindgen_ty_6 = 0;
 pub const ZANT_PLACE_TOP_LEFT: _bindgen_ty_6 = 1;
@@ -232,6 +233,120 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     pub fn zant_window_place(window: *mut ZantWindow, place: ::std::os::raw::c_int, margin: f32);
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct ZantScreenInfo {
+    pub id: u32,
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+    pub work_x: f32,
+    pub work_y: f32,
+    pub work_width: f32,
+    pub work_height: f32,
+    pub scale: f32,
+    pub units_per_point: f32,
+    pub primary: ::std::os::raw::c_int,
+}
+unsafe extern "C" {
+    pub fn zant_screen_list(
+        out: *mut ZantScreenInfo,
+        capacity: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int;
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct ZantWindowInfo {
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+    pub pid: u32,
+    pub app: [::std::os::raw::c_char; 64usize],
+}
+unsafe extern "C" {
+    pub fn zant_window_list(
+        out: *mut ZantWindowInfo,
+        capacity: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn zant_screen_capture_access() -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn zant_screen_capture_request() -> ::std::os::raw::c_int;
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct ZantCapture {
+    pub screen_id: u32,
+    pub pixels: *mut u8,
+    pub width: ::std::os::raw::c_int,
+    pub height: ::std::os::raw::c_int,
+    pub stride: ::std::os::raw::c_int,
+}
+unsafe extern "C" {
+    pub fn zant_screen_capture_all(
+        out: *mut ZantCapture,
+        capacity: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn zant_capture_free(pixels: *mut u8);
+}
+unsafe extern "C" {
+    pub fn zant_window_cover_screen(window: *mut ZantWindow, index: ::std::os::raw::c_int);
+}
+unsafe extern "C" {
+    pub fn zant_local_utc_offset() -> ::std::os::raw::c_int;
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct ZantOcrToken {
+    pub start: u32,
+    pub len: u32,
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct ZantOcrLine {
+    pub start: u32,
+    pub len: u32,
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+    pub first_token: u32,
+    pub token_count: u32,
+}
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct ZantOcrResult {
+    pub text: *mut ::std::os::raw::c_char,
+    pub text_len: usize,
+    pub lines: *mut ZantOcrLine,
+    pub line_count: usize,
+    pub tokens: *mut ZantOcrToken,
+    pub token_count: usize,
+}
+unsafe extern "C" {
+    pub fn zant_ocr_available() -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn zant_ocr_recognize(
+        pixels: *const u8,
+        width: ::std::os::raw::c_int,
+        height: ::std::os::raw::c_int,
+        stride: ::std::os::raw::c_int,
+    ) -> *mut ZantOcrResult;
+}
+unsafe extern "C" {
+    pub fn zant_ocr_free(result: *mut ZantOcrResult);
 }
 unsafe extern "C" {
     pub fn zant_app_quit();

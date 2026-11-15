@@ -150,6 +150,11 @@ pub enum WindowStyle {
     /// corners and shadow, above other windows, no Dock / taskbar entry; on
     /// macOS it takes the keyboard without bringing the app forward.
     Panel = 3,
+    /// Full-screen cover for screenshot / selection UIs: borderless, opaque,
+    /// above everything (menu bar, taskbar, full-screen apps), no Dock /
+    /// taskbar entry; takes the keyboard without activating the app on
+    /// macOS. Size it with [`Window::cover_screen`].
+    Overlay = 4,
 }
 
 /// Where `place` puts a window, in the work area of the screen under the pointer.
@@ -619,6 +624,13 @@ impl Window {
     pub fn place(&self, place: Place, margin: f32) {
         // SAFETY: live window handle.
         unsafe { ffi::zant_window_place(self.handle, place as i32, margin) }
+    }
+
+    /// Overlay windows: cover screen `index` (of `capture::screens()`), show
+    /// on top and take the keyboard.
+    pub fn cover_screen(&self, index: usize) {
+        // SAFETY: live window handle.
+        unsafe { ffi::zant_window_cover_screen(self.handle, index as i32) }
     }
 }
 

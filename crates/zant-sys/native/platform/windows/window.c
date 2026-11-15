@@ -91,6 +91,7 @@ struct ZantWindow {
     char backend_name[64];
     char snapshot_path[1024];
     volatile LONG wake_pending;
+    HWND restore_focus; /* overlay: the window that had the keyboard before it */
     ZantWindow *next;
 };
 
@@ -243,6 +244,7 @@ static DWORD zant_window_style_bits(ZantWindow *w) {
     /* panel: no caption; the thick frame (hidden by WM_NCCALCSIZE) gives the
        DWM shadow, DWMWA_WINDOW_CORNER_PREFERENCE the rounded corners */
     if (w->style == ZANT_WINDOW_PANEL) return WS_POPUP | WS_THICKFRAME;
+    if (w->style == ZANT_WINDOW_OVERLAY) return WS_POPUP;
     DWORD style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
     if (w->resizable) style |= WS_THICKFRAME | WS_MAXIMIZEBOX;
     return style;
@@ -629,7 +631,7 @@ static LRESULT CALLBACK zant_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) 
             break;
 
         case WM_NCHITTEST:
-            if (w->style == ZANT_WINDOW_PANEL) return HTCLIENT;
+            if (w->style == ZANT_WINDOW_PANEL || w->style == ZANT_WINDOW_OVERLAY) return HTCLIENT;
             if (w->custom_frame || w->movable_by_background || w->style == ZANT_WINDOW_BORDERLESS) {
                 LRESULT hit = DefWindowProcW(hwnd, msg, wp, lp);
                 if (hit != HTCLIENT) return hit;
@@ -735,6 +737,13 @@ static LRESULT CALLBACK zant_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) 
 
         case WM_DPICHANGED: {
             zant_set_dpi(w, HIWORD(wp));
+            if (w->style == ZANT_WINDOW_OVERLAY) {
+                /* keeps covering its monitor (zant_window_cover_screen) */
+                zant_update_client_size(w);
+                zant_send_simple(w, ZANT_EVENT_WINDOW_RESIZE);
+                zant_request(w);
+                return 0;
+            }
             const RECT *suggested = (const RECT *)lp;
             SetWindowPos(hwnd, NULL, suggested->left, suggested->top, suggested->right - suggested->left,
                          suggested->bottom - suggested->top, SWP_NOZORDER | SWP_NOACTIVATE);
@@ -1010,13 +1019,14 @@ ZantWindow *zant_window_create(const char *title, const ZantWindowOptions *optio
     const DWORD style = zant_window_style_bits(w);
     DWORD ex_style = options->always_on_top ? WS_EX_TOPMOST : 0;
     /* panel: above other windows, no taskbar button */
-    if (options->style == ZANT_WINDOW_PANEL) ex_style |= WS_EX_TOPMOST | WS_EX_TOOLWINDOW;
+    if (options->style == ZANT_WINDOW_PANEL || options->style == ZANT_WINDOW_OVERLAY)
+        ex_style |= WS_EX_TOPMOST | WS_EX_TOOLWINDOW;
     RECT rc = {0, 0, (LONG)lroundf(width * w->scale), (LONG)lroundf(height * w->scale)};
     if (w->custom_frame) {
         rc.right += zant_frame_x(w) * 2;
         rc.bottom += zant_frame_y(w);
-    } else if (w->style == ZANT_WINDOW_PANEL) {
-        /* no non-client area (WM_NCCALCSIZE) */
+    } else if (w->style == ZANT_WINDOW_PANEL || w->style == ZANT_WINDOW_OVERLAY) {
+        /* no non-client area (WM_NCCALCSIZE / WS_POPUP) */
     } else {
         AdjustWindowRectExForDpi(&rc, style, FALSE, ex_style, w->dpi);
     }
@@ -1485,8 +1495,14 @@ int zant_open_url(const char *url) {
 
 void zant_window_set_visible(ZantWindow *window, int visible) {
     if (!window || !window->hwnd || window->closing) return;
+    const bool had_focus = GetForegroundWindow() == window->hwnd;
     ShowWindow(window->hwnd, visible ? SW_SHOWNOACTIVATE : SW_HIDE);
     if (visible) zant_request(window);
+    if (!visible && window->style == ZANT_WINDOW_OVERLAY) {
+        HWND back = window->restore_focus;
+        window->restore_focus = NULL;
+        if (had_focus && back && IsWindow(back) && IsWindowVisible(back)) SetForegroundWindow(back);
+    }
 }
 
 int zant_window_is_visible(ZantWindow *window) {
@@ -1543,6 +1559,47 @@ void zant_window_place(ZantWindow *window, int place, float margin) {
     if (place == ZANT_PLACE_TOP_LEFT || place == ZANT_PLACE_TOP_RIGHT) y = area.top + m;
     if (place == ZANT_PLACE_BOTTOM_LEFT || place == ZANT_PLACE_BOTTOM_RIGHT) y = area.bottom - height - m;
     SetWindowPos(window->hwnd, NULL, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+}
+
+static bool zant_is_overlay_hwnd(HWND hwnd) {
+    for (ZantWindow *w = g_windows; w; w = w->next) {
+        if (w->hwnd == hwnd && w->style == ZANT_WINDOW_OVERLAY) return true;
+    }
+    return false;
+}
+
+typedef struct {
+    int target, index;
+    MONITORINFO info;
+    bool found;
+} ZantMonitorPick;
+
+static BOOL CALLBACK zant_pick_monitor(HMONITOR monitor, HDC dc, LPRECT rect, LPARAM data) {
+    (void)dc;
+    (void)rect;
+    ZantMonitorPick *pick = (ZantMonitorPick *)data;
+    if (pick->index++ != pick->target) return TRUE;
+    pick->info.cbSize = sizeof(pick->info);
+    pick->found = GetMonitorInfoW(monitor, &pick->info) != 0;
+    return FALSE;
+}
+
+void zant_window_cover_screen(ZantWindow *window, int index) {
+    if (!window || !window->hwnd || window->closing) return;
+    ZantMonitorPick pick = {index, 0, {0}, false};
+    EnumDisplayMonitors(NULL, NULL, zant_pick_monitor, (LPARAM)&pick);
+    if (!pick.found) return;
+    HWND fg = GetForegroundWindow();
+    if (fg && !zant_is_overlay_hwnd(fg)) window->restore_focus = fg;
+    const RECT r = pick.info.rcMonitor;
+    /* twice: moving to a monitor with another DPI resizes the window once */
+    for (int i = 0; i < 2; i++) {
+        SetWindowPos(window->hwnd, HWND_TOPMOST, r.left, r.top, r.right - r.left, r.bottom - r.top,
+                     SWP_SHOWWINDOW | SWP_NOACTIVATE);
+    }
+    zant_update_client_size(window);
+    zant_send_simple(window, ZANT_EVENT_WINDOW_RESIZE);
+    zant_window_activate(window);
 }
 
 /* ---------- app ---------- */

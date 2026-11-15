@@ -389,6 +389,8 @@ pub fn generate(
             r"    /// `native/{name}.ts`: the functions `native/{name}.rs` implements.
     ///
     /// A missing or mistyped function is a rustc error at the `impl`.
+    /// Methods keep the spec's camelCase names.
+    #[allow(non_snake_case)]
     pub trait {} {{
 ",
             trait_name(name)

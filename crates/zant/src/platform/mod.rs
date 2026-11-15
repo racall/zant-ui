@@ -1,5 +1,6 @@
 //! Platform layer: windows, native dialogs and the path-based PDF helpers.
 
+pub mod capture;
 pub mod dialog;
 pub mod memory;
 pub mod pdf;

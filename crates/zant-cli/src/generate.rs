@@ -74,6 +74,17 @@ pub fn generate_info_plist_for(cfg: &AppConfig, extras: &PlistExtras) -> String 
             escape_xml(&cfg.copyright)
         ));
     }
+    // app.config.json macos.info_plist: extra string keys (usage descriptions)
+    for (key, value) in &cfg.info_plist {
+        if out.contains(&format!("<key>{}</key>", escape_xml(key))) {
+            continue;
+        }
+        out.push_str(&format!(
+            "<key>{}</key><string>{}</string>\n",
+            escape_xml(key),
+            escape_xml(value)
+        ));
+    }
     // Integrated GPU unless the app asks for more: better battery life.
     out.push_str("<key>NSSupportsAutomaticGraphicsSwitching</key><true/>\n");
     out.push_str("<key>NSPrincipalClass</key><string>NSApplication</string>\n");
@@ -372,6 +383,20 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("temp dir");
         dir
+    }
+
+    #[test]
+    fn extra_info_plist_keys_are_written_but_cannot_override() {
+        let cfg = parse(
+            "{\"title\": \"Demo\", \"bundle_id\": \"io.x.demo\",
+              \"macos\": {\"info_plist\": {\"NSLocalNetworkUsageDescription\": \"Find <peers>\",
+                                       \"CFBundleIdentifier\": \"evil\"}}}",
+            Os::Macos,
+        )
+        .expect("parse");
+        let plist = generate_info_plist(&cfg);
+        assert!(plist.contains("<key>NSLocalNetworkUsageDescription</key><string>Find &lt;peers&gt;</string>"));
+        assert!(!plist.contains("evil"));
     }
 
     #[test]

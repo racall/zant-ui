@@ -119,6 +119,23 @@ thread_local! {
 /// (`:2`, `:3`, … per window).
 const FRAME_STATS_LABELS: [&str; 8] = [":2", ":3", ":4", ":5", ":6", ":7", ":8", ":9"];
 
+thread_local! {
+    /// Set by [`rebuild_only_this_window`] during one dispatch.
+    static LOCAL_REBUILD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Called from an event handler whose change only affects the window it runs
+/// in (hover / drag feedback of a window with its own state): the window
+/// rebuilds, the app's other windows are not asked to.
+pub fn rebuild_only_this_window() {
+    LOCAL_REBUILD.with(|flag| flag.set(true));
+}
+
+/// Takes (and clears) the [`rebuild_only_this_window`] flag.
+pub(crate) fn take_local_rebuild() -> bool {
+    LOCAL_REBUILD.with(|flag| flag.replace(false))
+}
+
 /// Registers an open window.
 pub(crate) fn register(core: &Rc<RefCell<Runtime>>) {
     OPEN_RUNTIMES.with(|runtimes| {

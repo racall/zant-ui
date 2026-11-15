@@ -61,6 +61,7 @@ pub mod app;
 pub mod app_event;
 pub mod clipboard;
 pub mod hotkey;
+pub mod screen;
 pub mod tray;
 pub mod window;
 
@@ -74,12 +75,16 @@ pub use clipboard::{
     set_clipboard_image, set_clipboard_text, watch_clipboard,
 };
 pub use hotkey::{Shortcut, register_hotkey, unregister_hotkey};
+pub use screen::{
+    OcrLine, OcrToken, ScreenCapture, ScreenInfo, WindowInfo, capture_screens, local_utc_offset, ocr_available, ocr_recognize,
+    request_screen_capture_access, screen_capture_access, screens, visible_windows,
+};
 pub use tray::{
     TrayError, TrayIconOptions, TrayItem, TrayOptions, remove_tray, set_tray, set_tray_icon,
 };
 pub use window::{
     IS_MACOS, OpenOptions, Place, Window, WindowHooks, invalidate_all, main_window, open_window,
-    quit, set_main_runtime, single_instance,
+    quit, rebuild_only_this_window, set_main_runtime, single_instance,
 };
 
 /// The window options of `open_window` (re-exported so apps do not import the
