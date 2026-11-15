@@ -22,6 +22,8 @@
 
 typedef struct ZantWindow ZantWindow;
 
+static bool zant_style_is_panel(int style);
+
 @interface ZantView : NSView <NSTextInputClient>
 @property(nonatomic, assign) ZantWindow *macWindow;
 @end
@@ -389,8 +391,12 @@ static void zant_request_view_redraw(ZantView *view) {
     if (_trackingArea) {
         [self removeTrackingArea:_trackingArea];
     }
+    /* panels and overlays work while another app stays active: hover must
+       reach them without the app being active */
+    const bool panel_like = self.macWindow && zant_style_is_panel(self.macWindow->style);
     NSTrackingAreaOptions options = NSTrackingMouseEnteredAndExited | NSTrackingMouseMoved |
-                                    NSTrackingActiveInKeyWindow | NSTrackingInVisibleRect;
+                                    (panel_like ? NSTrackingActiveAlways : NSTrackingActiveInKeyWindow) |
+                                    NSTrackingInVisibleRect;
     _trackingArea = [[NSTrackingArea alloc] initWithRect:self.bounds
                                                  options:options
                                                    owner:self
