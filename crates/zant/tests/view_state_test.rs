@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use serde_json::json;
-use zant::core::events::{Event, Modifiers, Scroll};
+use zant::core::events::{Event, Modifiers, PointerEvent, Scroll};
 use zant::core::node::NodeData;
 use zant::renderer::renderer::Renderer;
 use zant::runtime::Runtime;
@@ -69,6 +69,11 @@ impl App for Page {
                     )],
                     ..Default::default()
                 }),
+                ui::button(ui::ButtonOptions {
+                    key: Some("button".into()),
+                    text: "Reload".into(),
+                    ..Default::default()
+                }),
             ]
         } else {
             vec![]
@@ -119,6 +124,89 @@ fn keyed_scroll_survives_restore_before_first_build() {
     assert_eq!(offset(&new), 123.0);
     let id = new.find_key("scroll").unwrap();
     assert!(!new.tree.get(id).container().unwrap().scroll_animating);
+}
+
+#[test]
+fn pointer_hover_survives_reload_settled_without_restoring_press() {
+    for pressed in [false, true] {
+        let mut old = runtime(Page::default());
+        frame(&mut old);
+        let id = old.find_key("button").unwrap();
+        let bounds = old.tree.get(id).bounds;
+        let pointer = PointerEvent {
+            x: bounds.x + 5.0,
+            y: bounds.y + 5.0,
+            ..Default::default()
+        };
+        old.dispatch(Event::PointerMove(pointer));
+        assert_eq!(old.hovered, Some(id));
+        if pressed {
+            old.dispatch(Event::PointerDown(pointer));
+            assert_eq!(old.pressed_button, Some(id));
+        }
+        let saved = old.view_state();
+        assert_eq!(
+            saved["pointer"],
+            json!({
+                "x": pointer.x, "y": pointer.y, "pressed": pressed,
+            })
+        );
+        for theme in [
+            zant::theme::tokens::ant_light(),
+            zant::theme::tokens::ant_dark(),
+        ] {
+            for (width, height) in [(320, 400), (800, 600)] {
+                let mut new = Runtime::init(
+                    Page::default(),
+                    RunOptions {
+                        theme,
+                        ..Default::default()
+                    },
+                );
+                new.restore_view_state(saved.clone());
+                let mut renderer = Renderer::create_raster(width, height).unwrap();
+                for _ in 0..2 {
+                    let canvas = renderer.begin(1.0).unwrap();
+                    new.render_frame(canvas, width as f32, height as f32, 1.0);
+                    renderer.end();
+                    let id = new.find_key("button").unwrap();
+                    assert_eq!(new.hovered, Some(id));
+                    let NodeData::Button(data) = &new.tree.get(id).data else {
+                        panic!("button")
+                    };
+                    assert!(data.hovered);
+                    assert_eq!(data.hover_t, 1.0);
+                    assert!(data.hover.done(new.now_ms));
+                    assert!(!data.pressed);
+                    assert_eq!(data.press_t, 0.0);
+                    assert!(new.pressed_button.is_none());
+                    assert!(new.pointer_capture.is_none());
+                    assert!(!new.sel_dragging);
+                    assert_eq!(new.view_state()["pointer"]["pressed"], false);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn pointer_outside_window_does_not_restore_hover() {
+    let mut old = runtime(Page::default());
+    frame(&mut old);
+    let bounds = old.tree.get(old.find_key("button").unwrap()).bounds;
+    let pointer = PointerEvent {
+        x: bounds.x + 5.0,
+        y: bounds.y + 5.0,
+        ..Default::default()
+    };
+    old.dispatch(Event::PointerMove(pointer));
+    old.dispatch(Event::PointerLeave(pointer));
+    let mut new = runtime(Page::default());
+    new.restore_view_state(old.view_state());
+    frame(&mut new);
+    frame(&mut new);
+    assert!(new.hovered.is_none());
+    assert!(new.view_state()["pointer"].is_null());
 }
 #[test]
 fn virtual_list_survives_reload() {
@@ -286,6 +374,8 @@ fn malformed_entries_on_existing_nodes_do_not_panic() {
         json!({"nodes": {"scroll": null, "input": true, "list": []}}),
         json!({"nodes": {"scroll": {"scroll": 1e300}, "input": {"focus": true, "input": {"anchor": -1, "cursor": "bad"}}, "list": {"list": {"anchor": 5, "offset": 1e300}}}}),
         json!({"selection": {"root": "doc", "anchor": {"key": "text", "byte": false}, "focus": {"key": "text", "byte": -10}}}),
+        json!({"pointer": {"x": 1e300, "y": 1}}),
+        json!({"pointer": {"x": 1, "y": "bad", "pressed": true}}),
     ] {
         rt.restore_view_state(value);
         frame(&mut rt);

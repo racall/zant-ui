@@ -61,6 +61,21 @@ impl Runtime {
     /// The per-event handler.
     fn dispatch_event(&mut self, event: &Event) -> i32 {
         match event {
+            Event::PointerMove(p) | Event::PointerEnter(p) => {
+                self.pointer_position = Some([p.x, p.y]);
+            }
+            Event::PointerDown(p) | Event::PointerUp(p) => {
+                self.pointer_position = Some([p.x, p.y]);
+                self.pointer_pressed = matches!(event, Event::PointerDown(_));
+            }
+            Event::Scroll(p) => self.pointer_position = Some([p.x, p.y]),
+            Event::PointerLeave(_) | Event::WindowBlur => {
+                self.pointer_position = None;
+                self.pointer_pressed = false;
+            }
+            _ => {}
+        }
+        match event {
             Event::PointerMove(p) => {
                 self.handle_pointer_move(*p);
                 1

@@ -7,6 +7,7 @@ use serde_json::{Value, json};
 
 use super::Runtime;
 use crate::components::list::ListState;
+use crate::core::events::{Event, PointerEvent};
 use crate::core::node::{NodeData, NodeId};
 use crate::core::text_select::{self, Point};
 use crate::motion::motion::Animated;
@@ -64,6 +65,7 @@ pub(crate) fn register_list(viewport: &str, state: &Rc<RefCell<ListState>>) {
 pub(crate) struct Pending {
     nodes: serde_json::Map<String, Value>,
     selection: Option<Value>,
+    pointer: Option<[f32; 2]>,
     frames: u8,
 }
 
@@ -153,7 +155,10 @@ impl Runtime {
                 json!({"root": root, "anchor": {"key": key_of(anchor.node)?, "byte": anchor.byte}, "focus": {"key": key_of(focus.node)?, "byte": focus.byte}}),
             )
         })();
-        json!({"version": 1, "nodes": nodes, "selection": selection})
+        let pointer = self
+            .pointer_position
+            .map(|[x, y]| json!({"x": x, "y": y, "pressed": self.pointer_pressed}));
+        json!({"version": 1, "nodes": nodes, "selection": selection, "pointer": pointer})
     }
 
     /// Restores a snapshot after layout as its keyed nodes become available.
@@ -165,9 +170,16 @@ impl Runtime {
             .cloned()
             .unwrap_or_default();
         let selection = state.get("selection").filter(|v| v.is_object()).cloned();
+        let pointer = (|| {
+            let pointer = state.get("pointer")?;
+            let x = pointer["x"].as_f64()? as f32;
+            let y = pointer["y"].as_f64()? as f32;
+            (x.is_finite() && y.is_finite()).then_some([x, y])
+        })();
         self.pending_view_state = Some(Pending {
             nodes,
             selection,
+            pointer,
             frames: 0,
         });
         self.request_redraw();
@@ -282,6 +294,27 @@ impl Runtime {
                     self.apply_text_selection();
                 }
                 pending.selection = None;
+            }
+        }
+        if let Some([x, y]) = pending.pointer.take() {
+            // Replay only a move: a held button or captured drag belongs to the
+            // old runtime. Hit-test the new layout instead of carrying node ids.
+            self.dispatch(Event::PointerMove(PointerEvent {
+                x,
+                y,
+                ..Default::default()
+            }));
+            for id in [self.hovered, self.hover_box].into_iter().flatten() {
+                let (hover, hover_t, hovered) = match &mut self.tree.get_mut(id).data {
+                    NodeData::Button(d) => (&mut d.hover, &mut d.hover_t, d.hovered),
+                    NodeData::Input(d) => (&mut d.hover, &mut d.hover_t, d.hovered),
+                    NodeData::Toggle(d) => (&mut d.hover, &mut d.hover_t, d.hovered),
+                    NodeData::Select(d) => (&mut d.hover, &mut d.hover_t, d.hovered),
+                    NodeData::Container(d) => (&mut d.hover, &mut d.hover_t, d.hovered),
+                    _ => continue,
+                };
+                *hover_t = if hovered { 1.0 } else { 0.0 };
+                *hover = Animated::at(*hover_t);
             }
         }
         self.tree.mark_paint_dirty();
