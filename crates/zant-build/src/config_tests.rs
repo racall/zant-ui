@@ -120,3 +120,31 @@ fn invalid_json_and_entitlements() {
         ParseError::InvalidEntitlements
     );
 }
+
+#[test]
+fn window_remember_is_opt_in_for_old_configs_and_enabled_in_the_template() {
+    for os in [Os::Macos, Os::Windows] {
+        for json in [
+            "{}",
+            r#"{"window": {}}"#,
+            r#"{"window": {"remember": false}}"#,
+        ] {
+            let cfg = parse(json, os).expect("old or disabled config");
+            assert!(!cfg.window.remember);
+            assert!(source(&cfg).contains("pub const remember: bool = false;"));
+        }
+        let cfg = parse(r#"{"window": {"remember": true}}"#, os).expect("enabled");
+        assert!(cfg.window.remember);
+        assert!(source(&cfg).contains("pub const remember: bool = true;"));
+        assert!(parse(r#"{"window": {"remember": "true"}}"#, os).is_err());
+    }
+    // The unexpanded template bundle id is a scaffold placeholder.
+    let template = include_str!("../../../scaffold/template-ts/app.config.json")
+        .replace("__BUNDLE_ID__", "com.example.app");
+    assert!(
+        parse(&template, Os::Macos)
+            .expect("template config")
+            .window
+            .remember
+    );
+}

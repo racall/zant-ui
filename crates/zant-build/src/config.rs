@@ -35,6 +35,8 @@ pub struct WindowConfig {
     pub always_on_top: bool,
     pub movable_by_background: bool,
     pub center: bool,
+    /// Restore window frames across launches (opt-in for existing configs).
+    pub remember: bool,
     /// `hidden-titlebar` style: the height of the app's own title bar
     /// (where the system buttons sit); 0 for the system's default.
     pub titlebar_height: f32,
@@ -55,6 +57,7 @@ impl Default for WindowConfig {
             always_on_top: false,
             movable_by_background: false,
             center: true,
+            remember: false,
             titlebar_height: 0.0,
             hidden_at_login: false,
         }
@@ -139,6 +142,7 @@ struct RawWindow {
     always_on_top: Option<bool>,
     movable_by_background: Option<bool>,
     center: Option<bool>,
+    remember: Option<bool>,
     titlebar_height: Option<f32>,
     hidden_at_login: Option<bool>,
 }
@@ -289,6 +293,9 @@ pub fn parse(data: &str, os: Os) -> Result<AppConfig, ParseError> {
         if let Some(v) = w.center {
             cfg.window.center = v;
         }
+        if let Some(v) = w.remember {
+            cfg.window.remember = v;
+        }
         if let Some(v) = w.titlebar_height {
             cfg.window.titlebar_height = v;
         }
@@ -344,6 +351,10 @@ pub fn source(cfg: &AppConfig) -> String {
     ));
     out.push_str(&format!(
         "#[allow(non_upper_case_globals)]\npub const signing_identity: &str = \"{identity}\";\n"
+    ));
+    out.push_str(&format!(
+        "#[allow(non_upper_case_globals)]\npub const remember: bool = {};\n",
+        cfg.window.remember
     ));
     out.push_str("\n#[allow(non_upper_case_globals)]\npub const window: zant::WindowOptions = zant::WindowOptions {\n");
     out.push_str(&format!(

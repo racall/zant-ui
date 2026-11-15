@@ -15,7 +15,8 @@
     "resizable": true,
     "always_on_top": false,
     "movable_by_background": false,
-    "center": true
+    "center": true,
+    "remember": true
   },
   "macos": {
     "category": "public.app-category.productivity"

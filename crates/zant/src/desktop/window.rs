@@ -37,6 +37,8 @@ pub use crate::runtime::window::WindowHooks;
 pub struct OpenOptions {
     /// Window title (default "Zant UI").
     pub title: String,
+    /// Stable frame key suffix, falling back to the title when absent.
+    pub name: Option<String>,
     /// Platform window options (style, size, hidden, …).
     pub window: WindowOptions,
     /// Theme of the window before its first `App::theme()` hook runs.
@@ -47,6 +49,7 @@ impl Default for OpenOptions {
     fn default() -> Self {
         OpenOptions {
             title: String::from("Zant UI"),
+            name: None,
             window: WindowOptions::default(),
             theme: Theme::default(),
         }
@@ -60,6 +63,7 @@ impl OpenOptions {
             title: self.title.clone(),
             window: self.window,
             theme: self.theme,
+            ..Default::default()
         }
     }
 }
@@ -70,6 +74,7 @@ struct MainWindow {
     core: Rc<RefCell<Runtime>>,
     app: SharedApp,
     native: Option<Weak<NativeWindow>>,
+    autosave_name: Option<String>,
 }
 
 thread_local! {
@@ -85,11 +90,20 @@ thread_local! {
 pub fn set_main_runtime(runtime: Option<Rc<RefCell<Runtime>>>) {
     MAIN.with(|main| {
         *main.borrow_mut() = runtime.map(|core| {
-            let (app, native) = {
+            let (app, native, autosave_name) = {
                 let runtime = core.borrow();
-                (runtime.shared_app(), runtime.window().map(Rc::downgrade))
+                (
+                    runtime.shared_app(),
+                    runtime.window().map(Rc::downgrade),
+                    runtime.config.autosave_name.clone(),
+                )
             };
-            MainWindow { core, app, native }
+            MainWindow {
+                core,
+                app,
+                native,
+                autosave_name,
+            }
         });
     });
 }
@@ -243,8 +257,19 @@ impl std::fmt::Debug for Window {
 /// application state. Call it on the UI thread, e.g. from an action or the
 /// first `render`; with `.window.hidden = true` it opens hidden.
 pub fn open_window(hooks: WindowHooks, options: OpenOptions) -> Result<Window, PlatformError> {
-    let app = MAIN
-        .with(|main| main.borrow().as_ref().map(|state| state.app.clone()))
+    let (app, autosave_name) = MAIN
+        .with(|main| {
+            main.borrow().as_ref().map(|state| {
+                let suffix = options.name.as_deref().unwrap_or(&options.title);
+                (
+                    state.app.clone(),
+                    state
+                        .autosave_name
+                        .as_ref()
+                        .map(|name| format!("{name}.{suffix}")),
+                )
+            })
+        })
         .ok_or(PlatformError::UnsupportedPlatform)?;
     let mut runtime = Runtime::init_window(app, hooks, options.run_options());
     // The ZANT_FRAME_STATS labels of extra windows are
@@ -259,6 +284,9 @@ pub fn open_window(hooks: WindowHooks, options: OpenOptions) -> Result<Window, P
         options.window,
         RuntimeHost::boxed(Rc::clone(&core)),
     )?);
+    if let Some(name) = autosave_name {
+        native.set_autosave(&name);
+    }
     core.borrow_mut().attach_window(Rc::clone(&native));
     runtime_window::register(&core);
     core.borrow_mut().invalidate();

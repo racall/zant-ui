@@ -501,6 +501,16 @@ impl Window {
         self.handle
     }
 
+    /// Restores and saves the frame under a stable name. An empty name disables
+    /// saving; names containing NUL are ignored. Call just after creation.
+    pub fn set_autosave(&self, name: &str) {
+        let Ok(name) = CString::new(name) else {
+            return;
+        };
+        // SAFETY: live window handle; native code copies the name during this call.
+        unsafe { ffi::zant_window_set_autosave(self.handle, name.as_ptr()) }
+    }
+
     /// Runs the native event loop for all windows until it ends.
     pub fn run(&self) {
         // SAFETY: live window handle.

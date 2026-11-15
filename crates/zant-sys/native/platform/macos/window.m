@@ -1186,6 +1186,13 @@ ZantWindow *zant_window_create(const char *title, const ZantWindowOptions *optio
     }
 }
 
+void zant_window_set_autosave(ZantWindow *window, const char *name) {
+    if (!window || !window->window) return;
+    NSString *key = name && name[0] ? [NSString stringWithUTF8String:name] : @"";
+    if (!key || [window->window.frameAutosaveName isEqualToString:key]) return;
+    [window->window setFrameAutosaveName:key];
+}
+
 void zant_window_run(ZantWindow *window) {
     (void)window;
     @autoreleasepool {

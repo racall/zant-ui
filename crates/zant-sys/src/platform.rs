@@ -167,6 +167,9 @@ unsafe extern "C" {
     ) -> *mut ZantWindow;
 }
 unsafe extern "C" {
+    pub fn zant_window_set_autosave(window: *mut ZantWindow, name: *const ::std::os::raw::c_char);
+}
+unsafe extern "C" {
     pub fn zant_window_run(window: *mut ZantWindow);
 }
 unsafe extern "C" {

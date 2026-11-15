@@ -24,7 +24,8 @@
     "resizable": true,
     "always_on_top": false,
     "movable_by_background": false,
-    "center": true
+    "center": true,
+    "remember": true
   },
   "macos": {
     "category": "public.app-category.productivity",
@@ -56,7 +57,8 @@
 | `window.resizable` | 是否可缩放 |
 | `window.always_on_top` | 是否悬浮在其他窗口之上 |
 | `window.movable_by_background` | 是否允许拖拽空白背景移动窗口 |
-| `window.center` | 首次显示是否居中 |
+| `window.center` | 首次显示是否居中；`remember` 有已保存的位置时优先恢复 |
+| `window.remember` | 记住并恢复主窗口及 `createWindow` 副窗口的尺寸和位置。新项目模板为 true；旧配置省略时为 false。主窗口以 `bundle_id` 为键，副窗口以 `<bundle_id>.<createWindow 变量名>` 为键（手写 Rust 的 `open_window` 默认用窗口标题）。macOS 保存在用户默认设置，Windows 保存在 `HKCU\Software\Zant\<键>` 的 `WindowPlacement`；保存位置不在当前显示器上时 Windows 使用默认位置 |
 | `window.titlebar_height` | `hidden-titlebar` 时应用自绘标题栏的高度（系统窗口按钮所在区域）；0 为系统默认。`macos.titlebar_height` / `windows.titlebar_height` 可按平台覆盖（比如 macOS 52、Windows 32） |
 | `window.hidden_at_login` | 系统在登录时启动应用时先不显示窗口（托盘 / 菜单栏应用） |
 
@@ -82,6 +84,7 @@ zant::tsx::app::run::<crate::app::App>(zant::tsx::app::Config {
     title: app_config::title.to_string(),
     window,
     bundle_id: app_config::bundle_id.to_string(),
+    remember: app_config::remember,
     ..Default::default()
 })?;
 ```

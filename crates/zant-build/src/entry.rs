@@ -62,7 +62,7 @@ pub(crate) fn write(
     let watch_clipboard = parser
         .parse_module()
         .is_ok_and(|module| zant_tsx::codegen::app_hooks::watches_clipboard(&module));
-    let config = "zant::tsx::app::Config { title: app_config::title.to_string(), window: app_config::window, bundle_id: app_config::bundle_id.to_string(), single_instance: app_config::single_instance, watch_clipboard: WATCH_CLIPBOARD }".replace("WATCH_CLIPBOARD", if watch_clipboard { "true" } else { "false" });
+    let config = "zant::tsx::app::Config { title: app_config::title.to_string(), window: app_config::window, bundle_id: app_config::bundle_id.to_string(), single_instance: app_config::single_instance, remember: app_config::remember, watch_clipboard: WATCH_CLIPBOARD }".replace("WATCH_CLIPBOARD", if watch_clipboard { "true" } else { "false" });
     let main = format!(
         "fn main() -> zant::Result<()> {{ native::register(); zant::tsx::app::run::<crate::app::App>({config}) }}\n"
     );

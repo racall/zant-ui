@@ -41,6 +41,7 @@ pub fn panel_with<R>(
             let mut slot = slot.borrow_mut();
             let window = slot
                 .get_or_insert_with(|| tsx::window::Window::new(zant::desktop::OpenOptions {
+                    name: Some("panel".into()),
                     title: "Panel".into(),
                     window: zant::desktop::WindowOptions {
                         style: zant::desktop::WindowStyle::Panel,

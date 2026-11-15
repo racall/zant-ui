@@ -276,6 +276,8 @@ pub struct Config {
     pub bundle_id: String,
     /// `app.config.json` `single_instance`: a second launch comes forward.
     pub single_instance: bool,
+    /// `window.remember`: restore the main and createWindow frames by bundle id.
+    pub remember: bool,
     /// The app uses `useClipboardChange`: watch the clipboard while it runs.
     pub watch_clipboard: bool,
 }
@@ -287,6 +289,7 @@ impl Default for Config {
             window: WindowOptions::default(),
             bundle_id: String::new(),
             single_instance: false,
+            remember: false,
             watch_clipboard: false,
         }
     }
@@ -312,6 +315,8 @@ pub fn prepare<A: crate::ui::App + Default>(config: Config) -> (Shell<A>, ui::Ru
     set_forced_theme(forced);
     timers::set_running(true);
     let options = ui::RunOptions {
+        autosave_name: (config.remember && !config.bundle_id.is_empty())
+            .then_some(config.bundle_id),
         title: config.title,
         window: config.window,
         theme: forced.unwrap_or_else(system_theme),
@@ -459,6 +464,24 @@ mod tests {
         assert_eq!(config.window.width, 560.0);
         assert_eq!(config.window.height, 420.0);
         assert!(!config.single_instance);
+        assert!(!config.remember);
         assert!(config.bundle_id.is_empty());
+    }
+
+    #[test]
+    fn remembered_windows_use_the_bundle_id_only_when_enabled() {
+        for (remember, bundle_id, expected) in [
+            (false, "com.example.app", None),
+            (true, "", None),
+            (true, "com.example.app", Some("com.example.app")),
+        ] {
+            let (_, options) = prepare::<Probe>(Config {
+                bundle_id: bundle_id.into(),
+                remember,
+                ..Default::default()
+            });
+            assert_eq!(options.autosave_name.as_deref(), expected);
+        }
+        timers::set_running(false);
     }
 }

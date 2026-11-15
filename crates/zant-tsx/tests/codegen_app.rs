@@ -330,6 +330,7 @@ fn a_window_becomes_a_thread_local_handle_and_a_window_component() {
     contains(&source, "tsx::window::Window < PanelWindow");
     contains(&source, "pub fn panel_with<R>(");
     contains(&source, "zant::desktop::OpenOptions {");
+    contains(&source, "name: Some(\"panel\".into())");
     contains(&source, "title: \"Panel\".into()");
     contains(&source, "style: zant::desktop::WindowStyle::Panel");
     contains(&source, "width: 380.0f32");
@@ -1065,6 +1066,19 @@ fn the_repository_corpus_compiles_without_the_missing_modules() {
         skipped,
         "the known-missing set matches the corpus"
     );
+}
+
+#[test]
+fn untitled_windows_keep_the_create_window_name_as_the_frame_key() {
+    for options in ["", ", {}"] {
+        let source = generated(&format!(
+            r#"import {{ createWindow, View }} from "zant";
+function Panel() {{ return <View />; }}
+export const panel = createWindow(Panel{options});
+export default function App() {{ return <View />; }}"#
+        ));
+        contains(&source, "name: Some(\"panel\".into())");
+    }
 }
 
 // ── golden snapshots ─────────────────────────────────────────────────

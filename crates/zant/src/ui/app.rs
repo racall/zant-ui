@@ -38,6 +38,8 @@ use super::element::Node;
 pub struct RunOptions {
     /// Window title (`"Zant UI"` by default).
     pub title: String,
+    /// Stable frame persistence key; secondary windows use it as a prefix.
+    pub autosave_name: Option<String>,
     /// Platform window options passed to `Window::create`.
     pub window: WindowOptions,
     /// Theme the first frame builds with; `App::theme` may override it per
@@ -49,6 +51,7 @@ impl Default for RunOptions {
     fn default() -> Self {
         RunOptions {
             title: String::from("Zant UI"),
+            autosave_name: None,
             window: WindowOptions::default(),
             theme: Theme::default(),
         }
@@ -183,6 +186,8 @@ pub fn run(app: impl App, options: RunOptions) -> Result<(), Error> {
 /// Wires a runtime to its window and starts the app: debug switches, the
 /// desktop registries and `on_start`.
 pub(crate) fn start(core: &Rc<RefCell<crate::runtime::Runtime>>, window: &Rc<Window>) {
+    let autosave_name = core.borrow().config.autosave_name.clone();
+    window.set_autosave(autosave_name.as_deref().unwrap_or(""));
     core.borrow_mut().attach_window(Rc::clone(window));
     if let Some(path) = crate::platform::platform::getenv("ZANT_LAYOUT_FILE") {
         core.borrow_mut().layout_file = Some(path);
