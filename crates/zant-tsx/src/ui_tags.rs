@@ -11,7 +11,7 @@
 //! Tags whose builder the derive metadata does not describe are carried by
 //! `src/bin/zant-tsx-tags/pending.rs`.
 //!
-//! 38 tags, 465 props, 854 spellings, 46 theme fields, 10 skipped.
+//! 38 tags, 466 props, 854 spellings, 46 theme fields, 10 skipped.
 use crate::tags::{Content, Kind, Prop, Sides, Skipped, Tag, Value};
 
 /// Every supported `ui::*` builder, in table order.
@@ -323,6 +323,7 @@ pub fn tags() -> Vec<Tag> {
             Prop { name: "size", field: "size", kind: Kind::Number, ..Default::default() },
             Prop { name: "box", field: "box", kind: Kind::Number, ..Default::default() },
             Prop { name: "color", field: "color", kind: Kind::Color, ..Default::default() },
+            Prop { name: "hoverColor", field: "hover_color", kind: Kind::Color, ..Default::default() },
             Prop { name: "active", field: "active", kind: Kind::Boolean, ..Default::default() },
             Prop { name: "activeBackground", field: "active_background", kind: Kind::Color, ..Default::default() },
             Prop { name: "disabled", field: "disabled", kind: Kind::Boolean, ..Default::default() },

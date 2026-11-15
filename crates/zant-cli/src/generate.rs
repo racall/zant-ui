@@ -162,6 +162,7 @@ pub fn write_generated(path: &Path, data: &[u8]) -> std::io::Result<()> {
 
 /// Generate Info.plist and app.entitlements on macOS.
 pub fn sync_project(root: &str, cfg: &AppConfig) -> std::io::Result<()> {
+    crate::framework::warn_if_stale(root);
     if crate::IS_WINDOWS {
         crate::dim_line("本平台无需重新生成打包文件；Rust 配置由 Cargo 构建时生成到 OUT_DIR");
         return Ok(()); // Info.plist and entitlements are macOS bundle files

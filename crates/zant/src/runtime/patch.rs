@@ -188,6 +188,7 @@ impl Runtime {
                     data.index_action = element.index_action.clone();
                     data.index = element.index;
                     node.focusable = element.focusable;
+                    data.hover_text_color = element.hover_text_color;
                     if data.icon != element.icon
                         || data.icon_size != element.icon_size
                         || data.text_color != element.text_color

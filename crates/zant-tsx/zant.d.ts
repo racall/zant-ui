@@ -1403,6 +1403,7 @@ declare module "zant" {
     size?: number;
     box?: number;
     color?: Color;
+    hoverColor?: Color;
     active?: boolean;
     activeBackground?: Color;
     disabled?: boolean;

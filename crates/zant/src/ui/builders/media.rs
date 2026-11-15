@@ -74,22 +74,29 @@ pub fn icon(options: IconOptions) -> Node {
 /// `ui::icon_button`: a square icon-only button with hover feedback.
 pub fn icon_button(options: IconButtonOptions) -> Node {
     let theme = current_theme();
+    let mut base = button(ButtonOptions {
+        key: options.key,
+        text: Str::default(),
+        // a hover colour replaces the text button's hover fill
+        variant: if options.hover_color.is_some() {
+            ButtonType::Plain
+        } else {
+            ButtonType::Text
+        },
+        size: ButtonSize::Small,
+        icon: options.icon,
+        icon_size: options.size,
+        text_color: options.color,
+        disabled: options.disabled,
+        focusable: options.focusable,
+        on_click: options.on_click,
+        index_action: options.index_action,
+        index: options.index,
+        ..Default::default()
+    });
+    base.make_mut().hover_text_color = options.hover_color;
     let node = styled(
-        button(ButtonOptions {
-            key: options.key,
-            text: Str::default(),
-            variant: ButtonType::Text,
-            size: ButtonSize::Small,
-            icon: options.icon,
-            icon_size: options.size,
-            text_color: options.color,
-            disabled: options.disabled,
-            focusable: options.focusable,
-            on_click: options.on_click,
-            index_action: options.index_action,
-            index: options.index,
-            ..Default::default()
-        }),
+        base,
         Style {
             width: Some(options.r#box),
             height: Some(options.r#box),
@@ -301,6 +308,27 @@ mod tests {
         );
         let inactive = icon_button(IconButtonOptions::default());
         assert_eq!(inactive.element().visual.background, None);
+    }
+
+    #[test]
+    fn icon_button_with_a_hover_colour_has_no_hover_fill() {
+        let node = icon_button(IconButtonOptions {
+            icon: crate::core::node::Icon::Close,
+            color: Some(0xff11_1111),
+            hover_color: Some(0xff22_2222),
+            ..Default::default()
+        });
+        let element = node.element();
+        // a plain button paints no fill; hover recolours the glyph
+        assert_eq!(element.button_type, ButtonType::Plain);
+        assert_eq!(element.text_color, Some(0xff11_1111));
+        assert_eq!(element.hover_text_color, Some(0xff22_2222));
+        let default = icon_button(IconButtonOptions {
+            icon: crate::core::node::Icon::Close,
+            ..Default::default()
+        });
+        assert_eq!(default.element().button_type, ButtonType::Text);
+        assert_eq!(default.element().hover_text_color, None);
     }
 
     #[test]

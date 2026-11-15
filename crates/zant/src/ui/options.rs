@@ -546,6 +546,9 @@ pub struct IconButtonOptions {
     pub size: f32,
     pub r#box: f32,
     pub color: Option<u32>,
+    /// Set: no hover / press fill, the icon fades to this colour instead
+    /// (clear buttons inside inputs).
+    pub hover_color: Option<u32>,
     /// Draws `active_background` behind the icon (toggled state).
     pub active: bool,
     pub active_background: Option<u32>,
@@ -566,6 +569,7 @@ impl Default for IconButtonOptions {
             size: 18.0,
             r#box: 32.0,
             color: None,
+            hover_color: None,
             active: false,
             active_background: None,
             disabled: false,

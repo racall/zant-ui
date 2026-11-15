@@ -14,7 +14,9 @@ fn root() -> std::io::Result<String> {
 
 pub fn cmd_sync() -> std::io::Result<()> {
     let root = root()?;
-    sync(&root)
+    sync(&root)?;
+    crate::ok("配置代码已重新生成");
+    Ok(())
 }
 
 fn sync(root: &str) -> std::io::Result<()> {

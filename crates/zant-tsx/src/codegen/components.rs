@@ -923,7 +923,16 @@ fn children_value(
             format!("<{}> has no `children` prop", component.name),
         );
     };
-    let base = model::optional_child(g, ty).unwrap_or(ty);
+    // `children?: …` is an `Option<…>` field: the given children are `Some`
+    let optional = model::optional_child(g, ty);
+    let base = optional.unwrap_or(ty);
+    let wrap = |code: String| {
+        if optional.is_some() {
+            format!("Some({code})")
+        } else {
+            code
+        }
+    };
     if base == Type::Node {
         if parts.len() != 1 || parts[0].ty != Type::Node {
             return fail(
@@ -932,7 +941,7 @@ fn children_value(
                 format!("<{}> takes one child element", component.name),
             );
         }
-        return Ok(Some(parts[0].code.clone()));
+        return Ok(Some(wrap(parts[0].code.clone())));
     }
     if model::element(g, base) != Some(Type::Node) {
         return fail(
@@ -944,7 +953,7 @@ fn children_value(
     let codes: Vec<String> = parts
         .into_iter()
         .map(|part| {
-            if part.ty == ty {
+            if part.ty == base {
                 // a `children: ReactNode[]` value is a `tsx::List<Node>`
                 format!("({}).as_slice().to_vec()", part.code)
             } else {
@@ -952,10 +961,10 @@ fn children_value(
             }
         })
         .collect();
-    Ok(Some(format!(
+    Ok(Some(wrap(format!(
         "tsx::List::from_vec(nodes![{}])",
         codes.join(", ")
-    )))
+    ))))
 }
 
 /// `children: string`: `<Badge>new {count}</Badge>` passes its text.

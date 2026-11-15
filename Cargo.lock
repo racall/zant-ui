@@ -789,6 +789,7 @@ dependencies = [
 name = "zant-dylib"
 version = "0.2.4"
 dependencies = [
+ "libsqlite3-sys",
  "zant",
 ]
 

@@ -6,9 +6,12 @@ rust-version.workspace = true
 license.workspace = true
 description = "Shared Rust framework for Zant UI hot reload"
 publish = false
+build = "build.rs"
 
 [lib]
 crate-type = ["dylib"]
 
 [dependencies]
 zant.workspace = true
+# Only for its build-script metadata (`DEP_SQLITE3_LIB_DIR`); see build.rs.
+libsqlite3-sys.workspace = true

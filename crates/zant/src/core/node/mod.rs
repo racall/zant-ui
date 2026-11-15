@@ -152,6 +152,9 @@ pub struct ButtonData {
     pub text_align: rtext::Align,
     pub label_padding: f32,
     pub text_color: Option<u32>,
+    /// The colour hover / press fade the label or icon to (borderless icon
+    /// buttons); `None` keeps the colour and uses the variant's fill.
+    pub hover_text_color: Option<u32>,
     pub icon: crate::core::icons::Icon,
     pub icon_size: f32,
 }
@@ -182,6 +185,7 @@ impl Default for ButtonData {
             text_align: rtext::Align::Center,
             label_padding: 0.0,
             text_color: None,
+            hover_text_color: None,
             icon: crate::core::icons::Icon::None,
             icon_size: 18.0,
         }

@@ -309,7 +309,9 @@ pub fn hotkey_input(o: HotkeyInputOptions) -> Node {
             icon: Icon::Close,
             size: 14.0,
             r#box: 22.0,
-            color: Some(theme.color_text_secondary),
+            // antd's clear icon: quiet at rest, darker on hover, no fill
+            color: Some(theme.color_text_disabled),
+            hover_color: Some(theme.color_text_secondary),
             tooltip: Some(Str::Static("清除")),
             on_click: Some(clear.clone()),
             ..Default::default()

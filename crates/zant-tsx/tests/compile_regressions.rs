@@ -188,12 +188,47 @@ export default function App() {
 }
 "#;
 
+/// 5. Optional `children` props: a list with a default and a single element,
+///    given as JSX children or left out.
+const OPTIONAL_CHILDREN: &str = r#"
+import { Column, Row, Text } from "zant";
+
+interface CardProps {
+  title: string;
+  children?: JSX.Element[];
+}
+
+function Card({ title, children = [] }: CardProps) {
+  return <Column><Text>{title}</Text>{children}</Column>;
+}
+
+interface FrameProps {
+  children?: JSX.Element;
+}
+
+function Frame({ children }: FrameProps) {
+  return <Row>{children}</Row>;
+}
+
+export default function App() {
+  return (
+    <Column>
+      <Card title="two"><Text>a</Text><Text>b</Text></Card>
+      <Card title="none" />
+      <Frame><Text>c</Text></Frame>
+      <Frame />
+    </Column>
+  );
+}
+"#;
+
 const MODULES: &[(&str, &str)] = &[
     ("child_callbacks", CHILD_CALLBACKS),
     ("props_object_callbacks", PROPS_OBJECT_CALLBACKS),
     ("optional_node", OPTIONAL_NODE),
     ("rich_text_tail", RICH_TEXT_TAIL),
     ("list_in_child", LIST_IN_CHILD),
+    ("optional_children", OPTIONAL_CHILDREN),
 ];
 
 #[test]
@@ -272,6 +307,13 @@ fn list_in_a_child_component_clones_its_state_slot() {
     // the row handler upgrades the hoisted slot and calls the callback prop
     contains(&generated, "let _state = _state.clone();");
     contains(&generated, "(cap.onPick.clone())(_cx,");
+}
+
+#[test]
+fn optional_children_are_wrapped_in_some() {
+    let generated = compile("optional_children", OPTIONAL_CHILDREN);
+    contains(&generated, "children: Some(tsx::List::from_vec(nodes![");
+    contains(&generated, "children: Some(ui::text(");
 }
 
 #[test]

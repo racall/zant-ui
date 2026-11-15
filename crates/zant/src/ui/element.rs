@@ -77,6 +77,8 @@ pub struct Element {
     pub multiline: bool,
     pub focus_ring: bool,
     pub text_color: Option<u32>,
+    /// Buttons: the label / icon colour the hover and press states fade to.
+    pub hover_text_color: Option<u32>,
     pub label_padding: f32,
     pub icon: ButtonIcon,
     pub icon_size: f32,
@@ -155,6 +157,7 @@ impl Default for Element {
             multiline: false,
             focus_ring: true,
             text_color: None,
+            hover_text_color: None,
             label_padding: 0.0,
             icon: ButtonIcon::None,
             icon_size: 18.0,

@@ -11,6 +11,7 @@ mod app_config;
 mod bundle;
 mod create;
 mod distribute;
+mod framework;
 mod generate;
 mod hot;
 #[allow(dead_code)]
@@ -48,7 +49,8 @@ pub const USAGE: &str = "用法: zant <命令>
   build [配置文件]      发布构建：签名、公证、DMG / 安装包，或提交商店
                         （默认读 build.config.json；--yes 不提问，CI 用）
   sync                  重新生成配置代码
-  update                更新 Zant UI（git pull、依赖）并重新编译 zant
+  update                更新到最新发布版，并把当前项目的依赖改到新版本
+                        （源码仓库：git pull 并重新编译 zant）
 
 ";
 
@@ -681,7 +683,7 @@ enum Command {
     },
     /// 重新生成配置代码
     Sync,
-    /// 更新 Zant UI（git pull、依赖）并重新编译 zant
+    /// 更新到最新发布版，并把当前项目的依赖改到新版本（源码仓库：git pull 并重新编译）
     Update,
 }
 

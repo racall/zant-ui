@@ -266,6 +266,10 @@ pub fn paint(node: &mut RetainedNode, canvas: Canvas, theme: Theme) {
     } else {
         text_color(data, false, theme)
     };
+    // borderless icon buttons: hover / press recolour the glyph instead
+    if enabled && let Some(hover) = data.hover_text_color {
+        color = tokens::lerp(color, hover, hover_t.max(press_t));
+    }
     // the close glyph turns white on its red fill
     if data.button_type == ButtonType::CaptionClose {
         color = tokens::lerp(color, 0xffff_ffff, hover_t.max(press_t));

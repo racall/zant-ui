@@ -330,6 +330,7 @@ impl Runtime {
                     data.text_align = element.text_style.text_align;
                     data.label_padding = element.label_padding;
                     data.text_color = element.text_color;
+                    data.hover_text_color = element.hover_text_color;
                     data.icon = element.icon;
                     data.icon_size = element.icon_size;
                     data.invalidate_layout();

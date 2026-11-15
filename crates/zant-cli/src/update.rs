@@ -145,6 +145,7 @@ fn update_release(home: &Path) -> std::io::Result<()> {
         ) {
             fail("更新没有完成（见上面的说明）");
         }
+        retag_current_project(home);
         return Ok(());
     }
     // Windows: download the script and run it as a file with a UTF-8 BOM
@@ -189,7 +190,23 @@ fn update_release(home: &Path) -> std::io::Result<()> {
     ) {
         fail("更新没有完成（见上面的说明）");
     }
+    retag_current_project(home);
     Ok(())
+}
+
+/// Run inside a project: its Zant UI git dependency follows the version the
+/// install script just put in place (`zant-ui/.zant-version`).
+fn retag_current_project(home: &Path) {
+    let Ok(version) = std::fs::read_to_string(home.join("zant-ui/.zant-version")) else {
+        return;
+    };
+    let tag = version.trim();
+    if tag.is_empty() {
+        return;
+    }
+    if let Ok(dir) = std::env::current_dir() {
+        crate::framework::retag_project(&dir, tag);
+    }
 }
 
 /// Runs a command with extra environment variables and the terminal; `false`
