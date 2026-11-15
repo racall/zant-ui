@@ -12,7 +12,7 @@
 
 - 项目：Zant UI，TSX + Rust 的原生桌面 UI 框架（macOS：Metal + AppKit；Windows：Direct3D 12 + Win32）。
   界面用 TSX 写，编译期由 `zant-tsx` 转成 Rust；底层能力用 Rust 写在应用的 `native/` 里。
-- 工作区（Cargo workspace）：`crates/{zant-sys,zant,zant-macros,zant-tsx,zant-build,zant-cli,zant-examples}`。
+- 工作区（Cargo workspace，Rust 1.94.1）：`crates/{zant-sys,zant,zant-macros,zant-tsx,zant-build,zant-cli,zant-examples,zant-dylib,zant-hot-host}`。
 - 入口/示例：`crates/zant-examples/src/bin/`（`zant-demo`、`zant-gallery`、`zant-components`、
   `zant-markdown`、`zant-md-stream`、`zant-math`、`zant-pdf`）；TSX 应用模板 `scaffold/template-ts/`。
 - 声明式 API：`crates/zant/src/ui/`；协调器：`crates/zant/src/runtime/`。
@@ -24,7 +24,7 @@
 - 质量门：`./scripts/cargo.sh clippy --workspace --all-targets -- -D warnings`、`fmt --all -- --check`。
 - Windows：测试机见 `AGENTS.md`「跨平台规范」；`scripts/win/` 同步、远程构建、桌面冒烟测试。
 - 动效：`crates/zant/src/motion/`，规范见 `docs/motion.md` 与 `AGENTS.md`「动效规范」；
-  `ZANT_NO_MOTION=1` 关闭动效。
+  TSX 容器用 `motion` / `motionOrigin` / `layoutTransition`；`ZANT_NO_MOTION=1` 关闭动效。
 - 全局 CLI：`zant`；框架更新后执行 `zant update`。一键安装 `install.sh` / `install.ps1`（发布包，
   `scripts/release/`，推送 `v*` 标签由 `.github/workflows/release.yml` 发布，见 `docs/development.md`「发布」）。
 - 发布构建：`zant build [配置文件]`（`build.config.json`，`docs/build.md`）：zant 读配置、提问、编译签名，
@@ -51,10 +51,11 @@
   示例 `zant-markdown` / `zant-math` / `zant-md-stream`（流式帧率基准，可读真实 SSE）。
 - 性能基准：`zant-bench`（打开长对话、流式、打字、光标、悬停、缩放、滚动；`ZANT_BENCH_LIST=1`
   用虚拟列表；`scripts/bench.sh` 对照记录基线）。优化前先建基线（Release），两边平台对比。
+  TSX 生成代码：`zant-tsx-frame-bench`（对照手写 Rust），`ZANT_BENCH_SOAK=1` 跑内存 soak。
 - 桌面集成：`zant::desktop`（`docs/desktop.md`）：多窗口 / `.panel` 快捷面板、托盘与状态栏、全局快捷键、
   剪贴板监听与图片、单实例、深色模式；TSX hooks `useTray` / `useHotkey` / `useClipboardChange` /
   `useReopen` / `useWake` / `useAppExit` / `createWindow`。
-  组件 `Clickable`、`HotkeyInput`、`showOnHover`。示例项目 ClipHop。
+  组件 `Clickable`、`HotkeyInput`、`showOnHover`。
 - 虚拟列表：`List` + `ui::ListState`（`docs/components/list.md`）；悬停样式 `hoverBackground`；
   焦点范围 `focusScope`（`Modal` 自带）。
 - 流式性能：改 Markdown / 布局 / 文本后，用 Release 的 `zant-md-stream` 配 `ZANT_FRAME_STATS=1`

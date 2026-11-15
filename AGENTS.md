@@ -12,7 +12,7 @@
 
 - 界面：TSX（React 语义的静态子集），编译期由 `zant-tsx` 转成 Rust，**没有 JS 运行时**；
   底层能力（网络、数据库、剪贴板引擎）用 Rust 写在应用的 `native/` 里
-- 语言：Rust 1.94+（edition 2024，stable channel，`rust-toolchain.toml` 固定）
+- 语言：Rust 1.94.1（edition 2024，`rust-toolchain.toml` 固定；`zant create` 的新应用用同一版本）
 - 窗口：macOS AppKit / NSWindow；Windows Win32 HWND（原生，不使用 WebView）
 - 渲染：Skia Ganesh + Metal（macOS）/ Direct3D 12（Windows）；CPU 光栅回退用于测试/特殊环境
 - 布局：Rust 实现的 CSS 风格 Flex（含换行 wrap、百分比、绝对定位）
@@ -152,12 +152,13 @@ third_party/            Skia 预编译依赖（不提交到 Git）
   基于时间戳的 `motion::motion::Animated`、presence（进场/退场）、layout/FLIP（`layout_transition` + `anchor`）。
 - 新组件必须有符合 antd 的状态过渡（悬停/按下/聚焦/选中）：布尔状态是唯一来源，
   在组件的 `animate(data, now, theme)` 里用 `Animated::retarget` 缓动出呈现值供 paint 使用。
-- 弹层、提示、模态用 presence（`ui::Style { motion: Some(zant::motion::motion::Presence::SlideUp), .. }`），
+- 弹层、提示、模态用 presence（TSX 容器 `motion="slideUp"` / `motionOrigin` / `layoutTransition`；
+  Rust `ui::Style { motion: Some(zant::motion::motion::Presence::SlideUp), .. }`），
   并给稳定 `key`，重新出现时复用同一节点。
 - **动画帧只重绘、不重建**：不要用应用状态驱动动画，也不要在 `render` 里依赖动画进度。
 - 状态变化处用 `tree.poke(id)` 登记动画节点；运行时只推进 `tree.animating`，不扫全树。
 - 节点会被释放、`NodeId` 会被复用：框架外不要长期持有 `NodeId`；运行时新增跨帧
-  保存 `NodeId` 的字段必须同时在 `Runtime.forgetNode` 里清理。
+  保存 `NodeId` 的字段必须同时在 `Runtime::forget_node` 里清理。
 - 时间相关测试用假时钟（`runtime.clock = fakeClock`），不要 sleep；
   `ZANT_NO_MOTION=1`、截图模式、系统“减少动态效果”都会关闭动效。
 - 命令式接口：`ui::focus(key)`、`ui::scroll_into_view(key)`（布局后执行）、`ui::wake_after(ms)`、
@@ -209,8 +210,7 @@ ui::styled(node, ui::Style {
 
 - 托盘 / 状态栏、全局快捷键、剪贴板监听与图片、多窗口与 `.panel` 快捷面板、单实例、系统深色模式
   都走 `zant::desktop`（TSX 里是 `useTray` / `useHotkey` / `useClipboardChange` / `createWindow` /
-  从 `"zant"` 导入的 `clipboard` / `app` / `mainWindow`），应用里不要写平台代码；
-  示例项目 ClipHop（局域网剪贴板同步）。
+  从 `"zant"` 导入的 `clipboard` / `app` / `mainWindow`），应用里不要写平台代码。
 - 应用钩子：TSX 用 `useCloseRequest`、`useQuitRequest`、`useKeyDown`、`useWindowFocus`、
   `useReopen`、`useWake`、`useAppExit`、`useTray`、`useHotkey`、`useClipboardChange`；
   手写 Rust 实现 `App` trait 的 `on_start`、`on_app_event`、`on_wake`、`on_close_request`、
@@ -329,6 +329,9 @@ ui::styled(node, ui::Style {
 - **性能闸门**：`scripts/bench.sh` 跑 `zant-bench` 各场景（open / stream / typing /
   caret / hover / resize / scroll，另跑 `ZANT_BENCH_LIST=1`），每个场景不超过记录基线
   **1.25 倍**（基线数字内置在脚本里），稳态场景平均帧耗时低于 16.7 ms；`zant-md-stream` 流式帧率达标。
+- TSX 生成代码：`zant-tsx-frame-bench` 对照手写 Rust（≤ 1.2 倍，`scripts/tsx/bench-tsx.sh`）；
+  `ZANT_BENCH_SOAK=1 ./target/release/zant-tsx-frame-bench` 是内存 soak（RSS、存活节点、
+  local-state 槽、存活文字排版），改运行时 / 协调器 / 生成代码后两边平台都跑。
   没有可测量收益、或过不了闸门的改动不要合入。
 
 ## 代码质量

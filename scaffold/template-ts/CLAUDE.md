@@ -2,19 +2,19 @@
 
 先读 [AGENTS.md](AGENTS.md) 和 [DESIGN.md](DESIGN.md)。
 
-这是一个 Zant UI 桌面应用：界面用 TypeScript + TSX（`src/App.tsx` 根组件、`src/components/` 业务组件），
-底层原生模块用 Rust（`native/<名字>.ts` 规范 + `native/<名字>.rs` 实现，构建时自动登记）。
-TSX 在编译期转成 Rust，无 JS 运行时；不要添加 npm 依赖或手写界面到 `native/main.rs`。
+```bash
+zant run              # 默认原地热刷新
+zant run --no-hot     # 运行一次；验证 macOS 沙盒
+cargo test            # 原生 Rust 测试
+```
 
-- 入口 `native/main.rs`（一行 `zant::app!();`）；`native/build.rs` 调 `zant_build::tsx_app()`。
-- 应用标识 `__BUNDLE_ID__`；用 `zant run` / `zant run --watch` 运行，`zant compile` 只编译，
-  `cargo test` 跑原生模块的测试。
+- 推荐 TSX：`src/App.tsx` 默认导出无 props 根组件，`src/` 只放 `.tsx` / `.ts`，无 JS / DOM / npm。
+- Rust 全在 `native/`：`main.rs` 仅 `zant::app!();`，`build.rs` 调 `zant_build::tsx_app()`；
+  `<名>.ts` 规范 + `.rs` 实现自动声明 / 注册，参照 `system.*`。生成代码全在 `OUT_DIR`，不手改。
+- `app.config.json` 管理标识 `__BUNDLE_ID__`、元数据和窗口；模板 `window.remember: true` 记忆窗口位置 / 尺寸。
+- 热刷新保留兼容状态 / 稳定 key 的视图状态；配置等改动重启 `zant run`；`--watch` 是旧重启模式。
+  store / Rust 全局变量 / 外部资源不自动恢复，应用负责在卸载前清理资源。
+- props 向下、回调向上，最新值用 `setX(prev => …)`，共享状态用 `createStore` / `useStore`；颜色用 `useTheme()`。
+  界面检查不同尺寸、浅深主题和各状态；不提交密钥或构建产物。
 
 [TSX 文档](https://github.com/racall/zant-ui/blob/main/docs/tsx.md)。
-
-应用的 `src/` 只放 `.tsx` / `.ts`，所有 Rust 文件都在 `native/`。
-`Cargo.toml` 设置 `build = "native/build.rs"` 和 `[[bin]] path = "native/main.rs"`。
-构建器在 `$OUT_DIR/zant_app.rs` 生成配置、原生模块树、规范类型与注册、TSX 模块声明；
-`zant_main.rs` 启动应用，`zant_hot.rs` 提供热重载入口（`zant::hot_app!()`）。
-新增原生能力只需 `native/<名字>.ts` + `native/<名字>.rs`；顶层无规范的 `.rs` 是内部模块，
-自动声明但不注册，子目录由普通 `mod` 引入。生成代码不写回项目目录。
