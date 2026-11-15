@@ -107,7 +107,10 @@ mod tests {
                 .parse()
                 .unwrap();
         dependencies(&mut deps, &workspace, Path::new("/repo")).unwrap();
-        assert_eq!(deps["zant"]["path"].as_str(), Some("/repo/crates/zant"));
+        assert_eq!(
+            deps["zant"]["path"].as_str().map(Path::new),
+            Some(Path::new("/repo/crates/zant"))
+        );
         assert_eq!(deps["zant"]["features"].as_array().unwrap().len(), 2);
         assert!(deps["zant"].get("workspace").is_none());
     }
