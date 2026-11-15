@@ -335,7 +335,8 @@ pub fn emit(g: &mut Generator<'_>, c: &mut scope::Context, jsx: &ast::Jsx) -> Re
     // component's local-state slot the actions upgrade, into locals first
     block.push_str(&format!("let _list = self.{field}.clone();\n"));
     if g.current_component.is_some() {
-        block.push_str("let _state = self._state.clone();\n");
+        // rows build child instances under this id (the closure cannot read `self`)
+        block.push_str("let _state = self._state.clone();\nlet _parent_id = self._id;\n");
     }
     block.push_str(&format!("ui::list(&_list, {options})\n"));
     Ok(Value::new(Type::Node, format!("{{\n{block}}}")))

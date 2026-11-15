@@ -819,7 +819,8 @@ fn instance_id(
     key_is_string: bool,
 ) -> Result<String> {
     let parent = if g.current_component.is_some() {
-        "self._id"
+        // inside a `<List>` row closure the id is hoisted (`list.rs`)
+        if g.handler_state.is_some() { "_parent_id" } else { "self._id" }
     } else {
         "0"
     };

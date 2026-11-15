@@ -1069,7 +1069,13 @@ fn widget_emit(
             ),
         );
     }
-    let parent = if g.child_component { "self._id" } else { "0" };
+    let parent = if !g.child_component {
+        "0"
+    } else if g.handler_state.is_some() {
+        "_parent_id"
+    } else {
+        "self._id"
+    };
     let id = match raw_key {
         Some(key) => format!("tsx::child_id({parent}, \"{}\", {key})", tag.name),
         None => {

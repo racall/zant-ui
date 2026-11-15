@@ -224,6 +224,7 @@ impl Feed {
             let _rows = _data.clone();
             let _list = self._list2.clone();
             let _state = self._state.clone();
+            let _parent_id = self._id;
             ui::list(
                 &_list,
                 ui::ListOptions {
