@@ -1,405 +1,205 @@
 # 发布构建：zant build
 
-`zant build` 把应用做成可以发给别人的安装文件：编译 → 签名 → 打包 → 公证或提交商店。
-
-```bash
-zant build                      # 读项目根目录的 build.config.json，缺的设置在终端里询问
-zant build release/ci.json      # 指定配置文件
-zant build --yes                # 不提问（CI 用；设置了环境变量 CI 时也不提问）
-```
-
-结果放在 `target/dist/`。只想编译用 `zant compile [--release]`，本机测试用的 .app / 程序目录用
-`zant package`。TSX 应用与手写 Rust 应用使用同一发布流程；TSX 在 `native/build.rs` 中
-由 `zant_build::tsx_app()` 编译成 Rust，发布产物没有 JS 运行时，也不使用热刷新宿主或开发动态库。
-
-| 平台 | 发布方式（`distribution`） | 结果 |
-|---|---|---|
-| macOS | `developer-id`：自己分发（默认） | `<标题>-<版本>.dmg`（或 zip），Developer ID 签名，可选 Apple 公证 |
-| macOS | `app-store`：Mac App Store | `<标题>-<版本>.pkg`，可选上传到 App Store Connect |
-| Windows | `installer`：安装包（默认） | `<标题>-<版本>-setup.exe`（Inno Setup），可签名 |
-| Windows | `store`：Microsoft Store | `<标题>-<版本>.msix`，可选用 msstore 命令行提交 |
-| Windows | `folder`：免安装 | `<标题>-<版本>-windows.zip` |
-
-目录：
-
-- [第一次运行](#第一次运行)
-- [配置文件](#配置文件)
-- [macOS：证书与公证](#macos证书与公证)
-- [macOS：Mac App Store](#macosmac-app-store)
-- [Windows：签名与安装包](#windows签名与安装包)
-- [Windows：Microsoft Store](#windowsmicrosoft-store)
-- [CI](#ci)
-- [常见问题](#常见问题)
-- [打包脚本](#打包脚本)
+在应用目录里运行（项目由 `zant create my-app` 创建）。
 
 ## 第一次运行
 
-先检查 `app.config.json`：它提供应用标题、`bundle_id`、版本与平台元数据。
-`description`、`company`、`copyright` 写入 Windows exe 文件属性（描述为空时用标题）；
-macOS Info.plist 写入版权、`macos.category` 与 `macos.minimum_system_version`（默认 `13.0`）。
-`window.remember` 控制运行时记住窗口位置与尺寸，不是发布设置；新脚手架为 `true`，省略时为 `false`。
-TSX 应用的 Rust 入口与配置由构建器生成到 `$OUT_DIR`，不要手改生成文件。
+```bash
+cd my-app
+zant build                      # 读取 build.config.json，终端里询问缺失设置
+zant build release/ci.json       # 指定配置文件
+zant build --yes                 # 不提问；设置 CI 环境变量或无终端时也不提问
+zant package                    # 本机测试：macOS .app / Windows 程序目录
+zant compile --release          # 只编译；省略 --release 为调试构建
+```
 
-`build.config.json` 单独控制分发方式、发布证书、公证和商店上传；其签名身份不从
-`app.config.json` 的本机打包身份继承。Windows 安装包的 `windows.publisher` 也需单独提供；
-Mac App Store 发布仍需在构建配置中提供 `macos.category`，它覆盖应用配置中的分类。
+- 在目标平台构建，发布产物在 `target/dist/`；`package` 输出 `target/<标题>.app` 或 `target/<标题>/`（Windows 不签名）。
+- TSX 与手写 Rust 共用发布流程；TSX 编译成 Rust，无 JS 运行时，发布包不含热刷新宿主或开发动态库。
+- 首次交互选择分发方式、证书、公证 / 商店设置，可保存配置；macOS 列出钥匙串证书与匹配的描述文件，Windows 可选证书存储、`.pfx` 或不签名。
+- `app.config.json` 提供标题、`bundle_id`、`version`；Windows exe 属性来自 `description`（空时用标题）、`company`、`copyright`；macOS 使用版权、`macos.category`、`macos.minimum_system_version`（默认 `13.0`）。
+- `window.remember` 只影响窗口位置与尺寸（新脚手架 `true`，省略为 `false`）；生成文件无需手改。
+- 发布证书不继承 `app.config.json` 的本机签名身份；Windows 安装包仍需单独填 `windows.publisher`，Mac App Store 仍需填构建配置的 `macos.category`（覆盖应用分类）。
 
-在项目目录的终端里运行 `zant build`，配置里缺什么就问什么：
-
-1. 发布方式（见上表）。
-2. 签名证书：
-   - macOS 列出钥匙串里的证书，推荐的排在前面并标「（推荐）」；Developer ID 分发可以选 Ad-hoc 用于本机测试，App Store 方式不能选 Ad-hoc；
-   - Windows 列出证书存储（当前用户 → 个人）里有效的代码签名证书，也可以输入 `f` 用 .pfx 文件，或输入 `0` 不签名。
-3. macOS 自己分发：签名完成后问要不要公证，要公证时问用哪个苹果帐户（见下文）；再问 DMG 的背景
-   图片，直接回车用 zant 自带的默认背景。
-4. Mac App Store：分类、描述文件（自动列出本机匹配的）、安装包证书、是否上传，以及
-   App Store Connect API key。
-5. Windows：安装包的发布者名称；Microsoft Store 的产品标识；没装 Inno Setup 时提议用 winget 安装。
-
-交互流程会询问是否保存到配置文件，下次（以及 CI 上）直接用。通过提示输入的密码只用于本次运行，
-提示收集的配置保存证书名称、选项、文件路径和环境变量引用。手工写进配置的字面值会原样保留，
-**不要直接把密码或密钥内容写进配置**。配置文件可以提交到仓库供 CI 使用；如果不想公开证书
-名称（里面有个人姓名），把它加进 `.gitignore`。
+| 平台 / `distribution` | 产物（`<标题>-<版本>`） |
+|---|---|
+| macOS `developer-id`（默认） | `.dmg` 或 `.zip`，Developer ID 签名，可选公证 |
+| macOS `app-store` | `.pkg`，可选上传 App Store Connect |
+| Windows `installer`（默认） | `-setup.exe`，Inno Setup 安装包，可签名 |
+| Windows `store` | `.msix`，可选用 msstore 提交 |
+| Windows `folder` | `-windows.zip`，免安装 |
 
 ## 配置文件
 
-默认是项目根目录的 `build.config.json`，所有字段都可以省略：
-
-- 字符串写成 `$名字` 或 `${名字}` 时，从环境变量读取（CI 的密钥都这样写）；
-- 路径可以用 `~/` 开头，相对路径相对项目根目录；
-- 拼错的字段名会报错并停止，不会被悄悄忽略。
+`build.config.json`（证书名、团队 ID 均为占位符）：
 
 ```json
 {
   "build_number": "$BUILD_NUMBER",
   "macos": {
-    "distribution": "developer-id",
-    "signing_identity": "Developer ID Application: Your Name (ABCDE12345)",
-    "dmg_background": "default",
-    "notarize": true,
+    "signing_identity": "Developer ID Application: Your Name (ABCDE12345)", "notarize": true,
     "notary": { "profile": "zant-notary" }
   },
-  "windows": {
-    "distribution": "installer",
-    "publisher": "Your Name",
-    "signing_identity": "0123456789ABCDEF0123456789ABCDEF01234567"
-  }
+  "windows": { "publisher": "Your Company", "signing_identity": "none" }
 }
 ```
 
-### 通用字段
+- 所有字段均可省略；非交互模式使用默认值，缺少必需项时停止并指出字段名。
+- 字符串整个写成 `$NAME` / `${NAME}` 读取环境变量；路径支持 `~/`，相对路径以项目根目录为准；未知字段报错。
+- 密码通过环境变量提供；终端输入的密码不保存，手写的字面值会原样保留。不要提交证书、私钥、密码、token 或真实签名身份；含个人信息的配置可加入 `.gitignore`。
 
-| 字段 | 说明 |
+| 通用字段 | 用法 / 默认值 |
 |---|---|
-| `build_number` | macOS 的 CFBundleVersion（构建号），默认等于 `app.config.json` 的 `version`。上传 App Store Connect 时，同一个版本再次上传要用更大的构建号；CI 里常写成 `$GITHUB_RUN_NUMBER` |
-| `app_store_connect.issuer_id` | App Store Connect API 的 Issuer ID（获取方法见下文） |
-| `app_store_connect.key_id` | API key 的 Key ID |
-| `app_store_connect.key` | .p8 私钥：文件路径，或文件内容（原文或 base64，CI 用 `$变量`） |
+| `build_number` | macOS `CFBundleVersion`，默认应用 `version`；同版本再次上传需增大，CI 可用 `$GITHUB_RUN_NUMBER` |
+| `app_store_connect.issuer_id` / `app_store_connect.key_id` | App Store Connect API 的 Issuer ID / Key ID |
+| `app_store_connect.key` | `.p8` 路径、私钥原文或 base64；CI 用环境变量 |
 
-### macOS 字段（`macos`）
-
-| 字段 | 说明 |
+| `macos` 字段 | 用法 / 默认值 |
 |---|---|
-| `distribution` | `developer-id`（默认）或 `app-store` |
-| `signing_identity` | 钥匙串里签名证书的全名，例如 `Developer ID Application: Your Name (ABCDE12345)`；`none` = Ad-hoc |
-| `certificate` / `certificate_password` | CI 用：.p12 证书（路径或 base64 内容）和它的密码。导入一个临时钥匙串，构建结束后删除；`signing_identity` 不写时自动用里面的证书 |
-| `format` | `dmg`（默认）或 `zip` |
-| `dmg_background` | DMG 窗口背景：PNG 路径、`default`（默认背景）或 `none`（普通窗口），见下文 |
-| `notarize` | 是否公证。只有 Developer ID Application 证书签名的应用能公证；不提问时默认不公证 |
-| `notary` | 公证用的帐户，三选一：`{"profile": "钥匙串配置名"}`、`{"api_key": true}`、`{"apple_id": "…", "password": "$变量", "team_id": "…"}`（`team_id` 不写时取证书名里的团队 ID） |
-| `category` | Mac App Store 分类，例如 `public.app-category.utilities` |
-| `provisioning_profile` | Mac App Store 描述文件（.provisionprofile）的路径 |
-| `installer_identity` | 给 .pkg 签名的证书全名（Mac Installer Distribution） |
-| `upload` | 是否上传到 App Store Connect（先验证再上传） |
+| `distribution` | `developer-id`（默认）/ `app-store` |
+| `signing_identity` | 钥匙串证书全名；`none` 为 Ad-hoc，仅本机测试，App Store 禁用；非交互时无证书导入则必填 |
+| `certificate` / `certificate_password` | `.p12` 路径或 base64、密码（默认空）；导入临时钥匙串，未指定身份时自动选证书 |
+| `format` | 自行分发用 `dmg`（默认）/ `zip` |
+| `dmg_background` | PNG 路径 / `default`（默认背景）/ `none`（普通窗口） |
+| `notarize` | 公证开关；非交互默认 `false`；可公证时交互默认 `true`，仅 Developer ID Application 可用 |
+| `notary.profile` | 已保存的 notarytool 钥匙串配置名；与下面两种方式三选一 |
+| `notary.api_key` | `true`：使用 `app_store_connect` 团队 API key 公证 |
+| `notary.apple_id` / `notary.password` / `notary.team_id` | Apple ID、App 专用密码、团队 ID；团队 ID 默认取证书名末尾括号内容 |
+| `category` | App Store 必填，如 `public.app-category.utilities` |
+| `provisioning_profile` | App Store `.provisionprofile` 路径 |
+| `installer_identity` | `.pkg` 签名证书名；CI 导入证书后可自动选择安装包证书 |
+| `upload` | 上传 App Store Connect，先验证再上传；非交互默认 `false`、交互默认 `true` |
 
-### Windows 字段（`windows`）
-
-| 字段 | 说明 |
+| `windows` 字段 | 用法 / 默认值 |
 |---|---|
-| `distribution` | `installer`（默认）、`store` 或 `folder` |
-| `publisher` | 发布者名称，安装程序和「设置 → 应用」里显示 |
-| `signing_identity` | 证书存储里的代码签名证书：指纹（40 位十六进制）或证书主题名称；`none` = 不签名。不提问时默认不签名 |
-| `certificate` / `certificate_password` | 改用 .pfx 文件签名：路径或 base64 内容，和它的密码 |
-| `timestamp_url` | 时间戳服务器，默认 `http://timestamp.digicert.com` |
-| `store.identity_name` / `store.publisher` / `store.publisher_display_name` | Microsoft Store 产品标识里的三个值 |
-| `store.upload` | 是否用 msstore 命令行提交 |
-| `store.product_id` | Store ID（9 开头的 12 位） |
-| `store.tenant_id` / `seller_id` / `client_id` / `client_secret` | msstore 用的 Partner Center 凭据；不写时用之前 `msstore reconfigure` 保存的 |
+| `distribution` | `installer`（默认）/ `store` / `folder` |
+| `publisher` | 安装包发布者，显示在安装程序与「设置 → 应用」；`installer` 必填 |
+| `signing_identity` | 当前用户证书存储的 40 位十六进制指纹（去空格）或主题名称；`none` 不签名，非交互默认不签名 |
+| `certificate` / `certificate_password` | `.pfx` 路径或 base64、密码（默认空）；优先于证书存储 |
+| `timestamp_url` | 默认 `http://timestamp.digicert.com` |
+| `store.identity_name` / `store.publisher` / `store.publisher_display_name` | Store 产品标识中的 Name / Publisher / PublisherDisplayName；`store` 必填 |
+| `store.upload` | 用 msstore 提交，默认 `false` |
+| `store.product_id` | 提交时必填，Store ID（9 开头的 12 位） |
+| `store.tenant_id` / `store.seller_id` / `store.client_id` / `store.client_secret` | Partner Center 凭据；提供 `client_secret` 时其余三项必填，否则用 `msstore reconfigure` 已存凭据 |
 
 ## macOS：证书与公证
 
-### 需要什么
-
-自己分发、公证、上架都需要付费的 [Apple Developer Program](https://developer.apple.com/programs/) 会员。
-没有会员时只能用 Ad-hoc 签名，生成的 DMG 只适合自己测试：别人的 Mac 打开时会被系统拦截。
-
-### 签名证书
-
-| 用途 | 证书类型 | 谁能创建 |
-|---|---|---|
-| 自己分发（DMG / zip）、公证 | Developer ID Application | 只有团队的帐户持有人（Account Holder） |
-| Mac App Store 的应用 | Apple Distribution（较老的帐号可能是 3rd Party Mac Developer Application） | 帐户持有人或管理员 |
-| Mac App Store 的 .pkg | Mac Installer Distribution | 帐户持有人或管理员 |
-
-创建方法（二选一）：
-
-- **Xcode**：Xcode → Settings → Accounts，选中 Apple 帐户和团队 → Manage Certificates → 左下角 **+** →
-  选证书类型 → Done。证书和私钥直接装进本机钥匙串。
-- **开发者网站**：
-  1. 在「钥匙串访问」里选 钥匙串访问 → 证书助理 → 从证书颁发机构请求证书，填邮箱和名称，
-     选「存储到磁盘」，得到 `.certSigningRequest` 文件；
-  2. 登录 [Certificates, Identifiers & Profiles](https://developer.apple.com/account/resources/certificates/list)，
-     点 Certificates 旁的 **+**，选类型（Developer ID 在 Software → Developer ID 下，选 Developer ID Application），
-     上传上一步的文件，Continue，Download 得到 `.cer`；
-  3. 双击 `.cer` 装进钥匙串（要在生成请求文件的那台 Mac 上，私钥在那里）。
-
-检查本机有哪些可用证书，`signing_identity` 就写引号里的全名：
-
 ```bash
-security find-identity -v -p codesigning
+security find-identity -v -p codesigning  # signing_identity 使用引号里的证书名
+xcrun notarytool store-credentials zant-notary --apple-id "$APPLE_ID" --team-id ABCDE12345
+# 按提示输入 App 专用密码；构建配置使用 {"profile":"zant-notary"}
 ```
 
-**团队 ID**（Team ID）是证书名末尾括号里的 10 个字符，也可以在开发者网站的 Membership details 里查到。
+| 用途 | 证书 | 创建角色 |
+|---|---|---|
+| 自行分发 / 公证 | Developer ID Application | [帐户持有人](https://developer.apple.com/help/account/certificates/create-developer-id-certificates/) |
+| App Store 应用 | Apple Distribution（或旧的 3rd Party Mac Developer Application） | 帐户持有人 / 管理员 |
+| App Store 安装包 | Mac Installer Distribution（或旧的 3rd Party Mac Developer Installer） | [帐户持有人 / 管理员](https://developer.apple.com/help/account/certificates/certificates-overview/) |
 
-### 公证
+- 正式分发需 [Apple Developer Program](https://developer.apple.com/programs/) 会员；Ad-hoc 仅用于本机测试。
+- 创建证书：Xcode → Settings → Accounts → Manage Certificates → `+`；也可在「钥匙串访问」生成 CSR，再到[开发者网站](https://developer.apple.com/account/resources/certificates/list)申请并在原机器安装 `.cer`（私钥在原机器）。
+- App 专用密码：开启双重认证后，在 [Apple 帐户](https://account.apple.com) → 登录与安全 → App 专用密码生成；交互构建也可代存 notarytool 凭据，配置名可跨项目共用。
+- 公证还可用 `{"api_key":true}`（[团队密钥](https://developer.apple.com/documentation/AppStoreConnectAPI/creating-api-keys-for-app-store-connect-api)，见下一节），或 `{"apple_id":"$APPLE_ID","password":"$APPLE_APP_PASSWORD","team_id":"ABCDE12345"}`。
+- zant 提交 DMG / zip 并等待公证；失败打印苹果日志，通过后装订票据并检查 Gatekeeper。zip 会在 `.app` 装订后重新压缩，票据支持离线验证；苹果建议[每天不超过 75 次](https://developer.apple.com/documentation/security/customizing-the-notarization-workflow)。
 
-公证是把签好名的 DMG 交给苹果检查，通过后，别人下载打开时系统不会拦截。zant 提交 DMG（或 zip）、
-等待结果，通过后把公证票据装订到 DMG 和 .app 上（离线也能验证），再用 Gatekeeper
-检查一遍；没通过时打印苹果的检查日志。苹果建议每天不超过 75 次公证提交，见[公证工作流](https://developer.apple.com/documentation/security/customizing-the-notarization-workflow)。
-
-公证用的帐户有三种写法（`macos.notary`），本机推荐第一种：
-
-**1. 钥匙串配置（`{"profile": "zant-notary"}`）**
-
-把 Apple ID 和 App 专用密码存进钥匙串，配置文件里只写配置名：
-
-1. 生成 App 专用密码：登录 [account.apple.com](https://account.apple.com) → 登录与安全 → App 专用密码 →
-   生成（Apple 帐户需要开启双重认证）；
-2. 存进钥匙串（会先向苹果验证）：
-
-   ```bash
-   xcrun notarytool store-credentials zant-notary --apple-id 你的AppleID --team-id ABCDE12345
-   # 按提示输入 App 专用密码
-   ```
-
-交互运行 `zant build` 时选「Apple ID + App 专用密码」，zant 会替你运行这条命令，密码由 notarytool
-询问，zant 看不到。同一台 Mac 上的其他项目可以共用这个配置名。
-
-**2. App Store Connect API key（`{"api_key": true}`）**
-
-用 `app_store_connect` 里的 API key 公证，适合 CI。**必须是团队密钥**（个人密钥不能用于公证），获取方法见
-下文「App Store Connect API key」，以及苹果的 [API key 说明](https://developer.apple.com/documentation/AppStoreConnectAPI/creating-api-keys-for-app-store-connect-api)。
-
-**3. Apple ID 和密码直接写成环境变量**
+DMG 背景示例（替换 `build.config.json` 相应字段）：
 
 ```json
-"notary": { "apple_id": "$APPLE_ID", "password": "$APPLE_APP_PASSWORD", "team_id": "ABCDE12345" }
+{ "macos": { "dmg_background": "assets/dmg.png" } }
 ```
 
-### DMG 窗口
-
-DMG 打开后显示一个带背景的窗口：左边是应用，右边是「应用程序」文件夹，用户拖过去即可安装。
-
-- `dmg_background` 不写或写 `default`：zant 自带的默认背景（浅色渐变和一道箭头）；
-- 自己的背景：PNG 的尺寸就是窗口大小（单位是点），建议 640×400；同一目录下放一张两倍大的
-  `名字@2x.png`（1280×800）给 Retina 屏幕。应用图标和「应用程序」文件夹的中心分别在宽度的 27% 和 73%、
-  高度的 47.5% 处（640×400 时是 (172, 190) 和 (467, 190)），图标 128 点，画背景时把这两处留空；
-- `none`：普通窗口。
-
-窗口由「访达」排好后存进 DMG。第一次运行时 macOS 会询问是否允许终端控制「访达」（系统设置 →
-隐私与安全性 → 自动化）；不允许或在没有界面的环境里，DMG 照样生成，只是没有背景和图标摆放。
-打包时如果已经挂载了同名的磁盘（例如上次打开的 DMG），要先在访达里推出。
+- PNG 尺寸就是窗口点数，建议 640×400；同目录可放 `dmg@2x.png`（1280×800）；PNG 须为 8 位、非隔行，宽 320–2000、高 240–1400。
+- 应用 /「应用程序」图标中心在宽度 27% / 73%、高度 47.5% 处，图标 128 点，背景为两处留空；用户拖入「应用程序」安装。
+- 允许终端控制「访达」（系统设置 → 隐私与安全性 → 自动化）才能保存背景和布局；无界面 / 无权限仍生成普通 DMG；已挂载的同名磁盘须先推出。
 
 ## macOS：Mac App Store
 
-上架需要的东西：
-
-1. **App ID**：开发者网站 → Identifiers → **+** → App IDs，选 Explicit，Bundle ID 填 `app.config.json` 的
-   `bundle_id`。
-2. **App Store Connect 里的应用记录**：[App Store Connect](https://appstoreconnect.apple.com) → App → **+** →
-   新建 App，选 macOS、名称、语言、上面的 Bundle ID、SKU。第一次上传前要建好。
-3. **证书**：Apple Distribution 和 Mac Installer Distribution（见上文）。
-4. **描述文件**：开发者网站 → Profiles → **+** → Distribution 下选 **Mac App Store Connect** → 选 App ID 和
-   Apple Distribution 证书 → 命名 → Generate → Download，得到 `.provisionprofile`。双击或放进
-   `~/Library/Developer/Xcode/UserData/Provisioning Profiles/`，交互运行时 zant 会自动列出和 Bundle ID 匹配的。
-5. **分类**：`category`，常用值 `public.app-category.utilities`（工具）、`productivity`（效率）、
-   `developer-tools`（开发者工具）、`graphics-design`（图形和设计），交互时只输入后半段也可以。
-   完整列表见苹果文档 [LSApplicationCategoryType](https://developer.apple.com/documentation/bundleresources/information-property-list/lsapplicationcategorytype)。
-6. **App Store Connect API key**（要上传时）。
-
-### App Store Connect API key
-
-1. 用帐户持有人或管理员登录 App Store Connect → 用户和访问（Users and Access）→ 集成（Integrations）→
-   App Store Connect API → 团队密钥（Team Keys）→ **生成 API 密钥**；
-2. 填名称，访问权限选「App 管理」（App Manager）；
-3. 页面上方是 **Issuer ID**，列表里是 **Key ID**；
-4. **下载 .p8 私钥，只能下载一次**，苹果不保留副本。建议放到 `~/.appstoreconnect/private_keys/`
-   （交互运行时 zant 会在这里自动找 `AuthKey_<Key ID>.p8`），**不要放进项目目录或提交到仓库**。
-
 ```json
-"app_store_connect": { "issuer_id": "…", "key_id": "…", "key": "~/.appstoreconnect/private_keys/AuthKey_XXXXXXXXXX.p8" }
-```
-
-### 沙盒与权限
-
-Mac App Store 要求 App Sandbox。`app-store` 方式总是带上沙盒权限，以及由描述文件里的团队 ID 组成的
-`com.apple.application-identifier`、`com.apple.developer.team-identifier`。上架前：
-
-- 在 `app.config.json` 设 `"macos": { "sandbox": true }`，用 `zant run --no-hot` 检查沙盒里各功能是否正常（默认 `zant run` 使用不启用沙盒的开发宿主）；
-- 应用需要的其他权限写在 `app.config.json` 的 `macos.entitlements`，例如联网
-  `{"com.apple.security.network.client": true}`、监听端口 `com.apple.security.network.server`、
-  读写「下载」文件夹 `com.apple.security.files.downloads.read-write`。
-
-上传后要等苹果处理一段时间，之后在 App Store Connect 的 TestFlight 里能看到这个构建，再在网页上
-填写商店信息并提交审核。
-
-## Windows：签名与安装包
-
-### 要不要签名、用什么证书
-
-不签名的安装包可以用，但用户运行时会看到「未知发布者」和 SmartScreen 警告。可选的证书：
-
-| 方式 | 说明 |
-|---|---|
-| 不签名 | 免费；适合测试或小范围分发 |
-| OV 代码签名证书 | 向证书机构购买；硬件令牌 / HSM 等私钥保管要求按签发机构规定 |
-| EV 代码签名证书 | 更贵；2024 年起和 OV 一样，也要靠下载量积累 SmartScreen 信誉，不再立刻免除警告 |
-| Azure Artifact Signing（原 Trusted Signing） | 微软的云签名服务（按月付费，地区有限制）；zant 目前不直接支持，可以改 `windows.ps1` 接入 |
-| 自签名证书 | 只适合测试，用户那里一样会被拦截 |
-
-签名仍可能触发 SmartScreen 提示；提交 Microsoft Store 的 MSIX 由商店重新签名（见下文）。
-签名选项和信誉规则见微软的[代码签名说明](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/code-signing-options)。
-
-### 用证书存储里的证书（`signing_identity`）
-
-装好的证书（包括 USB 令牌里的）出现在「当前用户 → 个人」：
-
-1. 运行 `certmgr.msc` → 个人 → 证书，双击证书 → 详细信息 → **指纹**；
-2. 把指纹去掉空格，写进 `"signing_identity"`（也可以写证书主题名称，指纹更准确）。
-
-交互运行 `zant build` 时会直接列出这里有效的代码签名证书供选择。
-
-### 用 .pfx 文件（`certificate`）
-
-导出：`certmgr.msc` 里右键证书 → 所有任务 → 导出 → 是，导出私钥 → 个人信息交换 - PKCS #12 (.PFX)
-（勾选「如果可能，则包括证书路径中的所有证书」）→ 设密码。
-
-```json
-"certificate": "~/certs/code-signing.pfx",
-"certificate_password": "$ZANT_WIN_CERT_PASSWORD"
-```
-
-密码放在环境变量里；交互运行时变量没设置就在终端里询问（不显示、不保存）。签名命令经过 cmd 传递
-密码，所以**密码里不要有 `& | < > ^ %` 这些字符**。
-
-zant 签 exe 和 `pdfium.dll`（Rust 版把 Skia 桥接静态链接进 exe，没有 `zant_skia.dll` 了），安装包和卸载程序由 Inno Setup 调用同一个证书签名，都带时间戳
-（证书过期后签名仍然有效）。签名工具 signtool 来自 Windows SDK（Visual Studio 的 C++ 工作负载自带），
-找不到时用环境变量 `ZANT_SIGNTOOL` 指定。
-
-### 安装包
-
-需要 [Inno Setup](https://jrsoftware.org/isdl.php)，安装程序模板面向 6.3+（CLI 不检查版本号）：
-
-```powershell
-winget install --id JRSoftware.InnoSetup -e
-```
-
-交互运行时没装会提议替你安装；装在别处时用环境变量 `ZANT_ISCC` 指定 `ISCC.exe`。
-
-安装包的行为：
-
-- 默认装给当前用户，不需要管理员权限，位置 `%LOCALAPPDATA%\Programs\<标题>`；命令行加 `/ALLUSERS`
-  装给所有用户；
-- 界面跟随系统语言显示中文或英文（简体中文翻译随 zant 提供）；
-- 创建开始菜单快捷方式，可选桌面快捷方式，装完可以直接启动；
-- 安装、卸载前结束正在运行的这个程序；
-- 卸载时删除框架开机启动 API（TSX：`app.setLaunchAtLogin`；Rust：`zant::desktop::set_launch_at_login`）写的启动项，用户数据（`%APPDATA%\<应用标识>`）保留；
-- 静默安装：`setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART`。
-
-## Windows：Microsoft Store
-
-1. 在 [Partner Center](https://partner.microsoft.com/dashboard) 注册开发者帐户，新建应用并保留名称；
-2. 打开应用 → 产品管理（Product management）→ **产品标识**（Product identity），抄下：
-   - Package/Identity/Name → `store.identity_name`
-   - Package/Identity/Publisher（`CN=` 开头）→ `store.publisher`
-   - Package/Properties/PublisherDisplayName → `store.publisher_display_name`
-   - Store ID → `store.product_id`
-
-   这些值区分大小写，要原样复制。
-3. `zant build` 生成 `.msix`：版本号是 `version` 加 `.0`（商店要求第四位为 0），图标从
-   `assets/icons/app-windows.png` 生成。**商店的 MSIX 不需要自己签名**，微软审核后会重新签名；要签名时
-   证书主题必须和 `store.publisher` 完全一致。
-4. **第一次提交要在 Partner Center 网页上完成**：新建提交，上传 .msix，填写商店信息。
-
-之后的更新可以用 msstore 命令行（`store.upload: true`）；先在网页上完成首发，
-其他限制与运行时要求见微软的 [Developer CLI 文档](https://learn.microsoft.com/en-us/windows/apps/publish/msstore-dev-cli/overview)。准备：
-
-1. 安装：`winget install "Microsoft Store Developer CLI"`；所需 .NET 运行时按当前 CLI 安装要求准备；
-2. 关联 Microsoft Entra 应用：Partner Center → 帐户设置 → 用户管理 → **Microsoft Entra 应用程序** → 添加，
-   角色选「管理员」（Manager）；点应用名可以看到租户 ID 和客户端 ID，**添加新密钥**得到客户端密钥
-   （只显示一次）；
-3. 卖家 ID（Seller ID）在 Partner Center 的帐户设置里；
-4. 本机可以运行一次 `msstore reconfigure` 保存凭据，之后配置里不用写；CI 上写成环境变量：
-
-```json
-"store": {
-  "identity_name": "…", "publisher": "CN=…", "publisher_display_name": "…",
-  "upload": true, "product_id": "9XXXXXXXXXXX",
-  "tenant_id": "$MS_TENANT_ID", "seller_id": "$MS_SELLER_ID",
-  "client_id": "$MS_CLIENT_ID", "client_secret": "$MS_CLIENT_SECRET"
+{
+  "macos": {
+    "distribution": "app-store",
+    "signing_identity": "Apple Distribution: Your Company (ABCDE12345)",
+    "installer_identity": "Mac Installer Distribution: Your Company (ABCDE12345)",
+    "category": "public.app-category.utilities", "provisioning_profile": "~/certs/app.provisionprofile", "upload": true
+  },
+  "app_store_connect": { "issuer_id": "$ASC_ISSUER_ID", "key_id": "$ASC_KEY_ID", "key": "$ASC_KEY_P8" }
 }
 ```
 
-## CI
+1. 开发者网站创建 Explicit App ID，Bundle ID 与 `app.config.json` 的 `bundle_id` 一致；首次上传前在 [App Store Connect](https://appstoreconnect.apple.com) 新建 macOS 应用记录。
+2. 创建 Mac App Store Connect 类型的描述文件，选择 App ID 与 Apple Distribution 证书；下载后可放 `~/Library/Developer/Xcode/UserData/Provisioning Profiles/`，供交互构建自动查找。
+3. 分类可用 `public.app-category.utilities` / `productivity` / `developer-tools` / `graphics-design`（后面三个也须加 `public.app-category.`）；交互输入可省略前缀。[完整分类](https://developer.apple.com/documentation/bundleresources/information-property-list/lsapplicationcategorytype)。
+4. 上传用 API key：App Store Connect → 用户和访问 → 集成 → App Store Connect API → 团队密钥，由帐户持有人 / 管理员创建，权限选「App 管理」。保存 Issuer ID、Key ID 与只能下载一次的 `.p8`；建议存 `~/.appstoreconnect/private_keys/AuthKey_<Key ID>.p8`，交互时会查找。
+5. `app-store` 自动启用沙盒及应用 / 团队标识权限。先在 `app.config.json` 设置 `macos.sandbox: true`，用 `zant run --no-hot` 检查（默认热刷新宿主不启用沙盒）；其他权限放 `macos.entitlements`：联网 `com.apple.security.network.client`、监听端口 `com.apple.security.network.server`、下载目录读写 `com.apple.security.files.downloads.read-write`，值均为 `true`。
+6. 上传处理完成后在 TestFlight 查看；商店信息与提交审核仍在 App Store Connect 网页完成。只生成 `.pkg` 可设 `upload: false`。
 
-CI 上运行 `zant build --yes`（GitHub Actions 等会设置环境变量 `CI`，也就不会提问），缺少必需的设置时
-停止并指出字段名。证书和密钥放在 CI 的 secret 里，配置文件引用环境变量。
-
-### 准备 secret
-
-把文件转成 base64 文本：
-
-```bash
-base64 -i DeveloperID.p12 | pbcopy        # macOS：.p12 证书
-base64 -i AuthKey_XXXXXXXXXX.p8 | pbcopy  # .p8 也可以直接粘贴原文
-```
-
-```powershell
-[Convert]::ToBase64String([IO.File]::ReadAllBytes("code-signing.pfx")) | Set-Clipboard   # Windows：.pfx
-```
-
-导出 macOS 的 .p12：「钥匙串访问」→ 我的证书，选中证书（连同私钥）→ 文件 → 导出项目 → 个人信息交换（.p12）→
-设密码；或在 Xcode 的 Manage Certificates 里右键证书 → Export Certificate。
-
-在 GitHub 仓库的 Settings → Secrets and variables → Actions → New repository secret 里逐个添加，
-或用命令行 `gh secret set MAC_CERT_P12_BASE64 < cert.b64`。
-
-### 配置与工作流
+## Windows：签名与安装包
 
 ```json
 {
-  "build_number": "$GITHUB_RUN_NUMBER",
-  "macos": {
-    "signing_identity": "Developer ID Application: Your Name (ABCDE12345)",
-    "certificate": "$MAC_CERT_P12_BASE64",
-    "certificate_password": "$MAC_CERT_PASSWORD",
-    "dmg_background": "default",
-    "notarize": true,
-    "notary": { "api_key": true }
-  },
-  "app_store_connect": { "issuer_id": "$ASC_ISSUER_ID", "key_id": "$ASC_KEY_ID", "key": "$ASC_KEY_P8" },
   "windows": {
-    "publisher": "Your Name",
-    "certificate": "$WIN_PFX_BASE64",
+    "publisher": "Your Company", "certificate": "~/certs/code-signing.pfx",
     "certificate_password": "$WIN_PFX_PASSWORD"
   }
 }
 ```
 
+```powershell
+winget install --id JRSoftware.InnoSetup -e
+# 静默安装（把文件名换成实际产物）：
+.\setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+```
+
+- 可用 OV / EV 代码签名证书；自签名仅用于测试。不签名显示「未知发布者」，签名后仍可能出现 SmartScreen 提示；云签名尚未直接支持，接入需改打包脚本。
+- `.pfx`：在 `certmgr.msc` 导出证书并包含私钥、证书链，设密码；环境变量未设置时交互询问且不保存。安装包签名经 cmd 传密码，**不要含 `& | < > ^ %`**。
+- zant 签 exe 与 `pdfium.dll`，Inno Setup 签安装包和卸载程序，均带时间戳，证书过期后签名仍有效；SDK 提供 signtool，非默认位置用 `ZANT_SIGNTOOL`。
+- 模板面向 Inno Setup 6.3+（不检查版本号）；未安装时交互构建可用 winget 安装，非默认位置用 `ZANT_ISCC` 指向 `ISCC.exe`。
+- 默认安装到 `%LOCALAPPDATA%\Programs\<标题>`，无需管理员权限；安装命令加 `/ALLUSERS` 为全用户安装。
+- 界面支持中英文，跟随系统语言；创建开始菜单快捷方式，可选桌面快捷方式和安装后启动；安装 / 卸载前结束正在运行的应用。
+- 卸载删除框架开机启动 API 写入的启动项，保留 `%APPDATA%\<应用标识>` 用户数据。
+
+## Windows：Microsoft Store
+
+```json
+{
+  "windows": {
+    "distribution": "store", "signing_identity": "none", "store": {
+      "identity_name": "YourPackageName", "publisher": "CN=YourPublisher",
+      "publisher_display_name": "Your Company", "upload": true, "product_id": "9XXXXXXXXXXX",
+      "tenant_id": "$MS_TENANT_ID", "seller_id": "$MS_SELLER_ID",
+      "client_id": "$MS_CLIENT_ID", "client_secret": "$MS_CLIENT_SECRET"
+    }
+  }
+}
+```
+
+1. 在 [Partner Center](https://partner.microsoft.com/dashboard) 注册开发者帐户、新建应用并保留名称；产品管理 → 产品标识中原样复制 Name、Publisher（`CN=` 开头）、PublisherDisplayName 与 Store ID，区分大小写。
+2. 提供 `assets/icons/app-windows.png`，zant 生成 MSIX 图标；推荐应用版本 `1.2.3`，生成 `1.2.3.0`（第四位固定 0）。MSIX 用 Windows SDK 的 makeappx，路径可用 `ZANT_MAKEAPPX` 指定。
+3. 商店包无需自行签名，微软会重新签名；若自行签名，证书主题必须与 `store.publisher` 完全一致。
+4. [首次发布](https://learn.microsoft.com/en-us/windows/apps/publish/msstore-dev-cli/overview)须在 Partner Center 网页上传 `.msix`、填商店信息并通过审核；发布后可设 `store.upload: true` 提交更新（CLI 目前只支持免费产品）。
+5. 自动提交先装 `winget install "Microsoft Store Developer CLI"`，按 [CLI 文档](https://learn.microsoft.com/en-us/windows/apps/publish/msstore-dev-cli/overview)准备运行时；在 Partner Center 帐户设置 → 用户管理关联 Microsoft Entra 应用，授予 Manager，取得租户 / 客户端 ID 和只显示一次的客户端密钥；卖家 ID 在帐户设置中。
+6. 本机可先 `msstore reconfigure` 保存凭据，再省略配置的四个凭据字段；只生成 MSIX 则设 `upload: false`，无需 `product_id` 或提交凭据。
+
+## CI
+
+`build.config.json`（在各自平台运行 `zant build build.config.json --yes`）：
+
+```json
+{
+  "build_number": "$GITHUB_RUN_NUMBER",
+  "macos": {
+    "certificate": "$MAC_CERT_P12_BASE64", "certificate_password": "$MAC_CERT_PASSWORD",
+    "dmg_background": "none", "notarize": true, "notary": { "api_key": true }
+  },
+  "app_store_connect": { "issuer_id": "$ASC_ISSUER_ID", "key_id": "$ASC_KEY_ID", "key": "$ASC_KEY_P8" },
+  "windows": {
+    "publisher": "Your Company", "certificate": "$WIN_PFX_BASE64", "certificate_password": "$WIN_PFX_PASSWORD"
+  }
+}
+```
+
 ```yaml
-# GitHub Actions：在装好 Rust（rust-toolchain.toml 固定的工具链）并构建好 Zant UI（zant 在 PATH 上）之后
-- name: Release build (macOS)
-  run: zant build build.config.json --yes
+# GitHub Actions：已有固定版本 Rust 工具链、Zant 依赖与 PATH 中的 zant；macOS runner
+- run: zant build build.config.json --yes
   env:
     MAC_CERT_P12_BASE64: ${{ secrets.MAC_CERT_P12_BASE64 }}
     MAC_CERT_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
@@ -412,44 +212,32 @@ base64 -i AuthKey_XXXXXXXXXX.p8 | pbcopy  # .p8 也可以直接粘贴原文
     path: target/dist/
 ```
 
-Windows 的步骤相同，环境变量换成 `WIN_PFX_BASE64`、`WIN_PFX_PASSWORD`；要做安装包时先安装 Inno Setup
-（`winget install --id JRSoftware.InnoSetup -e`，或用 `ZANT_ISCC` 指向已有的 ISCC.exe）。
-
-从环境变量得到的 .p8 / .p12 / .pfx 内容临时写在 `target/build/`（macOS 上只有当前用户可读），构建结束
-或出错时删除；macOS 的临时钥匙串也一样，并恢复原来的钥匙串列表。
+- macOS 在「钥匙串访问 → 我的证书」连同私钥导出 `.p12` 并设密码（或 Xcode → Manage Certificates → Export Certificate）；`base64 -i DeveloperID.p12 | pbcopy` 转成 secret，`.p8` 可用原文或同法转 base64。
+- Windows：`[Convert]::ToBase64String([IO.File]::ReadAllBytes("code-signing.pfx")) | Set-Clipboard`；工作流传 `WIN_PFX_BASE64` / `WIN_PFX_PASSWORD`，制作安装包前安装 Inno Setup 或设 `ZANT_ISCC`。
+- 在 GitHub Settings → Secrets and variables → Actions 添加 secret，或 `gh secret set MAC_CERT_P12_BASE64 < cert.b64`；工具链版本见项目 `rust-toolchain.toml`。
+- 临时密钥文件在 `target/build/`（macOS 仅当前用户可读），成功或出错后清理；临时钥匙串也会删除并恢复原搜索列表。
 
 ## 常见问题
 
-| 提示 | 处理 |
+| 提示 / 问题 | 处理 |
 |---|---|
-| `build.config.json 解析失败` | JSON 格式错误，或字段名拼错（未知字段会报错） |
-| `缺少 macos.signing_identity` 等 | 非交互模式下缺少必需的设置：在终端里运行一次 `zant build` 按提示选择并保存，或写进配置文件 |
-| `是环境变量 X，但它没有设置` | 配置里写了 `$X`，运行时要设置这个环境变量 |
-| `钥匙串里没有可用的证书「…」` | 证书没装、已过期或缺少私钥；用 `security find-identity -v -p codesigning` 查看，名字要完全一致 |
-| `不是 Developer ID Application 证书，跳过公证` | 只有 Developer ID Application 证书签名的应用能公证 |
-| `公证没有通过` | 上面会打印苹果的检查日志，按里面的问题修改（常见：缺少加固运行时、签名缺时间戳、包含未签名的可执行文件） |
-| 钥匙串配置名找不到 | 先用 `xcrun notarytool store-credentials 名称 …` 创建，名称和 `notary.profile` 一致 |
-| `没能设置 DMG 窗口` | 允许终端控制「访达」（系统设置 → 隐私与安全性 → 自动化）；DMG 已经生成，只是没有背景 |
-| `已经挂载了名为「…」的磁盘` | 在访达里推出那个磁盘再打包 |
-| `找不到 Inno Setup` | `winget install --id JRSoftware.InnoSetup -e`，或设置 `ZANT_ISCC` |
-| `签名失败（signtool …）` | 证书不可用（令牌没插、密码错）或时间戳服务器连不上；换 `timestamp_url` 再试 |
-| `找不到 signtool.exe` / `makeappx.exe` | 在 Visual Studio Installer 里安装 Windows SDK，或设置 `ZANT_SIGNTOOL` / `ZANT_MAKEAPPX` |
-| `版本号 … 不能用于 MSIX` | MSIX 要求 `version` 是 1.2.3 这样的数字 |
+| 配置解析失败 / 缺少字段 / 环境变量未设置 | 检查 JSON、字段拼写与环境变量；终端运行 `zant build` 补齐并保存 |
+| 钥匙串无可用证书 | 检查名称、有效期和私钥；运行 `security find-identity -v -p codesigning` |
+| 非 Developer ID，跳过公证 | 改用 Developer ID Application；显式要求公证时会报错 |
+| 公证失败 / 配置名找不到 | 按苹果日志修改签名、加固运行时、时间戳等问题；用 `notarytool store-credentials` 创建同名配置 |
+| DMG 无背景 / 同名磁盘已挂载 | 允许终端控制访达；先推出同名磁盘 |
+| 找不到 Inno Setup / signtool / makeappx | 安装 Inno Setup / Windows SDK，或设 `ZANT_ISCC` / `ZANT_SIGNTOOL` / `ZANT_MAKEAPPX` |
+| signtool 签名失败 | 检查令牌、证书、密码、网络；必要时更换 `timestamp_url` |
+| MSIX 版本号不可用 | 应用 `version` 使用 `1.2.3` 这样的数字 |
 
 ## 打包脚本
 
-zant 负责读配置、提问、编译和生成 .app / 程序目录；macOS 应用签名由 CLI 执行，
-Windows 签名及后续平台步骤由 `crates/zant-cli/src/distribute.rs` 调用 `scripts/package/` 中的脚本完成。
-改脚本、背景和安装程序模板无需重新编译 zant；改 CLI Rust 代码则需要重新编译：
+需自定义分发行为时修改 [scripts/package/](../scripts/package/)；脚本、背景和安装模板改后无需重编 zant，CLI Rust 改后需重编。
 
-| 文件 | 内容 |
+| 文件 | 用途 |
 |---|---|
-| `macos.sh` | DMG（背景与图标摆放）/ zip、公证与装订、Gatekeeper 检查、.pkg 与 App Store Connect 上传、CI 临时钥匙串 |
-| `dmg-background.png` / `@2x` / `.svg` | 默认的 DMG 背景（SVG 是可编辑的源文件） |
-| `windows.ps1` | 列出证书、查找或安装 Inno Setup、签名、安装包、MSIX 与 Microsoft Store 提交、zip |
-| `windows-installer.iss` | Inno Setup 安装程序模板（参数由 windows.ps1 用 `/D` 传入） |
-| `ChineseSimplified.isl` | Inno Setup 的简体中文界面文字（来自 Inno Setup 仓库） |
+| `macos.sh` | DMG / zip、公证装订、Gatekeeper、PKG / 上传、CI 钥匙串 |
+| `dmg-background.png` / `dmg-background@2x.png` / `dmg-background.svg` | 默认背景与可编辑源文件 |
+| `windows.ps1` / `windows-installer.iss` / `ChineseSimplified.isl` | 签名、Inno Setup 模板、简体中文翻译、MSIX / 上传、zip |
 
-zant 用 `ZANT_*` 环境变量把设置传给脚本（每个脚本开头有完整列表），不主动打印密码或密钥内容。
-脚本调用系统签名、公证和上传工具时，部分凭据会作为工具参数传递；Windows 安装包签名还经
-`cmd.exe` 展开环境变量，因此需遵守上文的 PFX 密码字符限制。
+配置入口：[distribute.rs](../crates/zant-cli/src/distribute.rs)。CLI 用 `ZANT_*` 传设置（脚本开头列出），不主动打印密钥；系统工具仍可能通过参数接收凭据。
