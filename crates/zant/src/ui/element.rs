@@ -202,10 +202,13 @@ impl Node {
         &self.0
     }
 
-    /// A deep-enough copy of the element: `styled()` / `with_key()` /
-    /// `append_children()` copy the `Rc` contents and change a few fields.
-    pub(crate) fn element_clone(&self) -> Element {
-        (*self.0).clone()
+    /// The element to change in place: `styled()` / `with_key()` /
+    /// `append_children()` edit the node they were given. A node nobody else
+    /// holds (the usual case right after its builder) is changed without a
+    /// copy; a shared one is copied first (copy on write), so other holders
+    /// keep the old element.
+    pub(crate) fn make_mut(&mut self) -> &mut Element {
+        Rc::make_mut(&mut self.0)
     }
 
     /// Whether both nodes share one `Element` (the reconciler's identity test;
@@ -229,16 +232,16 @@ pub fn append_children(node: Node, extra: &[Node]) -> Node {
     if extra.is_empty() {
         return node;
     }
-    let mut element = node.element_clone();
-    element.children.extend_from_slice(extra);
-    Node::new(element)
+    let mut node = node;
+    node.make_mut().children.extend_from_slice(extra);
+    node
 }
 
 /// Returns `node` with `key` set (used to key memoized subtrees).
 pub fn with_key(node: Node, key: impl Into<Str>) -> Node {
-    let mut element = node.element_clone();
-    element.key = Some(key.into());
-    Node::new(element)
+    let mut node = node;
+    node.make_mut().key = Some(key.into());
+    node
 }
 
 /// Flattens the arguments of [`nodes!`] into a `Vec<Node>`.

@@ -87,9 +87,9 @@ pub fn clickable(options: ClickableOptions) -> Node {
 
 /// `ui::tooltip`: the same node with a tooltip attached.
 pub fn tooltip(options: TooltipOptions) -> Node {
-    let mut element = options.child.element_clone();
-    element.tooltip = Some(options.text);
-    Node::new(element)
+    let mut node = options.child;
+    node.make_mut().tooltip = Some(options.text);
+    node
 }
 
 /// `ui::dismiss_layer`: a full-size invisible click catcher placed right before

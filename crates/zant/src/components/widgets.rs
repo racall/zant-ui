@@ -169,12 +169,13 @@ pub fn markdown(id: u64, options: MarkdownOptions) -> Node {
     };
     // Streamdown's root is 100% wide. Let the parent stretch this facade so
     // `ui::styled(..., width = ..)` can override its size normally.
-    let mut root = node.element_clone();
+    let mut node = node;
+    let root = node.make_mut();
     root.layout.width_percent = None;
     if let Some(key) = options.key {
         root.key = Some(key);
     }
-    Node::new(root)
+    node
 }
 
 // ── PDF viewer widget ─────────────────────────────────────────────────────

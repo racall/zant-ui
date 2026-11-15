@@ -72,7 +72,8 @@ pub struct Style {
 /// })
 /// ```
 pub fn styled(node: Node, style: Style) -> Node {
-    let mut element = node.element_clone();
+    let mut node = node;
+    let element = node.make_mut();
     if let Some(value) = style.background {
         element.visual.background = Some(value);
     }
@@ -208,7 +209,7 @@ pub fn styled(node: Node, style: Style) -> Node {
     if let Some(value) = style.wrap {
         element.text_style.wrap = value;
     }
-    Node::new(element)
+    node
 }
 
 /// The same inset on all four edges (`ui::inset`).
