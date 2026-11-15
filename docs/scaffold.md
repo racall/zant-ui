@@ -137,10 +137,17 @@ zant run --watch      # 重编译并重启，重建窗口与内存状态
 zant run --no-hot     # 编译并运行一次（普通静态链接程序）
 ```
 
-`zant run` 监听 `src/` 任意深度的 `.tsx` / `.ts` 与 `native/` 的 `.rs` / `.ts`。
-保存后只构建应用的 UI 动态库，宿主进程持有同一个原生窗口；框架与依赖由 Cargo 增量缓存复用。
+`zant run` 按改动文件决定行为：
+
+| 改动 | 行为 |
+| --- | --- |
+| `src/` 任意深度的 `.tsx` / `.ts`、`native/` 任意深度的 `.rs` / `.ts`（除 `native/build.rs`）、TSX 导入的资源（除下列重启或忽略项） | 原地热刷新 |
+| `Cargo.toml`、`Cargo.lock`、`app.config.json`、`native/build.rs`、`rust-toolchain.toml`、`assets/icons/` 下的文件（除下列忽略项） | `zant run` 重启自身 |
+| `tsconfig.json`、`README.md`、`docs/`、`.git/`、`target/`、点开头的文件 / 目录、编辑器临时 / 备份文件（`~`、`.swp`、`.swo`、`.tmp`、`.bak` 后缀）及其他未匹配文件 | 忽略 |
+
+重启时终端会提示改动的文件，通过 `target/zant-hot/restart-state.json` 一次性传递状态，状态尽量保留。
+原地热刷新只构建应用的 UI 动态库，宿主进程持有同一个原生窗口；框架与依赖由 Cargo 增量缓存复用。
 内容没有变化的保存不触发构建；构建中的多次保存会合并为下一次构建，最终显示最后保存的内容。
-`Cargo.toml` / `app.config.json` 改动会重新编译并重启宿主，应用状态随重启重建。
 
 根组件 `useState` 按字段名恢复，支持的子组件本地状态按组件实例恢复；新增字段用初始值，
 不兼容的类型只重置对应字段。带稳定 `key` 的滚动容器、虚拟列表、焦点、输入光标与文本选区会恢复；

@@ -30,8 +30,9 @@
 - 发布构建：`zant build [配置文件]`（`build.config.json`，`docs/build.md`）：zant 读配置、提问、编译签名，
   平台步骤在 `crates/zant-cli/src/distribute.rs` 与 `scripts/` 下的打包脚本
   （macOS DMG / 公证 / App Store，Windows Inno Setup 安装包 / MSIX）。
-- 热更新：`zant run` 默认原地刷新 TSX / `native/`，保留窗口、兼容状态及稳定 key 的滚动 / 焦点 / 光标 / 选区；
-  不兼容字段单独重置，配置 / Cargo 清单改动重启。全局 store / Rust 资源不自动恢复，旧库映射累积。
+- 热更新：`zant run` 按改动文件原地热刷新、重启自身或忽略，规则见 [热更新](docs/scaffold.md#热更新)。
+  原地热刷新保留窗口、兼容状态及稳定 key 的滚动 / 焦点 / 光标 / 选区；重启时状态尽量保留。
+  不兼容字段单独重置，全局 store / Rust 资源不自动恢复，旧库映射累积。
   `--watch` 选旧重启模式，`--no-hot` 运行一次（验证 App Sandbox 用此模式）。
   `ZANT_HOT_TRACE=1` 计时、`ZANT_HOT_SNAPSHOT=<目录>` 截图与状态、`ZANT_HOT_POLL=1` 受限环境轮询，
   `ZANT_HOT_CONTROL=<FIFO>` 仅显式启用回调回放；完整限制及验证脚本见 `docs/development.md`。

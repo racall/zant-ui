@@ -285,12 +285,12 @@ ui::styled(node, ui::Style {
 
 ## 热更新
 
-- `zant run`：TSX 项目默认热刷新，监听 `src/` 的 `.tsx` / `.ts` 与 `native/` 的 Rust / 规范；
-  宿主持有窗口，只替换 UI 动态库。隐藏 crate 使用 `zant::hot_app!()` 与 `zant_build::hot_app(root)`。
+- `zant run`：TSX 项目按改动文件原地热刷新、重启自身或忽略，规则见 [热更新](docs/scaffold.md#热更新)。
+  原地热刷新时宿主持有窗口，只替换 UI 动态库。隐藏 crate 使用 `zant::hot_app!()` 与 `zant_build::hot_app(root)`。
 - 保留兼容的根 / 组件本地状态；按稳定 key 恢复滚动、列表、焦点、光标与选区。不兼容字段单独重置。
   全局 store、任意 Rust 全局变量与外部资源不自动序列化；旧库暂不卸载，长会话会累积映射。
 - TSX / Rust 编译错误显示在运行中 UI 上，修复后清除；未改内容不重建，构建中的保存合并为下一轮。
-  `Cargo.toml` / `app.config.json` 修改会重启宿主并重建状态。
+  `zant run` 重启自身时通过 `target/zant-hot/restart-state.json` 一次性传递状态，状态尽量保留。
 - `--watch` 是旧重启模式（macOS 编译失败保留旧窗口；Windows 先关旧 exe，失败后打开旧版本）；
   `--no-hot` 运行一次。热刷新走开发宿主，验证 App Sandbox 用 `--no-hot`；沙盒下 `--watch` 不自动重启。
 - 调试：`ZANT_HOT_TRACE=1` 分阶段计时，`ZANT_HOT_SNAPSHOT=<目录>` 每次加载截图及保存状态 JSON；
