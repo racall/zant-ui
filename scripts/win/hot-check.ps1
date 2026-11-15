@@ -102,10 +102,13 @@ Write-Result ((Host-Process).Id -eq $hostPid) "native/*.rs reloads in place"
 # config change: zant run restarts the app
 $cfg = Join-Path $app "app.config.json"
 Write-Text $cfg ((Read-Text $cfg).Replace('"width": 680', '"width": 700'))
-Wait-For { $h = Host-Process; $h -and $h.Id -ne $hostPid } "restart on app.config.json" | Out-Null
-Write-Result ((Host-Process).Id -ne $hostPid) "app.config.json restarts the app"
-
-Get-Process zant-hot-host -ErrorAction SilentlyContinue | ForEach-Object { $_.CloseMainWindow() | Out-Null }
+# the new session's host, once its window exists (the old one may still be exiting)
+function New-Host { Get-Process zant-hot-host -ErrorAction SilentlyContinue | Where-Object { $_.Id -ne $hostPid -and $_.MainWindowHandle -ne 0 } | Select-Object -First 1 }
+Wait-For { New-Host } "restart on app.config.json" | Out-Null
+$newHost = New-Host
+Write-Result ($null -ne $newHost) "app.config.json restarts zant run (host $hostPid -> $($newHost.Id))"
+Start-Sleep -Seconds 1
+if ($newHost) { $newHost.CloseMainWindow() | Out-Null }
 $exited = Wait-For { $run.HasExited } "zant run ends with the window" 20
 Write-Result $exited "closing the window ends zant run"
 if (!$run.HasExited) { Stop-Process -Id $run.Id -Force }
