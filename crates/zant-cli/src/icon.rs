@@ -7,7 +7,9 @@
 //! compiling; this module has the same read / validate / write logic with the
 //! command-line error messages, and is only exercised by its tests.
 
-pub const USAGE: &str = "用法: zant-icon ico <in.png> <out.ico>";
+pub fn usage() -> &'static str {
+    tr!(en: "Usage: zant-icon ico <in.png> <out.ico>", zh: "用法: zant-icon ico <in.png> <out.ico>")
+}
 
 /// Failure of `zant-icon`, with the message it prints.
 #[derive(Debug)]
@@ -29,10 +31,12 @@ pub enum IconError {
 impl std::fmt::Display for IconError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            IconError::Usage => f.write_str(USAGE),
+            IconError::Usage => f.write_str(usage()),
             IconError::Read { path, err } => write!(
                 f,
-                "zant-icon: {path}: 不能读取（{err}）；需要 8 位、非隔行扫描的 PNG"
+                "{}",
+                tr!(en: "zant-icon: {path}: could not read ({err}); expected an 8-bit, non-interlaced PNG", zh: "zant-icon: {path}: 不能读取（{err}）；需要 8 位、非隔行扫描的 PNG",
+             err = err, path = path)
             ),
             IconError::Size {
                 path,
@@ -40,7 +44,9 @@ impl std::fmt::Display for IconError {
                 height,
             } => write!(
                 f,
-                "zant-icon: {path} 是 {width}×{height}；Windows 应用图标需要正方形、至少 256×256"
+                "{}",
+                tr!(en: "zant-icon: {path} is {width}×{height}; Windows app icons must be square and at least 256×256", zh: "zant-icon: {path} 是 {width}×{height}；Windows 应用图标需要正方形、至少 256×256",
+             height = height, path = path, width = width)
             ),
             IconError::Write(err) => write!(f, "zant-icon: {err}"),
         }
@@ -89,7 +95,7 @@ pub fn run(args: &[String]) -> i32 {
             }
         }
     }
-    eprintln!("{USAGE}");
+    eprintln!("{}", usage());
     2
 }
 
@@ -140,7 +146,7 @@ mod tests {
         std::fs::write(&input, crate::png::encode(&img).expect("encode")).expect("write");
         let err = ico(input.to_str().unwrap(), dir.join("x.ico").to_str().unwrap())
             .expect_err("small icon");
-        assert!(err.to_string().contains("至少 256×256"));
+        assert!(err.to_string().contains("at least 256×256"));
         let broken = dir.join("broken.png");
         std::fs::write(&broken, b"nope").expect("write");
         let err = ico(
@@ -148,7 +154,7 @@ mod tests {
             dir.join("y.ico").to_str().unwrap(),
         )
         .expect_err("broken");
-        assert!(err.to_string().contains("不能读取"));
+        assert!(err.to_string().contains("could not read"));
         assert_eq!(run(&["zant-icon".into()]), 2);
         assert_eq!(
             run(&["zant-icon".into(), "nope".into(), "a".into(), "b".into()]),

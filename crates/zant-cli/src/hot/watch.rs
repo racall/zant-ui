@@ -16,10 +16,16 @@ impl Watches {
             Ok(_) => {
                 let _ = tx.send(Event::Changed(Instant::now()));
             }
-            Err(error) => eprintln!("[zant] 文件监听失败：{error}"),
+            Err(error) => eprintln!(
+                "{}",
+                tr!(en: "[zant] File watcher failed: {error}", zh: "[zant] 文件监听失败：{error}", error = error)
+            ),
         };
         let watcher: Box<dyn Watcher> = if std::env::var_os("ZANT_HOT_POLL").is_some() {
-            eprintln!("[zant] 使用 100 ms 内容轮询（ZANT_HOT_POLL）");
+            eprintln!(
+                "{}",
+                tr!(en: "[zant] Using 100 ms content polling (ZANT_HOT_POLL)", zh: "[zant] 使用 100 ms 内容轮询（ZANT_HOT_POLL）",)
+            );
             Box::new(
                 notify::PollWatcher::new(
                     handler,

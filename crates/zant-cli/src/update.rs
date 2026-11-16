@@ -14,7 +14,10 @@ pub fn cmd_update() -> std::io::Result<()> {
         return update_release(home);
     }
     let root = crate::zant_root().to_string_lossy().into_owned();
-    eprintln!("\n{COLOR_CYAN}更新 Zant UI{COLOR_RESET}：{root}");
+    eprintln!(
+        "{}",
+        tr!(en: "\n{COLOR_CYAN}Updating Zant UI{COLOR_RESET}: {root}", zh: "\n{COLOR_CYAN}更新 Zant UI{COLOR_RESET}：{root}", COLOR_CYAN = COLOR_CYAN, COLOR_RESET = COLOR_RESET, root = root)
+    );
 
     let git_dir = Path::new(&root).join(".git");
     if path_exists(&git_dir) {
@@ -25,11 +28,17 @@ pub fn cmd_update() -> std::io::Result<()> {
             &["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
         );
         if !dirty.is_empty() {
-            dim_line("本地有未提交的修改，不拉取新代码，只重新编译");
+            dim_line(
+                tr!(en: "Uncommitted changes; rebuilding without pulling", zh: "本地有未提交的修改，不拉取新代码，只重新编译"),
+            );
         } else if upstream.is_empty() {
-            dim_line("当前分支没有对应的远程分支，不拉取新代码，只重新编译");
+            dim_line(
+                tr!(en: "No upstream branch; rebuilding without pulling", zh: "当前分支没有对应的远程分支，不拉取新代码，只重新编译"),
+            );
         } else {
-            step(&format!("拉取最新代码（{upstream}）"));
+            step(
+                &tr!(en: "Pulling latest code ({upstream})", zh: "拉取最新代码（{upstream}）", upstream = upstream),
+            );
             let pulled = run_ok(
                 &[
                     "git".to_string(),
@@ -43,15 +52,23 @@ pub fn cmd_update() -> std::io::Result<()> {
             );
             let after = git_output(&root, &["rev-parse", "--short", "HEAD"]);
             if !pulled {
-                dim_line("拉取失败（本地有远程没有的提交，或网络问题），用现有代码重新编译");
+                dim_line(
+                    tr!(en: "Pull failed (local commits or network error); rebuilding existing code", zh: "拉取失败（本地有远程没有的提交，或网络问题），用现有代码重新编译"),
+                );
             } else if before == after {
-                ok(&format!("已经是最新（{after}）"));
+                ok(
+                    &tr!(en: "Already up to date ({after})", zh: "已经是最新（{after}）", after = after),
+                );
             } else {
-                ok(&format!("已更新：{before} → {after}"));
+                ok(
+                    &tr!(en: "Updated: {before} → {after}", zh: "已更新：{before} → {after}", after = after, before = before),
+                );
             }
         }
     } else {
-        dim_line("不是 git 仓库，不拉取新代码，只重新编译");
+        dim_line(
+            tr!(en: "Not a git repository; rebuilding without pulling", zh: "不是 git 仓库，不拉取新代码，只重新编译"),
+        );
     }
 
     // Rust version the framework needs (workspace Cargo.toml) vs the one zant uses
@@ -59,18 +76,19 @@ pub fn cmd_update() -> std::io::Result<()> {
     let needed = toml_string(&cargo_toml, "rust-version").unwrap_or("");
     let have = rustc_version();
     if !needed.is_empty() && !version_at_least(&have, needed) {
-        fail(format!(
-            "Zant UI 现在需要 Rust {needed}（zant 用的是 {}）：重新运行安装脚本即可（见 Zant UI README「安装」），它会安装对应版本的 Rust",
+        fail(
+            tr!(en: "Zant UI requires Rust {needed} (zant uses {}): rerun the installer to install the required toolchain; see Installation in the Zant UI README", zh: "Zant UI 现在需要 Rust {needed}（zant 用的是 {}）：重新运行安装脚本即可（见 Zant UI README「安装」），它会安装对应版本的 Rust",
             if have.is_empty() {
-                "找不到的 Rust"
+                tr!(en: "Rust not found", zh: "找不到的 Rust")
             } else {
                 &have
             }
-        ));
+        , needed = needed),
+        );
     }
 
     // pinned Skia / PDFium / fonts: the scripts download only what changed
-    step("检查依赖（Skia 等）");
+    step(tr!(en: "Checking dependencies (Skia, etc.)", zh: "检查依赖（Skia 等）"));
     let skia_script = Path::new(&root).join(if IS_WINDOWS {
         "scripts/fetch_skia_windows.ps1"
     } else {
@@ -98,7 +116,7 @@ pub fn cmd_update() -> std::io::Result<()> {
         );
     }
 
-    step("重新编译 zant");
+    step(tr!(en: "Rebuilding zant", zh: "重新编译 zant"));
     let exe =
         Path::new(&root)
             .join("target/debug")
@@ -121,9 +139,11 @@ pub fn cmd_update() -> std::io::Result<()> {
         if IS_WINDOWS {
             let _ = std::fs::rename(&old, &exe);
         }
-        fail("编译失败，zant 保持原来的版本");
+        fail(
+            tr!(en: "Build failed; keeping the existing zant version", zh: "编译失败，zant 保持原来的版本"),
+        );
     }
-    ok(&format!("已更新：{}", exe.to_string_lossy()));
+    ok(&tr!(en: "Updated: {}", zh: "已更新：{}", exe.to_string_lossy()));
     Ok(())
 }
 
@@ -143,7 +163,9 @@ fn update_release(home: &Path) -> std::io::Result<()> {
             &home_string,
             &[("ZANT_HOME", home_string.clone())],
         ) {
-            fail("更新没有完成（见上面的说明）");
+            fail(
+                tr!(en: "Update did not complete; see the messages above", zh: "更新没有完成（见上面的说明）"),
+            );
         }
         retag_current_project(home);
         return Ok(());
@@ -168,7 +190,9 @@ fn update_release(home: &Path) -> std::io::Result<()> {
         &home_string,
         &[("ZANT_HOME", home_string.clone())],
     ) {
-        fail(format!("下载更新脚本失败：{url}"));
+        fail(
+            tr!(en: "Could not download update script: {url}", zh: "下载更新脚本失败：{url}", url = url),
+        );
     }
     let text = read_file(&script)?;
     if !text.starts_with(b"\xEF\xBB\xBF") {
@@ -188,7 +212,9 @@ fn update_release(home: &Path) -> std::io::Result<()> {
         &home_string,
         &[("ZANT_HOME", home_string.clone())],
     ) {
-        fail("更新没有完成（见上面的说明）");
+        fail(
+            tr!(en: "Update did not complete; see the messages above", zh: "更新没有完成（见上面的说明）"),
+        );
     }
     retag_current_project(home);
     Ok(())

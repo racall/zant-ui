@@ -52,7 +52,7 @@ pub fn cmd_hot(release: bool) -> std::io::Result<()> {
     let zant_root = crate::zant_root().to_path_buf();
     let paths = Paths::new(&root, &zant_root);
 
-    step("准备热刷新宿主");
+    step(tr!(en: "Preparing hot reload host", zh: "准备热刷新宿主"));
     if let Err(message) = build_host(&zant_root, &paths) {
         fail(message);
     }
@@ -62,16 +62,19 @@ pub fn cmd_hot(release: bool) -> std::io::Result<()> {
     let (tx, rx) = mpsc::channel();
     let mut last = inputs::Inputs::scan(Path::new(&root));
     let mut watches = watch::Watches::start(Path::new(&root), &last, tx.clone());
-    step("首次编译");
+    step(tr!(en: "Initial build", zh: "首次编译"));
     let mut generation = 0u32;
     let library = match build_library(&paths, release, &mut generation) {
         Ok(library) => library,
-        Err(_) => fail("编译失败"),
+        Err(_) => fail(tr!(en: "Build failed", zh: "编译失败")),
     };
-    ok("编译完成");
+    ok(tr!(en: "Build complete", zh: "编译完成"));
 
     let mut host = Host::spawn(&paths, &library, &root, release, tx.clone())?;
-    eprintln!("\n热刷新已开启：保存 src/、native/ 下的文件后界面原地刷新；Ctrl+C 退出");
+    eprintln!(
+        "{}",
+        tr!(en: "\nHot reload enabled: save files in src/ or native/ to refresh the UI in place; press Ctrl+C to exit", zh: "\n热刷新已开启：保存 src/、native/ 下的文件后界面原地刷新；Ctrl+C 退出",)
+    );
 
     loop {
         let event_at = match rx.recv() {
@@ -117,7 +120,10 @@ pub fn cmd_hot(release: bool) -> std::io::Result<()> {
                 .iter()
                 .find(|(_, action)| *action == Change::Restart)
                 .expect("restart path");
-            eprintln!("{} 改动，重启 zant run…", file.0.display());
+            eprintln!(
+                "{}",
+                tr!(en: "{} changed, restarting zant run…", zh: "{} 改动，重启 zant run…", file.0.display())
+            );
             let state = paths
                 .crate_dir
                 .parent()
@@ -130,16 +136,25 @@ pub fn cmd_hot(release: bool) -> std::io::Result<()> {
             drop(watches);
             return restart::execute(&state);
         }
-        eprintln!("\n检测到改动，重新编译...");
+        eprintln!(
+            "{}",
+            tr!(en: "\nChanges detected, rebuilding...", zh: "\n检测到改动，重新编译...",)
+        );
         match build_library(&paths, release, &mut generation) {
             Ok(library) => {
                 host.send("clear");
                 host.send(&format!("load {}", library.display()));
-                eprintln!("已刷新（编译 {} ms）", begin.elapsed().as_millis());
+                eprintln!(
+                    "{}",
+                    tr!(en: "Reloaded (build took {} ms)", zh: "已刷新（编译 {} ms）", begin.elapsed().as_millis())
+                );
             }
             Err(errors) => {
                 host.send(&format!("notice {}", escape(&errors)));
-                eprintln!("编译失败，界面保持上一版本，等待下一次改动");
+                eprintln!(
+                    "{}",
+                    tr!(en: "Build failed; keeping the previous UI and waiting for changes", zh: "编译失败，界面保持上一版本，等待下一次改动",)
+                );
             }
         }
     }
@@ -154,9 +169,9 @@ fn build_host(zant_root: &Path, paths: &Paths) -> Result<(), String> {
         .env("CARGO_TARGET_DIR", &paths.zant_dir)
         .env("ZANT_NATIVE_SHARED", paths.native_dir())
         .status()
-        .map_err(|error| format!("无法运行 cargo：{error}"))?;
+        .map_err(|error| tr!(en: "Could not run cargo: {error}", zh: "无法运行 cargo：{error}", error = error))?;
     if !status.success() {
-        return Err("热刷新宿主编译失败".into());
+        return Err(tr!(en: "Hot reload host build failed", zh: "热刷新宿主编译失败").into());
     }
     if IS_WINDOWS {
         // the host and every UI library load the DLLs from the host's folder
@@ -213,7 +228,7 @@ fn build_library(paths: &Paths, release: bool, generation: &mut u32) -> Result<P
     command.args(["--", "-C", "prefer-dynamic"]);
     let mut child = command
         .spawn()
-        .map_err(|error| format!("无法运行 cargo：{error}"))?;
+        .map_err(|error| tr!(en: "Could not run cargo: {error}", zh: "无法运行 cargo：{error}", error = error))?;
     let mut errors = String::new();
     if let Some(stderr) = child.stderr.take() {
         for line in std::io::BufReader::new(stderr)
@@ -265,7 +280,7 @@ fn summary(output: &str) -> String {
         .take(40)
         .collect();
     if lines.is_empty() {
-        "编译失败（详见终端输出）".into()
+        tr!(en: "Build failed (see terminal output)", zh: "编译失败（详见终端输出）").into()
     } else {
         lines.join("\n")
     }

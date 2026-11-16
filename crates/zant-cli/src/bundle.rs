@@ -10,16 +10,16 @@ use std::path::{Path, PathBuf};
 
 pub fn compile_app(root: &str, release: bool) {
     if let Err(err) = crate::ensure_rust_project(root) {
-        fail(format!("无法编译：{err}"));
+        fail(tr!(en: "Could not compile: {err}", zh: "无法编译：{err}", err = err));
     }
     let args = crate::build_args(release);
     step(if release {
-        "正在编译（release）"
+        tr!(en: "Compiling (release)", zh: "正在编译（release）")
     } else {
-        "正在编译"
+        tr!(en: "Compiling", zh: "正在编译")
     });
     run_inherit(&args, root);
-    ok("编译完成");
+    ok(tr!(en: "Build complete", zh: "编译完成"));
 }
 
 /// `zant package`: build and make the local-test artifact. Returns its path.
@@ -27,7 +27,7 @@ pub fn package_app(root: &str, cfg: &crate::app_config::AppConfig, release: bool
     compile_app(root, release);
     if IS_WINDOWS {
         return package_windows(root, cfg).unwrap_or_else(|err| {
-            fail(format!("生成程序目录失败：{err}"));
+            fail(tr!(en: "Could not create application directory: {err}", zh: "生成程序目录失败：{err}", err = err));
         });
     }
     let exe = app_exe_path(root, release);
@@ -82,36 +82,39 @@ pub fn build_mac_bundle(
 ) -> String {
     let app_name = &cfg.title;
     if app_name.contains('/') {
-        fail("应用标题不能包含 '/'");
+        fail(tr!(en: "App title cannot contain '/'", zh: "应用标题不能包含 '/'"));
     }
     let app_path = format!("{root}/target/{app_name}.app");
     let _ = std::fs::remove_dir_all(&app_path);
     let macos_path = format!("{app_path}/Contents/MacOS");
     std::fs::create_dir_all(&macos_path).unwrap_or_else(|err| {
-        fail(format!("无法创建 {macos_path}：{err}"));
+        fail(tr!(en: "Could not create {macos_path}: {err}", zh: "无法创建 {macos_path}：{err}", err = err, macos_path = macos_path));
     });
 
     let dst_exe = format!("{macos_path}/app");
     std::fs::copy(exe, &dst_exe).unwrap_or_else(|err| {
-        fail(format!(
-            "无法复制 {} 到 {dst_exe}：{err}",
+        fail(
+            tr!(en: "Could not copy {} to {dst_exe}: {err}", zh: "无法复制 {} 到 {dst_exe}：{err}",
             exe.to_string_lossy()
-        ));
+        , dst_exe = dst_exe, err = err),
+        );
     });
 
     let mut extras = opts.plist.clone();
     extras.icon = write_mac_icon(root, &app_path).unwrap_or_else(|err| {
-        fail(format!("生成应用图标失败：{err}"));
+        fail(
+            tr!(en: "Could not generate app icon: {err}", zh: "生成应用图标失败：{err}", err = err),
+        );
     });
     let plist = generate::generate_info_plist_for(cfg, &extras);
     let plist_path = format!("{app_path}/Contents/Info.plist");
     crate::write_file(Path::new(&plist_path), plist.as_bytes()).unwrap_or_else(|err| {
-        fail(format!("无法写入 {plist_path}：{err}"));
+        fail(tr!(en: "Could not write {plist_path}: {err}", zh: "无法写入 {plist_path}：{err}", err = err, plist_path = plist_path));
     });
     if let Some(profile) = &opts.provisioning_profile {
         let dst = format!("{app_path}/Contents/embedded.provisionprofile");
         std::fs::copy(profile, &dst).unwrap_or_else(|err| {
-            fail(format!("无法复制描述文件 {profile}：{err}"));
+            fail(tr!(en: "Could not copy provisioning profile {profile}: {err}", zh: "无法复制描述文件 {profile}：{err}", err = err, profile = profile));
         });
     }
 
@@ -144,8 +147,7 @@ pub fn build_mac_bundle(
         sign_argv.push(identity.to_string());
     }
     sign_argv.push(app_path.clone());
-    step(&format!(
-        "正在签名（{}）",
+    step(&tr!(en: "Signing ({})", zh: "正在签名（{}）",
         if identity == "none" {
             "Ad-hoc"
         } else {
@@ -153,7 +155,7 @@ pub fn build_mac_bundle(
         }
     ));
     run_inherit(&sign_argv, root);
-    ok(&format!("已生成 {app_path}"));
+    ok(&tr!(en: "Generated {app_path}", zh: "已生成 {app_path}", app_path = app_path));
     app_path
 }
 
@@ -167,20 +169,20 @@ fn write_mac_icon(root: &str, app_path: &str) -> std::io::Result<bool> {
         Err(_) => return Ok(false),
     };
     let img = png::decode(&data).unwrap_or_else(|err| {
-        fail(format!(
-            "{} 无法读取（{err}）：需要 8 位、非隔行扫描的 PNG",
+        fail(tr!(en: "Could not read {} ({err}): expected an 8-bit, non-interlaced PNG", zh: "{} 无法读取（{err}）：需要 8 位、非隔行扫描的 PNG",
             source.to_string_lossy()
-        ));
+        , err = err));
     });
     if img.width != 1024 || img.height != 1024 {
-        fail(format!(
-            "{} 是 {}×{}；macOS 应用图标需要 1024×1024（苹果图标网格：主体 824×824 居中）",
-            source.to_string_lossy(),
-            img.width,
-            img.height
-        ));
+        fail(
+            tr!(en: "{} is {}×{}; macOS app icons must be 1024×1024 (Apple icon grid: centered 824×824 artwork)", zh: "{} 是 {}×{}；macOS 应用图标需要 1024×1024（苹果图标网格：主体 824×824 居中）",
+                source.to_string_lossy(),
+                img.width,
+                img.height
+            ),
+        );
     }
-    step("生成应用图标 AppIcon.icns");
+    step(tr!(en: "Generating app icon AppIcon.icns", zh: "生成应用图标 AppIcon.icns"));
     let iconset = PathBuf::from(root).join("target/AppIcon.iconset");
     let _ = std::fs::remove_dir_all(&iconset);
     std::fs::create_dir_all(&iconset)?;
@@ -198,7 +200,7 @@ fn write_mac_icon(root: &str, app_path: &str) -> std::io::Result<bool> {
                 format!("icon_{size}x{size}@2x.png")
             };
             let encoded = png::encode(&resized).unwrap_or_else(|err| {
-                fail(format!("无法编码图标：{err}"));
+                fail(tr!(en: "Could not encode icon: {err}", zh: "无法编码图标：{err}", err = err));
             });
             crate::write_file(&iconset.join(name), &encoded)?;
         }
@@ -218,7 +220,7 @@ fn write_mac_icon(root: &str, app_path: &str) -> std::io::Result<bool> {
         root,
     );
     let _ = std::fs::remove_dir_all(&iconset);
-    ok("应用图标已生成");
+    ok(tr!(en: "App icon generated", zh: "应用图标已生成"));
     Ok(true)
 }
 
@@ -228,7 +230,9 @@ fn write_mac_icon(root: &str, app_path: &str) -> std::io::Result<bool> {
 pub fn package_windows(root: &str, cfg: &crate::app_config::AppConfig) -> std::io::Result<String> {
     for bad in ['/', '\\', ':', '*', '?', '"', '<', '>', '|'] {
         if cfg.title.contains(bad) {
-            fail(format!("应用标题不能包含 {bad}"));
+            fail(
+                tr!(en: "App title cannot contain {bad}", zh: "应用标题不能包含 {bad}", bad = bad),
+            );
         }
     }
     let out = PathBuf::from(root).join("target").join(&cfg.title);
@@ -266,7 +270,7 @@ pub fn package_windows(root: &str, cfg: &crate::app_config::AppConfig) -> std::i
         };
         let _ = std::fs::copy(src, out.join(name));
     }
-    ok(&format!("已生成 {}", out.to_string_lossy()));
+    ok(&tr!(en: "Generated {}", zh: "已生成 {}", out.to_string_lossy()));
     Ok(out.to_string_lossy().into_owned())
 }
 
@@ -279,10 +283,9 @@ pub fn app_icon(root: &str) -> std::io::Result<Option<png::Image>> {
         Err(_) => return Ok(None),
     };
     let img = png::decode(&data).unwrap_or_else(|err| {
-        fail(format!(
-            "{} 无法读取（{err}）：需要 8 位、非隔行扫描的 PNG",
+        fail(tr!(en: "Could not read {} ({err}): expected an 8-bit, non-interlaced PNG", zh: "{} 无法读取（{err}）：需要 8 位、非隔行扫描的 PNG",
             source.to_string_lossy()
-        ));
+        , err = err));
     });
     Ok(Some(img))
 }

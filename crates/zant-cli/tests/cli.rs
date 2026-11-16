@@ -5,7 +5,9 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 fn zant() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_zant"))
+    let mut command = Command::new(env!("CARGO_BIN_EXE_zant"));
+    command.env_remove("ZANT_LANG");
+    command
 }
 
 fn temp_dir(name: &str) -> PathBuf {
@@ -54,13 +56,16 @@ fn no_arguments_prints_the_usage_text() {
     let output = run(&mut zant());
     assert!(output.status.success());
     let text = stderr(&output);
-    assert!(text.starts_with("用法: zant <命令>"), "{text}");
+    assert!(
+        text.starts_with("Usage: zant [--lang en|zh] <command>"),
+        "{text}"
+    );
     for line in [
-        "create <项目名>",
+        "create <name>",
         "run ",
         "compile [--release]",
         "package",
-        "build [配置文件]",
+        "build [config]",
         "sync",
         "update",
     ] {
@@ -81,7 +86,7 @@ fn unknown_commands_and_arguments_are_rejected() {
     let output = run(zant().current_dir(&dir).args(["build", "--release"]));
     assert!(!output.status.success());
     assert!(
-        stderr(&output).contains("只编译请用 zant compile [--release]"),
+        stderr(&output).contains("use zant compile [--release] to compile only"),
         "{}",
         stderr(&output)
     );
@@ -299,5 +304,97 @@ fn package_a_plain_rust_app_into_a_signed_app_bundle() {
     assert!(app.join("Contents/MacOS/app").is_file());
     let plist = std::fs::read_to_string(app.join("Contents/Info.plist")).expect("Info.plist");
     assert!(plist.contains("<key>CFBundleIdentifier</key><string>com.acme.demo</string>"));
-    assert!(stderr(&output).contains("输出: "), "{}", stderr(&output));
+    assert!(stderr(&output).contains("Output: "), "{}", stderr(&output));
+}
+
+#[test]
+fn language_switches_help_and_messages_and_flag_overrides_env() {
+    for args in [
+        vec!["--lang", "zh", "--help"],
+        vec!["create", "--help", "--lang=ZH-Hans"],
+    ] {
+        let output = run(zant().args(args));
+        assert!(output.status.success(), "{}", stderr(&output));
+        assert!(stdout(&output).contains("生成项目"), "{}", stdout(&output));
+        assert!(stdout(&output).contains("ZANT_LANG"));
+    }
+    let output = run(zant().env("ZANT_LANG", "zh"));
+    assert!(stderr(&output).starts_with("用法: zant <命令>"));
+    let output = run(zant().env("ZANT_LANG", "zh").args(["--lang=en", "--help"]));
+    assert!(stdout(&output).contains("Create a project"));
+    let output = run(zant().args(["build", "--release", "--lang", "zh"]));
+    assert!(!output.status.success());
+    assert!(stderr(&output).contains("只编译请用 zant compile [--release]"));
+    let output = run(zant().args(["--lang=fr", "--help"]));
+    assert!(!output.status.success());
+    assert!(stderr(&output).contains("en or zh"));
+}
+
+#[test]
+fn create_preserves_chinese_title_and_prints_english_by_default() {
+    let dir = temp_dir("chinese-title");
+    let output = run(zant().current_dir(&dir).args([
+        "create",
+        "demo",
+        "--yes",
+        "--title",
+        "我的应用",
+        "--bundle-id",
+        "com.acme.demo",
+    ]));
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert!(stderr(&output).contains("Project created:"));
+    let config = std::fs::read_to_string(dir.join("demo/app.config.json")).unwrap();
+    let config: serde_json::Value = serde_json::from_str(&config).unwrap();
+    assert_eq!(config["title"], "我的应用");
+    assert_eq!(config["bundle_id"], "com.acme.demo");
+}
+
+#[test]
+fn chinese_stdin_title_is_preserved_with_chinese_prompts() {
+    use std::io::Write as _;
+    let dir = temp_dir("chinese-input");
+    let mut child = zant()
+        .current_dir(&dir)
+        .args(["create", "demo", "--lang", "zh"])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all("我的应用\n1\ncom.acme.demo\n".as_bytes())
+        .unwrap();
+    let output = child.wait_with_output().unwrap();
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert!(stderr(&output).contains("应用标题"));
+    assert!(stderr(&output).contains("项目已生成:"));
+    let config = std::fs::read_to_string(dir.join("demo/app.config.json")).unwrap();
+    let config: serde_json::Value = serde_json::from_str(&config).unwrap();
+    assert_eq!(config["title"], "我的应用");
+    assert_eq!(config["bundle_id"], "com.acme.demo");
+}
+
+#[test]
+fn bundle_validation_details_follow_the_message_language() {
+    let dir = temp_dir("invalid-bundle");
+    for (language, expected) in [
+        ("en", "Must be 3–50 characters long"),
+        ("zh", "长度要在 3～50 个字符之间"),
+    ] {
+        let output = run(zant().current_dir(&dir).args([
+            "create",
+            "demo",
+            "--yes",
+            "--bundle-id",
+            "x",
+            "--lang",
+            language,
+        ]));
+        assert!(!output.status.success());
+        assert!(stderr(&output).contains(expected), "{}", stderr(&output));
+    }
 }
