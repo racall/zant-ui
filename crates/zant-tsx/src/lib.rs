@@ -5,6 +5,7 @@
 #![forbid(unsafe_code)]
 
 pub mod assets;
+pub mod async_lower;
 pub mod ast;
 pub mod ast_walk;
 pub mod codegen;

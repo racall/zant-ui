@@ -398,6 +398,10 @@ pub fn coerce(g: &mut Generator<'_>, v: Value, t: Type, loc: ast::Loc) -> Result
     if v.ty == t {
         return Ok(v);
     }
+    // `Promise<any>` (`res.json()`) where a `Promise<T>` is expected: decoded
+    if let Some(decoded) = super::promises::cast(g, &v, t)? {
+        return Ok(decoded);
+    }
     // a member of a union becomes the union (`U::Num(v)`)
     if let Some(wrapped) = super::unions::wrap(g, &v, t, loc)? {
         return Ok(wrapped);
