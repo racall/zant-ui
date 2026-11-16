@@ -111,7 +111,7 @@ fn type_ref(t: &TypeRef) -> Result {
     }
     match t.detail.as_deref() {
         Some(TypeDetail::Array(t)) => type_ref(t),
-        Some(TypeDetail::Union(ts) | TypeDetail::Intersection(ts)) => {
+        Some(TypeDetail::Union(ts) | TypeDetail::Intersection(ts) | TypeDetail::Tuple(ts)) => {
             for t in ts {
                 type_ref(t)?;
             }

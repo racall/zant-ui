@@ -74,6 +74,8 @@ pub enum InfoKind {
     Optional,
     Enumeration,
     Callback,
+    /// `[A, B]`: the element types are `params`.
+    Tuple,
 }
 
 #[derive(Clone, Debug)]
@@ -239,6 +241,10 @@ pub fn owned(g: &Generator<'_>, ty: Type) -> bool {
         InfoKind::Array | InfoKind::Object => true,
         InfoKind::Optional => owned(g, entry.child) || entry.child == Type::String,
         InfoKind::Enumeration | InfoKind::Callback => false,
+        InfoKind::Tuple => entry
+            .params
+            .iter()
+            .any(|item| owned(g, *item) || *item == Type::String),
     }
 }
 
@@ -267,6 +273,13 @@ pub fn resolve(
         ast::TypeDetail::Null => Ok(Type::Null),
         ast::TypeDetail::Func(f) => callback_type(g, reference.loc, f),
         ast::TypeDetail::Intersection(members) => intersection(g, members, name),
+        ast::TypeDetail::Tuple(members) => {
+            let mut items = Vec::with_capacity(members.len());
+            for member in members {
+                items.push(types::type_ref(g, member, false)?);
+            }
+            tuple(g, items)
+        }
     }
 }
 
@@ -392,6 +405,39 @@ pub(super) fn intersection_members(
         }
     }
     Ok(result)
+}
+
+/// `[A, B]` as a Rust tuple `(A, B)` (interned by element types).
+pub fn tuple(g: &mut Generator<'_>, items: Vec<Type>) -> Result<Type> {
+    for (index, entry) in g.compounds.iter().enumerate() {
+        if entry.kind == InfoKind::Tuple && entry.params == items {
+            return Ok(Type::Compound(index as u32));
+        }
+    }
+    let spelled: Vec<String> = items.iter().map(|item| item.rust(g).to_owned()).collect();
+    let rust = if spelled.len() == 1 {
+        format!("({},)", spelled[0])
+    } else {
+        format!("({})", spelled.join(", "))
+    };
+    let copy = items.iter().all(|item| item.copy(g));
+    add(
+        g,
+        Info {
+            kind: InfoKind::Tuple,
+            rust,
+            params: items,
+            copy,
+            ..Info::default()
+        },
+    )
+}
+
+/// The element types when `ty` is a tuple.
+pub fn tuple_items(g: &Generator<'_>, ty: Type) -> Option<Vec<Type>> {
+    info(g, ty)
+        .filter(|entry| entry.kind == InfoKind::Tuple)
+        .map(|entry| entry.params)
 }
 
 /// The struct of an untyped object literal (`const p = { x: 1 }`): one

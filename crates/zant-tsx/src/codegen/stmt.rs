@@ -149,6 +149,9 @@ fn declaration(
     if let ast::Pattern::Object(bindings) = &d.pattern {
         return object_declaration(g, c, d, e, bindings);
     }
+    if let ast::Pattern::Array(names) = &d.pattern {
+        return tuple_declaration(g, c, loc, d, e, names);
+    }
     let ast::Pattern::Ident(pattern) = &d.pattern else {
         return fail(g, loc, "destructuring is only supported for useState");
     };
@@ -181,6 +184,60 @@ fn declaration(
         binding,
         scope::PLACEHOLDER_END
     ))
+}
+
+/// `const [a, b] = pair`: a tuple's elements, from one evaluation.
+fn tuple_declaration(
+    g: &mut Generator<'_>,
+    c: &mut scope::Context,
+    loc: ast::Loc,
+    d: &ast::Decl,
+    e: &ast::Expr,
+    names: &[Option<ast::Name>],
+) -> Result<String> {
+    let target =
+        d.ty.as_ref()
+            .map(|ty| types::type_ref(g, ty, false))
+            .transpose()?;
+    let mut value = expr::emit(g, c, e, target, false)?;
+    if let Some(target) = target {
+        value = types::coerce(g, value, target, e.loc)?;
+    }
+    let Some(items) = super::model::tuple_items(g, value.ty) else {
+        return fail(
+            g,
+            loc,
+            "array destructuring needs a tuple (`[string, number]`); index arrays instead (`items[0]`)",
+        );
+    };
+    if names.len() > items.len() {
+        return fail(g, loc, format!("this tuple has {} elements", items.len()));
+    }
+    let whole = scope::bind(g, c, b"_tuple", value.ty, false)?;
+    c.bindings[whole].init = Some(value.code);
+    let whole_rust = c.bindings[whole].rust.clone();
+    let mut out = format!(
+        "{}{whole}{}",
+        scope::PLACEHOLDER_START,
+        scope::PLACEHOLDER_END
+    );
+    for (position, name) in names.iter().enumerate() {
+        let Some(name) = name else { continue };
+        let ty = items[position];
+        let read = if ty.copy(g) {
+            format!("{whole_rust}.{position}")
+        } else {
+            format!("{whole_rust}.{position}.clone()")
+        };
+        let binding = scope::bind(g, c, &name.name, ty, !d.is_const)?;
+        c.bindings[binding].init = Some(read);
+        out.push_str(&format!(
+            "{}{binding}{}",
+            scope::PLACEHOLDER_START,
+            scope::PLACEHOLDER_END
+        ));
+    }
+    Ok(out)
 }
 
 /// Read a typed object's fields from one evaluation of the initializer.

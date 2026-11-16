@@ -184,9 +184,11 @@ fn mentions(reference: &ast::TypeRef, params: &[ast::TypeParam]) -> bool {
     }
     match reference.detail.as_deref() {
         Some(ast::TypeDetail::Array(item)) => mentions(item, params),
-        Some(ast::TypeDetail::Union(members) | ast::TypeDetail::Intersection(members)) => {
-            members.iter().any(|member| mentions(member, params))
-        }
+        Some(
+            ast::TypeDetail::Union(members)
+            | ast::TypeDetail::Intersection(members)
+            | ast::TypeDetail::Tuple(members),
+        ) => members.iter().any(|member| mentions(member, params)),
         Some(ast::TypeDetail::Object(fields)) => {
             fields.iter().any(|field| mentions(&field.ty, params))
         }

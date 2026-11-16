@@ -22,6 +22,9 @@ pub fn array(
     items: &[Box<ast::Expr>],
     expected: Option<Type>,
 ) -> Result<Value> {
+    if let Some(items_ty) = expected.and_then(|ty| model::tuple_items(g, unwrap(g, ty))) {
+        return tuple(g, c, loc, items, expected.unwrap(), &items_ty);
+    }
     let mut child: Option<Type> = match expected {
         Some(ty) => model::element(g, unwrap(g, ty)),
         None => None,
@@ -122,6 +125,40 @@ pub fn array(
         precedence: Precedence::Conditional,
         ..Value::default()
     })
+}
+
+/// `[a, b]` where a tuple `[A, B]` is expected.
+fn tuple(
+    g: &mut Generator<'_>,
+    c: &mut scope::Context,
+    loc: ast::Loc,
+    items: &[Box<ast::Expr>],
+    expected: Type,
+    types_of: &[Type],
+) -> Result<Value> {
+    if items.len() != types_of.len()
+        || items
+            .iter()
+            .any(|item| matches!(item.data, ast::ExprData::Spread(_)))
+    {
+        return fail(
+            g,
+            loc,
+            format!("this tuple has {} elements", types_of.len()),
+        );
+    }
+    let mut parts = Vec::new();
+    for (item, ty) in items.iter().zip(types_of) {
+        let value = expr::emit(g, c, item, Some(*ty), false)?;
+        parts.push(types::coerce(g, value, *ty, item.loc)?.code);
+    }
+    let tuple_ty = unwrap(g, expected);
+    let code = if parts.len() == 1 {
+        format!("({},)", parts[0])
+    } else {
+        format!("({})", parts.join(", "))
+    };
+    Ok(Value::new(tuple_ty, code))
 }
 
 /// The type of an object literal without a contextual type, as TypeScript
@@ -464,6 +501,11 @@ fn member_read(
             ..Value::default()
         });
     }
+    if name.name == b"length"
+        && let Some(items) = model::tuple_items(g, object_ty)
+    {
+        return Ok(Value::new(Type::Usize, format!("{}usize", items.len())));
+    }
     if length {
         return Ok(Value {
             ty: Type::Usize,
@@ -500,6 +542,38 @@ pub fn index(
 ) -> Result<Value> {
     super::place::project(c, &ix.object);
     let value = expr::emit(g, c, &ix.object, None, false)?;
+    if let Some(items) = model::tuple_items(g, value.ty) {
+        // `pair[1]`: a literal position
+        let position = match &ix.index.data {
+            ast::ExprData::Number(n) => std::str::from_utf8(n)
+                .ok()
+                .and_then(|n| n.parse::<usize>().ok()),
+            _ => None,
+        };
+        let Some(position) = position.filter(|position| *position < items.len()) else {
+            return fail(
+                g,
+                ix.index.loc,
+                format!(
+                    "index a tuple with a literal position 0..{}",
+                    items.len() - 1
+                ),
+            );
+        };
+        let item = items[position];
+        let operand = rust_text::operand(&value, Precedence::Suffix, false);
+        let code = if item.copy(g) {
+            format!("{operand}.{position}")
+        } else {
+            format!("{operand}.{position}.clone()")
+        };
+        return Ok(Value {
+            ty: item,
+            code,
+            precedence: Precedence::Suffix,
+            ..Value::default()
+        });
+    }
     let ty = unwrap(g, value.ty);
     if !ix.optional && ty != value.ty {
         return fail(g, loc, "optional array needs ?? or !");

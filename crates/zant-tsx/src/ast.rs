@@ -45,6 +45,8 @@ pub enum TypeDetail {
     /// `A & B & { extra: string }` (two or more members); `interface B
     /// extends A { .. }` is the intersection of `A` and the body.
     Intersection(Vec<TypeRef>),
+    /// `[string, number]`: a fixed-length tuple.
+    Tuple(Vec<TypeRef>),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

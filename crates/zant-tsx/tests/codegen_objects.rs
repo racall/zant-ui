@@ -63,3 +63,27 @@ fn shapes_that_do_not_fit_are_reported() {
         assert!(message.contains(expected), "{src}: {message}");
     }
 }
+
+#[test]
+fn tuples_are_rust_tuples() {
+    let rust = compile_module(
+        "type Pair = [string, number];\nfunction minMax(xs: number[]): [number, number] { return [xs[0], xs[1]]; }\nfunction label(p: Pair): string { return p[0] + String(p[1]) + String(p.length); }\nfunction f(): number { const [lo, hi] = minMax([3, 1]); const [, n] = [\"a\", 2] as Pair; return lo + hi + n; }",
+    )
+    .unwrap();
+    let flat = squash(&rust);
+    for needle in [
+        "pub fn minMax(xs: tsx::List<f64>) -> (f64, f64)",
+        "pub fn label(p: (zant::Str, f64)) -> zant::Str",
+        "p.clone().0.clone()",
+        "2usize",
+    ] {
+        assert!(
+            flat.contains(&squash(needle)),
+            "missing `{needle}` in {rust}"
+        );
+    }
+    let message =
+        compile_module("function f(p: [string, number], i: number): string { return p[i]; }")
+            .unwrap_err();
+    assert!(message.contains("literal position"), "{message}");
+}
