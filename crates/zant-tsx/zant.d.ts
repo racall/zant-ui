@@ -166,6 +166,29 @@ declare module "zant" {
   export const isWindows: boolean;
   export function titlebarInsets(): { left: number; right: number };
 
+  // ── i18n (locales/*.json; the app's zant.i18n.d.ts fills these in) ──
+  /** Message keys → their parameters (`undefined`: none). Generated per app. */
+  export interface I18nMessages {}
+  /** The app's locale tags. Generated per app. */
+  export interface I18nLocales {}
+  /** One of the app's locale tags (`"en"`, `"zh-CN"`). */
+  export type Locale = keyof I18nLocales & string;
+  type I18nKey = keyof I18nMessages & string;
+  type I18nAll<U> = (U extends unknown ? (x: U) => void : never) extends (x: infer I) => void ? I : never;
+  type I18nArgs<K extends I18nKey> = [I18nAll<I18nMessages[K]>] extends [undefined] ? [] : [params: I18nAll<I18nMessages[K]>];
+  /** The message `key` in the current language, checked at compile time: `t("home.welcome", { name })`. */
+  export function t<K extends I18nKey>(key: K, ...params: I18nArgs<K>): string;
+  /** The current locale (re-read on every render). */
+  export function useLocale(): Locale;
+  /** Switch every window to `locale` (or back to the system language with "system"), remembered across launches; false for a locale the app lacks. Call it in a handler. */
+  export function setLocale(locale: Locale | "system"): boolean;
+  /** The user's choice: a locale or "system". */
+  export function localePreference(): Locale | "system";
+  /** The app's locales, sorted. */
+  export function locales(): Locale[];
+  /** A locale's own name ("简体中文", "English"), for language pickers. */
+  export function localeName(locale: Locale): string;
+
   export interface ListProps<T> {
     key?: string | number;
     data: T[];
