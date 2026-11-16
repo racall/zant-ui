@@ -30,7 +30,13 @@ TSX 是推荐的应用写法，编译期生成 Rust，无 JS 运行时。此表�
 | ✅ | 基本类型联合与可辨识联合（Rust 枚举）、`typeof` / 判别字段收窄 |
 | ✅ | `Record` / 索引签名 / `Map` / `Set` / `Object.*`、元组、`keyof` / `typeof` / `T["k"]`、对象字面量推断与结构赋值 |
 | ✅ | 泛型类型（Rust 泛型结构体）与泛型函数（单态化、实参推断、默认值、约束） |
+| ✅ | `satisfies`、`interface extends` / 交叉类型、rest 参数与展开实参 |
+| ✅ | 数组 / 对象原地修改（可变值语义：push/splice/sort/字段赋值，共享时报错） |
+| ✅ | 函数作为值（`Rc<dyn Fn>`，闭包按创建时复制捕获） |
 | ⬜ | 泛型组件、跨文件泛型函数 |
+| ⬜ | `class`（引用语义）、`try` / `catch` / `throw` |
+| ⬜ | `JSON.parse` / `JSON.stringify`、`RegExp`、`Date` |
+| ⬜ | `async` / `await` / `Promise`（需 UI 线程任务队列） |
 
 ## 运行时与工具链
 
