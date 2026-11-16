@@ -22,6 +22,13 @@
 # import-cert: ZANT_CERT (.p12 path), ZANT_CERT_PASSWORD, ZANT_KEYCHAIN
 set -euo pipefail
 
+msg() {
+  case "${ZANT_LANG:-en}" in
+    [zZ][hH]|[zZ][hH]-[cC][nN]|[zZ][hH]-[hH][aA][nN][sS]) printf '%s' "$2" ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
+
 step() { printf '  \033[36m→\033[0m %s\n' "$*" >&2; }
 ok() { printf '  \033[32m✓\033[0m %s\n' "$*" >&2; }
 die() { printf '\n  \033[31m✗\033[0m %s\n\n' "$*" >&2; exit 1; }
@@ -37,7 +44,7 @@ notary_auth() {
   elif [ -n "${ZANT_NOTARY_APPLE_ID:-}" ]; then
     auth=(--apple-id "$ZANT_NOTARY_APPLE_ID" --password "$ZANT_NOTARY_PASSWORD" --team-id "$ZANT_NOTARY_TEAM")
   else
-    die "没有公证凭据"
+    die "$(msg "No notarization credentials" "没有公证凭据")"
   fi
 }
 
@@ -46,7 +53,7 @@ notary_auth() {
 notarize() {
   local file="$1" out err id status
   notary_auth
-  step "提交 Apple 公证：$(basename "$file")（上传后等苹果检查，通常 1～10 分钟）"
+  step "$(msg "Submitting $(basename "$file") for Apple notarization (usually 1–10 minutes after upload)" "提交 Apple 公证：$(basename "$file")（上传后等苹果检查，通常 1～10 分钟）")"
   err=$(mktemp)
   out=$(xcrun notarytool submit "$file" --wait --output-format json "${auth[@]}" 2>"$err") || true
   id=$(plutil -extract id raw -o - - <<<"$out" 2>/dev/null || true)
@@ -56,26 +63,26 @@ notarize() {
     rm -f "$err"
     printf '%s\n' "$out" >&2
     if [ -n "$id" ]; then
-      echo "  苹果的检查日志：" >&2
+      echo "$(msg "  Apple's notarization log:" "  苹果的检查日志：")" >&2
       xcrun notarytool log "$id" "${auth[@]}" >&2 || true
     fi
-    die "公证没有通过（${status:-提交失败}）"
+    die "$(msg "Notarization failed (${status:-submission failed})" "公证没有通过（${status:-提交失败}）")"
   fi
   rm -f "$err"
-  ok "公证通过（${id}）"
+  ok "$(msg "Notarization accepted (${id})" "公证通过（${id}）")"
 }
 
 staple() {
-  xcrun stapler staple -q "$1" || die "装订公证票据失败：$1"
+  xcrun stapler staple -q "$1" || die "$(msg "Could not staple the notarization ticket: $1" "装订公证票据失败：$1")"
 }
 
 assess() {
   local result
   if result=$(spctl --assess -vv "$@" 2>&1); then
-    ok "Gatekeeper 检查通过：$(printf '%s' "$result" | grep -o 'source=.*' | head -1)"
+    ok "$(msg "Gatekeeper check passed: $(printf '%s' "$result" | grep -o 'source=.*' | head -1)" "Gatekeeper 检查通过：$(printf '%s' "$result" | grep -o 'source=.*' | head -1)")"
   else
     printf '%s\n' "$result" >&2
-    die "Gatekeeper 检查没有通过"
+    die "$(msg "Gatekeeper check failed" "Gatekeeper 检查没有通过")"
   fi
 }
 
@@ -87,7 +94,7 @@ assess() {
 dmg_with_layout() {
   local stage="$1" name="$2" dmg="$3" work rw attach dev mnt w h bg2x x1 x2 y
   if [ -e "/Volumes/$ZANT_TITLE" ]; then
-    die "已经挂载了名为「${ZANT_TITLE}」的磁盘：先在访达里推出它再打包"
+    die "$(msg "A disk named ${ZANT_TITLE} is already mounted: eject it in Finder before packaging" "已经挂载了名为「${ZANT_TITLE}」的磁盘：先在访达里推出它再打包")"
   fi
   work=$(mktemp -d)
   rw="$work/rw.dmg"
@@ -104,7 +111,7 @@ dmg_with_layout() {
   attach=$(hdiutil attach -readwrite -noverify -noautoopen "$rw" 2> >(grep -v deprecated >&2))
   dev=$(printf '%s\n' "$attach" | awk '/\/Volumes\// {print $1; exit}')
   mnt=$(printf '%s\n' "$attach" | sed -n 's|.*\(/Volumes/.*\)$|\1|p' | head -1)
-  [ -n "$dev" ] && [ -n "$mnt" ] || die "无法挂载临时磁盘映像"
+  [ -n "$dev" ] && [ -n "$mnt" ] || die "$(msg "Could not mount the temporary disk image" "无法挂载临时磁盘映像")"
   x1=$((w * 27 / 100))
   x2=$((w * 73 / 100))
   y=$((h * 475 / 1000))
@@ -133,8 +140,8 @@ tell application "Finder"
 end tell
 APPLESCRIPT
   then
-    printf '  \033[33m!\033[0m 没能设置 DMG 窗口（背景和图标位置）：%s\n' "$(tr '\n' ' ' <"$work/finder.log")" >&2
-    printf '    需要允许终端控制「访达」：系统设置 → 隐私与安全性 → 自动化\n' >&2
+    printf "$(msg '  \033[33m!\033[0m Could not set the DMG window background and icon positions: %s\n' '  \033[33m!\033[0m 没能设置 DMG 窗口（背景和图标位置）：%s\n')" "$(tr '\n' ' ' <"$work/finder.log")" >&2
+    printf "$(msg '    Allow your terminal to control Finder: System Settings → Privacy & Security → Automation\n' '    需要允许终端控制「访达」：系统设置 → 隐私与安全性 → 自动化\n')" >&2
   fi
   # Finder writes .DS_Store a moment later
   for _ in 1 2 3 4 5 6 7 8 9 10; do
@@ -166,13 +173,13 @@ developer_id() {
       rm -f "$zip"
       ditto -c -k --keepParent "$ZANT_APP" "$zip" # now with the ticket
     fi
-    ok "已生成 $zip"
+    ok "$(msg "Created $zip" "已生成 $zip")"
     return
   fi
 
   local dmg="$ZANT_OUT/$base.dmg" stage
   stage=$(mktemp -d)
-  step "制作 DMG"
+  step "$(msg "Creating DMG" "制作 DMG")"
   ditto "$ZANT_APP" "$stage/$name"
   ln -s /Applications "$stage/Applications"
   rm -f "$dmg"
@@ -185,7 +192,7 @@ developer_id() {
   if [ "$ZANT_IDENTITY" != "none" ]; then
     codesign --force --timestamp --sign "$ZANT_IDENTITY" ${keychain_args[@]+"${keychain_args[@]}"} "$dmg"
   fi
-  ok "已生成 $dmg"
+  ok "$(msg "Created $dmg" "已生成 $dmg")"
   if [ "${ZANT_NOTARIZE:-0}" = 1 ]; then
     notarize "$dmg"
     staple "$dmg"
@@ -198,16 +205,16 @@ app_store() {
   local pkg="$ZANT_OUT/$ZANT_TITLE-$ZANT_VERSION.pkg"
   mkdir -p "$ZANT_OUT"
   rm -f "$pkg"
-  step "制作安装包 .pkg（${ZANT_INSTALLER_IDENTITY}）"
+  step "$(msg "Creating .pkg installer (${ZANT_INSTALLER_IDENTITY})" "制作安装包 .pkg（${ZANT_INSTALLER_IDENTITY}）")"
   productbuild --component "$ZANT_APP" /Applications --sign "$ZANT_INSTALLER_IDENTITY" ${keychain_args[@]+"${keychain_args[@]}"} "$pkg" >/dev/null
-  ok "已生成 $pkg"
+  ok "$(msg "Created $pkg" "已生成 $pkg")"
   if [ "${ZANT_UPLOAD:-0}" = 1 ]; then
     local auth=(--api-key "$ZANT_ASC_KEY_ID" --api-issuer "$ZANT_ASC_ISSUER" --p8-file-path "$ZANT_ASC_KEY")
-    step "App Store Connect 验证"
-    xcrun altool --validate-app "$pkg" "${auth[@]}" || die "App Store Connect 验证没有通过（见上面的错误）"
-    step "上传到 App Store Connect"
-    xcrun altool --upload-package "$pkg" "${auth[@]}" || die "上传失败（见上面的错误）"
-    ok "已上传：苹果处理完成后，在 App Store Connect 的 TestFlight 里可以看到这个版本"
+    step "$(msg "Validating with App Store Connect" "App Store Connect 验证")"
+    xcrun altool --validate-app "$pkg" "${auth[@]}" || die "$(msg "App Store Connect validation failed (see the error above)" "App Store Connect 验证没有通过（见上面的错误）")"
+    step "$(msg "Uploading to App Store Connect" "上传到 App Store Connect")"
+    xcrun altool --upload-package "$pkg" "${auth[@]}" || die "$(msg "Upload failed (see the error above)" "上传失败（见上面的错误）")"
+    ok "$(msg "Uploaded: this version will appear in TestFlight in App Store Connect after Apple finishes processing" "已上传：苹果处理完成后，在 App Store Connect 的 TestFlight 里可以看到这个版本")"
   fi
 }
 
@@ -222,12 +229,12 @@ import_cert() {
   security set-keychain-settings -lut 21600 "$kc"
   security unlock-keychain -p "$pw" "$kc"
   security import "$ZANT_CERT" -k "$kc" -P "${ZANT_CERT_PASSWORD:-}" -T /usr/bin/codesign -T /usr/bin/productbuild >/dev/null ||
-    die "导入证书失败（检查证书文件和密码）"
+    die "$(msg "Could not import the certificate (check the certificate file and password)" "导入证书失败（检查证书文件和密码）")"
   security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$pw" "$kc" >/dev/null
   local list=()
   while IFS= read -r line; do [ -n "$line" ] && list+=("$line"); done <"$kc.search"
   security list-keychains -d user -s "$kc" "${list[@]}"
-  ok "证书已导入临时钥匙串（构建结束后删除）"
+  ok "$(msg "Certificate imported into a temporary keychain (removed after the build)" "证书已导入临时钥匙串（构建结束后删除）")"
 }
 
 remove_keychain() {
@@ -246,5 +253,5 @@ developer-id) developer_id ;;
 app-store) app_store ;;
 import-cert) import_cert ;;
 remove-keychain) remove_keychain ;;
-*) die "用法: macos.sh developer-id | app-store | import-cert | remove-keychain" ;;
+*) die "$(msg "Usage: macos.sh developer-id | app-store | import-cert | remove-keychain" "用法: macos.sh developer-id | app-store | import-cert | remove-keychain")" ;;
 esac

@@ -1,4 +1,4 @@
-//! `zant build [配置文件]`, the release
+//! `zant build [config]`, the release
 //! build. zant reads the build settings (build.config.json by default, see
 //! docs/build.md), asks in a terminal for what is missing (and offers to save
 //! the answers), compiles, builds and signs the app, then hands the platform
@@ -11,175 +11,19 @@
 //! can live in the keychain (notarytool profiles), and passwords typed in the
 //! terminal are used for this run only.
 
+mod context;
+pub use context::*;
+
 pub mod macos;
 pub mod windows;
 
-use crate::app_config::AppConfig;
 use crate::generate::Need;
-use crate::{COLOR_CYAN, COLOR_GREEN, COLOR_RESET, fail, ok};
-use std::collections::HashMap;
+use crate::{COLOR_CYAN, COLOR_RESET, fail, ok};
 use std::io::Write as _;
 use std::path::Path;
 use std::sync::Mutex;
 
 pub const DEFAULT_FILE: &str = "build.config.json";
-
-/// build.config.json. Every field is optional; a missing one is asked in a
-/// terminal or (with --yes / in CI) uses its default or stops with a message
-/// naming the key.
-#[derive(Debug, Default, Clone, serde::Deserialize, serde::Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct BuildFile {
-    /// CFBundleVersion: App Store Connect needs a new one for every upload of
-    /// the same version (default: `version` from app.config.json)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub build_number: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub macos: Option<Macos>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub windows: Option<Windows>,
-    /// API key for App Store uploads (and optionally notarization)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub app_store_connect: Option<AscKey>,
-}
-
-#[derive(Debug, Default, Clone, serde::Deserialize, serde::Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct Macos {
-    /// "developer-id" (DMG, notarized) | "app-store"
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub distribution: Option<String>,
-    /// codesign identity as `security find-identity` shows it; "none" = ad-hoc
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub signing_identity: Option<String>,
-    /// CI: a .p12 (path, or base64 contents) imported into a temporary keychain
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub certificate: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub certificate_password: Option<String>,
-    /// developer-id: "dmg" (default) | "zip"
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub format: Option<String>,
-    /// DMG window background: a PNG, "default" or "none"
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub dmg_background: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub notarize: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub notary: Option<Notary>,
-    /// app-store: LSApplicationCategoryType
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub category: Option<String>,
-    /// app-store: "3rd Party Mac Developer Installer: …" / "Mac Installer Distribution: …"
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub installer_identity: Option<String>,
-    /// app-store: the Mac App Store provisioning profile (.provisionprofile)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub provisioning_profile: Option<String>,
-    /// app-store: upload the .pkg to App Store Connect
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub upload: Option<bool>,
-}
-
-/// One of: a notarytool keychain profile, the App Store Connect API key, or
-/// an Apple ID with an app-specific password.
-#[derive(Debug, Default, Clone, serde::Deserialize, serde::Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct Notary {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub profile: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub api_key: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub apple_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub password: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub team_id: Option<String>,
-}
-
-#[derive(Debug, Default, Clone, serde::Deserialize, serde::Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct AscKey {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub issuer_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub key_id: Option<String>,
-    /// the .p8 file: a path, or its contents (CI secret)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub key: Option<String>,
-}
-
-#[derive(Debug, Default, Clone, serde::Deserialize, serde::Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct Windows {
-    /// "installer" (Inno Setup) | "store" (MSIX) | "folder" (zip)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub distribution: Option<String>,
-    /// shown by the installer and in Settings → Apps
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub publisher: Option<String>,
-    /// a certificate in the user's certificate store: thumbprint or subject
-    /// name; "none" = not signed
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub signing_identity: Option<String>,
-    /// a .pfx (path, or base64 contents) instead of the certificate store
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub certificate: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub certificate_password: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub timestamp_url: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub store: Option<Store>,
-}
-
-/// Values from Partner Center → the app → Product management → Product identity.
-#[derive(Debug, Default, Clone, serde::Deserialize, serde::Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct Store {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub identity_name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub publisher: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub publisher_display_name: Option<String>,
-    /// submit with the Microsoft Store Developer CLI (msstore)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub upload: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub product_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tenant_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub seller_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub client_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub client_secret: Option<String>,
-}
-
-/// An App Store Connect API key resolved to a readable .p8 file.
-#[derive(Debug, Clone)]
-pub struct Asc {
-    pub issuer: String,
-    pub id: String,
-    pub path: String,
-}
-
-pub struct Ctx {
-    pub root: String,
-    pub cfg: AppConfig,
-    pub file: BuildFile,
-    pub path: String,
-    pub exists: bool,
-    pub interactive: bool,
-    pub changed: bool,
-    pub saved: bool,
-    /// ZANT_* variables / the inherited environment for the scripts
-    pub env: HashMap<String, String>,
-    pub asc: Option<Asc>,
-}
 
 /// Cleanup on exit and on `fail` (temporary key files, the CI keychain).
 struct Cleanup {
@@ -204,7 +48,8 @@ fn cleanup() {
         command
             .args(&argv[1..])
             .current_dir(&state.root)
-            .env("ZANT_KEYCHAIN", keychain);
+            .env("ZANT_KEYCHAIN", keychain)
+            .env("ZANT_LANG", crate::lang::tag());
         #[cfg(windows)]
         command.env_remove("PSModulePath");
         let _ = command.status();
@@ -231,147 +76,7 @@ fn register_temp_keychain(path: &str) {
     }
 }
 
-impl Ctx {
-    pub fn get_env(&self, name: &str) -> Option<String> {
-        match self.env.get(name) {
-            Some(value) if !value.is_empty() => Some(value.clone()),
-            _ => None,
-        }
-    }
-
-    /// A config value: the literal, or `$NAME` from the environment.
-    pub fn value(&self, value: &str, key: &str) -> String {
-        if let Some(name) = env_name(value) {
-            return self
-                .get_env(name)
-                .unwrap_or_else(|| fail(format!("{key} 是环境变量 {name}，但它没有设置")));
-        }
-        value.to_string()
-    }
-
-    /// Like `value`, but an unset variable is typed (without echo) in a
-    /// terminal, for this run only.
-    pub fn secret(&self, value: &str, key: &str, label: &str) -> String {
-        if let Some(name) = env_name(value) {
-            if let Some(found) = self.get_env(name) {
-                return found;
-            }
-            if !self.interactive {
-                fail(format!("{key} 是环境变量 {name}，但它没有设置"));
-            }
-            eprint!("{label}（不显示、不保存；也可以设置环境变量 {name}）: ");
-            let _ = std::io::stderr().flush();
-            return crate::read_secret();
-        }
-        value.to_string()
-    }
-
-    pub fn set_env(&mut self, key: &str, value: &str) {
-        self.env.insert(key.to_string(), value.to_string());
-    }
-
-    pub fn need(&self, key: &str, what: &str) -> ! {
-        fail(format!(
-            "{} 缺少 {key}（{what}）。在终端里运行 zant build 按提示选择，或写进配置文件",
-            Path::new(&self.path)
-                .file_name()
-                .map(|name| name.to_string_lossy().into_owned())
-                .unwrap_or_else(|| self.path.clone())
-        ))
-    }
-
-    pub fn ask_required(&self, label: &str, default: &str) -> String {
-        loop {
-            let value = if !default.is_empty() {
-                crate::prompt(label, default)
-            } else {
-                eprint!("{label}: ");
-                let _ = std::io::stderr().flush();
-                crate::read_line().trim_matches(' ').to_string()
-            };
-            if !value.is_empty() {
-                return value;
-            }
-        }
-    }
-
-    /// Numbered choice; returns the index.
-    pub fn choose(&self, title: &str, options: &[&str], default: usize) -> usize {
-        eprintln!("\n{title}:");
-        for (index, option) in options.iter().enumerate() {
-            eprintln!("  {}) {option}", index + 1);
-        }
-        loop {
-            let value = crate::prompt("选择", &(default + 1).to_string());
-            let Ok(number) = value.parse::<usize>() else {
-                continue;
-            };
-            if (1..=options.len()).contains(&number) {
-                return number - 1;
-            }
-        }
-    }
-
-    pub fn print_result(&self, artifact: &str) {
-        eprintln!("\n{COLOR_GREEN}完成{COLOR_RESET}：{artifact}\n");
-    }
-
-    pub fn build_number(&self) -> Option<String> {
-        self.file
-            .build_number
-            .as_ref()
-            .map(|build| self.value(build, "build_number"))
-    }
-
-    pub fn capture_script(&self, action: &str) -> String {
-        let argv = script_argv(action);
-        let mut command = std::process::Command::new(&argv[0]);
-        command
-            .args(&argv[1..])
-            .current_dir(&self.root)
-            .envs(&self.env);
-        #[cfg(windows)]
-        command.env_remove("PSModulePath");
-        match command.output() {
-            Ok(output) if output.status.success() => String::from_utf8_lossy(&output.stdout)
-                .trim_matches([' ', '\t', '\r', '\n'])
-                .to_string(),
-            _ => String::new(),
-        }
-    }
-
-    pub fn run_script(&self, action: &str) {
-        let _ = self.run_script_env(&self.env, action, true);
-    }
-
-    pub fn run_script_env(&self, env: &HashMap<String, String>, action: &str, must: bool) -> bool {
-        let argv = script_argv(action);
-        let mut command = std::process::Command::new(&argv[0]);
-        command.args(&argv[1..]).current_dir(&self.root).envs(env);
-        #[cfg(windows)]
-        command.env_remove("PSModulePath");
-        let mut child = match command.spawn() {
-            Ok(child) => child,
-            Err(err) => {
-                if must {
-                    fail(format!("无法运行打包脚本：{err}"));
-                }
-                return false;
-            }
-        };
-        match child.wait() {
-            Ok(status) if status.success() => true,
-            _ => {
-                if must {
-                    fail("打包没有完成（见上面的说明）");
-                }
-                false
-            }
-        }
-    }
-}
-
-/// `zant build [配置文件] [--yes]`.
+/// `zant build [config] [--yes]`.
 pub fn cmd_build(file_arg: Option<String>, yes: bool) -> std::io::Result<()> {
     let root = std::env::current_dir()?.to_string_lossy().into_owned();
     let mut cfg = crate::load_config(&root)?;
@@ -394,7 +99,9 @@ pub fn cmd_build(file_arg: Option<String>, yes: bool) -> std::io::Result<()> {
     };
     let data = crate::read_file(Path::new(&path)).ok();
     if data.is_none() && file_arg.is_some() {
-        fail(format!("找不到配置文件 {path}"));
+        fail(
+            tr!(en: "Configuration file not found: {path}", zh: "找不到配置文件 {path}", path = path),
+        );
     }
 
     let ci = std::env::var_os("CI").is_some();
@@ -414,40 +121,49 @@ pub fn cmd_build(file_arg: Option<String>, yes: bool) -> std::io::Result<()> {
     if let Some(text) = data {
         let text = String::from_utf8_lossy(&text);
         c.file = serde_json::from_str(&text).unwrap_or_else(|err| {
-            fail(format!(
-                "{path} 解析失败：{err}（未知的字段名也会报错，检查拼写；格式见 Zant UI 的 docs/build.md）"
-            ))
+            fail(tr!(en: "Could not parse {path}: {err} (check for misspelled or unknown fields; see Zant UI docs/build.md)", zh: "{path} 解析失败：{err}（未知的字段名也会报错，检查拼写；格式见 Zant UI 的 docs/build.md）",
+             err = err, path = path))
         });
     }
     register_cleanup(&root);
     crate::set_on_fail(Box::new(cleanup));
 
     eprintln!(
-        "\n{COLOR_CYAN}Zant 发布构建{COLOR_RESET}（{}）",
+        "{}",
+        tr!(en: "\n{COLOR_CYAN}Zant release build{COLOR_RESET} ({})", zh: "\n{COLOR_CYAN}Zant 发布构建{COLOR_RESET}（{}）",
         if crate::IS_WINDOWS {
             "Windows"
         } else {
             "macOS"
         }
+    , COLOR_CYAN = COLOR_CYAN, COLOR_RESET = COLOR_RESET)
     );
     if c.exists {
-        eprintln!("  配置文件：{path}");
+        eprintln!(
+            "{}",
+            tr!(en: "  Configuration: {path}", zh: "  配置文件：{path}", path = path)
+        );
     } else {
         eprintln!(
-            "  没有 {}：{}",
-            Path::new(&path)
-                .file_name()
-                .unwrap_or_default()
-                .to_string_lossy(),
-            if c.interactive {
-                "缺的设置会逐项询问，最后可以保存"
-            } else {
-                "使用默认设置"
-            }
+            "{}",
+            tr!(en: "  No {}: {}", zh: "  没有 {}：{}",
+                Path::new(&path)
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy(),
+                if c.interactive {
+                    tr!(en: "Missing settings will be prompted for; you can save them afterward", zh: "缺的设置会逐项询问，最后可以保存")
+                } else {
+                    tr!(en: "Using default settings", zh: "使用默认设置")
+                }
+            )
         );
     }
     if !c.interactive {
-        eprintln!("  非交互模式（--yes / CI）：不提问，缺少必需的设置时停止");
+        eprintln!(
+            "{}",
+            tr!(en: "  Non-interactive mode (--yes / CI): required settings must be configured in advance", zh: "  非交互模式（--yes / CI）：不提问，缺少必需的设置时停止",)
+        );
     }
 
     let result = if crate::IS_WINDOWS {
@@ -543,7 +259,7 @@ pub fn file_or_base64(c: &Ctx, value: &str, key: &str, name: &str) -> std::io::R
         return Ok(path);
     }
     let decoded = base64_decode(value)
-        .unwrap_or_else(|| fail(format!("{key}：既不是存在的文件，也不是 base64 内容")));
+        .unwrap_or_else(|| fail(tr!(en: "{key}: expected an existing file or base64 content", zh: "{key}：既不是存在的文件，也不是 base64 内容", key = key)));
     write_secret_file(c, name, &decoded)
 }
 
@@ -592,8 +308,7 @@ pub fn save(c: &mut Ctx) {
     }
     c.saved = true;
     eprintln!();
-    let label = format!(
-        "把这些设置保存到 {}？下次直接使用；文件里只有证书名称和选项，不含密码和密钥内容",
+    let label = tr!(en: "Save these settings to {} for next time? Only certificate names and options are saved, without passwords or private keys", zh: "把这些设置保存到 {}？下次直接使用；文件里只有证书名称和选项，不含密码和密钥内容",
         Path::new(&c.path)
             .file_name()
             .unwrap_or_default()
@@ -607,10 +322,13 @@ pub fn save(c: &mut Ctx) {
     };
     let contents = format!("{text}\n");
     if let Err(err) = crate::write_file(Path::new(&c.path), contents.as_bytes()) {
-        eprintln!("  保存失败：{err}");
+        eprintln!(
+            "{}",
+            tr!(en: "  Could not save: {err}", zh: "  保存失败：{err}", err = err)
+        );
         return;
     }
-    ok(&format!("已保存 {}", c.path));
+    ok(&tr!(en: "Saved {}", zh: "已保存 {}", c.path));
 }
 
 // ---- scripts ----

@@ -23,7 +23,7 @@ p.write_text(s)
 c=a/'src/components/CounterCard.tsx';c.write_text(c.read_text().replace('<Button variant=', '<Button key="inc" variant='))
 fifo=D/'control';os.mkfifo(fifo)
 env=os.environ|{'CARGO_NET_OFFLINE':'true','CARGO_HOME':str(R/'.cargo-home'),'ZANT_CARGO':str(R/'scripts/cargo.sh'),'ZANT_HOT_POLL':'1','ZANT_HOT_TRACE':'1','ZANT_HOT_SNAPSHOT':str(D/'shots'),'ZANT_LAYOUT_FILE':str(D/'layout'),'ZANT_HOT_CONTROL':str(fifo),'ZANT_FRAME_STATS':'1'}
-log=(D/'run.log').open('w');proc=subprocess.Popen([str(cli),'run'],cwd=a,env=env,stdout=log,stderr=subprocess.STDOUT)
+log=(D/'run.log').open('w');proc=subprocess.Popen([str(cli),'run','--lang=en'],cwd=a,env=env,stdout=log,stderr=subprocess.STDOUT)
 (D/'cli.pid').write_text(str(proc.pid))
 
 def output():return (D/'run.log').read_text()
@@ -84,16 +84,16 @@ try:
  reload(component,'new-component')
  reload(lambda:p.write_text(p.read_text().replace('useState(7)', 'useState(true)')),'changed-type')
  typed=state();(D/'typed.json').write_text(json.dumps(typed,indent=2));assert typed['app']['mode'] is True and typed['app']['clicks']==3 and typed['app']['name']=='Keep me',typed
- good=p.read_text();p.write_text(good+'\nexport default broken !!!\n');wait(lambda:'编译失败，界面保持上一版本' in output(),'TSX error');send('snapshot');time.sleep(.2)
+ good=p.read_text();p.write_text(good+'\nexport default broken !!!\n');wait(lambda:'Build failed; keeping the previous UI' in output(),'TSX error');send('snapshot');time.sleep(.2)
  reload(lambda:p.write_text(good),'fixed-tsx')
- native=a/'native/system.rs';ns=native.read_text();native.write_text(ns+'\npub const BROKEN: = ;\n');old=output().count('编译失败，界面保持上一版本');wait(lambda:output().count('编译失败，界面保持上一版本')>old,'Rust error');send('snapshot');time.sleep(.2)
+ native=a/'native/system.rs';ns=native.read_text();native.write_text(ns+'\npub const BROKEN: = ;\n');old=output().count('Build failed; keeping the previous UI');wait(lambda:output().count('Build failed; keeping the previous UI')>old,'Rust error');send('snapshot');time.sleep(.2)
  reload(lambda:native.write_text(ns.replace('Str::copy(version)','Str::copy("native reloaded")')),'fixed-native')
  assert framework_stamp()==framework_before,'framework rebuilt during app edits'
- count=output().count('检测到改动，重新编译');p.write_text(p.read_text());time.sleep(1);assert output().count('检测到改动，重新编译')==count,'unchanged save rebuilt'
+ count=output().count('Changes detected, rebuilding');p.write_text(p.read_text());time.sleep(1);assert output().count('Changes detected, rebuilding')==count,'unchanged save rebuilt'
  # Save twice after the build has started: exactly one follow-up build.
- count=output().count('检测到改动，重新编译');p.write_text(p.read_text().replace('Reloaded text','Burst first'))
- wait(lambda:output().count('检测到改动，重新编译')>count,'burst build started');p.write_text(p.read_text().replace('Burst first','Burst second'));time.sleep(.03);p.write_text(p.read_text().replace('Burst second','Burst final'))
- wait(lambda:output().count('检测到改动，重新编译')>=count+2,'follow-up');wait(lambda:'Burst final' in ''.join(x.read_text(errors='ignore') for x in (a/'target/zant-hot/target/debug/build').glob('*/out/App.rs')),'final generated source');time.sleep(2);assert output().count('检测到改动，重新编译')==count+2,output()[-2000:]
+ count=output().count('Changes detected, rebuilding');p.write_text(p.read_text().replace('Reloaded text','Burst first'))
+ wait(lambda:output().count('Changes detected, rebuilding')>count,'burst build started');p.write_text(p.read_text().replace('Burst first','Burst second'));time.sleep(.03);p.write_text(p.read_text().replace('Burst second','Burst final'))
+ wait(lambda:output().count('Changes detected, rebuilding')>=count+2,'follow-up');wait(lambda:'Burst final' in ''.join(x.read_text(errors='ignore') for x in (a/'target/zant-hot/target/debug/build').glob('*/out/App.rs')),'final generated source');time.sleep(2);assert output().count('Changes detected, rebuilding')==count+2,output()[-2000:]
  pid=re.findall(r'host_pid=(\d+)',output())[-1]
  cfg=a/'app.config.json';cfg.write_text(cfg.read_text().replace('"width": 680','"width": 700'))
  wait(lambda:len(re.findall(r'host_pid=(\d+)',output()))>=2,'config restart');assert re.findall(r'host_pid=(\d+)',output())[-1]!=pid

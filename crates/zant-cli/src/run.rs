@@ -17,7 +17,7 @@ pub fn cmd_sync() -> std::io::Result<()> {
     sync(&root)?;
     // Windows has no bundle files to write (sync_project says so itself)
     if !IS_WINDOWS {
-        crate::ok("配置代码已重新生成");
+        crate::ok(tr!(en: "Configuration code regenerated", zh: "配置代码已重新生成"));
     }
     Ok(())
 }
@@ -32,7 +32,7 @@ pub fn cmd_compile(release: bool) -> std::io::Result<()> {
     let root = root()?;
     sync(&root)?;
     if let Err(err) = crate::ensure_rust_project(&root) {
-        fail(format!("无法编译：{err}"));
+        fail(tr!(en: "Could not compile: {err}", zh: "无法编译：{err}", err = err));
     }
     run_inherit(&build_args(release), &root);
     Ok(())
@@ -53,7 +53,7 @@ pub fn cmd_run(release: bool) -> std::io::Result<()> {
         );
     } else {
         if let Err(err) = crate::ensure_rust_project(&root) {
-            fail(format!("无法编译：{err}"));
+            fail(tr!(en: "Could not compile: {err}", zh: "无法编译：{err}", err = err));
         }
         run_inherit(&build_args(release), &root);
         let exe = app_exe_path(&root, release);
@@ -68,7 +68,10 @@ pub fn cmd_package() -> std::io::Result<()> {
     generate::complete_platform_config(&root, &mut config, Need::Package)?;
     generate::sync_project(&root, &config)?;
     let app = crate::bundle::package_app(&root, &config, true);
-    eprintln!("\n输出: {app}");
+    eprintln!(
+        "{}",
+        tr!(en: "\nOutput: {app}", zh: "\n输出: {app}", app = app)
+    );
     Ok(())
 }
 
@@ -81,21 +84,26 @@ pub fn cmd_watch(release: bool) -> std::io::Result<()> {
     let mut config = load_config(&root)?;
     generate::complete_platform_config(&root, &mut config, Need::Run)?;
     if config.sandbox && !IS_WINDOWS {
-        fail("App Sandbox 下暂不支持热更新；请使用 zant run");
+        fail(
+            tr!(en: "Watch mode is not supported in App Sandbox; use zant run", zh: "App Sandbox 下暂不支持热更新；请使用 zant run"),
+        );
     }
     generate::sync_project(&root, &config)?;
-    step("首次编译");
+    step(tr!(en: "Initial build", zh: "首次编译"));
     if !build_once(&root, release) {
-        fail("编译失败");
+        fail(tr!(en: "Build failed", zh: "编译失败"));
     }
-    ok("编译完成");
+    ok(tr!(en: "Build complete", zh: "编译完成"));
 
     let mut last = crate::sources::stamp(&root);
     let exe = app_exe_path(&root, release);
     let mut child = crate::spawn_app(&exe, &root).unwrap_or_else(|err| {
-        fail(format!("无法启动应用：{err}"));
+        fail(tr!(en: "Could not start app: {err}", zh: "无法启动应用：{err}", err = err));
     });
-    eprintln!("\n热更新已开启：监听 src/、app.config.json；Ctrl+C 退出");
+    eprintln!(
+        "{}",
+        tr!(en: "\nWatch mode enabled: watching src/ and app.config.json; press Ctrl+C to exit", zh: "\n热更新已开启：监听 src/、app.config.json；Ctrl+C 退出",)
+    );
 
     let (tx, rx) = std::sync::mpsc::channel();
     let mut watcher: RecommendedWatcher =
@@ -104,7 +112,9 @@ pub fn cmd_watch(release: bool) -> std::io::Result<()> {
                 let _ = tx.send(());
             }
         })
-        .unwrap_or_else(|err| fail(format!("无法监听文件变化：{err}")));
+        .unwrap_or_else(|err| {
+            fail(tr!(en: "Could not watch files: {err}", zh: "无法监听文件变化：{err}", err = err))
+        });
     let mut watched_any = false;
     for dir in crate::sources::WATCH_DIRS {
         let path = std::path::Path::new(&root).join(dir);
@@ -119,13 +129,15 @@ pub fn cmd_watch(release: bool) -> std::io::Result<()> {
         }
     }
     if !watched_any {
-        fail(format!("没有可监听的文件：{root}/src 不存在？"));
+        fail(
+            tr!(en: "No files to watch: does {root}/src exist?", zh: "没有可监听的文件：{root}/src 不存在？", root = root),
+        );
     }
 
     loop {
         // Block until notify reports something, then coalesce the burst.
         if rx.recv().is_err() {
-            fail("文件监听已停止");
+            fail(tr!(en: "File watcher stopped", zh: "文件监听已停止"));
         }
         while rx.try_recv().is_ok() {}
         let now = crate::sources::stamp(&root);
@@ -133,7 +145,10 @@ pub fn cmd_watch(release: bool) -> std::io::Result<()> {
             continue;
         }
         last = now;
-        eprintln!("\n检测到改动，重新编译...");
+        eprintln!(
+            "{}",
+            tr!(en: "\nChanges detected, rebuilding...", zh: "\n检测到改动，重新编译...",)
+        );
         if IS_WINDOWS {
             // a running .exe cannot be overwritten: stop it before linking,
             // and bring the last good build back if this one fails
@@ -141,27 +156,33 @@ pub fn cmd_watch(release: bool) -> std::io::Result<()> {
             let _ = child.wait();
             let built = build_once(&root, release);
             if !built {
-                eprintln!("编译失败，重新打开上一次的版本，等待下一次改动");
+                eprintln!(
+                    "{}",
+                    tr!(en: "Build failed; reopening the previous version and waiting for changes", zh: "编译失败，重新打开上一次的版本，等待下一次改动",)
+                );
             }
             generate::sync_project(&root, &config)?;
             child = crate::spawn_app(&exe, &root).unwrap_or_else(|err| {
-                fail(format!("无法启动应用：{err}"));
+                fail(tr!(en: "Could not start app: {err}", zh: "无法启动应用：{err}", err = err));
             });
             if built {
-                eprintln!("已重启应用");
+                eprintln!("{}", tr!(en: "App restarted", zh: "已重启应用",));
             }
             continue;
         }
         if !build_once(&root, release) {
-            eprintln!("编译失败，保持当前窗口，等待下一次改动");
+            eprintln!(
+                "{}",
+                tr!(en: "Build failed; keeping the current window and waiting for changes", zh: "编译失败，保持当前窗口，等待下一次改动",)
+            );
             continue;
         }
         let _ = child.kill();
         let _ = child.wait();
         generate::sync_project(&root, &config)?;
         child = crate::spawn_app(&exe, &root).unwrap_or_else(|err| {
-            fail(format!("无法启动应用：{err}"));
+            fail(tr!(en: "Could not start app: {err}", zh: "无法启动应用：{err}", err = err));
         });
-        eprintln!("已重启应用");
+        eprintln!("{}", tr!(en: "App restarted", zh: "已重启应用",));
     }
 }

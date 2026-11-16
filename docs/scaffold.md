@@ -33,6 +33,24 @@ macOS 与 Windows 用法相同。`zant create` 只问两端通用的设置，生
 由 `zant run` / `build` / `package` 在当前平台按需补充：macOS 上补 `app.config.json` 的
 `macos` 段（沙盒、签名账号）并生成 Info.plist、entitlements；Windows 可通过 `windows.titlebar_height` 覆盖自定义标题栏高度。
 
+## 命令行语言
+
+`zant` 默认使用英文提示，不读取系统语言。所有子命令都支持 `--lang zh`（也可写成
+`--lang=zh`），参数可放在命令前后；`en` 切回英文，`zh-CN`、`zh-Hans` 也可用于中文，大小写不限。
+也可以设置环境变量 `ZANT_LANG=zh`，命令行参数优先于环境变量。
+
+```bash
+zant --lang zh create my-app
+zant create my-app --lang=zh
+ZANT_LANG=zh zant --help
+zant --lang en --help
+```
+
+PowerShell 可用 `$env:ZANT_LANG = "zh"` 设置当前会话语言。
+默认输出例如 `Build complete`、`Project created: …`，加上 `--lang zh` 后显示原来的中文提示。
+两种提示语言都接受中文标题（如 `我的应用`）；确认问题接受 `y/yes/n/no`、
+`是/好/对/要`、`否/不/不要` 和全角字母 `ｙ/ｎ`。重定向标准输入时请使用 UTF-8 编码。
+
 ## 创建项目
 
 ```bash

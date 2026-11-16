@@ -69,10 +69,8 @@ pub fn warn_if_stale(root: &str) {
         let manifest = std::fs::read_to_string(Path::new(root).join("Cargo.toml")).unwrap_or_default();
         let installed = installed_tag();
         if let Some(tag) = project_tag(&manifest).filter(|tag| *tag != installed) {
-            crate::dim_line(&format!(
-                "项目依赖 Zant UI {tag}，已安装 {installed}：版本不一致时原生层要从源码编译，热刷新也会用已安装的版本。\
-                 运行 zant update 或把 Cargo.toml 里的 tag 改成 {installed}"
-            ));
+            crate::dim_line(&tr!(en: "Project requires Zant UI {tag}, but {installed} is installed: version mismatches rebuild the native layer from source; hot reload uses the installed version. Run zant update or set tag = \"{installed}\" in Cargo.toml", zh: "项目依赖 Zant UI {tag}，已安装 {installed}：版本不一致时原生层要从源码编译，热刷新也会用已安装的版本。运行 zant update 或把 Cargo.toml 里的 tag 改成 {installed}",
+             installed = installed, tag = tag));
         }
     });
 }
@@ -89,8 +87,12 @@ pub fn retag_project(dir: &Path, tag: &str) {
     };
     if let Some(updated) = retag(&manifest, tag) {
         match std::fs::write(&path, updated) {
-            Ok(()) => crate::ok(&format!("项目的 Zant UI 依赖：{old} → {tag}")),
-            Err(error) => crate::dim_line(&format!("没能更新 {}：{error}", path.display())),
+            Ok(()) => crate::ok(
+                &tr!(en: "Project Zant UI dependency: {old} → {tag}", zh: "项目的 Zant UI 依赖：{old} → {tag}", old = old, tag = tag),
+            ),
+            Err(error) => crate::dim_line(
+                &tr!(en: "Could not update {}: {error}", zh: "没能更新 {}：{error}", path.display(), error = error),
+            ),
         }
     }
 }

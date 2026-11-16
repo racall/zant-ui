@@ -27,13 +27,15 @@ $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $esc = [char]27
 
+function Msg($en, $zh) { if ($env:ZANT_LANG -in @('zh', 'zh-CN', 'zh-Hans')) { $zh } else { $en } }
+
 function Step($text) { [Console]::Error.WriteLine("  $esc[36m→$esc[0m $text") }
 function Ok($text) { [Console]::Error.WriteLine("  $esc[32m✓$esc[0m $text") }
 function Die($text) { [Console]::Error.WriteLine("`n  $esc[31m✗$esc[0m $text`n"); exit 1 }
 
 function Run($exe, [string[]]$arguments, $what) {
     & $exe @arguments
-    if ($LASTEXITCODE -ne 0) { Die "$what 失败（退出码 $LASTEXITCODE）" }
+    if ($LASTEXITCODE -ne 0) { Die (Msg "$what failed (exit code $LASTEXITCODE)" "$what 失败（退出码 $LASTEXITCODE）") }
 }
 
 # signtool.exe / makeappx.exe from the newest Windows 10/11 SDK
@@ -49,7 +51,7 @@ function Find-SdkTool($name) {
     }
     $cmd = Get-Command $name -ErrorAction SilentlyContinue
     if ($cmd) { return $cmd.Source }
-    Die "找不到 ${name}：在 Visual Studio Installer 里安装「Windows 11 SDK」组件，或设置 ZANT_$((($name -replace '\.exe$', '').ToUpper()))"
+    Die (Msg "${name} not found: install Windows 11 SDK in Visual Studio Installer, or set ZANT_$((($name -replace '\.exe$', '').ToUpper()))" "找不到 ${name}：在 Visual Studio Installer 里安装「Windows 11 SDK」组件，或设置 ZANT_$((($name -replace '\.exe$', '').ToUpper()))")
 }
 
 function Find-Iscc {
@@ -80,12 +82,12 @@ function Sign-Files([string[]]$files) {
     $tool = Find-SdkTool 'signtool.exe'
     $sign = @(Sign-Args) + $files
     & $tool @sign | Out-Null
-    if ($LASTEXITCODE -ne 0) { Die "签名失败（signtool 退出码 $LASTEXITCODE；检查证书是否可用、时间戳服务器能否访问）" }
+    if ($LASTEXITCODE -ne 0) { Die (Msg "Signing failed (signtool exit code $LASTEXITCODE; check the certificate and timestamp server access)" "签名失败（signtool 退出码 $LASTEXITCODE；检查证书是否可用、时间戳服务器能否访问）") }
 }
 
 function Installer {
     $iscc = Find-Iscc
-    if (-not $iscc) { Die '找不到 Inno Setup（ISCC.exe）：winget install JRSoftware.InnoSetup，或设置 ZANT_ISCC' }
+    if (-not $iscc) { Die (Msg 'Inno Setup (ISCC.exe) not found: winget install JRSoftware.InnoSetup, or set ZANT_ISCC' '找不到 Inno Setup（ISCC.exe）：winget install JRSoftware.InnoSetup，或设置 ZANT_ISCC') }
     $template = Join-Path $PSScriptRoot 'windows-installer.iss'
     $name = "$env:ZANT_TITLE-$env:ZANT_VERSION-setup"
     $numeric = ($env:ZANT_VERSION -split '[^0-9.]')[0].Trim('.')
@@ -114,10 +116,10 @@ function Installer {
         else { $cmd += '/n $q' + $env:ZANT_SIGN_SUBJECT + '$q ' }
         $defines += @('/DSign', ('/Szant=cmd.exe /c $q' + $cmd + '$f$q'))
     }
-    Step '制作安装包（Inno Setup）'
+    Step (Msg 'Creating installer (Inno Setup)' '制作安装包（Inno Setup）')
     & $iscc '/Q' @defines $template
-    if ($LASTEXITCODE -ne 0) { Die "Inno Setup 编译失败（退出码 $LASTEXITCODE）" }
-    Ok "已生成 $(Join-Path $env:ZANT_OUT "$name.exe")"
+    if ($LASTEXITCODE -ne 0) { Die (Msg "Inno Setup compilation failed (exit code $LASTEXITCODE)" "Inno Setup 编译失败（退出码 $LASTEXITCODE）") }
+    Ok (Msg "Created $(Join-Path $env:ZANT_OUT "$name.exe")" "已生成 $(Join-Path $env:ZANT_OUT "$name.exe")")
 }
 
 function Msix {
@@ -161,36 +163,36 @@ function Msix {
     [System.IO.File]::WriteAllText((Join-Path $layout 'AppxManifest.xml'), $manifest, (New-Object System.Text.UTF8Encoding $false))
     $msix = Join-Path $env:ZANT_OUT "$env:ZANT_TITLE-$env:ZANT_VERSION.msix"
     if (Test-Path $msix) { Remove-Item $msix -Force }
-    Step '制作 MSIX 包'
+    Step (Msg 'Creating MSIX package' '制作 MSIX 包')
     $tool = Find-SdkTool 'makeappx.exe'
     $log = & $tool pack /o /d $layout /p $msix
-    if ($LASTEXITCODE -ne 0) { $log | ForEach-Object { [Console]::Error.WriteLine($_) }; Die "makeappx 打包失败（退出码 $LASTEXITCODE）" }
+    if ($LASTEXITCODE -ne 0) { $log | ForEach-Object { [Console]::Error.WriteLine($_) }; Die (Msg "makeappx packaging failed (exit code $LASTEXITCODE)" "makeappx 打包失败（退出码 $LASTEXITCODE）") }
     if (Signing) {
-        Step '签名 MSIX（证书主题要和 Publisher 完全一致）'
+        Step (Msg 'Signing MSIX (the certificate subject must exactly match Publisher)' '签名 MSIX（证书主题要和 Publisher 完全一致）')
         Sign-Files @($msix)
     }
-    Ok "已生成 $msix"
+    Ok (Msg "Created $msix" "已生成 $msix")
     if ($env:ZANT_STORE_UPLOAD -eq '1') {
         $store = Get-Command msstore -ErrorAction SilentlyContinue
-        if (-not $store) { Die '找不到 msstore（Microsoft Store Developer CLI）：winget install "Microsoft Store Developer CLI"' }
+        if (-not $store) { Die (Msg 'msstore (Microsoft Store Developer CLI) not found: winget install "Microsoft Store Developer CLI"' '找不到 msstore（Microsoft Store Developer CLI）：winget install "Microsoft Store Developer CLI"') }
         if ($env:ZANT_STORE_CLIENT_SECRET) {
-            Step '配置 Partner Center 凭据'
+            Step (Msg 'Configuring Partner Center credentials' '配置 Partner Center 凭据')
             & $store.Source reconfigure --tenantId $env:ZANT_STORE_TENANT_ID --sellerId $env:ZANT_STORE_SELLER_ID `
                 --clientId $env:ZANT_STORE_CLIENT_ID --clientSecret $env:ZANT_STORE_CLIENT_SECRET | Out-Null
-            if ($LASTEXITCODE -ne 0) { Die 'msstore reconfigure 失败（检查租户、卖家、客户端 ID 和密钥）' }
+            if ($LASTEXITCODE -ne 0) { Die (Msg 'msstore reconfigure failed (check the tenant, seller, client ID and secret)' 'msstore reconfigure 失败（检查租户、卖家、客户端 ID 和密钥）') }
         }
-        Step "提交到 Microsoft Store（产品 $env:ZANT_STORE_PRODUCT_ID）"
-        Run $store.Source @('publish', $msix, '-id', $env:ZANT_STORE_PRODUCT_ID) '提交到 Microsoft Store'
-        Ok '已提交：在 Partner Center 里查看审核进度'
+        Step (Msg "Submitting to Microsoft Store (product $env:ZANT_STORE_PRODUCT_ID)" "提交到 Microsoft Store（产品 $env:ZANT_STORE_PRODUCT_ID）")
+        Run $store.Source @('publish', $msix, '-id', $env:ZANT_STORE_PRODUCT_ID) (Msg 'Submitting to Microsoft Store' '提交到 Microsoft Store')
+        Ok (Msg 'Submitted: check review progress in Partner Center' '已提交：在 Partner Center 里查看审核进度')
     }
 }
 
 function Folder {
     $zip = Join-Path $env:ZANT_OUT "$env:ZANT_TITLE-$env:ZANT_VERSION-windows.zip"
     if (Test-Path $zip) { Remove-Item $zip -Force }
-    Step '压缩程序目录'
-    Run 'tar.exe' @('-a', '-c', '-f', $zip, '-C', (Split-Path $env:ZANT_DIR), (Split-Path $env:ZANT_DIR -Leaf)) '压缩'
-    Ok "已生成 $zip"
+    Step (Msg 'Compressing the app folder' '压缩程序目录')
+    Run 'tar.exe' @('-a', '-c', '-f', $zip, '-C', (Split-Path $env:ZANT_DIR), (Split-Path $env:ZANT_DIR -Leaf)) (Msg 'Compression' '压缩')
+    Ok (Msg "Created $zip" "已生成 $zip")
 }
 
 switch ($Action) {
@@ -201,24 +203,24 @@ switch ($Action) {
     }
     'find-iscc' { Find-Iscc }
     'install-iscc' {
-        Run 'winget' @('install', '--id', 'JRSoftware.InnoSetup', '-e', '--accept-package-agreements', '--accept-source-agreements') '安装 Inno Setup'
+        Run 'winget' @('install', '--id', 'JRSoftware.InnoSetup', '-e', '--accept-package-agreements', '--accept-source-agreements') (Msg 'Installing Inno Setup' '安装 Inno Setup')
     }
     'package' {
         New-Item -ItemType Directory -Force -Path $env:ZANT_OUT | Out-Null
         if (Signing) {
-            Step '签名程序文件'
+            Step (Msg 'Signing app files' '签名程序文件')
             # pdfium.dll is still loaded at run time; the Skia bridge is
             # linked into the exe, so zant_skia.dll is gone.
             $own = @("$env:ZANT_TITLE.exe", 'pdfium.dll') | ForEach-Object { Join-Path $env:ZANT_DIR $_ } | Where-Object { Test-Path $_ }
             Sign-Files $own
-            Ok '程序文件已签名'
+            Ok (Msg 'App files signed' '程序文件已签名')
         }
         switch ($env:ZANT_KIND) {
             'installer' { Installer }
             'store' { Msix }
             'folder' { Folder }
-            default { Die "未知的发布方式：$env:ZANT_KIND" }
+            default { Die (Msg "Unknown release type: $env:ZANT_KIND" "未知的发布方式：$env:ZANT_KIND") }
         }
     }
-    default { Die "用法: windows.ps1 list-certs | find-iscc | install-iscc | package" }
+    default { Die (Msg "Usage: windows.ps1 list-certs | find-iscc | install-iscc | package" "用法: windows.ps1 list-certs | find-iscc | install-iscc | package") }
 }
