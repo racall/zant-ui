@@ -222,8 +222,8 @@ impl Default for HotkeyInputOptions {
             recording: false,
             width: None,
             height: 32.0,
-            placeholder: Str::Static("点击设置快捷键"),
-            recording_text: Str::Static("按下组合键…"),
+            placeholder: Str::Static("Click to set a shortcut"),
+            recording_text: Str::Static("Press a shortcut…"),
             on_start: None,
             on_record: None,
             on_cancel: None,
@@ -312,7 +312,7 @@ pub fn hotkey_input(o: HotkeyInputOptions) -> Node {
             // antd's clear icon: quiet at rest, darker on hover, no fill
             color: Some(theme.color_text_disabled),
             hover_color: Some(theme.color_text_secondary),
-            tooltip: Some(Str::Static("清除")),
+            tooltip: Some(Str::Static("Clear")),
             on_click: Some(clear.clone()),
             ..Default::default()
         }));
@@ -601,8 +601,8 @@ mod tests {
         assert!(!defaults.recording);
         assert!(defaults.width.is_none());
         assert_eq!(defaults.height, 32.0);
-        assert_eq!(defaults.placeholder, "点击设置快捷键");
-        assert_eq!(defaults.recording_text, "按下组合键…");
+        assert_eq!(defaults.placeholder, "Click to set a shortcut");
+        assert_eq!(defaults.recording_text, "Press a shortcut…");
         assert!(defaults.on_start.is_none());
         assert!(defaults.on_record.is_none());
         assert!(defaults.on_cancel.is_none());
@@ -630,7 +630,7 @@ mod tests {
         assert_eq!(element.cursor, Some(Cursor::PointingHand));
         assert!(element.focusable);
         let label = element.children[0].element();
-        assert_eq!(label.content, "点击设置快捷键");
+        assert_eq!(label.content, "Click to set a shortcut");
         assert_eq!(label.text_style.color, theme.color_text_disabled);
         assert_eq!(label.text_style.font_size, 13.0);
 
@@ -671,7 +671,7 @@ mod tests {
             "recording: no hover border override"
         );
         let hint = element.children[0].element();
-        assert_eq!(hint.content, "按下组合键…");
+        assert_eq!(hint.content, "Press a shortcut…");
         assert_eq!(hint.text_style.color, theme.color_primary);
     }
 
@@ -695,7 +695,7 @@ mod tests {
         assert_eq!(element.layout.width, Some(22.0));
         assert_eq!(element.layout.height, Some(22.0));
         let tooltip = element.tooltip.as_deref();
-        assert_eq!(tooltip, Some("清除"));
+        assert_eq!(tooltip, Some("Clear"));
         assert!(element.on_click.is_some());
 
         // no clear button while recording or without a value

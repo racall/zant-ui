@@ -371,7 +371,7 @@ pub fn apply(text: &str, sel: Selection, cmd: Command) -> Result {
             let label = if c.end() > c.start() {
                 &text[c.start()..c.end()]
             } else {
-                "链接"
+                "link"
             };
             let mut out = String::with_capacity(text.len() + label.len() + 16);
             out.push_str(&text[..c.start()]);
@@ -399,9 +399,9 @@ pub fn apply(text: &str, sel: Selection, cmd: Command) -> Result {
         Command::Table => insert_block(
             text,
             sel,
-            "| 列 1 | 列 2 |\n| --- | --- |\n| ",
+            "| Column 1 | Column 2 |\n| --- | --- |\n| ",
             " |  |",
-            "内容",
+            "Content",
         ),
     }
 }
