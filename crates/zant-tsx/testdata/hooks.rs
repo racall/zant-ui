@@ -246,7 +246,7 @@ pub struct Ticker {
     _id: u64,
     _state: std::rc::Weak<std::cell::RefCell<Ticker>>,
     runs: f64,
-    _effect5: Option<ui::Action>,
+    _effect5: tsx::Cleanup,
     _deps6: Option<()>,
 }
 pub type TickerProps_ = TickerProps;
@@ -332,19 +332,23 @@ impl Ticker {
     fn _effect4(&mut self) {
         let name: zant::Str = self.props.label.clone();
         self.runs = self.runs.clone() + 1.0f64;
-        self._effect5 = Some(
-            ui::Action::new({
-                let _capture = _CleanupCapture3 {
-                    name: (name).clone(),
-                };
-                let _state = self._state.clone();
-                move |_cx| {
-                    if let Some(state) = _state.upgrade() {
-                        state.borrow_mut()._cleanup3(&_capture);
+        self._effect5
+            .set(
+                ui::Action::new({
+                    let _capture = _CleanupCapture3 {
+                        name: (name).clone(),
+                    };
+                    let _state = self._state.clone();
+                    move |_cx| {
+                        if let Some(state) = _state.upgrade() {
+                            state.borrow_mut()._cleanup3(&_capture);
+                        } else {
+                            let mut _unmounted = Ticker::default();
+                            _unmounted._cleanup3(&_capture);
+                        }
                     }
-                }
-            }),
-        );
+                }),
+            );
         return;
     }
 }
@@ -358,7 +362,7 @@ pub struct App {
     ticking: bool,
     _memo11: Option<((tsx::List<Item>, zant::Str), tsx::List<Item>)>,
     _deps12: Option<()>,
-    _effect13: Option<ui::Action>,
+    _effect13: tsx::Cleanup,
     _deps14: Option<(zant::Str,)>,
     _render_items: tsx::List<Item>,
     _render_query: zant::Str,
@@ -440,14 +444,15 @@ impl App {
         let query: zant::Str = self._render_query.clone();
         let previous: zant::Str = query.clone();
         self.lastQuery = query.clone();
-        self._effect13 = Some(
-            ui::action({
-                let _capture = _CleanupCapture8 {
-                    previous: (previous).clone(),
-                };
-                move |s: &mut App| App::_cleanup8(s, &_capture)
-            }),
-        );
+        self._effect13
+            .set(
+                ui::action({
+                    let _capture = _CleanupCapture8 {
+                        previous: (previous).clone(),
+                    };
+                    move |s: &mut App| App::_cleanup8(s, &_capture)
+                }),
+            );
         return;
     }
     fn add(&mut self) {

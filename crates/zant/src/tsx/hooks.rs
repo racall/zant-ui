@@ -194,6 +194,32 @@ impl<D> Drop for Effect<D> {
     }
 }
 
+/// The cleanup an effect returned (`return () => …`). It runs before the
+/// effect runs again (`take`, then `ui::effect`) and when the component
+/// unmounts: dropping it with the component's state queues the cleanup as
+/// an effect, as React runs cleanups on unmount (a hot reload clears that
+/// queue before the old app library is unloaded).
+#[derive(Default)]
+pub struct Cleanup(Option<Action>);
+
+impl Cleanup {
+    pub fn set(&mut self, cleanup: Action) {
+        self.0 = Some(cleanup);
+    }
+
+    pub fn take(&mut self) -> Option<Action> {
+        self.0.take()
+    }
+}
+
+impl Drop for Cleanup {
+    fn drop(&mut self) {
+        if let Some(cleanup) = self.0.take() {
+            crate::ui::effect(cleanup);
+        }
+    }
+}
+
 /// A typed callback prop of a TSX child component (`onToggle: (id: number) =>
 /// void`): a cheap-to-clone closure is `Rc<dyn Fn(..)>`, so this alias names
 /// that type.
@@ -210,6 +236,29 @@ pub fn callback<F: 'static>(function: F) -> Callback<F> {
 mod tests {
     use super::*;
     use std::cell::Cell;
+
+    #[test]
+    fn a_cleanup_runs_when_its_component_state_is_dropped() {
+        let ran = std::rc::Rc::new(Cell::new(0));
+        let counter = ran.clone();
+        {
+            let mut cleanup = Cleanup::default();
+            cleanup.set(Action::new(move |_| counter.set(counter.get() + 1)));
+            // dropped here, as when the component's state slot is freed
+        }
+        let mut root = ();
+        crate::ui::run_effects(&mut crate::ui::ActionCx::new(&mut root));
+        assert_eq!(ran.get(), 1);
+        // a cleanup taken to run before the next effect is not queued again
+        let counter = ran.clone();
+        let mut cleanup = Cleanup::default();
+        cleanup.set(Action::new(move |_| counter.set(counter.get() + 1)));
+        let taken = cleanup.take();
+        drop(cleanup);
+        crate::ui::run_effects(&mut crate::ui::ActionCx::new(&mut root));
+        assert_eq!(ran.get(), 1);
+        assert!(taken.is_some());
+    }
 
     #[test]
     fn deps_and_memo_compare_by_value() {

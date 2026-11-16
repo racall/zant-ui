@@ -256,7 +256,35 @@ export default function App() {
 }
 "#;
 
+/// A child's effect cleanup also runs after the child unmounted (React):
+/// the cleanup field is a `tsx::Cleanup` (dropping it queues the cleanup)
+/// and the cleanup action falls back to a default instance.
+const EFFECT_CLEANUP_UNMOUNT: &str = r#"
+import { useState, useEffect, View, Text, Button } from "zant";
+function Ticker() {
+  const [ticks, setTicks] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTicks((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return <Text>{ticks}</Text>;
+}
+export default function App() {
+  const [shown, setShown] = useState(true);
+  return <View>{shown && <Ticker />}<Button onClick={() => setShown(!shown)}>toggle</Button></View>;
+}
+"#;
+
+#[test]
+fn an_effect_cleanup_runs_after_its_component_unmounts() {
+    let generated = compile("effect_cleanup_unmount", EFFECT_CLEANUP_UNMOUNT);
+    contains(&generated, ": tsx::Cleanup,");
+    contains(&generated, ".set(ui::Action::new(");
+    contains(&generated, "let mut _unmounted = Ticker::default();");
+}
+
 const MODULES: &[(&str, &str)] = &[
+    ("effect_cleanup_unmount", EFFECT_CLEANUP_UNMOUNT),
     (
         "callback_defaults",
         include_str!("../testdata/tsx/callback_defaults.tsx"),

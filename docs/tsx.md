@@ -412,7 +412,7 @@ return <View paddingLeft={insets.left} paddingRight={insets.right}>
 
 这些名字须导入，可被局部变量遮蔽。修改剪贴板 / 窗口 / 应用的调用限事件与 effect，读取不限；返回字符串存入 state 时复制。`app.config.json` 的 `"single_instance": true` 让第二次启动激活已有实例。
 
-### 定时器：`setTimeout` / `clearTimeout`
+### 定时器：`setTimeout` / `setInterval`
 
 ```tsx
 // 根组件体片段，useState/useEffect/Text 从 zant 导入：
@@ -424,7 +424,7 @@ useEffect(() => {
 return <Text>{ready ? "就绪" : "等待"}</Text>;
 ```
 
-- 全局函数，无需 import；返回 number 编号，可 clearTimeout 取消。仅根 / 无 props 窗口组件的事件或 effect 可设置，子组件用回调交给上层；render 用 wakeAfter。
+- 全局函数，无需 import；返回 number 编号，用 clearTimeout / clearInterval 取消（`setInterval` 按间隔重复）。effect 返回的清理函数在依赖变化和组件卸载时都会执行（同 React），卸载的组件里用它清掉定时器。仅根 / 无 props 窗口组件的事件或 effect 可设置，子组件用回调交给上层；render 用 wakeAfter。
 - UI 线程执行，随后重建所有窗口；回调只能捕获数字 / 布尔 / 枚举，字符串 / 数组 / 对象放 state 后运行时读。state 读的是执行时当前值。
 
 ### 多窗口：`createWindow`

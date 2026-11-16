@@ -94,7 +94,7 @@ fn call_ident(call: &ast::Call, name: &str) -> bool {
 /// component is scanned. The lowering lives here because the callback behaves
 /// like an event arrow (captures, no parameters).
 fn scan_timer(g: &mut Generator<'_>, call: &ast::Call) -> Result<()> {
-    if !call_ident(call, "setTimeout") {
+    if !call_ident(call, "setTimeout") && !call_ident(call, "setInterval") {
         return Ok(());
     }
     let loc = call.args.first().map_or(0, |arg| arg.loc);
@@ -168,11 +168,15 @@ pub fn timer_call(
     loc: ast::Loc,
     call: &ast::Call,
 ) -> Result<Option<super::types::Value>> {
-    let set = call_ident(call, "setTimeout");
-    if !set && !call_ident(call, "clearTimeout") {
+    // `setTimeout` / `setInterval`, `clearTimeout` / `clearInterval`
+    let Some(name) = ["setTimeout", "setInterval", "clearTimeout", "clearInterval"]
+        .into_iter()
+        .find(|name| call_ident(call, name))
+    else {
         return Ok(None);
-    }
-    let name = if set { "setTimeout" } else { "clearTimeout" };
+    };
+    let set = name.starts_with("set");
+    let interval = name.ends_with("Interval");
     if super::builtins::shadowed(g, c, name) {
         return Ok(None);
     }
@@ -185,20 +189,21 @@ pub fn timer_call(
     }
     if !set {
         if call.args.len() != 1 {
-            return fail(g, loc, "clearTimeout(id)");
+            return fail(g, loc, format!("{name}(id)"));
         }
         let id = expr::emit(g, c, &call.args[0], Some(Type::F64), false)?;
         let id = types::coerce(g, id, Type::F64, call.args[0].loc)?;
+        let clear = if interval { "clear_interval" } else { "clear" };
         return Ok(Some(super::types::Value::new(
             Type::Void,
-            format!("tsx::timers::clear({});", id.code),
+            format!("tsx::timers::{clear}({});", id.code),
         )));
     }
     if c.no_self {
         return fail(
             g,
             loc,
-            "setTimeout runs in a component's handlers (a plain function has none)",
+            format!("{name} runs in a component's handlers (a plain function has none)"),
         );
     }
     if let Some(component) = g.current_component
@@ -211,7 +216,7 @@ pub fn timer_call(
         );
     }
     if call.args.len() != 2 {
-        return fail(g, loc, "setTimeout(() => …, ms)");
+        return fail(g, loc, format!("{name}(() => …, ms)"));
     }
     let callback = &call.args[0];
     let Some(info) = app_state::with_module(|state| {
@@ -250,7 +255,11 @@ pub fn timer_call(
     let ms = types::coerce(g, ms, Type::F64, call.args[1].loc)?;
     Ok(Some(super::types::Value::new(
         Type::F64,
-        format!("tsx::timers::set({}, {action})", ms.code),
+        format!(
+            "tsx::timers::{}({}, {action})",
+            if interval { "set_interval" } else { "set" },
+            ms.code
+        ),
     )))
 }
 

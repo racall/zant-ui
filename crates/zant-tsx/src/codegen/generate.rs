@@ -1298,12 +1298,25 @@ pub fn action_value(
             "self._state.clone()".to_owned()
         }
     };
+    // an effect cleanup also runs after its component unmounted (React):
+    // it only needs what it captured, so a default instance stands in (and
+    // its state updates go nowhere, like React's on an unmounted component)
+    let unmounted = match g.current_component {
+        Some(component) if method.cleanup => {
+            let component =
+                rust_text::id_at(g, g.components[component].name.clone().as_bytes(), 0)?;
+            format!(
+                " else {{\nlet mut _unmounted = {component}::default();\n_unmounted.{name}({child_arguments});\n}}"
+            )
+        }
+        _ => String::new(),
+    };
     Ok(format!(
         "{constructor}::new({{\n{prefix}let _state = {state};\n\
          move |_cx{closure_params}| {{\n\
          if let Some(state) = _state.upgrade() {{\n\
          state.borrow_mut().{name}({child_arguments});\n\
-         }}\n}}\n}})"
+         }}{unmounted}\n}}\n}})"
     ))
 }
 
