@@ -37,7 +37,7 @@ impl tsx::hot::Hot for ButtonLook {
 impl tsx::json::Json for ButtonLook {
     fn to_json(&self) -> Option<tsx::json::JsonValue> {
         Some(
-            tsx::json::object_builder()
+            tsx::json::object_builder(2)
                 .field("variant", &self.variant)
                 .field("size", &self.size)
                 .build(),
@@ -182,7 +182,7 @@ impl tsx::hot::Hot for CardProps {
 impl tsx::json::Json for CardProps {
     fn to_json(&self) -> Option<tsx::json::JsonValue> {
         Some(
-            tsx::json::object_builder()
+            tsx::json::object_builder(2)
                 .field("title", &self.title)
                 .field("count", &self.count)
                 .build(),

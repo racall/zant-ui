@@ -31,7 +31,7 @@ impl tsx::hot::Hot for CounterProps {
 }
 impl tsx::json::Json for CounterProps {
     fn to_json(&self) -> Option<tsx::json::JsonValue> {
-        Some(tsx::json::object_builder().field("label", &self.label).build())
+        Some(tsx::json::object_builder(1).field("label", &self.label).build())
     }
     fn from_json(
         value: &tsx::json::JsonValue,

@@ -206,13 +206,32 @@ pub fn unary(
         return fail(g, loc, "optional operand needs ?? or !");
     }
     if !x.ty.numeric() {
-        return fail(g, loc, "unary - requires a number");
+        return fail(
+            g,
+            loc,
+            format!("unary {} requires a number", String::from_utf8_lossy(&u.op)),
+        );
     }
     if u.op == b"-" && x.ty.integer() && x.ty.rust(g).starts_with('u') {
         return fail(g, loc, "cannot negate an unsigned value; use a signed type");
     }
     if u.op == b"+" {
         return Ok(x);
+    }
+    if u.op == b"~" {
+        if x.ty.integer() && x.inference != Inference::Literal {
+            return Ok(Value {
+                ty: x.ty,
+                code: format!("!{}", rust_text::operand(&x, Precedence::Unary, true)),
+                precedence: Precedence::Unary,
+                ..Value::default()
+            });
+        }
+        let x = types::coerce(g, x, Type::F64, u.operand.loc)?;
+        return Ok(Value::new(
+            Type::F64,
+            format!("tsx::builtins::bit_not({})", x.code),
+        ));
     }
     Ok(Value {
         ty: x.ty,
@@ -280,9 +299,6 @@ pub fn binary(
     }
     if b.op == b"instanceof" {
         return super::exceptions::instance_of(g, c, loc, b);
-    }
-    if b.op == b"**" {
-        return fail(g, loc, "** is not supported yet");
     }
     if b.op == b"&&" || b.op == b"||" {
         let lhs = emit(g, c, &b.lhs, None, false)?;
@@ -451,6 +467,9 @@ pub fn binary(
         );
     }
     let t = types::unify(g, a.ty, z.ty, loc)?.concrete();
+    if let Some(value) = bitwise(g, &b.op, &a, &z, t, b)? {
+        return Ok(value);
+    }
     a = types::coerce(g, a, t, b.lhs.loc)?;
     z = types::coerce(g, z, t, b.rhs.loc)?;
     // A result location does not flow into binary operands. Conversions and
@@ -484,6 +503,63 @@ pub fn binary(
     Ok(result)
 }
 
+/// `**`, bitwise and shift operators. On numbers they follow JavaScript
+/// (`tsx::builtins::bitwise`: 32-bit operands, shift counts modulo 32);
+/// Rust integer values keep Rust's `&`, `|`, `^` and wrapping shifts.
+fn bitwise(
+    g: &mut Generator<'_>,
+    op: &[u8],
+    a: &Value,
+    z: &Value,
+    t: Type,
+    b: &ast::Binary,
+) -> Result<Option<Value>> {
+    let function = match op {
+        b"&" => "And",
+        b"|" => "Or",
+        b"^" => "Xor",
+        b"<<" => "Shl",
+        b">>" => "Shr",
+        b">>>" => "Ushr",
+        b"**" => "",
+        _ => return Ok(None),
+    };
+    let both_literal = a.inference == Inference::Literal && z.inference == Inference::Literal;
+    if t.integer() && !both_literal && op != b"**" && op != b">>>" {
+        let a = types::coerce(g, a.clone(), t, b.lhs.loc)?;
+        let z = types::coerce(g, z.clone(), t, b.rhs.loc)?;
+        return match op {
+            b"<<" | b">>" => {
+                let method = if op == b"<<" {
+                    "wrapping_shl"
+                } else {
+                    "wrapping_shr"
+                };
+                Ok(Some(Value::new(
+                    t,
+                    format!(
+                        "{}.{method}(({}) as u32)",
+                        rust_text::operand(&a, Precedence::Suffix, false),
+                        z.code
+                    ),
+                )))
+            }
+            _ => infix(g, a, std::str::from_utf8(op).unwrap_or("&"), z, t).map(Some),
+        };
+    }
+    let a = types::coerce(g, a.clone(), Type::F64, b.lhs.loc)?;
+    let z = types::coerce(g, z.clone(), Type::F64, b.rhs.loc)?;
+    let code = if function.is_empty() {
+        format!("tsx::builtins::pow({}, {})", a.code, z.code)
+    } else {
+        format!(
+            "tsx::builtins::bitwise(tsx::builtins::Bitwise::{function}, {}, {})",
+            a.code, z.code
+        )
+    };
+    Ok(Some(Value::new(Type::F64, code)))
+}
+
 /// Preserve the source grouping, including floating-point right operands and
 /// non-associative comparisons, without wrapping complete initializers.
 pub fn infix(g: &mut Generator<'_>, a: Value, op: &str, b: Value, t: Type) -> Result<Value> {
@@ -492,6 +568,9 @@ pub fn infix(g: &mut Generator<'_>, a: Value, op: &str, b: Value, t: Type) -> Re
         "&&" => Precedence::LogicalAnd,
         "+" | "-" => Precedence::Sum,
         "*" | "/" | "%" => Precedence::Product,
+        "|" => Precedence::BitOr,
+        "^" => Precedence::BitXor,
+        "&" => Precedence::BitAnd,
         _ => Precedence::Comparison,
     };
     let lhs = rust_text::operand(&a, precedence, precedence == Precedence::Comparison);

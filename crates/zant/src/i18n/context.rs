@@ -14,7 +14,7 @@ use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::RwLock;
 
-use super::catalog::{Catalog, Description, Message};
+use super::catalog::{Catalog, Description};
 use super::format::{self, Arg};
 use super::locale;
 use crate::Str;
@@ -115,39 +115,48 @@ pub fn installed() -> bool {
     CONTEXT.with(|context| context.borrow().catalog.is_some())
 }
 
-fn with_message<T>(
-    key: u32,
-    found: impl FnOnce(&Message, &super::catalog::Locale) -> T,
-    missing: impl FnOnce() -> T,
-) -> T {
+/// Formats message `key`; a message that cannot be found is a setup bug
+/// (no catalog installed, or a catalog of another build), so it is reported
+/// once and shows the key name (or nothing without a catalog) instead of
+/// leaving the UI silently blank.
+fn message(key: u32, args: &[Arg<'_>]) -> Str {
     CONTEXT.with(|context| {
         let context = context.borrow();
         let Some(catalog) = context.catalog.as_ref() else {
-            return missing();
+            report_once(|| {
+                "[zant] i18n: t() ran before the app's message catalog was installed".to_owned()
+            });
+            return Str::default();
         };
         match catalog.lookup(&context.chain, key as usize) {
-            Some((message, locale)) => found(message, locale),
-            None => missing(),
+            Some((message, locale)) => format::format(message, locale, args),
+            None => {
+                let name = catalog.keys.get(key as usize).cloned().unwrap_or_default();
+                report_once(|| {
+                    format!("[zant] i18n: no message for key `{name}` (id {key}) in the installed catalog")
+                });
+                name
+            }
         }
     })
 }
 
+fn report_once(text: impl FnOnce() -> String) {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    static REPORTED: AtomicBool = AtomicBool::new(false);
+    if !REPORTED.swap(true, Ordering::Relaxed) {
+        eprintln!("{}", text());
+    }
+}
+
 /// The message `key` (a key id) without arguments.
 pub fn text(key: u32) -> Str {
-    with_message(
-        key,
-        |message, locale| format::format(message, locale, &[]),
-        Str::default,
-    )
+    message(key, &[])
 }
 
 /// The message `key` with `args` in its parameter order.
 pub fn format(key: u32, args: &[Arg<'_>]) -> Str {
-    with_message(
-        key,
-        |message, locale| format::format(message, locale, args),
-        Str::default,
-    )
+    message(key, args)
 }
 
 /// The selected locale's tag (empty when no catalog is installed).
@@ -316,6 +325,25 @@ mod tests {
             locales().iter().map(|tag| &**tag).collect::<Vec<_>>(),
             ["en", "zh-CN"]
         );
+    }
+
+    #[test]
+    fn a_message_missing_everywhere_shows_its_key() {
+        static GAPS: Description = Description {
+            keys: &["present", "gone"],
+            locales: &[LocaleDesc {
+                tag: "en",
+                name: "English",
+                plural: &[],
+                messages: &[Some(&[Op::Text("here")]), None],
+            }],
+            default: 0,
+        };
+        install_with(&GAPS, Setup::default(), system(&["en"]));
+        assert_eq!(&*text(0), "here");
+        assert_eq!(&*text(1), "gone");
+        assert_eq!(&*text(9), "");
+        install_with(&DESCRIPTION, Setup::default(), system(&["en"]));
     }
 
     #[test]

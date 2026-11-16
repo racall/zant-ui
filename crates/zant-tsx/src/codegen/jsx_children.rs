@@ -125,6 +125,14 @@ impl ChildList {
             self.values.push(Value::new(value.ty, code));
             return Ok(());
         }
+        // `{true}`, `{flag}`: React renders nothing for a boolean child
+        if value.ty == Type::Boolean {
+            let empty = Value::new(
+                model::array(g, Type::Node)?,
+                format!("{{ let _ = {}; nodes![] }}", value.code),
+            );
+            return self.node(g, c, empty, guard, loc);
+        }
         if value.ty != Type::Node && value.ty != Type::OptionalNode && value.ty != Type::Null {
             return fail(g, loc, "text must be inside <Text>");
         }

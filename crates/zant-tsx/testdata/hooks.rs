@@ -42,7 +42,7 @@ impl tsx::hot::Hot for Item {
 impl tsx::json::Json for Item {
     fn to_json(&self) -> Option<tsx::json::JsonValue> {
         Some(
-            tsx::json::object_builder()
+            tsx::json::object_builder(3)
                 .field("id", &self.id)
                 .field("title", &self.title)
                 .field("done", &self.done)
@@ -87,7 +87,7 @@ impl tsx::hot::Hot for StatsProps {
 }
 impl tsx::json::Json for StatsProps {
     fn to_json(&self) -> Option<tsx::json::JsonValue> {
-        Some(tsx::json::object_builder().field("items", &self.items).build())
+        Some(tsx::json::object_builder(1).field("items", &self.items).build())
     }
     fn from_json(
         value: &tsx::json::JsonValue,
@@ -125,7 +125,7 @@ impl tsx::hot::Hot for TickerProps {
 }
 impl tsx::json::Json for TickerProps {
     fn to_json(&self) -> Option<tsx::json::JsonValue> {
-        Some(tsx::json::object_builder().field("label", &self.label).build())
+        Some(tsx::json::object_builder(1).field("label", &self.label).build())
     }
     fn from_json(
         value: &tsx::json::JsonValue,

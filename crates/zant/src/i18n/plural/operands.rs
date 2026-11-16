@@ -70,6 +70,15 @@ impl Operands {
     /// switches to exponents below 1e-6 or at/above 1e21. Negative zero is `0`.
     /// NaN and either infinity produce operands selecting `Other` in all locales.
     pub fn from_f64(value: f64) -> Self {
+        // safe integers (counts, the common case): the digits directly
+        if value.fract() == 0.0 && value.abs() < 9_007_199_254_740_992.0 {
+            return Self {
+                integer: (value.abs() as u64).to_string(),
+                fraction: String::new(),
+                c: 0,
+                finite: true,
+            };
+        }
         Self::from_decimal(&js_string(value)).unwrap_or_else(|| Self {
             integer: String::new(),
             fraction: String::new(),
@@ -105,12 +114,10 @@ impl Operands {
     }
 }
 
+/// `String(value)`: the runtime's one JS number spelling (ryu-js).
 pub(super) fn js_string(value: f64) -> String {
     if value.is_nan() {
         return "NaN".into();
-    }
-    if value == 0.0 {
-        return "0".into();
     }
     if value.is_infinite() {
         return if value.is_sign_negative() {
@@ -120,37 +127,7 @@ pub(super) fn js_string(value: f64) -> String {
         }
         .into();
     }
-    // serde_json supplies shortest, correctly rounded digits (including even
-    // tie breaking). Normalize only notation to ECMAScript's decimal thresholds.
-    let raw = serde_json::to_string(&value.abs()).expect("finite number serializes");
-    let (mantissa, exponent) = raw.split_once('e').map_or((raw.as_str(), 0), |(m, e)| {
-        (m, e.parse::<i32>().expect("serialized exponent"))
-    });
-    let mut digits = mantissa.replace('.', "");
-    let leading = digits.bytes().take_while(|&b| b == b'0').count();
-    let point = mantissa.find('.').unwrap_or(mantissa.len()) as i32 + exponent - leading as i32;
-    digits.drain(..leading);
-    let digits = digits.trim_end_matches('0');
-    let sign = if value.is_sign_negative() { "-" } else { "" };
-    if !(1e-6..1e21).contains(&value.abs()) {
-        let fraction = if digits.len() == 1 {
-            "".into()
-        } else {
-            format!(".{}", &digits[1..])
-        };
-        format!("{sign}{}{fraction}e{:+}", &digits[..1], point - 1)
-    } else if point <= 0 {
-        format!("{sign}0.{}{digits}", "0".repeat((-point) as usize))
-    } else if point as usize >= digits.len() {
-        format!(
-            "{sign}{digits}{}",
-            "0".repeat(point as usize - digits.len())
-        )
-    } else {
-        format!(
-            "{sign}{}.{}",
-            &digits[..point as usize],
-            &digits[point as usize..]
-        )
-    }
+    let mut out = String::new();
+    crate::tsx::builtins_format::write_js_number(&mut out, value);
+    out
 }

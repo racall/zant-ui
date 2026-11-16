@@ -47,7 +47,7 @@ impl tsx::hot::Hot for BadgeProps {
 impl tsx::json::Json for BadgeProps {
     fn to_json(&self) -> Option<tsx::json::JsonValue> {
         Some(
-            tsx::json::object_builder()
+            tsx::json::object_builder(4)
                 .field("text", &self.text)
                 .optional("size", &self.size)
                 .optional("tone", &self.tone)

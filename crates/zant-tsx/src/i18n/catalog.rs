@@ -51,7 +51,9 @@ impl CatalogError {
     }
 }
 
-/// Normalize the supported BCP-47 subset: language[-Script][-REGION].
+/// Normalize a catalog filename: the runtime's `canonical` (one
+/// normalization for files and system languages), strict about anything it
+/// would drop (variants, extensions, charsets).
 pub fn canonical_tag(stem: &str) -> Result<String, String> {
     let invalid =
         || "expected language[-Script][-REGION], such as `en-US` or `zh-Hans-CN`".to_string();
@@ -60,33 +62,20 @@ pub fn canonical_tag(stem: &str) -> Result<String, String> {
         let suggestion = canonical_tag(&replacement).unwrap_or(replacement);
         return Err(format!("use `{suggestion}` with `-` separators"));
     }
-    let mut parts = stem.split('-');
-    let language = parts.next().unwrap_or_default();
-    let letters = |s: &str| s.bytes().all(|b| b.is_ascii_alphabetic());
-    if !(2..=3).contains(&language.len()) || !letters(language) {
-        return Err(invalid());
-    }
-    let mut tag = language.to_ascii_lowercase();
-    let mut next = parts.next();
-    if let Some(script) = next.filter(|s| s.len() == 4 && letters(s)) {
-        tag.push('-');
-        tag.push_str(&script[..1].to_ascii_uppercase());
-        tag.push_str(&script[1..].to_ascii_lowercase());
-        next = parts.next();
-    }
-    if let Some(region) = next {
-        if !((region.len() == 2 && letters(region))
-            || (region.len() == 3 && region.bytes().all(|b| b.is_ascii_digit())))
+    match zant::i18n::locale::canonical(stem) {
+        // 2–3 letter languages (4 is reserved; 5–8 are rare registrations
+        // that no CLDR plural data covers)
+        Some(tag)
+            if tag.eq_ignore_ascii_case(stem)
+                && tag
+                    .split('-')
+                    .next()
+                    .is_some_and(|language| language.len() <= 3) =>
         {
-            return Err(invalid());
+            Ok(tag)
         }
-        tag.push('-');
-        tag.push_str(&region.to_ascii_uppercase());
+        _ => Err(invalid()),
     }
-    if parts.next().is_some() {
-        return Err(invalid());
-    }
-    Ok(tag)
 }
 
 fn locale(path: &Path) -> Result<String, CatalogError> {

@@ -147,11 +147,19 @@ impl<'a> Parser<'a> {
         if !self.is_p(">") {
             return;
         }
-        let end = self.cur.end as usize;
-        if end < self.src.len() && self.src.as_bytes()[end] == b'=' {
-            self.cur.end += 1;
-            self.lx.pos = self.cur.end;
+        // `>` `>` `>` `=`: up to three adjacent `>`, then an optional `=`
+        let bytes = self.src.as_bytes();
+        let mut end = self.cur.end as usize;
+        let mut greater = 1;
+        while greater < 3 && bytes.get(end) == Some(&b'>') {
+            end += 1;
+            greater += 1;
         }
+        if bytes.get(end) == Some(&b'=') {
+            end += 1;
+        }
+        self.cur.end = end as u32;
+        self.lx.pos = self.cur.end;
     }
 
     /// Allocates a node: boxes the value.

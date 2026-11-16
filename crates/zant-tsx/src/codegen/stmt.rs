@@ -516,7 +516,7 @@ pub fn expression_statement(
             data: ast::ExprData::Ident(name.clone()),
         });
         let binary = ast::Binary {
-            op: assign.op[..1].to_vec(),
+            op: assign.op[..assign.op.len() - 1].to_vec(),
             lhs,
             rhs: assign.value.clone(),
         };

@@ -47,7 +47,7 @@ impl tsx::hot::Hot for Settings {
 impl tsx::json::Json for Settings {
     fn to_json(&self) -> Option<tsx::json::JsonValue> {
         Some(
-            tsx::json::object_builder()
+            tsx::json::object_builder(4)
                 .field("dark", &self.dark)
                 .field("fontSize", &self.fontSize)
                 .field("user", &self.user)

@@ -174,7 +174,7 @@ struct Item {
 }
 impl Json for Item {
     fn to_json(&self) -> Option<JsonValue> {
-        Some(object_builder().field("count", &self.count).build())
+        Some(object_builder(4).field("count", &self.count).build())
     }
     fn from_json(value: &JsonValue, path: &mut JsonPath) -> Result<Self, String> {
         Ok(Self {
@@ -191,7 +191,7 @@ struct Model {
 impl Json for Model {
     fn to_json(&self) -> Option<JsonValue> {
         Some(
-            object_builder()
+            object_builder(4)
                 .field("items", &self.items)
                 .field("nullable", &self.nullable)
                 .optional("optional", &self.optional)
@@ -250,9 +250,8 @@ fn generated_struct_helpers_and_paths() {
     assert_eq!(error, "expected a boolean at $[\"a.b\"][1], found null");
     assert_eq!(path.to_string(), "$");
     assert!(stringify_value(&Missing, None).is_none());
-    let built = object_builder()
+    let built = object_builder(4)
         .field("skip", &Missing)
-        .field("x", &1)
         .field("x", &2)
         .build();
     assert_eq!(stringify(&built, None).as_str(), "{\"x\":2}");
@@ -399,4 +398,39 @@ impl Json for Missing {
     fn from_json(_: &JsonValue, _: &mut JsonPath) -> Result<Self, String> {
         Ok(Missing)
     }
+}
+
+#[test]
+fn large_objects_keep_first_positions_for_duplicate_keys() {
+    let mut text = String::from("{");
+    for i in 0..40 {
+        text.push_str(&format!("\"k{i}\":{i},"));
+    }
+    text.push_str("\"k3\":-3,\"k30\":-30,\"z\":1}");
+    let JsonValue::Object(entries) = parse(&text).unwrap() else {
+        panic!("an object")
+    };
+    assert_eq!(entries.len(), 41);
+    assert_eq!(entries[3], (Str::Static("k3"), JsonValue::Number(-3.0)));
+    assert_eq!(entries[30], (Str::Static("k30"), JsonValue::Number(-30.0)));
+    assert_eq!(entries[40].0.as_str(), "z");
+}
+
+#[test]
+fn byte_arrays_decode_in_one_pass_in_any_key_order() {
+    let bytes: crate::tsx::Bytes = parse_as(r#"{"1":2,"0":1,"2":255}"#).unwrap();
+    assert_eq!(&bytes[..], &[1, 2, 255]);
+    let missing = parse_as::<crate::tsx::Bytes>(r#"{"0":1,"2":3,"x":4}"#).unwrap_err();
+    assert!(format!("{missing:?}").contains("byte index"), "{missing:?}");
+    // a duplicate key replaced in place is one index
+    let replaced: crate::tsx::Bytes = parse_as(r#"{"0":1,"0":2}"#).unwrap();
+    assert_eq!(&replaced[..], &[2]);
+    let past_end = parse_as::<crate::tsx::Bytes>(r#"{"0":1,"5":2}"#).unwrap_err();
+    assert!(
+        format!("{past_end:?}").contains("$[\"5\"]")
+            || format!("{past_end:?}").contains("$.5")
+            || format!("{past_end:?}").contains("byte index"),
+        "{past_end:?}"
+    );
+    assert!(parse_as::<crate::tsx::Bytes>(r#"{"01":1}"#).is_err());
 }
