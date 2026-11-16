@@ -40,7 +40,19 @@ pub fn array(
             ast::ExprData::Spread(inner) => inner,
             _ => item,
         };
+        // `[...xs]` copies the array: a later change of `xs` is not seen
+        // here unless the items themselves are shared objects
+        if spread {
+            super::place::project(c, target);
+        }
         let value = expr::emit(g, c, target, if spread { None } else { context }, false)?;
+        if spread
+            && let ast::ExprData::Ident(name) = &target.data
+            && let Some(index) = scope::local_index(c, name)
+            && model::element(g, value.ty).is_some_and(|item| model::owned(g, item))
+        {
+            c.bindings[index].escaped = true;
+        }
         if spread && model::optional_child(g, value.ty).is_some() {
             return fail(g, item.loc, "optional array needs ?? or ! before spread");
         }

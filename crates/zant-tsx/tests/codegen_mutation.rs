@@ -108,3 +108,28 @@ fn projections_are_not_escapes() {
         "function f(): number { const a: number[] = [1]; const n = a.length + a[0] + a.indexOf(1); a.push(n); return a.length; }",
     );
 }
+
+#[test]
+fn fresh_temporaries_and_copies() {
+    // `[...xs].sort()` sorts a copy; spreading numbers copies them, so `xs`
+    // may still change afterwards; numbers join through String(…)
+    let rust = generated(
+        "function f(): string { const xs: number[] = [3, 1, 2]; const sorted = [...xs].sort((a, b) => a - b); xs.push(4); return sorted.join(\",\") + xs.join(\"-\"); }",
+    );
+    assert_contains(&rust, "let mut _receiver: tsx::List<f64>");
+    assert_contains(&rust, "_target.sort_js(");
+    assert_contains(&rust, "tsx::builtins::string(");
+    // a shared array is not a temporary
+    let message = diagnostic(
+        "function f(xs: number[]): number { const ys = xs; return ys.reverse().length; }",
+    );
+    assert!(message.contains("may hold the same value"), "{message}");
+    // spreading objects shares them, so later changes are reported
+    let message = diagnostic(
+        "interface T { done: boolean }\nfunction f(): number { const xs: T[] = []; const copy = [...xs]; xs.push({ done: true }); return copy.length; }",
+    );
+    assert!(
+        message.contains("already used as a whole value"),
+        "{message}"
+    );
+}

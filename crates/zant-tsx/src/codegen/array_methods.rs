@@ -441,17 +441,39 @@ fn join(
     child: Type,
 ) -> Result<(Type, String)> {
     arity(g, loc, call.args.len(), 0, 1)?;
-    if child != Type::String {
-        return fail(g, loc, "join needs a string array");
-    }
     let separator = if call.args.len() == 1 {
         expr::emit(g, c, &call.args[0], Some(Type::String), false)?.code
     } else {
         "\",\".into()".to_owned()
     };
+    if child == Type::String {
+        return Ok((
+            Type::String,
+            format!("tsx::join({source}.as_slice(), ({separator}).as_str())"),
+        ));
+    }
+    // numbers, booleans and string unions join their `String(…)` spellings,
+    // as Array.prototype.join does
+    if !(child.numeric() || child == Type::Boolean || model::enum_type(g, child)) {
+        return fail(
+            g,
+            loc,
+            "join needs strings, numbers or booleans; map the items to text first (`items.map(i => i.title).join(\", \")`)",
+        );
+    }
+    let mut format = super::rust_text::Format::default();
+    let read = if child.copy(g) {
+        "*_item"
+    } else {
+        "_item.clone()"
+    };
+    format.value(g, Value::new(child, read), loc)?;
+    let text = format.finish(g, false)?;
     Ok((
         Type::String,
-        format!("tsx::join({source}.as_slice(), ({separator}).as_str())"),
+        format!(
+            "{{ let _texts: Vec<zant::Str> = {source}.as_slice().iter().map(|_item| {text}).collect(); tsx::join(_texts.as_slice(), ({separator}).as_str()) }}"
+        ),
     ))
 }
 

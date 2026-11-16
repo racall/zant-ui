@@ -43,7 +43,33 @@ pub fn emit(
     if c.constant {
         return fail(g, loc, "array methods cannot run in a top-level constant");
     }
-    let target = place::resolve(g, c, &member.object)?;
+    // a fresh array (`[...xs].sort()`, `items.filter(f).reverse()`) is
+    // changed as a temporary and returned, as in JavaScript
+    let temporary = !matches!(
+        member.object.data,
+        ast::ExprData::Ident(_) | ast::ExprData::Member(_) | ast::ExprData::Index(_)
+    );
+    if temporary && !place::fresh(&member.object) {
+        return fail(
+            g,
+            member.object.loc,
+            format!(
+                "`{name}` changes its array: call it on a variable, a field, or a new array (`[...items].{name}(…)`)"
+            ),
+        );
+    }
+    let mut prefix = String::new();
+    let target = if temporary {
+        let value = expr::emit(g, c, &member.object, None, false)?;
+        let ty = value.ty;
+        prefix = format!("let mut _receiver: {} = {};\n", ty.rust(g), value.code);
+        place::Place {
+            code: "_receiver".to_owned(),
+            ty,
+        }
+    } else {
+        place::resolve(g, c, &member.object)?
+    };
     let Some(child) = model::element(g, target.ty) else {
         return fail(g, member.object.loc, format!("`{name}` needs an array"));
     };
@@ -116,7 +142,10 @@ pub fn emit(
     };
     Ok(Value {
         ty,
-        code: format!("{{\n{setup}let _target = &mut {};\n{body}\n}}", target.code),
+        code: format!(
+            "{{\n{prefix}{setup}let _target = &mut {};\n{body}\n}}",
+            target.code
+        ),
         ..Value::default()
     })
 }
