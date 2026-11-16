@@ -49,6 +49,13 @@ pub fn write(options: &Options) -> std::io::Result<()> {
     let dest_types = Path::new(&options.target).join("zant.d.ts");
     let declarations = crate::read_file(&types)?;
     crate::write_file(&dest_types, &declarations)?;
+    // the template's locales/ as editor types (`zant.i18n.d.ts`)
+    if let Ok(Some(text)) = zant_build::i18n::declarations(Path::new(&options.target)) {
+        crate::write_file(
+            &Path::new(&options.target).join("zant.i18n.d.ts"),
+            text.as_bytes(),
+        )?;
+    }
     Ok(())
 }
 
@@ -246,7 +253,7 @@ mod tests {
         let source = app_config(&opts, 2032, "native", None, None).expect("config");
         let cfg: serde_json::Value = serde_json::from_str(&source).expect("valid JSON");
         assert_eq!(cfg["title"], opts.title);
-        assert_eq!(cfg["description"], format!("{} 桌面应用", opts.title));
+        assert_eq!(cfg["description"], format!("{} desktop app", opts.title));
         assert_eq!(cfg["bundle_id"], opts.bundle);
         assert_eq!(cfg["company"], "Acme");
         assert_eq!(cfg["copyright"], "© 2032 Acme");
@@ -292,6 +299,8 @@ mod tests {
             "assets/icons/app-macos.png",
             "assets/icons/tray-dark.png",
             "zant.d.ts",
+            "locales/en.json",
+            "locales/zh-CN.json",
             "DESIGN.md",
         ] {
             assert!(target.join(file).is_file(), "{file} missing");
