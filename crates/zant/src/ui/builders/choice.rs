@@ -107,7 +107,8 @@ pub fn tabs(options: TabsOptions) -> Node {
         gap: 0.0,
         children: vec![
             row(BoxOptions {
-                gap: 4.0,
+                // antd Tabs `horizontalItemGutter`
+                gap: 32.0,
                 children: row_children,
                 ..Default::default()
             }),
@@ -262,7 +263,7 @@ mod tests {
 
         let header = element.children[0].element();
         assert_eq!(header.layout.direction, flex::Direction::Row);
-        assert_eq!(header.layout.gap, 4.0);
+        assert_eq!(header.layout.gap, 32.0, "antd horizontalItemGutter");
         assert_eq!(header.children.len(), 3, "two tabs + the ink bar");
 
         let first = header.children[0].element();

@@ -179,11 +179,15 @@ pub(super) fn emit_on(
         Kind::Join => join(g, c, loc, call, &source, child)?,
         Kind::Concat => concat(g, c, call, &source, value.ty, child)?,
     };
-    Ok(Value {
+    let value = Value {
         ty,
         code: format!("{{\n{setup}\n{code}\n}}"),
         ..Value::default()
-    })
+    };
+    if kind == Kind::Reduce && call.args.len() == 1 {
+        return super::exceptions::checked_call(g, c, value, loc);
+    }
+    Ok(value)
 }
 
 fn arity(g: &mut Generator<'_>, loc: ast::Loc, count: usize, min: usize, max: usize) -> Result<()> {
@@ -226,15 +230,14 @@ fn loop_method(
     expected: Option<Type>,
 ) -> Result<(Type, String)> {
     let reduce = kind == Kind::Reduce;
-    arity(
-        g,
-        loc,
-        call.args.len(),
-        if reduce { 2 } else { 1 },
-        if reduce { 2 } else { 1 },
-    )?;
+    arity(g, loc, call.args.len(), 1, if reduce { 2 } else { 1 })?;
+    // `xs.reduce((a, b) => a + b)`: the first item starts the fold (a
+    // TypeError for an empty array, as in JavaScript)
+    let from_first = reduce && call.args.len() == 1;
     let mut initial: Option<Value> = None;
-    if reduce {
+    if from_first {
+        initial = Some(Value::new(child, "_first"));
+    } else if reduce {
         let value = expr::emit(g, c, &call.args[1], None, false)?;
         initial = Some(types::coerce(
             g,
@@ -296,10 +299,11 @@ fn loop_method(
         format!("{item}: {item_ty}")
     };
     let _ = &pattern;
+    let skip = if from_first { ".skip(1)" } else { "" };
     let adapted = if needs_index {
-        format!("{source}.as_slice().iter().cloned().enumerate()")
+        format!("{source}.as_slice().iter().cloned().enumerate(){skip}")
     } else {
-        format!("{source}.as_slice().iter().cloned()")
+        format!("{source}.as_slice().iter().cloned(){skip}")
     };
     Ok(match kind {
         Kind::Map => {
@@ -384,7 +388,21 @@ fn loop_method(
             let ty = initial.ty;
             let (closure, _) =
                 callbacks::closure(g, c, &call.args[0], &callback_types, &pattern, Some(ty))?;
-            (ty, format!("{adapted}.fold({}, {closure})", initial.code))
+            let fold = format!("{adapted}.fold({}, {closure})", initial.code);
+            if from_first {
+                // a `Result`: `emit` passes it through the exception path
+                (
+                    ty,
+                    format!(
+                        "match {source}.as_slice().first().cloned() {{\n\
+                         Some(_first) => Ok({fold}),\n\
+                         None => Err(zant::tsx::Thrown::error(zant::tsx::Error::new(\"TypeError\", \
+                         zant::Str::Static(\"Reduce of empty array with no initial value\")))),\n}}"
+                    ),
+                )
+            } else {
+                (ty, fold)
+            }
         }
         _ => unreachable!("non-loop array method"),
     })
@@ -399,7 +417,7 @@ fn search(
     source: &str,
     child: Type,
 ) -> Result<(Type, String)> {
-    arity(g, loc, call.args.len(), 1, 1)?;
+    arity(g, loc, call.args.len(), 1, 2)?;
     if !child.numeric()
         && child != Type::String
         && child != Type::Boolean
@@ -409,17 +427,36 @@ fn search(
     }
     let value = expr::emit(g, c, &call.args[0], Some(child), false)?;
     let needle = aggregate::temporary(g, c, b"_needle")?;
-    let setup = format!("let {needle}: {} = {};", child.rust(g), value.code);
+    let mut setup = format!("let {needle}: {} = {};", child.rust(g), value.code);
+    // `indexOf(x, from)`: a negative start counts from the end
+    let start = match call.args.get(1) {
+        Some(from) => {
+            let from = expr::emit(g, c, from, Some(Type::F64), false)?;
+            let from = types::coerce(g, from, Type::F64, call.args[1].loc)?;
+            setup.push_str(&format!(
+                "\nlet _start: usize = tsx::builtins::relative_index({}, {source}.len());",
+                from.code
+            ));
+            Some("_start")
+        }
+        None => None,
+    };
     let comparison = if kind == Kind::Includes && child.float() {
         format!("item == {needle} || (item.is_nan() && {needle}.is_nan())")
     } else {
         format!("item == {needle}")
     };
-    let iterator = format!("{source}.as_slice().iter().cloned()");
+    let iterator = match start {
+        Some(start) => format!("{source}.as_slice().iter().cloned().skip({start})"),
+        None => format!("{source}.as_slice().iter().cloned()"),
+    };
+    let offset = start.map_or(String::new(), |start| format!(" + {start}"));
     let code = if kind == Kind::Includes {
         format!("{iterator}.any(|item| {comparison})")
     } else {
-        format!("{iterator}.position(|item| {comparison}).map_or(-1, |index| index as isize)")
+        format!(
+            "{iterator}.position(|item| {comparison}).map_or(-1, |index| (index{offset}) as isize)"
+        )
     };
     Ok((
         if kind == Kind::Includes {
@@ -477,7 +514,7 @@ fn join(
     let separator = if call.args.len() == 1 {
         expr::emit(g, c, &call.args[0], Some(Type::String), false)?.code
     } else {
-        "\",\".into()".to_owned()
+        "zant::Str::Static(\",\")".to_owned()
     };
     if child == Type::String {
         return Ok((

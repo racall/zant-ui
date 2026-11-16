@@ -17,6 +17,11 @@ use crate::Str;
 pub trait DictKey: Clone {
     type Stored: Hash + Eq + Clone;
     fn stored(&self) -> Self::Stored;
+    /// The key as the collection keeps it (`-0` becomes `0`, as Map and
+    /// Set do in JavaScript).
+    fn canonical(self) -> Self {
+        self
+    }
 }
 
 impl DictKey for Str {
@@ -44,6 +49,9 @@ impl DictKey for f64 {
         } else {
             self.to_bits()
         }
+    }
+    fn canonical(self) -> f64 {
+        if self == 0.0 { 0.0 } else { self }
     }
 }
 
@@ -125,7 +133,7 @@ impl<K: DictKey, V: Clone> Dict<K, V> {
             Some(&index) => data.entries[index].1 = value,
             None => {
                 data.index.insert(stored, data.entries.len());
-                data.entries.push((key, value));
+                data.entries.push((key.canonical(), value));
             }
         }
     }

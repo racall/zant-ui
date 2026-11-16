@@ -220,6 +220,9 @@ pub struct Visual {
     /// Tab / Shift+Tab stay inside the topmost focus scope (modals,
     /// popover panels).
     pub focus_scope: bool,
+    /// A dismiss layer that Esc also dismisses (`DismissLayer escape`,
+    /// `Modal`): the topmost one shown runs its action.
+    pub escape_dismiss: bool,
     /// Shown only while the nearest ancestor with a hover look is hovered,
     /// fading with it (row actions: CSS `.row:hover .actions`).
     pub show_on_hover: bool,

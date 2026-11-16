@@ -470,8 +470,9 @@ pub fn binary(
     // `items.length - 1` is -1 for an empty list, as JavaScript numbers are
     // signed: unsigned operands subtract as numbers (an unsigned Rust `-`
     // would underflow), unless an integer result is asked for (`let n: u32`)
-    if b.op == b"-"
-        && t.unsigned()
+    // and `done.length / items.length` divides as numbers (1/3, not 0):
+    // counts are `usize` only for Rust's sake
+    if (b.op == b"-" && t.unsigned() || b.op == b"/" && t == Type::Usize)
         && !expected.is_some_and(|e| e.integer())
         && !(a.inference == Inference::Literal && z.inference == Inference::Literal)
     {

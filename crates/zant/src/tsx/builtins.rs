@@ -193,6 +193,20 @@ pub fn bitwise(op: Bitwise, a: f64, b: f64) -> f64 {
     })
 }
 
+/// A start position from a JavaScript relative index (`indexOf(x, from)`,
+/// `slice`): truncated, negative counts from the end, clamped to
+/// `0..=len`; NaN is 0.
+pub fn relative_index(from: f64, len: usize) -> usize {
+    let len_f = len as f64;
+    let n = if from.is_nan() { 0.0 } else { from.trunc() };
+    let start = if n < 0.0 {
+        (len_f + n).max(0.0)
+    } else {
+        n.min(len_f)
+    };
+    start as usize
+}
+
 /// `~x`.
 pub fn bit_not(x: f64) -> f64 {
     f64::from(!to_int32(x))

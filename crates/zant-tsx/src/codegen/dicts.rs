@@ -540,6 +540,18 @@ pub fn read_method(
             let list = model::array(g, value_of(g, ty))?;
             Value::new(list, format!("{operand}.values()"))
         }
+        // `set.entries()`: each value paired with itself
+        b"entries" if set => {
+            arity(g, 0)?;
+            let pair = model::tuple(g, vec![key_ty, key_ty])?;
+            let list = model::array(g, pair)?;
+            Value::new(
+                list,
+                format!(
+                    "tsx::List::from_vec({operand}.values().iter().map(|v| (v.clone(), v.clone())).collect::<Vec<_>>())"
+                ),
+            )
+        }
         b"entries" if !set => {
             arity(g, 0)?;
             let pair = model::tuple(g, vec![key_ty, value_of(g, ty)])?;

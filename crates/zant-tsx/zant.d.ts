@@ -1452,6 +1452,7 @@ declare module "zant" {
     key?: string | number;
     onDismiss?: () => void;
     background?: Color;
+    escape?: boolean;
     style?: Partial<Omit<DismissLayerProps, "style" | "key" | "children">>;
   }
   export function DismissLayer(props: DismissLayerProps): JSX.Element;
@@ -1859,6 +1860,7 @@ declare module "zant" {
     onClose?: () => void;
     closable?: boolean;
     maskClosable?: boolean;
+    keyboard?: boolean;
     mask?: Color;
     children?: JSX.Element;
     style?: Partial<Omit<ModalProps, "style" | "key" | "children">>;

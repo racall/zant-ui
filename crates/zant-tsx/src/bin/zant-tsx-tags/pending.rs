@@ -68,6 +68,7 @@ pub(crate) fn tags() -> Vec<Tag> {
                 Prop { name: "onClose", field: "on_close", kind: Kind::Action, ..Default::default() },
                 Prop { name: "closable", field: "closable", kind: Kind::Boolean, ..Default::default() },
                 Prop { name: "maskClosable", field: "mask_closable", kind: Kind::Boolean, ..Default::default() },
+                Prop { name: "keyboard", field: "keyboard", kind: Kind::Boolean, ..Default::default() },
                 Prop { name: "mask", field: "mask", kind: Kind::Color, ..Default::default() },
             ], ..Default::default() },
         Tag { name: "ShortcutList", builder: "ui.shortcutList", props: vec![
