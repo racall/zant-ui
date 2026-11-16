@@ -34,6 +34,7 @@ TSX 是推荐的应用写法，编译期生成 Rust，无 JS 运行时。此表�
 | 状态 | 能力 |
 |---|---|
 | ✅ | useState 组件本地状态、createStore/useStore 共享状态、系统主题 |
+| ✅ | 多语言：`locales/*.json`、编译期检查的 `t()`、ICU 复数 / select、语言协商与切换（[i18n](i18n.md)） |
 | ✅ | 关闭 / 退出 / 键盘 / 窗口焦点、托盘、全局快捷键、剪贴板、唤醒与退出 hooks |
 | ✅ | createWindow 多窗口、剪贴板文字 / 图片 / 文件、开机启动、单实例 |
 | ✅ | setTimeout/clearTimeout 定时回调 |

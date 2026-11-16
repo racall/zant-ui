@@ -158,7 +158,7 @@ zant run --no-hot     # 编译并运行一次（普通静态链接程序）
 
 | 改动 | 行为 |
 | --- | --- |
-| `src/` 任意深度的 `.tsx` / `.ts`、`native/` 任意深度的 `.rs` / `.ts`（除 `native/build.rs`）、TSX 导入的资源（除下列重启或忽略项） | 原地热刷新 |
+| `src/` 任意深度的 `.tsx` / `.ts`、`native/` 任意深度的 `.rs` / `.ts`（除 `native/build.rs`）、`locales/*.json`（[多语言](i18n.md)）、TSX 导入的资源（除下列重启或忽略项） | 原地热刷新 |
 | `Cargo.toml`、`Cargo.lock`、`app.config.json`、`native/build.rs`、`rust-toolchain.toml`、`assets/icons/` 下的文件（除下列忽略项） | `zant run` 重启自身 |
 | `tsconfig.json`、`README.md`、`docs/`、`.git/`、`target/`、点开头的文件 / 目录、编辑器临时 / 备份文件（`~`、`.swp`、`.swo`、`.tmp`、`.bak` 后缀）及其他未匹配文件 | 忽略 |
 
