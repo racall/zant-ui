@@ -53,6 +53,15 @@ impl Inputs {
             }
         }
         sources.extend(CONFIG.map(|path| root.join(path)));
+        if let Ok(entries) = std::fs::read_dir(root.join("locales")) {
+            sources.extend(entries.flatten().filter_map(|entry| {
+                entry
+                    .file_type()
+                    .ok()
+                    .filter(|kind| kind.is_file())
+                    .map(|_| entry.path())
+            }));
+        }
         collect(&root.join("assets/icons"), &mut sources);
         sources.extend(inputs.assets.iter().map(|path| root.join(path)));
         for path in sources {
@@ -115,6 +124,41 @@ fn collect(directory: &Path, paths: &mut Vec<PathBuf>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn locale_content_changes_include_additions_and_deletions() {
+        let root = std::env::temp_dir().join(format!("zant-hot-locales-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let before = Inputs::scan(&root);
+        std::fs::create_dir_all(root.join("locales/sub")).unwrap();
+        for path in [
+            "sub/en.json",
+            "README.md",
+            ".en.json",
+            "en.json~",
+            "en.json.swp",
+        ] {
+            std::fs::write(root.join("locales").join(path), "ignored").unwrap();
+        }
+        assert!(Inputs::scan(&root).changes(&before).is_empty());
+
+        let locale = root.join("locales/en.json");
+        let content = r#"{"hello":"Hello"}"#;
+        std::fs::write(&locale, content).unwrap();
+        let added = Inputs::scan(&root);
+        let expected = vec![(PathBuf::from("locales/en.json"), Change::HotReload)];
+        assert_eq!(added.changes(&before), expected);
+        std::fs::write(&locale, content).unwrap();
+        assert!(Inputs::scan(&root).changes(&added).is_empty());
+        std::fs::write(&locale, r#"{"hello":"Hi"}"#).unwrap();
+        let modified = Inputs::scan(&root);
+        assert_eq!(modified.changes(&added), expected);
+        std::fs::remove_file(&locale).unwrap();
+        assert_eq!(Inputs::scan(&root).changes(&modified), expected);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
     #[test]
     fn content_changes_include_additions_deletions_assets_and_batch_priority() {
         let root = std::env::temp_dir().join(format!("zant-hot-inputs-{}", std::process::id()));

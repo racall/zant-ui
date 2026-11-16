@@ -48,11 +48,8 @@ impl Watches {
 
     pub fn assets(&mut self, root: &Path, inputs: &Inputs) {
         // Optional directories may be created after the session starts.
-        for directory in ["src", "native", "assets"] {
-            let path = root.join(directory);
-            if path.is_dir() {
-                self.add(&path, RecursiveMode::Recursive);
-            }
+        for (path, mode) in directories(root) {
+            self.add(&path, mode);
         }
         for path in inputs.asset_parents(root) {
             if ["src", "native", "assets"]
@@ -75,5 +72,45 @@ impl Watches {
             }
             Err(error) => eprintln!("[zant] {}: {error}", path.display()),
         }
+    }
+}
+
+/// Recomputed on each scan so optional directories can appear during a session.
+fn directories(root: &Path) -> Vec<(PathBuf, RecursiveMode)> {
+    [
+        ("src", RecursiveMode::Recursive),
+        ("native", RecursiveMode::Recursive),
+        ("assets", RecursiveMode::Recursive),
+        ("locales", RecursiveMode::NonRecursive),
+    ]
+    .into_iter()
+    .map(|(directory, mode)| (root.join(directory), mode))
+    .filter(|(path, _)| path.is_dir())
+    .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn directories_include_locales_created_after_start() {
+        let root = std::env::temp_dir().join(format!("zant-hot-watches-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        for directory in ["src", "native", "assets"] {
+            std::fs::create_dir_all(root.join(directory)).unwrap();
+        }
+        let existing: Vec<_> = ["src", "native", "assets"]
+            .map(|directory| (root.join(directory), RecursiveMode::Recursive))
+            .into();
+        assert_eq!(directories(&root), existing);
+        std::fs::create_dir_all(root.join("locales/sub")).unwrap();
+        let mut expected = existing;
+        expected.push((root.join("locales"), RecursiveMode::NonRecursive));
+        assert_eq!(directories(&root), expected);
+        std::fs::remove_dir_all(root.join("locales")).unwrap();
+        expected.pop();
+        assert_eq!(directories(&root), expected);
+        std::fs::remove_dir_all(root).unwrap();
     }
 }

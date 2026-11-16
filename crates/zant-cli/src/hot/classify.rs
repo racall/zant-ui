@@ -45,6 +45,13 @@ pub(super) fn classify(path: &Path, imported_assets: &BTreeSet<PathBuf>) -> Chan
         return Change::Restart;
     }
     let extension = path.extension().and_then(|ext| ext.to_str()).unwrap_or("");
+    if path.starts_with("locales") {
+        return if parts.len() == 2 && extension == "json" {
+            Change::HotReload
+        } else {
+            Change::Ignore
+        };
+    }
     if (path.starts_with("src") && matches!(extension, "tsx" | "ts"))
         || (path.starts_with("native") && matches!(extension, "rs" | "ts"))
         || imported_assets.contains(path)
@@ -77,6 +84,8 @@ mod tests {
                     "native/system.ts",
                     "assets/x.png",
                     "src/badge.svg",
+                    "locales/en.json",
+                    "locales/zh-CN.json",
                 ],
             ),
             (
@@ -110,6 +119,11 @@ mod tests {
                     "src/legacy.rs",
                     "native/data.json",
                     "assets/icons/.icon.png.swp",
+                    "locales/sub/en.json",
+                    "locales/README.md",
+                    "locales/.en.json",
+                    "locales/en.json~",
+                    "locales/en.json.swp",
                 ],
             ),
         ] {
@@ -124,6 +138,8 @@ mod tests {
             "assets/.DS_Store",
             "README.md",
             "tsconfig.json",
+            "locales/sub/en.json",
+            "locales/README.md",
         ] {
             let assets = BTreeSet::from([PathBuf::from(path)]);
             assert_eq!(classify(Path::new(path), &assets), Change::Ignore);
