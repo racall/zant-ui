@@ -40,6 +40,9 @@ pub enum TypeDetail {
     Object(Vec<TypeField>),
     /// `(id: number) => void`
     Func(FuncType),
+    /// `A & B & { extra: string }` (two or more members); `interface B
+    /// extends A { .. }` is the intersection of `A` and the body.
+    Intersection(Vec<TypeRef>),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

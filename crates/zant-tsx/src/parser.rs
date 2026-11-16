@@ -288,14 +288,29 @@ impl<'a> Parser<'a> {
             ));
         }
         if is_interface {
+            // `interface B extends A, C { .. }`: the body plus the bases' fields
+            let mut bases: Vec<TypeRef> = Vec::new();
             if self.is_kw("extends") {
-                return Err(self.fail(
-                    self.cur.start,
-                    "`extends` is not supported; repeat the fields",
-                ));
+                self.advance();
+                loop {
+                    bases.push(self.parse_type()?);
+                    if !self.eat_p(",") {
+                        break;
+                    }
+                }
             }
             let loc = self.cur.start;
-            let detail = TypeDetail::Object(type_parser::parse_members(self)?);
+            let body = TypeDetail::Object(type_parser::parse_members(self)?);
+            let detail = if bases.is_empty() {
+                body
+            } else {
+                bases.push(TypeRef {
+                    name: Vec::new(),
+                    loc,
+                    detail: Some(Box::new(body)),
+                });
+                TypeDetail::Intersection(bases)
+            };
             return Ok(TypeDecl {
                 name,
                 ty: TypeRef {

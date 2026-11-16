@@ -1,7 +1,7 @@
 //! Type annotations of the TSX subset (`docs/tsx.md`): named types (dotted
 //! too), `T[]`, `Array<T>`, unions, string literal types, `null` /
-//! `undefined`, object types and function types. `interface` bodies are
-//! object types.
+//! `undefined`, object types, intersections and function types. `interface`
+//! bodies are object types.
 //!
 //! Like tsc, a `(` starts a function type when the matching `)` is followed
 //! by `=>`, and a parenthesized type otherwise.
@@ -16,15 +16,31 @@ pub type Error = crate::error::ParseError;
 pub fn parse_type(p: &mut Parser) -> Result<TypeRef, Error> {
     let loc = p.cur.start;
     p.eat_p("|");
-    let first = parse_postfix(p)?;
+    let first = parse_intersection(p)?;
     if !p.is_p("|") {
         return Ok(first);
     }
     let mut members: Vec<TypeRef> = vec![first];
     while p.eat_p("|") {
-        members.push(parse_postfix(p)?);
+        members.push(parse_intersection(p)?);
     }
     Ok(detailed(loc, TypeDetail::Union(members)))
+}
+
+/// `A & B`: binds tighter than `|`, as in TypeScript (a leading `&` is
+/// allowed too).
+fn parse_intersection(p: &mut Parser) -> Result<TypeRef, Error> {
+    let loc = p.cur.start;
+    p.eat_p("&");
+    let first = parse_postfix(p)?;
+    if !p.is_p("&") {
+        return Ok(first);
+    }
+    let mut members: Vec<TypeRef> = vec![first];
+    while p.eat_p("&") {
+        members.push(parse_postfix(p)?);
+    }
+    Ok(detailed(loc, TypeDetail::Intersection(members)))
 }
 
 /// A primary type followed by any number of `[]`.

@@ -678,3 +678,59 @@ function make(): P { return { a: "x" } satisfies P; }"#,
     );
     assert!(message.contains("cannot convert"), "{message}");
 }
+
+// ── `interface extends` / `&` ────────────────────────────────────────
+
+fn struct_fields(compiled: &Compiled, name: &str) -> String {
+    let start = compiled
+        .declarations
+        .find(&format!("pub struct {name} {{"))
+        .unwrap_or_else(|| panic!("no struct {name} in:\n{}", compiled.declarations));
+    let rest = &compiled.declarations[start..];
+    rest[..rest.find('}').unwrap() + 1].to_owned()
+}
+
+#[test]
+fn interface_extends_copies_every_base_field_first() {
+    let compiled = generated(
+        r#"interface Id { id: number }
+interface Named { name?: string }
+interface Todo extends Id, Named { done: boolean }
+function make(): Todo { return { id: 1, done: false }; }"#,
+    );
+    assert_eq!(
+        "pub struct Todo {\n    pub id: f64,\n    pub name: Option<zant::Str>,\n    pub done: bool,\n}",
+        struct_fields(&compiled, "Todo")
+    );
+}
+
+#[test]
+fn intersections_merge_fields_and_a_required_side_wins() {
+    let compiled = generated(
+        r#"type Base = { id: number; label?: string };
+type Row = Base & { label: string } & { selected: boolean };
+function label(r: Row | null): string { return r === null ? "" : r.label; }"#,
+    );
+    assert_eq!(
+        "pub struct Row {\n    pub id: f64,\n    pub label: zant::Str,\n    pub selected: bool,\n}",
+        struct_fields(&compiled, "Row")
+    );
+}
+
+#[test]
+fn intersections_reject_conflicting_fields_and_non_objects() {
+    let message = diagnostic(
+        r#"interface A { id: number }
+type B = A & { id: string };
+function f(b: B): number { return 1; }"#,
+    );
+    assert!(
+        message.contains("field `id` has different types"),
+        "{message}"
+    );
+    let message = diagnostic(
+        r#"type B = string & { id: string };
+function f(b: B): number { return 1; }"#,
+    );
+    assert!(message.contains("combine object types"), "{message}");
+}

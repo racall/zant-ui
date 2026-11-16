@@ -236,6 +236,14 @@ impl Dumper {
                 self.depth -= 1;
             }
             TypeDetail::Func(f) => self.func_type(f),
+            TypeDetail::Intersection(members) => {
+                self.line("intersection");
+                self.depth += 1;
+                for m in members {
+                    self.type_ref(m);
+                }
+                self.depth -= 1;
+            }
         }
         self.depth -= 1;
     }

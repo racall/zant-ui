@@ -671,6 +671,13 @@ impl Rewriter<'_> {
                     }
                     ast::TypeDetail::Union(out)
                 }
+                ast::TypeDetail::Intersection(members) => {
+                    let mut out = Vec::with_capacity(members.len());
+                    for m in members {
+                        out.push(self.type_ref(m)?);
+                    }
+                    ast::TypeDetail::Intersection(out)
+                }
                 ast::TypeDetail::StringLit(value) => ast::TypeDetail::StringLit(value.clone()),
                 ast::TypeDetail::Null => ast::TypeDetail::Null,
                 ast::TypeDetail::Object(fields) => {
