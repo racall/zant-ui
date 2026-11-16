@@ -13,9 +13,9 @@ pub struct App {
     note: zant::Str,
     left: f64,
     timer: f64,
-    _effect9: Option<ui::Action>,
+    _effect9: tsx::Cleanup,
     _deps10: Option<()>,
-    _effect11: Option<ui::Action>,
+    _effect11: tsx::Cleanup,
     _deps12: Option<(f64,)>,
     _render_note: zant::Str,
     _render_left: f64,
@@ -108,12 +108,13 @@ impl App {
             10.0f64,
             ui::action(move |s: &mut App| App::_timeout6(s)),
         );
-        self._effect9 = Some(
-            ui::action({
-                let _capture = _CleanupCapture1 { t: t };
-                move |s: &mut App| App::_cleanup1(s, &_capture)
-            }),
-        );
+        self._effect9
+            .set(
+                ui::action({
+                    let _capture = _CleanupCapture1 { t: t };
+                    move |s: &mut App| App::_cleanup1(s, &_capture)
+                }),
+            );
         return;
     }
     fn _cleanup3(&mut self, cap: &_CleanupCapture3) {
@@ -130,12 +131,13 @@ impl App {
                 move |s: &mut App| App::_timeout7(s, &_capture)
             }),
         );
-        self._effect11 = Some(
-            ui::action({
-                let _capture = _CleanupCapture3 { t: t };
-                move |s: &mut App| App::_cleanup3(s, &_capture)
-            }),
-        );
+        self._effect11
+            .set(
+                ui::action({
+                    let _capture = _CleanupCapture3 { t: t };
+                    move |s: &mut App| App::_cleanup3(s, &_capture)
+                }),
+            );
         return;
     }
     fn _timeout5(&mut self, cap: &_TimeoutCapture5) {

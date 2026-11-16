@@ -95,7 +95,7 @@ pub use app::{Config, KeyEvent, Shell, current_theme, key_event, run, system_the
 pub use builtins::log;
 pub use dict::{Dict, DictKey, Set};
 pub use error::{Completion, Error, Thrown};
-pub use hooks::{Callback, Deps, Effect, Memo, Ref, callback, local_state, new_ref};
+pub use hooks::{Callback, Cleanup, Deps, Effect, Memo, Ref, callback, local_state, new_ref};
 pub use ids::{ChildKey, child_id, site_id};
 pub use json::Json;
 pub use list::List;

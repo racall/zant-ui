@@ -50,7 +50,7 @@ TSX 是推荐的应用写法，编译期生成 Rust，无 JS 运行时。此表�
 | ✅ | 多语言：`locales/*.json`、编译期检查的 `t()`、ICU 复数 / select、语言协商与切换（[i18n](i18n.md)） |
 | ✅ | 关闭 / 退出 / 键盘 / 窗口焦点、托盘、全局快捷键、剪贴板、唤醒与退出 hooks |
 | ✅ | createWindow 多窗口、剪贴板文字 / 图片 / 文件、开机启动、单实例 |
-| ✅ | setTimeout/clearTimeout 定时回调 |
+| ✅ | setTimeout / setInterval 与 clear*；effect 清理函数在组件卸载时执行 |
 | ✅ | `zant create` 生成 `src/` TSX/TS + `native/` Rust 项目；模板带原生模块示例 |
 | ✅ | `native/main.rs` 用 `zant::app!()`；`native/build.rs` 调 `zant_build::tsx_app()` |
 | ✅ | 自动生成 `$OUT_DIR/zant_app.rs`、`zant_main.rs`、`zant_hot.rs`，自动声明并注册原生模块 |

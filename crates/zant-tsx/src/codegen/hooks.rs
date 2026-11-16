@@ -543,7 +543,7 @@ pub fn cleanup_return(
     let method = g.cleanups[index].method;
     let field = c.effect_field.clone().unwrap_or_default();
     let action = super::generate::action_value(g, c, method, Some(tags::Kind::Action))?;
-    Ok(format!("self.{field} = Some({action});\nreturn;\n"))
+    Ok(format!("self.{field}.set({action});\nreturn;\n"))
 }
 
 /// The statement queuing the effect when its dependency list changed.
@@ -586,7 +586,7 @@ pub fn effect(
             Some(deps) => deps.ty.clone(),
             None => "()".to_owned(),
         };
-        let field = add_field(g, "_effect", format!("Option<{}>", "ui::Action"))?;
+        let field = add_field(g, "_effect", "tsx::Cleanup".to_owned())?;
         let _ = deps_ty;
         cleanup_field = Some(scope::state_field(g, field.as_bytes())?);
     }
