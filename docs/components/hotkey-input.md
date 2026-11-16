@@ -18,7 +18,7 @@ export default function App() {
 |---|---|
 | `value`、`recording` | 无快捷键（null 或空字符串）、false；录入状态由应用维护 |
 | `width`、`height` | 按内容、32 |
-| `placeholder`、`recordingText` | `"点击设置快捷键"`、`"按下组合键…"` |
+| `placeholder`、`recordingText` | `"Click to set a shortcut"`、`"Press a shortcut…"` |
 | `onStart`、`onRecord` | 点击或 Enter / Space 开始；记录回调收到快捷键字符串 |
 | `onCancel`、`onClear` | 录入时无修饰键的 Esc 取消，Backspace / Delete 清除；清除按钮也触发 onClear |
 | `key` | `"hotkey-input"`，同屏多个时分别指定 |

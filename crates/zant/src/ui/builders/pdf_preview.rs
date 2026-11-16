@@ -56,7 +56,7 @@ pub fn pdf_preview(options: PdfOptions) -> Node {
             background: Some(0xfff5_f5f5),
             radius: 4.0,
             children: vec![text(
-                "无法预览 PDF",
+                "Can't preview this PDF",
                 TextOptions {
                     size: 13.0,
                     color: Some(0xa600_0000),
@@ -132,7 +132,7 @@ pub fn pdf_preview(options: PdfOptions) -> Node {
             }),
             button(ButtonOptions {
                 key: Some("pdf-copy".into()),
-                text: "复制文本".into(),
+                text: "Copy text".into(),
                 size: ButtonSize::Small,
                 disabled: count == 0,
                 on_click: Some(copy_action),
@@ -211,7 +211,7 @@ mod tests {
         assert_eq!(fallback.visual.radius, 4.0);
         let message = fallback.children[0].element();
         assert_eq!(message.kind, NodeKind::Text);
-        assert_eq!(message.content, "无法预览 PDF");
+        assert_eq!(message.content, "Can't preview this PDF");
         assert_eq!(message.text_style.font_size, 13.0);
         assert_eq!(message.text_style.color, 0xa600_0000);
     }
