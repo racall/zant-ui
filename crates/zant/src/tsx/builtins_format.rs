@@ -83,62 +83,15 @@ fn zeros(count: usize) -> String {
     "0".repeat(count)
 }
 
-/// `String(x)` / `Number.prototype.toString()` (no radix): the shortest
-/// round-trip decimal with JS's fixed / scientific thresholds.
+/// `String(x)` / `Number.prototype.toString()` (no radix): JavaScript's
+/// Number::toString (shortest round-trip digits, fixed for 1e-6 <= |x| <
+/// 1e21, `1e+21` style outside), from `ryu-js`.
 pub fn js_float_string(x: f64) -> Str {
-    if x.is_nan() {
-        return Str::Static("NaN");
-    }
-    if x.is_infinite() {
-        return Str::Static(if x < 0.0 { "-Infinity" } else { "Infinity" });
-    }
     if x == 0.0 {
+        // `-0` prints as `0`
         return Str::Static("0");
     }
-    let negative = x < 0.0;
-    if negative {
-        return Str::copy(&format!("-{}", js_float_string(-x)));
-    }
-    // `{:e}` gives the shortest round-trip digits, e.g. "1.5e-6"; JS spells the
-    // same digits fixed for 1e-6 <= |x| < 1e21 and scientific outside it.
-    let scientific = format!("{x:e}");
-    let (mantissa, exponent) = scientific
-        .split_once('e')
-        .expect("LowerExp formatting always has an exponent");
-    let exponent: i32 = exponent.parse().expect("a decimal exponent");
-    let mut digits: String = mantissa.chars().filter(|c| *c != '.').collect();
-    while digits.len() > 1 && digits.ends_with('0') {
-        digits.pop();
-    }
-    let mut out = String::new();
-    if (-6..21).contains(&exponent) {
-        let point = exponent + 1;
-        let len = digits.len() as i32;
-        if point <= 0 {
-            out.push_str("0.");
-            out.push_str(&zeros((-point) as usize));
-            out.push_str(&digits);
-        } else if point >= len {
-            out.push_str(&digits);
-            out.push_str(&zeros((point - len) as usize));
-        } else {
-            out.push_str(&digits[..point as usize]);
-            out.push('.');
-            out.push_str(&digits[point as usize..]);
-        }
-    } else {
-        out.push_str(&digits[..1]);
-        if digits.len() > 1 {
-            out.push('.');
-            out.push_str(&digits[1..]);
-        }
-        out.push('e');
-        if exponent >= 0 {
-            out.push('+');
-        }
-        out.push_str(&exponent.to_string());
-    }
-    Str::from(out)
+    Str::from(ryu_js::Buffer::new().format(x).to_owned())
 }
 
 /// `Number.prototype.toFixed(digits)` (JS rounding: exact binary value, ties

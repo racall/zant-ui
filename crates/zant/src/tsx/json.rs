@@ -76,7 +76,8 @@ impl JsonPath {
             self.0.push_str(name);
         } else {
             self.0.push('[');
-            writer::quote(name, &mut self.0);
+            self.0
+                .push_str(&serde_json::to_string(name).expect("a string is valid JSON"));
             self.0.push(']');
         }
         let result = read(self);

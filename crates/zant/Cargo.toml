@@ -14,3 +14,4 @@ rusqlite.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 regress = { workspace = true, features = ["utf16"] }
+ryu-js.workspace = true

@@ -1,105 +1,116 @@
-use super::{JsonValue, Str};
-use crate::tsx::builtins_format::js_float_string;
+//! `JSON.stringify` on `serde_json`'s serializer. Two JavaScript rules sit
+//! on top: numbers print the way JavaScript prints them (`ryu-js`: `1`,
+//! `1e+21`, `1e-7`; NaN and ±Infinity become `null`), and an object's
+//! array-index keys come first in numeric order (JavaScript's property
+//! order). serde_json already escapes strings like `JSON.stringify`.
 
-/// JS JSON.stringify output. The string gap is truncated to ten UTF-16 units, as in JS.
-/// A split surrogate at the gap boundary becomes U+FFFD, like parsed strings.
-/// Numeric indentation is supplied as spaces by the compiler (maximum ten).
-/// Array-index object keys are emitted first in numeric order, as in JS.
+use std::io;
+
+use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
+use serde_json::ser::{CompactFormatter, Formatter, PrettyFormatter};
+
+use super::{JsonValue, Str};
+
+/// `JSON.stringify(value, null, indent)`: a string indent is cut to its
+/// first ten UTF-16 units; the compiler turns a number into that many
+/// spaces (at most ten).
 pub fn stringify(value: &JsonValue, indent: Option<&str>) -> Str {
     let units: Vec<u16> = indent.unwrap_or("").encode_utf16().take(10).collect();
     let gap = String::from_utf16_lossy(&units);
-    let mut out = String::new();
-    enum Task<'a> {
-        Value(&'a JsonValue, usize),
-        Key(&'a str),
-        Text(&'static str),
-        Line(usize),
-    }
-    let mut tasks = vec![Task::Value(value, 0)];
-    while let Some(task) = tasks.pop() {
-        match task {
-            Task::Text(text) => out.push_str(text),
-            Task::Key(key) => quote(key, &mut out),
-            Task::Line(depth) => {
-                if !gap.is_empty() {
-                    out.push('\n');
-                    for _ in 0..depth {
-                        out.push_str(&gap);
-                    }
+    let mut out = Vec::new();
+    let written = if gap.is_empty() {
+        value.serialize(&mut serde_json::Serializer::with_formatter(
+            &mut out,
+            JsNumbers(CompactFormatter),
+        ))
+    } else {
+        value.serialize(&mut serde_json::Serializer::with_formatter(
+            &mut out,
+            JsNumbers(PrettyFormatter::with_indent(gap.as_bytes())),
+        ))
+    };
+    written.expect("writing JSON to memory");
+    Str::from(String::from_utf8(out).expect("serde_json writes UTF-8"))
+}
+
+impl Serialize for JsonValue {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            JsonValue::Null => serializer.serialize_unit(),
+            JsonValue::Bool(value) => serializer.serialize_bool(*value),
+            JsonValue::Number(value) if value.is_finite() => serializer.serialize_f64(*value),
+            JsonValue::Number(_) => serializer.serialize_unit(),
+            JsonValue::String(value) => serializer.serialize_str(value),
+            JsonValue::Array(items) => {
+                let mut seq = serializer.serialize_seq(Some(items.len()))?;
+                for item in items {
+                    seq.serialize_element(item)?;
                 }
+                seq.end()
             }
-            Task::Value(value, depth) => match value {
-                JsonValue::Null => out.push_str("null"),
-                JsonValue::Bool(v) => out.push_str(if *v { "true" } else { "false" }),
-                JsonValue::Number(v) => {
-                    if v.is_finite() {
-                        out.push_str(&js_float_string(*v));
-                    } else {
-                        out.push_str("null");
-                    }
+            JsonValue::Object(fields) => {
+                let mut ordered: Vec<_> = fields.iter().collect();
+                // stable: the other keys keep their insertion order
+                ordered.sort_by_key(|(key, _)| array_index(key).map_or(u64::MAX, u64::from));
+                let mut map = serializer.serialize_map(Some(ordered.len()))?;
+                for (key, value) in ordered {
+                    map.serialize_entry(key.as_str(), value)?;
                 }
-                JsonValue::String(v) => quote(v, &mut out),
-                JsonValue::Array(items) => {
-                    out.push('[');
-                    tasks.push(Task::Text("]"));
-                    if !items.is_empty() {
-                        tasks.push(Task::Line(depth));
-                    }
-                    for (i, item) in items.iter().enumerate().rev() {
-                        tasks.push(Task::Value(item, depth + 1));
-                        tasks.push(Task::Line(depth + 1));
-                        if i > 0 {
-                            tasks.push(Task::Text(","));
-                        }
-                    }
-                }
-                JsonValue::Object(fields) => {
-                    out.push('{');
-                    tasks.push(Task::Text("}"));
-                    if !fields.is_empty() {
-                        tasks.push(Task::Line(depth));
-                    }
-                    let mut ordered: Vec<_> = fields.iter().collect();
-                    ordered.sort_by_key(|(key, _)| array_index(key).map_or(u64::MAX, u64::from));
-                    for (i, (key, value)) in ordered.into_iter().enumerate().rev() {
-                        tasks.push(Task::Value(value, depth + 1));
-                        tasks.push(Task::Text(if gap.is_empty() { ":" } else { ": " }));
-                        tasks.push(Task::Key(key));
-                        tasks.push(Task::Line(depth + 1));
-                        if i > 0 {
-                            tasks.push(Task::Text(","));
-                        }
-                    }
-                }
-            },
+                map.end()
+            }
         }
     }
-    Str::from(out)
 }
+
+/// A canonical array index (`"0"`, `"42"`, not `"01"` or `"4294967295"`).
 fn array_index(key: &str) -> Option<u32> {
     let index: u32 = key.parse().ok()?;
     (index != u32::MAX && index.to_string() == key).then_some(index)
 }
 
-pub(super) fn quote(text: &str, out: &mut String) {
-    const HEX: &[u8] = b"0123456789abcdef";
-    out.push('"');
-    for c in text.chars() {
-        match c {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            '\u{8}' => out.push_str("\\b"),
-            '\u{c}' => out.push_str("\\f"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            '\0'..='\u{1f}' => {
-                out.push_str("\\u00");
-                out.push(HEX[c as usize >> 4] as char);
-                out.push(HEX[c as usize & 15] as char);
-            }
-            _ => out.push(c),
-        }
+/// serde_json's formatter with JavaScript's number text.
+struct JsNumbers<F>(F);
+
+impl<F: Formatter> Formatter for JsNumbers<F> {
+    fn write_f64<W: ?Sized + io::Write>(&mut self, writer: &mut W, value: f64) -> io::Result<()> {
+        writer.write_all(ryu_js::Buffer::new().format(value).as_bytes())
     }
-    out.push('"');
+    fn begin_array<W: ?Sized + io::Write>(&mut self, writer: &mut W) -> io::Result<()> {
+        self.0.begin_array(writer)
+    }
+    fn end_array<W: ?Sized + io::Write>(&mut self, writer: &mut W) -> io::Result<()> {
+        self.0.end_array(writer)
+    }
+    fn begin_array_value<W: ?Sized + io::Write>(
+        &mut self,
+        writer: &mut W,
+        first: bool,
+    ) -> io::Result<()> {
+        self.0.begin_array_value(writer, first)
+    }
+    fn end_array_value<W: ?Sized + io::Write>(&mut self, writer: &mut W) -> io::Result<()> {
+        self.0.end_array_value(writer)
+    }
+    fn begin_object<W: ?Sized + io::Write>(&mut self, writer: &mut W) -> io::Result<()> {
+        self.0.begin_object(writer)
+    }
+    fn end_object<W: ?Sized + io::Write>(&mut self, writer: &mut W) -> io::Result<()> {
+        self.0.end_object(writer)
+    }
+    fn begin_object_key<W: ?Sized + io::Write>(
+        &mut self,
+        writer: &mut W,
+        first: bool,
+    ) -> io::Result<()> {
+        self.0.begin_object_key(writer, first)
+    }
+    fn end_object_key<W: ?Sized + io::Write>(&mut self, writer: &mut W) -> io::Result<()> {
+        self.0.end_object_key(writer)
+    }
+    fn begin_object_value<W: ?Sized + io::Write>(&mut self, writer: &mut W) -> io::Result<()> {
+        self.0.begin_object_value(writer)
+    }
+    fn end_object_value<W: ?Sized + io::Write>(&mut self, writer: &mut W) -> io::Result<()> {
+        self.0.end_object_value(writer)
+    }
 }
