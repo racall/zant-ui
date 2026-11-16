@@ -186,6 +186,16 @@ impl Walker {
             }
             StmtData::Expr(e) => self.expr(e),
             StmtData::Block(ss) => self.block(ss),
+            StmtData::Throw(e) => self.expr(e),
+            StmtData::Try(t) => {
+                self.block(&mut t.body);
+                if let Some(c) = &mut t.catch {
+                    self.block(&mut c.body);
+                }
+                if let Some(f) = &mut t.finally {
+                    self.block(f);
+                }
+            }
             StmtData::If(v) => {
                 self.expr(&mut v.cond);
                 self.stmt(&mut v.then);

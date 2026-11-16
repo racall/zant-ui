@@ -166,7 +166,7 @@ pub fn process(g: &mut Generator<'_>, module: &ast::Module) -> Result<()> {
                 });
             } else if let Some(function) = exported_function(&target.module, &imported) {
                 if functions::is_function(function) {
-                    import_function(g, &local, &imported, function, scope)?;
+                    import_function(g, &local, &imported, function, scope, &target.name)?;
                 } else {
                     let keeps_state =
                         stateful::stateful(&project.module_sources(), &target.module, function);
@@ -358,6 +358,7 @@ fn import_function(
     imported: &str,
     function: &ast::Function,
     scope: usize,
+    module: &str,
 ) -> Result<()> {
     if !function.type_params.is_empty() {
         return fail(
@@ -375,6 +376,7 @@ fn import_function(
     );
     let mut signature = in_scope(g, scope, |g| functions::signature(g, function, rust, true))?;
     signature.name = local.to_owned();
+    signature.throws = g.throwing.throws(module, imported.as_bytes());
     g.functions.push(signature);
     Ok(())
 }

@@ -504,6 +504,18 @@ fn collect_cleanups(g: &mut Generator<'_>, s: &ast::Stmt) -> Result<()> {
             }
             Ok(())
         }
+        ast::StmtData::Try(t) => {
+            for child in t
+                .body
+                .iter()
+                .chain(t.catch.iter().flat_map(|c| c.body.iter()))
+                .chain(t.finally.iter().flatten())
+            {
+                collect_cleanups(g, child)?;
+            }
+            Ok(())
+        }
+        ast::StmtData::Throw(_) => Ok(()),
         ast::StmtData::Block(statements) => {
             for child in statements {
                 collect_cleanups(g, child)?;
@@ -683,6 +695,13 @@ fn stmt_changes(g: &Generator<'_>, s: &ast::Stmt) -> bool {
         }
         ast::StmtData::Expr(e) => expr_changes(g, e),
         ast::StmtData::Block(statements) => statements.iter().any(|child| stmt_changes(g, child)),
+        ast::StmtData::Throw(e) => expr_changes(g, e),
+        ast::StmtData::Try(t) => t
+            .body
+            .iter()
+            .chain(t.catch.iter().flat_map(|c| c.body.iter()))
+            .chain(t.finally.iter().flatten())
+            .any(|child| stmt_changes(g, child)),
     }
 }
 

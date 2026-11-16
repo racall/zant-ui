@@ -427,6 +427,33 @@ impl Dumper {
                 }
                 self.depth -= 1;
             }
+            StmtData::Throw(e) => {
+                self.line_fmt(format!("stmt loc={} throw", s.loc));
+                self.depth += 1;
+                self.expr(e);
+                self.depth -= 1;
+            }
+            StmtData::Try(t) => {
+                self.line_fmt(format!("stmt loc={} try", s.loc));
+                self.depth += 1;
+                for s in &t.body {
+                    self.stmt(s);
+                }
+                if let Some(c) = &t.catch {
+                    let name = c.name.as_ref().map(|n| quote(&n.name)).unwrap_or_default();
+                    self.line_fmt(format!("catch {name}"));
+                    for s in &c.body {
+                        self.stmt(s);
+                    }
+                }
+                if let Some(f) = &t.finally {
+                    self.line("finally");
+                    for s in f {
+                        self.stmt(s);
+                    }
+                }
+                self.depth -= 1;
+            }
         }
     }
 

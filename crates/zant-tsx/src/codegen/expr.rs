@@ -283,6 +283,9 @@ pub fn binary(
     if b.op == b"in" {
         return super::dicts::contains(g, c, &b.lhs, &b.rhs);
     }
+    if b.op == b"instanceof" {
+        return super::exceptions::instance_of(g, c, loc, b);
+    }
     if b.op == b"**" {
         return fail(g, loc, "** is not supported yet");
     }
@@ -551,6 +554,9 @@ pub fn call_value(
     call: &ast::Call,
     expected: Option<Type>,
 ) -> Result<Value> {
+    if let Some(error) = super::exceptions::construct(g, c, loc, call)? {
+        return Ok(error);
+    }
     if call.is_new {
         return super::dicts::construct(g, c, loc, call, expected);
     }

@@ -208,6 +208,17 @@ impl Walker<'_> {
                     self.stmt(child);
                 }
             }
+            ast::StmtData::Throw(e) => self.expr(e),
+            ast::StmtData::Try(t) => {
+                for child in t
+                    .body
+                    .iter()
+                    .chain(t.catch.iter().flat_map(|c| c.body.iter()))
+                    .chain(t.finally.iter().flatten())
+                {
+                    self.stmt(child);
+                }
+            }
         }
     }
 

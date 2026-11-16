@@ -305,6 +305,25 @@ pub enum StmtData {
     Continue,
     Expr(Box<Expr>),
     Block(Vec<Box<Stmt>>),
+    /// `throw value`
+    Throw(Box<Expr>),
+    /// `try { … } catch (e) { … } finally { … }`
+    Try(Try),
+}
+
+/// `try` with at least one of `catch` / `finally`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Try {
+    pub body: Vec<Box<Stmt>>,
+    /// `catch (error) { … }` / `catch { … }`.
+    pub catch: Option<Catch>,
+    pub finally: Option<Vec<Box<Stmt>>>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Catch {
+    pub name: Option<Name>,
+    pub body: Vec<Box<Stmt>>,
 }
 
 /// C-style loop; omitted condition means true.

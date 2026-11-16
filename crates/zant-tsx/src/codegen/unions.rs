@@ -382,6 +382,9 @@ pub fn type_of(
     operand: &ast::Expr,
 ) -> Result<Value> {
     let value = expr::emit(g, c, operand, None, false)?;
+    if let Some(text) = super::exceptions::type_of(g, &value) {
+        return Ok(text);
+    }
     if is_union(g, value.ty) {
         let code = format!(
             "match &{} {{\n{}}}",
@@ -409,8 +412,12 @@ pub fn type_of(
     ))
 }
 
-/// A union shown as text (`String(x)`, `` `${x}` ``).
+/// A union shown as text (`String(x)`, `` `${x}` ``); also a caught value or
+/// an `Error` (`exceptions`).
 pub fn text(g: &mut Generator<'_>, value: &Value, loc: ast::Loc) -> Result<Option<Value>> {
+    if let Some(text) = super::exceptions::text(g, value) {
+        return Ok(Some(text));
+    }
     let Some(variants) = variants(g, value.ty) else {
         return Ok(None);
     };

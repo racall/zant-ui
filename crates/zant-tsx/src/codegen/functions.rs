@@ -37,6 +37,9 @@ pub struct Function {
     /// The type arguments of a generic function's instance (`T` → `f64`),
     /// bound while its body is generated (`generic_functions`).
     pub type_env: Vec<(Vec<u8>, Type)>,
+    /// A throw can escape it: it returns `Result<ret, tsx::Thrown>`
+    /// (`throws`, `exceptions`).
+    pub throws: bool,
 }
 
 // ── parameter defaults ───────────────────────────────────────────────
@@ -387,6 +390,7 @@ pub fn signature(
         ret,
         external,
         type_env: Vec::new(),
+        throws: false,
     })
 }
 
@@ -426,7 +430,8 @@ pub fn collect(g: &mut Generator<'_>, module: &ast::Module) -> Result<()> {
             );
         }
         let rust = rust_text::id_at(g, &top.func.name, top.func.loc)?;
-        let function = signature(g, &top.func, rust, false)?;
+        let mut function = signature(g, &top.func, rust, false)?;
+        function.throws = g.throwing.throws(&g.module_stem, &top.func.name);
         g.functions.push(function);
     }
     Ok(())
@@ -533,11 +538,15 @@ pub fn call_with(
         };
         arguments.push(types::coerce(g, value, *ty, call.args[index].loc)?.code);
     }
-    Ok(Value {
+    let value = Value {
         ty: function.ret,
         code: format!("{}({})", function.rust, arguments.join(", ")),
         ..Value::default()
-    })
+    };
+    if function.throws {
+        return super::exceptions::checked_call(g, c, value, loc);
+    }
+    Ok(value)
 }
 
 /// The Rust declarations of this file's functions.
@@ -567,6 +576,11 @@ fn emit_function(g: &mut Generator<'_>, index: usize) -> Result<String> {
         render: false,
         ret: function.ret,
         no_self: true,
+        throw_mode: if function.throws {
+            super::exceptions::ThrowMode::Propagate
+        } else {
+            super::exceptions::ThrowMode::Forbid
+        },
         ..scope::Context::default()
     };
     let mut params: Vec<String> = Vec::new();
@@ -593,15 +607,26 @@ fn emit_function(g: &mut Generator<'_>, index: usize) -> Result<String> {
                 stmt::expression_statement(g, &mut c, e)?
             } else {
                 let value = expr::emit(g, &mut c, e, Some(function.ret), false)?;
-                format!("return {};\n", value.code)
+                match super::exceptions::return_code(&c, Some(&value.code)) {
+                    Some(code) => code,
+                    None => format!("return {};\n", value.code),
+                }
             }
         }
     };
-    let finished = scope::finish(g, &c, body)?;
-    let return_type = if function.ret == Type::Void {
-        String::new()
-    } else {
-        format!(" -> {}", function.ret.rust(g))
+    let mut finished = scope::finish(g, &c, body)?;
+    let return_type = match (function.ret, function.throws) {
+        (Type::Void, false) => String::new(),
+        (Type::Void, true) => {
+            // falling off the end of a throwing void function
+            let ends = matches!(&function.func.body, ast::Body::Block(ss) if stmt::returns_all(ss));
+            if !ends {
+                finished.push_str("Ok(())\n");
+            }
+            " -> Result<(), zant::tsx::Thrown>".to_owned()
+        }
+        (ret, false) => format!(" -> {}", ret.rust(g)),
+        (ret, true) => format!(" -> Result<{}, zant::tsx::Thrown>", ret.rust(g)),
     };
     Ok(format!(
         "pub fn {}({}){return_type} {{\n{finished}}}\n",

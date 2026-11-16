@@ -201,7 +201,7 @@ pub fn parse_cond(p: &mut Parser) -> Result<Box<Expr>, Error> {
 pub fn binary_prec(p: &mut Parser) -> Option<u8> {
     p.rescan_greater();
     // `key in record`: relational, like `<`
-    if p.is_kw("in") {
+    if p.is_kw("in") || p.is_kw("instanceof") {
         return Some(8);
     }
     if p.cur.kind != Kind::Punct {

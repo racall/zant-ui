@@ -82,6 +82,7 @@ pub mod desktop_hooks;
 pub mod dicts;
 pub mod enums;
 pub mod events;
+pub mod exceptions;
 pub mod expr;
 pub mod free_names;
 pub mod functions;
@@ -112,6 +113,7 @@ pub mod stmt;
 pub mod stores;
 pub mod string_methods;
 pub mod structural;
+pub mod throws;
 pub mod type_ops;
 pub mod types;
 pub mod unions;
@@ -484,6 +486,10 @@ pub struct Generator<'a> {
     pub generic_functions: Vec<generic_functions::Template>,
     /// How many of `functions` were emitted (`functions::emit_all`).
     pub emitted_functions: usize,
+    /// The project's throwing functions (`throws`) and this file's stem,
+    /// the key it is analyzed under.
+    pub throwing: throws::Throwing,
+    pub module_stem: String,
     pub constants: Vec<Constant>,
     /// Plain functions of this file and imported ones (`functions`).
     pub functions: Vec<functions::Function>,
@@ -561,6 +567,8 @@ impl<'a> Generator<'a> {
             const_decls: Vec::new(),
             generic_functions: Vec::new(),
             emitted_functions: 0,
+            throwing: throws::Throwing::default(),
+            module_stem: String::new(),
             constants: Vec::new(),
             functions: Vec::new(),
             events: Vec::new(),

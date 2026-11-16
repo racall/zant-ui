@@ -561,6 +561,49 @@ impl<'a> Parser<'a> {
         self.parse_params_with(false)
     }
 
+    /// `try { … } catch (e) { … } finally { … }`.
+    fn parse_try(&mut self, loc: u32) -> Result<Box<Stmt>, Error> {
+        self.advance(); // try
+        let body = self.parse_block()?;
+        let catch = if self.is_kw("catch") {
+            self.advance();
+            let name = if self.eat_p("(") {
+                let name = self.expect_ident("the error's name")?;
+                if self.eat_p(":") {
+                    // `catch (e: unknown)`: the error type is fixed
+                    self.parse_type()?;
+                }
+                self.expect_p(")")?;
+                Some(name)
+            } else {
+                None
+            };
+            Some(crate::ast::Catch {
+                name,
+                body: self.parse_block()?,
+            })
+        } else {
+            None
+        };
+        let finally = if self.is_kw("finally") {
+            self.advance();
+            Some(self.parse_block()?)
+        } else {
+            None
+        };
+        if catch.is_none() && finally.is_none() {
+            return Err(self.fail(loc, "`try` needs a `catch` or `finally`"));
+        }
+        Ok(Box::new(Stmt {
+            loc,
+            data: StmtData::Try(crate::ast::Try {
+                body,
+                catch,
+                finally,
+            }),
+        }))
+    }
+
     /// `{ a, b: local = 1 }` in a parameter: properties, bindings and defaults.
     fn parse_destructure(&mut self, param: &mut Param) -> Result<(), Error> {
         self.advance(); // {
@@ -752,7 +795,22 @@ impl<'a> Parser<'a> {
                 return loop_parser::parse(self);
             }
         }
-        for kw in ["try", "throw", "class", "async", "await"] {
+        if self.is_kw("throw") {
+            self.advance();
+            if self.cur.nl_before {
+                return Err(self.fail(self.cur.start, "`throw` needs a value on the same line"));
+            }
+            let value = expr_parser::parse_expr(self)?;
+            self.end_statement()?;
+            return Ok(Box::new(Stmt {
+                loc,
+                data: StmtData::Throw(value),
+            }));
+        }
+        if self.is_kw("try") {
+            return self.parse_try(loc);
+        }
+        for kw in ["class", "async", "await"] {
             if self.is_kw(kw) {
                 return Err(self.fail(loc, format!("`{kw}` is not supported yet")));
             }

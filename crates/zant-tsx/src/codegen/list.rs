@@ -702,6 +702,17 @@ fn collect_stmt_names(statement: &ast::Stmt, out: &mut Vec<Vec<u8>>) {
                 collect_stmt_names(statement, out);
             }
         }
+        ast::StmtData::Throw(e) => collect_expr_names(e, out),
+        ast::StmtData::Try(t) => {
+            for statement in t
+                .body
+                .iter()
+                .chain(t.catch.iter().flat_map(|c| c.body.iter()))
+                .chain(t.finally.iter().flatten())
+            {
+                collect_stmt_names(statement, out);
+            }
+        }
     }
 }
 

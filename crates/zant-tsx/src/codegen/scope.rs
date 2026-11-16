@@ -79,6 +79,13 @@ pub struct Context {
     pub cx_var: Option<String>,
     /// The next local read only looks into the value (`place::project`).
     pub projection: bool,
+    /// Where a throw outside every `try` of this body goes (`exceptions`).
+    pub throw_mode: super::exceptions::ThrowMode,
+    /// The enclosing `try` regions of this body, innermost last.
+    pub try_frames: Vec<super::exceptions::Frame>,
+    /// The labels of the enclosing loops / switches of this body, outermost
+    /// first (a `finally` reroutes the jumps that leave it).
+    pub jump_labels: Vec<String>,
 }
 
 impl Default for Context {
@@ -103,6 +110,9 @@ impl Default for Context {
             narrowed: Vec::new(),
             cx_var: None,
             projection: false,
+            throw_mode: super::exceptions::ThrowMode::Forbid,
+            try_frames: Vec::new(),
+            jump_labels: Vec::new(),
         }
     }
 }

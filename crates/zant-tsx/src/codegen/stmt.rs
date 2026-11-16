@@ -99,6 +99,8 @@ pub fn statement(
         }
         ast::StmtData::Block(ss) => block(g, c, ss),
         ast::StmtData::If(v) => if_statement(g, c, v),
+        ast::StmtData::Throw(value) => super::exceptions::throw_statement(g, c, s.loc, value),
+        ast::StmtData::Try(t) => super::exceptions::try_statement(g, c, s.loc, t),
     }
 }
 
@@ -358,6 +360,9 @@ fn return_statement(
                 return Ok(format!("break '{label} ({}{index}{});\n", '\u{5}', '\u{6}'));
             }
             let value = expr::emit(g, c, x, Some(c.ret), false)?;
+            if let Some(code) = super::exceptions::return_code(c, Some(&value.code)) {
+                return Ok(code);
+            }
             return Ok(format!("break '{label} ({});\n", value.code));
         }
         if c.ret == Type::Void {
@@ -368,12 +373,16 @@ fn return_statement(
                 && let ast::ExprData::Ident(name) = &call.callee.data
                 && scope::setter_index(g, name).is_some()
             {
-                return Ok(format!("{}return;\n", expression_statement(g, c, x)?));
+                let done = void_return(c);
+                return Ok(format!("{}{done}", expression_statement(g, c, x)?));
             }
             let v = expr::emit(g, c, x, Some(Type::Void), false)?;
-            return Ok(format!("{};\nreturn;\n", v.code));
+            return Ok(format!("{};\n{}", v.code, void_return(c)));
         }
         let v = expr::emit(g, c, x, Some(c.ret), false)?;
+        if let Some(code) = super::exceptions::return_code(c, Some(&v.code)) {
+            return Ok(code);
+        }
         return Ok(format!("return {};\n", v.code));
     }
     if c.return_label.is_some() {
@@ -386,7 +395,12 @@ fn return_statement(
             format!("return needs a value of type {}", c.ret.rust(g)),
         );
     }
-    Ok("return;\n".to_owned())
+    Ok(void_return(c))
+}
+
+/// `return;` from here (through a `finally`, out of a throwing function).
+fn void_return(c: &scope::Context) -> String {
+    super::exceptions::return_code(c, None).unwrap_or_else(|| "return;\n".to_owned())
 }
 
 /// Restore the enclosing lexical scope after emitting a nested block.
@@ -604,8 +618,20 @@ pub fn stmt_returns(s: &ast::Stmt) -> bool {
             Some(otherwise) => stmt_returns(&v.then) && stmt_returns(otherwise),
             None => false,
         },
+        // a throw never falls through (TypeScript's `never`)
+        ast::StmtData::Throw(_) => true,
+        // every way out returns or throws: the protected block and the
+        // catch block do, or the finally block does
+        ast::StmtData::Try(t) => try_returns(t),
         _ => false,
     }
+}
+
+/// Every way out of the `try` returns or throws: the protected block and
+/// the catch block do, or the finally block does.
+pub fn try_returns(t: &ast::Try) -> bool {
+    t.finally.as_deref().is_some_and(returns_all)
+        || (returns_all(&t.body) && t.catch.as_ref().is_none_or(|c| returns_all(&c.body)))
 }
 
 pub fn returns_all(ss: &[Box<ast::Stmt>]) -> bool {

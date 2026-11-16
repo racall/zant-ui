@@ -41,6 +41,10 @@ pub fn emit(g: &mut Generator<'_>, c: &mut scope::Context, s: &ast::Stmt) -> Res
                 },
             );
         };
+        // a loop outside a `try` with a `finally`: that block runs first
+        if let Some(code) = super::exceptions::jump_code(c, is_break, &label) {
+            return Ok(code);
+        }
         return Ok(format!(
             "{} '{label};\n",
             if is_break { "break" } else { "continue" }
@@ -66,6 +70,7 @@ pub fn emit(g: &mut Generator<'_>, c: &mut scope::Context, s: &ast::Stmt) -> Res
     if !matches!(s.data, ast::StmtData::Switch(_)) {
         c.continue_label = Some(label.clone());
     }
+    c.jump_labels.push(label.clone());
     let result = match &s.data {
         ast::StmtData::Switch(v) => switch_statement(g, c, v, &label),
         ast::StmtData::For(v) => for_statement(g, c, v, &label),
@@ -73,6 +78,7 @@ pub fn emit(g: &mut Generator<'_>, c: &mut scope::Context, s: &ast::Stmt) -> Res
         ast::StmtData::While(v) => while_statement(g, c, v, &label),
         _ => unreachable!("loop statement"),
     };
+    c.jump_labels.pop();
     c.active.truncate(depth);
     c.break_label = previous_break;
     c.continue_label = previous_continue;
@@ -501,6 +507,15 @@ fn escaping_jump(s: &ast::Stmt, include_break: bool) -> bool {
                     .is_some_and(|otherwise| escaping_jump(otherwise, include_break))
         }
         ast::StmtData::Switch(v) => v.cases.iter().any(|case| sequence_jumps(&case.body, false)),
+        ast::StmtData::Try(t) => {
+            sequence_jumps(&t.body, include_break)
+                || t.catch
+                    .as_ref()
+                    .is_some_and(|c| sequence_jumps(&c.body, include_break))
+                || t.finally
+                    .as_deref()
+                    .is_some_and(|f| sequence_jumps(f, include_break))
+        }
         // Nested loops consume both kinds of jump. Functions have their own
         // boundary.
         _ => false,
