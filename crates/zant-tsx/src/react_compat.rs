@@ -134,7 +134,7 @@ impl Walker {
                 return;
             }
             for n in &param.destructure {
-                if self.matches(&n.name) {
+                if self.matches(&n.local.name) {
                     return;
                 }
             }

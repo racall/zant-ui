@@ -137,11 +137,19 @@ fn NUMBERS() -> tsx::List<f64> {
 }
 pub struct Arrays {
     boxes: tsx::List<Box>,
+    _render_boxes: tsx::List<Box>,
 }
 impl Default for Arrays {
     fn default() -> Self {
         Self {
             boxes: tsx::List::from_vec(
+                vec![
+                    Box { title : zant::Str::from("First"), values :
+                    tsx::List::from_vec(vec![1.0f64, 2.0f64]), nested : _Object2 {
+                    enabled : true, }, }
+                ],
+            ),
+            _render_boxes: tsx::List::from_vec(
                 vec![
                     Box { title : zant::Str::from("First"), values :
                     tsx::List::from_vec(vec![1.0f64, 2.0f64]), nested : _Object2 {
@@ -217,6 +225,7 @@ impl Arrays {
 }
 impl ui::App for Arrays {
     fn render(&mut self) -> ui::Node {
+        self._render_boxes = self.boxes.clone();
         let size: f64 = self
             .lengthOf(_Object6 {
                 values: NUMBERS().clone(),

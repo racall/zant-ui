@@ -20,6 +20,9 @@ pub struct App {
     hotkey: zant::Str,
     clips: f64,
     _hotkey5: tsx::desktop::Hotkey,
+    _render_sync: bool,
+    _render_hotkey: zant::Str,
+    _render_clips: f64,
 }
 impl Default for App {
     fn default() -> Self {
@@ -27,6 +30,9 @@ impl Default for App {
             sync: true,
             hotkey: zant::Str::from("ctrl+cmd+v"),
             clips: 0.0f64,
+            _render_sync: true,
+            _render_hotkey: zant::Str::from("ctrl+cmd+v"),
+            _render_clips: 0.0f64,
             _hotkey5: Default::default(),
         }
     }
@@ -53,7 +59,7 @@ impl tsx::hot::Hot for App {
 }
 impl App {
     fn _root_on_clipboard(&mut self) {
-        let clips: f64 = self.clips;
+        let clips: f64 = self._render_clips;
         self.clips = clips + 1.0f64;
     }
     fn _root_on_reopen(&mut self) {
@@ -63,20 +69,23 @@ impl App {
         self.clips = 0.0f64;
     }
     fn _desktop2(&mut self) {
-        let sync: bool = self.sync;
+        let sync: bool = self._render_sync;
         self.sync = !sync;
     }
     fn _desktop3(&mut self) {
-        let clips: f64 = self.clips;
+        let clips: f64 = self._render_clips;
         self.clips = clips + 100.0f64;
     }
     fn _desktop4(&mut self) {
-        let clips: f64 = self.clips;
+        let clips: f64 = self._render_clips;
         self.clips = clips + 1.0f64;
     }
 }
 impl ui::App for App {
     fn render(&mut self) -> ui::Node {
+        self._render_sync = self.sync;
+        self._render_hotkey = self.hotkey.clone();
+        self._render_clips = self.clips;
         let label: zant::Str = if self.sync {
             zant::Str::from("Pause sync")
         } else {

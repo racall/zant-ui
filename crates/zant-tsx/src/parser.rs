@@ -493,25 +493,26 @@ impl<'a> Parser<'a> {
         Ok(params)
     }
 
-    /// `{ a, b = 1 }` in a parameter: the names and their defaults (renames
-    /// are not supported).
+    /// `{ a, b: local = 1 }` in a parameter: properties, bindings and defaults.
     fn parse_destructure(&mut self, param: &mut Param) -> Result<(), Error> {
         self.advance(); // {
-        let mut names: Vec<Name> = Vec::new();
+        let mut names = Vec::new();
         let mut defaults: Vec<Option<Box<Expr>>> = Vec::new();
         while !self.is_p("}") {
             if self.is_p("...") {
                 return Err(self.fail(self.cur.start, "rest properties are not supported"));
             }
             let name = self.expect_ident("a property name")?;
-            if self.is_p(":") {
-                let msg = format!(
-                    "renaming destructured props is not supported; read `props.{}` instead",
-                    bytes_lossy(&name.name)
-                );
-                return Err(self.fail(self.cur.start, msg));
-            }
-            names.push(name);
+            let local = if self.eat_p(":") {
+                self.expect_ident("a variable name")?
+            } else {
+                name.clone()
+            };
+            names.push(ast::DestructuredProp {
+                name: name.name,
+                loc: name.loc,
+                local,
+            });
             if self.eat_p("=") {
                 defaults.push(Some(expr_parser::parse_cond(self)?));
             } else {
@@ -944,11 +945,60 @@ function g(a: number, b?: string) {}"#,
         assert_eq!("onToggle", text(&p.destructure[1].name));
         assert_eq!("RowProps", text(&p.ty.as_ref().expect("type").name));
         assert!(m.functions[1].func.params[1].optional);
-        expect_syntax_error(
-            "function Row({ todo: t }: P) {}",
-            "renaming destructured props is not supported; read `props.todo` instead",
-            ": t",
+    }
+
+    #[test]
+    fn destructured_props_keep_property_names_local_names_and_defaults() {
+        let m = parse_ok(
+            r#"function Label({ id, title: label = "Untitled", onSave: save }: {
+                id: number; title?: string; onSave: () => void;
+            }) { return <Text>{label}</Text>; }"#,
         );
+        let p = &m.functions[0].func.params[0];
+        assert_eq!(3, p.destructure.len());
+        assert_eq!("id", text(&p.destructure[0].name));
+        assert_eq!("id", text(&p.destructure[0].local.name));
+        assert_eq!("title", text(&p.destructure[1].name));
+        assert_eq!("label", text(&p.destructure[1].local.name));
+        assert_eq!("onSave", text(&p.destructure[2].name));
+        assert_eq!("save", text(&p.destructure[2].local.name));
+        assert!(p.destructure_defaults[0].is_none());
+        assert!(matches!(
+            &p.destructure_defaults[1].as_ref().expect("default").data,
+            ExprData::String(value) if value == b"Untitled"
+        ));
+        assert!(p.destructure_defaults[2].is_none());
+        expect_syntax_error(
+            "function f({ title: }: P) {}",
+            "expected `a variable name`, found `}`",
+            "}",
+        );
+    }
+
+    #[test]
+    fn typed_local_object_destructuring_keeps_keys_and_bindings() {
+        let m = parse_ok(
+            r#"function f() {
+                const item: Item = { title: "Hello", id: 1 };
+                const { title: label, id } = item;
+                let { title: other }: Item = item;
+            }"#,
+        );
+        let body = block(&m.functions[0].func);
+        let StmtData::Decl(d) = &body[1].data else {
+            panic!("declaration");
+        };
+        let Pattern::Object(bindings) = &d.pattern else {
+            panic!("object destructuring");
+        };
+        assert_eq!("title", text(&bindings[0].key.name));
+        assert_eq!("label", text(&bindings[0].local.name));
+        assert_eq!(bindings[1].key, bindings[1].local);
+        let StmtData::Decl(d) = &body[2].data else {
+            panic!("typed declaration");
+        };
+        assert!(!d.is_const);
+        assert_eq!("Item", text(&d.ty.as_ref().expect("type").name));
     }
 
     // Every TSX file of the repository (the golden corpus, the fixtures and
@@ -967,11 +1017,11 @@ function g(a: number, b?: string) {}"#,
                 paths.push(path);
             }
         }
-        assert_eq!(33, paths.len());
+        assert_eq!(34, paths.len());
         let examples = root.join("crates/zant-examples/tsx/corpus");
         if examples.is_dir() {
             collect_tsx(&examples, &mut paths);
-            assert!(paths.len() > 33);
+            assert!(paths.len() > 34);
         }
         for path in paths {
             let src = std::fs::read_to_string(&path).expect("read TSX file");

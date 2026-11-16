@@ -11,10 +11,14 @@ use zant::tsx;
 use zant::ui;
 pub struct Layout {
     wide: bool,
+    _render_wide: bool,
 }
 impl Default for Layout {
     fn default() -> Self {
-        Self { wide: true }
+        Self {
+            wide: true,
+            _render_wide: true,
+        }
     }
 }
 impl tsx::hot::Hot for Layout {
@@ -34,6 +38,7 @@ impl tsx::hot::Hot for Layout {
 impl Layout {}
 impl ui::App for Layout {
     fn render(&mut self) -> ui::Node {
+        self._render_wide = self.wide;
         let overridden: f64 = 99.0f64;
         let _ = overridden;
         let header: ui::Node = ui::text(

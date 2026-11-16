@@ -13,6 +13,9 @@ pub struct Events {
     count: u32,
     name: zant::Str,
     on: bool,
+    _render_count: u32,
+    _render_name: zant::Str,
+    _render_on: bool,
 }
 impl Default for Events {
     fn default() -> Self {
@@ -20,6 +23,9 @@ impl Default for Events {
             count: 0u32,
             name: zant::Str::from("Zant"),
             on: false,
+            _render_count: 0u32,
+            _render_name: zant::Str::from("Zant"),
+            _render_on: false,
         }
     }
 }
@@ -66,14 +72,14 @@ impl Events {
         tsx::builtins::log(&[tsx::Any::from(zant::Str::from("unused params"))]);
     }
     fn increment(&mut self) {
-        let count: u32 = self.count;
+        let count: u32 = self._render_count;
         self.count = count + 1u32;
         self.count = count + 1u32;
     }
     fn save(&mut self, value: &str) {
-        let name: zant::Str = self.name.clone();
-        let count: u32 = self.count;
-        let on: bool = self.on;
+        let name: zant::Str = self._render_name.clone();
+        let count: u32 = self._render_count;
+        let on: bool = self._render_on;
         let value: zant::Str = zant::Str::copy(value);
         self.name = value.clone();
         tsx::builtins::log(
@@ -101,7 +107,7 @@ impl Events {
         );
     }
     fn arithmetic(&mut self) {
-        let count: u32 = self.count;
+        let count: u32 = self._render_count;
         let mut local: u32 = count;
         local = local + 2u32;
         local += 1;
@@ -160,6 +166,9 @@ impl Events {
 }
 impl ui::App for Events {
     fn render(&mut self) -> ui::Node {
+        self._render_count = self.count;
+        self._render_name = self.name.clone();
+        self._render_on = self.on;
         let ui_2: u32 = self.count + 1u32;
         let self_2: zant::Str = zant::Str::from("render local");
         let unused: f64 = 7.0f64;

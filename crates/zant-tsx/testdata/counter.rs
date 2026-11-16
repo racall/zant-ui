@@ -15,6 +15,11 @@ pub struct Counter {
     name: zant::Str,
     large: bool,
     notify: bool,
+    _render_count: u32,
+    _render_step: u32,
+    _render_name: zant::Str,
+    _render_large: bool,
+    _render_notify: bool,
 }
 impl Default for Counter {
     fn default() -> Self {
@@ -24,6 +29,11 @@ impl Default for Counter {
             name: zant::Str::from("Zant"),
             large: false,
             notify: true,
+            _render_count: 0u32,
+            _render_step: 1u32,
+            _render_name: zant::Str::from("Zant"),
+            _render_large: false,
+            _render_notify: true,
         }
     }
 }
@@ -51,8 +61,8 @@ impl tsx::hot::Hot for Counter {
 }
 impl Counter {
     fn increment(&mut self) {
-        let count: u32 = self.count;
-        let step: u32 = self.step;
+        let count: u32 = self._render_count;
+        let step: u32 = self._render_step;
         self.count = count + step;
     }
     fn _set_name(&mut self, value: &str) {
@@ -76,6 +86,11 @@ impl Counter {
 }
 impl ui::App for Counter {
     fn render(&mut self) -> ui::Node {
+        self._render_count = self.count;
+        self._render_step = self.step;
+        self._render_name = self.name.clone();
+        self._render_large = self.large;
+        self._render_notify = self.notify;
         let doubled: u32 = self.count * 2u32;
         return ui::view(ui::ViewOptions {
             padding: ui::inset(24.0f32),

@@ -367,8 +367,8 @@ impl Rewriter<'_> {
                     o.destructure_defaults = defaults;
                     for n in &p.destructure {
                         self.env.push(Entry {
-                            name: n.name.clone(),
-                            binding: Binding::Rename(n.name.clone()),
+                            name: n.local.name.clone(),
+                            binding: Binding::Rename(n.local.name.clone()),
                         });
                     }
                     params.push(o);
@@ -469,6 +469,7 @@ impl Rewriter<'_> {
                         callee,
                         type_args,
                         args,
+                        optional: false,
                     }),
                 ))
             }

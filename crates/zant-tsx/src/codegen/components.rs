@@ -41,7 +41,7 @@ pub struct Component {
     /// The parameter's name (`props`) when not destructured.
     pub param: String,
     /// Destructured prop names (`{ todo, on_toggle }`) and their defaults.
-    pub destructure: Vec<ast::Name>,
+    pub destructure: Vec<ast::DestructuredProp>,
     pub destructure_defaults: Vec<Option<Box<ast::Expr>>>,
     /// Imported from another file: `builder` is already Rust code.
     pub external: bool,
@@ -240,7 +240,7 @@ pub fn collect(
                 };
                 let default = p.destructure_defaults.get(index).cloned().flatten();
                 if let Some(default) = default {
-                    functions::prop(g, n, &default, field, "")?;
+                    functions::prop(g, &default, field, "")?;
                 }
             }
         }
@@ -303,7 +303,7 @@ pub fn read_prop(g: &mut Generator<'_>, n: &str) -> Result<Option<Value>> {
         return Ok(None);
     };
     for (i, d) in component.destructure.iter().enumerate() {
-        if String::from_utf8_lossy(&d.name) != n {
+        if String::from_utf8_lossy(&d.local.name) != n {
             continue;
         }
         g.component_props_read = true;
@@ -314,7 +314,7 @@ pub fn read_prop(g: &mut Generator<'_>, n: &str) -> Result<Option<Value>> {
             .get(i)
             .and_then(|default| default.as_ref())
         {
-            return Ok(Some(functions::prop(g, d, default, ty, &code)?));
+            return Ok(Some(functions::prop(g, default, ty, &code)?));
         }
         return Ok(Some(super::scope::owned_read(g, ty, code)));
     }
@@ -381,11 +381,12 @@ pub fn try_call(
     let Some(entry) = callback_info(g, callee.ty) else {
         return Ok(None);
     };
-    if model::optional_child(g, callee.ty).is_some() {
+    let optional = model::optional_child(g, callee.ty).is_some();
+    if optional && !call.optional {
         return fail(
             g,
             loc,
-            "optional callback props may be null; check first: `if (onX) onX(...)`",
+            "optional callback props may be absent; call them as `onX?.(...)` or check first: `if (onX) onX(...)`",
         );
     }
     if c.render {
@@ -428,11 +429,26 @@ pub fn try_call(
         joined.push_str(", ");
         joined.push_str(&value);
     }
+    // `onX?.(…)` on an optional callback: like TypeScript, nothing runs
+    // (and the arguments are not evaluated) when it is absent
+    let (target, wrap) = if optional {
+        ("_callback".to_owned(), true)
+    } else {
+        (format!("({})", callee.code), false)
+    };
+    let invoke = match kind {
+        Some(_) => format!("{target}.call({joined})"),
+        None => format!("{target}({joined})"),
+    };
     Ok(Some(Value {
         ty: Type::Void,
-        code: match kind {
-            Some(_) => format!("({}).call({joined})", callee.code),
-            None => format!("({})({joined})", callee.code),
+        code: if wrap {
+            format!(
+                "if let Some(_callback) = &({}) {{ {invoke}; }}",
+                callee.code
+            )
+        } else {
+            invoke
         },
         ..Value::default()
     }))
@@ -575,6 +591,29 @@ pub fn scan(g: &mut Generator<'_>, j: &ast::Jsx, component: &Component) -> Resul
             scan_expr_via(g, value)?;
             continue;
         };
+        scan_callback(g, &attr.name.name, value, &entry)?;
+    }
+    Ok(())
+}
+
+/// Registers the handler method of one callback prop value (each branch of a
+/// `cond ? a : b`).
+fn scan_callback(
+    g: &mut Generator<'_>,
+    attr: &[u8],
+    value: &ast::Expr,
+    entry: &model::Info,
+) -> Result<()> {
+    if let ast::ExprData::Cond(cond) = &value.data {
+        scan_expr_via(g, &cond.cond)?;
+        for branch in [&cond.then, &cond.else_] {
+            if !absent_callback(branch) {
+                scan_callback(g, attr, branch, entry)?;
+            }
+        }
+        return Ok(());
+    }
+    {
         let function: Option<Box<ast::Function>> = match &value.data {
             ast::ExprData::Arrow(function) => Some(function.clone()),
             ast::ExprData::Ident(name) => {
@@ -589,20 +628,20 @@ pub fn scan(g: &mut Generator<'_>, j: &ast::Jsx, component: &Component) -> Resul
                         && (functions::find_index(g, name.as_bytes()).is_some()
                             || scope::setter_index(g, name.as_bytes()).is_some());
                     if !plain {
-                        continue;
+                        return Ok(());
                     }
                     Some(Box::new(forward_arrow(g, value, entry.params.len())?))
                 }
             }
-            _ => continue,
+            _ => return Ok(()),
         };
         let Some(function) = function else {
-            continue;
+            return Ok(());
         };
         g.counter += 1;
         let name = scope::unique_method(
             g,
-            &format!("_{}{}", String::from_utf8_lossy(&attr.name.name), g.counter),
+            &format!("_{}{}", String::from_utf8_lossy(attr), g.counter),
         )?;
         let capture_name = scope::unique_method(g, &format!("_Capture{}", g.counter))?;
         if function.params.len() > entry.params.len() {
@@ -688,6 +727,7 @@ fn forward_arrow(g: &mut Generator<'_>, e: &ast::Expr, count: usize) -> Result<a
                 callee: Box::new(e.clone()),
                 type_args: Vec::new(),
                 args,
+                optional: false,
             }),
         })),
     })
@@ -1051,12 +1091,65 @@ fn prop_value(
     value: &ast::Expr,
 ) -> Result<String> {
     if let Some(entry) = callback_info(g, ty) {
-        if matches!(value.data, ast::ExprData::NullLit) && model::optional_child(g, ty).is_some() {
-            return Ok("None".to_owned());
-        }
-        return callback_value(g, c, &entry, value);
+        let optional = model::optional_child(g, ty).is_some();
+        return callback_choice(g, c, &entry, optional, value);
     }
     Ok(expr::emit(g, c, value, Some(ty), false)?.code)
+}
+
+/// `undefined` / `null` where a callback goes.
+fn absent_callback(e: &ast::Expr) -> bool {
+    match &e.data {
+        ast::ExprData::NullLit => true,
+        ast::ExprData::Ident(name) => name == b"undefined",
+        _ => false,
+    }
+}
+
+/// The value of a callback prop: like React, `cond ? a : b` picks its branch
+/// at render time, and an optional prop takes `undefined` / `null` (absent)
+/// or `Some(callback)`.
+fn callback_choice(
+    g: &mut Generator<'_>,
+    c: &mut scope::Context,
+    entry: &model::Info,
+    optional: bool,
+    value: &ast::Expr,
+) -> Result<String> {
+    if absent_callback(value) {
+        if optional {
+            return Ok("None".to_owned());
+        }
+        return fail(
+            g,
+            value.loc,
+            "this callback prop is required; make it optional (`onX?: …`) to pass undefined",
+        );
+    }
+    if let ast::ExprData::Cond(cond) = &value.data {
+        let test = expr::condition(g, c, &cond.cond)?.code;
+        let then = callback_choice(g, c, entry, optional, &cond.then)?;
+        let otherwise = callback_choice(g, c, entry, optional, &cond.else_)?;
+        return Ok(format!("if {test} {{ {then} }} else {{ {otherwise} }}"));
+    }
+    // this component's own optional callback prop forwarded as is
+    if optional
+        && let ast::ExprData::Ident(name) = &value.data
+        && let Some(prop) = read_prop(g, &String::from_utf8_lossy(name))?
+        && model::optional_child(g, prop.ty).is_some()
+    {
+        let same = callback_info(g, prop.ty);
+        if same.as_ref().is_none_or(|info| info.params != entry.params) {
+            return fail(g, value.loc, "this callback has a different signature");
+        }
+        return Ok(prop.code);
+    }
+    let code = callback_value(g, c, entry, value)?;
+    Ok(if optional {
+        format!("Some({code})")
+    } else {
+        code
+    })
 }
 
 /// A function, an inline arrow or a callback prop of this component, bound as

@@ -556,7 +556,7 @@ fn app_hook_diagnostics() {
         ),
         (
             format!("{APP}  ~useKeyDown(1);\n{END}"),
-            "useKeyDown takes one function",
+            "useKeyDown takes a function: an inline arrow or the name of a function",
         ),
         (
             format!("{APP}  useCloseRequest(~(x: number) => true);\n{END}"),

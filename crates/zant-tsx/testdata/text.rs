@@ -13,6 +13,9 @@ pub struct TextExamples {
     name: zant::Str,
     count: u32,
     enabled: bool,
+    _render_name: zant::Str,
+    _render_count: u32,
+    _render_enabled: bool,
 }
 impl Default for TextExamples {
     fn default() -> Self {
@@ -20,6 +23,9 @@ impl Default for TextExamples {
             name: zant::Str::from("Zant"),
             count: 3u32,
             enabled: false,
+            _render_name: zant::Str::from("Zant"),
+            _render_count: 3u32,
+            _render_enabled: false,
         }
     }
 }
@@ -43,19 +49,22 @@ impl tsx::hot::Hot for TextExamples {
 }
 impl TextExamples {
     fn _on_click1(&mut self) {
-        let count: u32 = self.count;
+        let count: u32 = self._render_count;
         self.count = count + 1u32;
     }
     fn _set_enabled(&mut self, value: bool) {
         self.enabled = value;
     }
     fn _on_change2(&mut self, _: bool) {
-        let enabled: bool = self.enabled;
+        let enabled: bool = self._render_enabled;
         self.enabled = !enabled;
     }
 }
 impl ui::App for TextExamples {
     fn render(&mut self) -> ui::Node {
+        self._render_name = self.name.clone();
+        self._render_count = self.count;
+        self._render_enabled = self.enabled;
         let greeting: zant::Str = zant::Str::copy(
             &format!("Hello, {}!", self.name.clone()),
         );

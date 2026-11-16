@@ -44,6 +44,8 @@ pub struct Feed {
     picked: u32,
     _list1: std::rc::Rc<std::cell::RefCell<ui::ListState>>,
     _list3: std::rc::Rc<std::cell::RefCell<ui::ListState>>,
+    _render_items: tsx::List<Item>,
+    _render_picked: u32,
 }
 impl Default for Feed {
     fn default() -> Self {
@@ -55,6 +57,13 @@ impl Default for Feed {
                 ],
             ),
             picked: 0u32,
+            _render_items: tsx::List::from_vec(
+                vec![
+                    Item { id : 1u32, title : zant::Str::from("One"), done : false, },
+                    Item { id : 2u32, title : zant::Str::from("Two"), done : true, }
+                ],
+            ),
+            _render_picked: 0u32,
             _list1: Default::default(),
             _list3: Default::default(),
         }
@@ -91,6 +100,8 @@ impl Feed {
 }
 impl ui::App for Feed {
     fn render(&mut self) -> ui::Node {
+        self._render_items = self.items.clone();
+        self._render_picked = self.picked;
         let theme: zant::theme::tokens::Theme = ui::current_theme();
         let visible: tsx::List<Item> = {
             let _items: tsx::List<Item> = self.items.clone();

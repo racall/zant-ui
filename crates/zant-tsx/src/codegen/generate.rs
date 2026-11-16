@@ -527,6 +527,7 @@ fn emit_component(
             "    _state: std::rc::Weak<std::cell::RefCell<{name}>>,\n"
         ));
         out.push_str(&fields);
+        out.push_str(&render_state_parts(g)?.0);
         out.push_str("}\n\n");
         out.push_str(&format!("{props_type}\n\n"));
         out.push_str(&default_impl(g, &name, &component_data)?);
@@ -534,8 +535,9 @@ fn emit_component(
         out.push_str(&captures);
         out.push_str(&format!("impl {name} {{\n"));
         out.push_str(&builder_function(g, &name, &component_data, &props_name)?);
+        let render_states = render_state_parts(g)?.2;
         out.push_str(&format!(
-            "pub fn render(&mut self) -> ui::Node {{\n{render_body}}}\n"
+            "pub fn render(&mut self) -> ui::Node {{\n{render_states}{render_body}}}\n"
         ));
         for method in methods {
             out.push('\n');
@@ -563,7 +565,10 @@ fn emit_component(
     } else {
         // no `derive(Default)`: the hand-written impl below carries the
         // `useState` initial values
-        out.push_str(&format!("pub struct {name} {{\n{fields}}}\n\n"));
+        let render_fields = render_state_parts(g)?.0;
+        out.push_str(&format!(
+            "pub struct {name} {{\n{fields}{render_fields}}}\n\n"
+        ));
         out.push_str(&default_impl(g, &name, &root_component_stub())?);
         out.push_str(&hot_impl(&name, &fields, false));
         out.push_str(&captures);
@@ -573,8 +578,9 @@ fn emit_component(
             out.push('\n');
         }
         out.push_str("}\n\n");
+        let render_states = render_state_parts(g)?.2;
         out.push_str(&format!(
-            "impl ui::App for {name} {{\nfn render(&mut self) -> ui::Node {{\n{render_body}}}\n"
+            "impl ui::App for {name} {{\nfn render(&mut self) -> ui::Node {{\n{render_states}{render_body}}}\n"
         ));
         let (save, load) = hot_fields(&fields);
         let mutable = if fields.trim().is_empty() { "" } else { "mut " };
@@ -682,6 +688,7 @@ fn default_impl(
         let field = rust_text::id_at(g, state.name.as_bytes(), 0)?;
         values.push_str(&format!("            {field}: {},\n", state.initial));
     }
+    values.push_str(&render_state_parts(g)?.1);
     let hook_fields = g.hook_fields.clone();
     for field in &hook_fields {
         let id = rust_text::id_at(g, field.name.as_bytes(), 0)?;
@@ -696,6 +703,40 @@ fn default_impl(
     Ok(format!(
         "impl Default for {name} {{\n    fn default() -> Self {{\n        Self {{\n{values}        }}\n    }}\n}}\n\n"
     ))
+}
+
+/// React gives every handler the state of the render it came from: setting
+/// state during an event does not change what the rest of that event reads
+/// (`bump(); bump()` with `const bump = () => setN(n + 1)` sets `n + 1`
+/// once). Handlers snapshot `_render_<state>`, assigned when the component
+/// renders; functional updates (`setN(p => p + 1)`) read the latest value.
+pub(crate) fn render_state_field(name: &str) -> String {
+    format!("_render_{name}")
+}
+
+/// The `_render_<state>` fields: declarations, `Default` values and the
+/// assignments at the start of `render` (kept out of `fields`, so hot reload
+/// does not save them).
+fn render_state_parts(g: &mut Generator<'_>) -> Result<(String, String, String)> {
+    let mut declarations = String::new();
+    let mut defaults = String::new();
+    let mut assignments = String::new();
+    for state in g.states.clone() {
+        if state.kind != super::StateKind::State {
+            continue;
+        }
+        let field = scope::state_field(g, state.name.as_bytes())?;
+        let shadow = render_state_field(&state.name);
+        declarations.push_str(&format!("    {shadow}: {},\n", state.ty.rust(g)));
+        defaults.push_str(&format!("            {shadow}: {},\n", state.initial));
+        let value = if state.ty.copy(g) {
+            format!("self.{field}")
+        } else {
+            format!("self.{field}.clone()")
+        };
+        assignments.push_str(&format!("self.{shadow} = {value};\n"));
+    }
+    Ok((declarations, defaults, assignments))
 }
 
 /// State fields with their types (values come from [`default_impl`]).

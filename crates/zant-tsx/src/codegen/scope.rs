@@ -243,7 +243,13 @@ pub fn finish(g: &mut Generator<'_>, c: &Context, body: String) -> Result<String
             continue;
         }
         let state = g.states[snapshot.state].clone();
-        let field = state_field(g, state.name.as_bytes())?;
+        // the value of the last render (React's per-render state), not one
+        // a handler earlier in this event has just set
+        let field = if state.kind == super::StateKind::State {
+            super::generate::render_state_field(&state.name)
+        } else {
+            state_field(g, state.name.as_bytes())?
+        };
         let init = if state.ty.copy(g) {
             format!("self.{field}")
         } else {
@@ -553,8 +559,9 @@ mod tests {
             let value = read(g, &mut handler, b"count", 0).unwrap();
             assert_eq!("count", value.code);
             let finished = finish(g, &handler, "count = count + 1u32;\n".to_owned()).unwrap();
+            // the value of the last render (React's per-render state)
             assert!(
-                finished.starts_with("let count: u32 = self.count;\n"),
+                finished.starts_with("let count: u32 = self._render_count;\n"),
                 "{finished}"
             );
         });

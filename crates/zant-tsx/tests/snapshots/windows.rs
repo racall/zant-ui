@@ -41,6 +41,7 @@ pub struct Panel {
     _id: u64,
     _state: std::rc::Weak<std::cell::RefCell<Panel>>,
     shown: f64,
+    _render_shown: f64,
 }
 #[derive(Default)]
 pub struct PanelProps_;
@@ -50,6 +51,7 @@ impl Default for Panel {
             _id: 0,
             _state: Default::default(),
             shown: 0.0f64,
+            _render_shown: 0.0f64,
         }
     }
 }
@@ -80,6 +82,7 @@ impl Panel {
         }
     }
     pub fn render(&mut self) -> ui::Node {
+        self._render_shown = self.shown;
         return ui::text("stub", ui::TextOptions::default());
     }
     fn _window_on_focus(&mut self, focused: bool) {
@@ -99,11 +102,11 @@ impl Panel {
         return false;
     }
     fn _on_click1(&mut self) {
-        let shown: f64 = self.shown;
+        let shown: f64 = self._render_shown;
         self.shown = shown + 1.0f64;
     }
     fn _on_click2(&mut self) {
-        let shown: f64 = self.shown;
+        let shown: f64 = self._render_shown;
         self.shown = shown + 1.0f64;
     }
 }

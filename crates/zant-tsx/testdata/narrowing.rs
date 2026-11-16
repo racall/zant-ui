@@ -171,6 +171,9 @@ pub struct App {
     peer: Option<Peer>,
     label: Option<zant::Str>,
     picked: zant::Str,
+    _render_peer: Option<Peer>,
+    _render_label: Option<zant::Str>,
+    _render_picked: zant::Str,
 }
 impl Default for App {
     fn default() -> Self {
@@ -178,6 +181,9 @@ impl Default for App {
             peer: None,
             label: None,
             picked: zant::Str::from(""),
+            _render_peer: None,
+            _render_label: None,
+            _render_picked: zant::Str::from(""),
         }
     }
 }
@@ -206,7 +212,7 @@ struct _Capture2 {
 }
 impl App {
     fn connect(&mut self) {
-        let peer: Option<Peer> = self.peer.clone();
+        let peer: Option<Peer> = self._render_peer.clone();
         if peer.clone().is_none() {
             return;
         }
@@ -228,6 +234,9 @@ impl App {
 }
 impl ui::App for App {
     fn render(&mut self) -> ui::Node {
+        self._render_peer = self.peer.clone();
+        self._render_label = self.label.clone();
+        self._render_picked = self.picked.clone();
         let current: Option<Peer> = self.peer.clone();
         let title: zant::Str = if self
             .label

@@ -298,6 +298,10 @@ pub struct App {
     _deps12: Option<()>,
     _effect13: Option<ui::Action>,
     _deps14: Option<(zant::Str,)>,
+    _render_items: tsx::List<Item>,
+    _render_query: zant::Str,
+    _render_loaded: bool,
+    _render_ticking: bool,
 }
 impl Default for App {
     fn default() -> Self {
@@ -309,6 +313,10 @@ impl Default for App {
             lastQuery: zant::Str::from(""),
             cleanups: 0.0f64,
             ticking: true,
+            _render_items: tsx::List::from_vec(Vec::<Item>::new()),
+            _render_query: zant::Str::from(""),
+            _render_loaded: false,
+            _render_ticking: true,
             _memo11: Default::default(),
             _deps12: Default::default(),
             _effect13: Default::default(),
@@ -367,7 +375,7 @@ impl App {
             + (tsx::utf16_length((cap.previous.clone()).as_str()) as f64);
     }
     fn _effect9(&mut self) {
-        let query: zant::Str = self.query.clone();
+        let query: zant::Str = self._render_query.clone();
         let previous: zant::Str = query.clone();
         self.lastQuery = query.clone();
         self._effect13 = Some(
@@ -381,7 +389,7 @@ impl App {
         return;
     }
     fn add(&mut self) {
-        let items: tsx::List<Item> = self.items.clone();
+        let items: tsx::List<Item> = self._render_items.clone();
         self.items = {
             let mut _items: Vec<Item> = vec![
                 Item { id : self.nextId.clone(), title : zant::Str::copy(&
@@ -397,12 +405,16 @@ impl App {
         self.query = zant::Str::copy(value);
     }
     fn _on_click10(&mut self) {
-        let ticking: bool = self.ticking;
+        let ticking: bool = self._render_ticking;
         self.ticking = !ticking;
     }
 }
 impl ui::App for App {
     fn render(&mut self) -> ui::Node {
+        self._render_items = self.items.clone();
+        self._render_query = self.query.clone();
+        self._render_loaded = self.loaded;
+        self._render_ticking = self.ticking;
         let visible: tsx::List<Item> = '_memo: {
             let _deps: (tsx::List<Item>, zant::Str) = (
                 self.items.clone(),

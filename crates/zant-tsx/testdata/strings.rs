@@ -11,10 +11,14 @@ use zant::tsx;
 use zant::ui;
 pub struct App {
     query: zant::Str,
+    _render_query: zant::Str,
 }
 impl Default for App {
     fn default() -> Self {
-        Self { query: zant::Str::from("") }
+        Self {
+            query: zant::Str::from(""),
+            _render_query: zant::Str::from(""),
+        }
     }
 }
 impl tsx::hot::Hot for App {
@@ -38,6 +42,7 @@ impl App {
 }
 impl ui::App for App {
     fn render(&mut self) -> ui::Node {
+        self._render_query = self.query.clone();
         let titles: tsx::List<zant::Str> = tsx::List::from_vec(
             vec![
                 zant::Str::from("Alpha 中😀"), zant::Str::from("Beta"),

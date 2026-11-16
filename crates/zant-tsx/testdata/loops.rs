@@ -127,6 +127,9 @@ pub struct App {
     items: tsx::List<f64>,
     visits: f64,
     _deps4: Option<(tsx::List<f64>,)>,
+    _render_result: f64,
+    _render_mounted: f64,
+    _render_items: tsx::List<f64>,
 }
 impl Default for App {
     fn default() -> Self {
@@ -135,6 +138,11 @@ impl Default for App {
             mounted: 0.0f64,
             items: tsx::List::from_vec(vec![1.0f64, 2.0f64, 3.0f64, 4.0f64, 5.0f64]),
             visits: 0.0f64,
+            _render_result: 0.0f64,
+            _render_mounted: 0.0f64,
+            _render_items: tsx::List::from_vec(
+                vec![1.0f64, 2.0f64, 3.0f64, 4.0f64, 5.0f64],
+            ),
             _deps4: Default::default(),
         }
     }
@@ -164,7 +172,7 @@ impl tsx::hot::Hot for App {
 impl App {
     fn _effect1(&mut self) {
         ui::request_rebuild();
-        let items: tsx::List<f64> = self.items.clone();
+        let items: tsx::List<f64> = self._render_items.clone();
         let mut total: f64 = 0.0f64;
         {
             let _items: tsx::List<f64> = items.clone();
@@ -251,7 +259,7 @@ impl App {
         self.result = total;
     }
     fn each(&mut self) {
-        let items: tsx::List<f64> = self.items.clone();
+        let items: tsx::List<f64> = self._render_items.clone();
         let mut total: f64 = 0.0f64;
         {
             let _items: tsx::List<f64> = items.clone();
@@ -361,7 +369,7 @@ impl App {
         self.result = total + i;
     }
     fn select(&mut self) {
-        let result: f64 = self.result;
+        let result: f64 = self._render_result;
         self.visits = 0.0f64;
         let mut total: f64 = 0.0f64;
         '_switch: {
@@ -448,6 +456,9 @@ impl App {
 }
 impl ui::App for App {
     fn render(&mut self) -> ui::Node {
+        self._render_result = self.result;
+        self._render_mounted = self.mounted;
+        self._render_items = self.items.clone();
         let _deps: (tsx::List<f64>,) = (self.items.clone(),);
         if self._deps4.as_ref() != Some(&_deps) {
             self._deps4 = Some(_deps);

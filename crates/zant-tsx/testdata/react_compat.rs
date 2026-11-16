@@ -96,10 +96,17 @@ impl Child {
 pub struct App {
     n: f64,
     visible: bool,
+    _render_n: f64,
+    _render_visible: bool,
 }
 impl Default for App {
     fn default() -> Self {
-        Self { n: 0.0f64, visible: true }
+        Self {
+            n: 0.0f64,
+            visible: true,
+            _render_n: 0.0f64,
+            _render_visible: true,
+        }
     }
 }
 impl tsx::hot::Hot for App {
@@ -120,16 +127,18 @@ impl tsx::hot::Hot for App {
 }
 impl App {
     fn _on_click4(&mut self) {
-        let n: f64 = self.n;
+        let n: f64 = self._render_n;
         self.n = n + 1.0f64;
     }
     fn _on_click5(&mut self) {
-        let visible: bool = self.visible;
+        let visible: bool = self._render_visible;
         self.visible = !visible;
     }
 }
 impl ui::App for App {
     fn render(&mut self) -> ui::Node {
+        self._render_n = self.n;
+        self._render_visible = self.visible;
         return ui::view(ui::ViewOptions {
             children: nodes![
                 ui::button(ui::ButtonOptions { text : zant::Str::copy(& format!("{}",

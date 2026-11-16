@@ -15,6 +15,11 @@ pub struct Components {
     real: f64,
     enabled: bool,
     label: zant::Str,
+    _render_index: usize,
+    _render_narrow: u8,
+    _render_real: f64,
+    _render_enabled: bool,
+    _render_label: zant::Str,
 }
 impl Default for Components {
     fn default() -> Self {
@@ -24,6 +29,11 @@ impl Default for Components {
             real: 1.5f64,
             enabled: true,
             label: zant::Str::from("Choice"),
+            _render_index: 0usize,
+            _render_narrow: 0u8,
+            _render_real: 1.5f64,
+            _render_enabled: true,
+            _render_label: zant::Str::from("Choice"),
         }
     }
 }
@@ -78,7 +88,7 @@ impl Components {
         self.narrow = value.try_into().expect("index setter does not fit u8");
     }
     fn _on_click1(&mut self) {
-        let enabled: bool = self.enabled;
+        let enabled: bool = self._render_enabled;
         self.enabled = !enabled;
     }
     fn _set_real(&mut self, value: usize) {
@@ -87,6 +97,11 @@ impl Components {
 }
 impl ui::App for Components {
     fn render(&mut self) -> ui::Node {
+        self._render_index = self.index;
+        self._render_narrow = self.narrow;
+        self._render_real = self.real;
+        self._render_enabled = self.enabled;
+        self._render_label = self.label.clone();
         let content: ui::Node = ui::text(
             zant::Str::from("Reusable content"),
             ui::TextOptions {

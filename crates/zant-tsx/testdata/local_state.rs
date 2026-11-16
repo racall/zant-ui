@@ -36,6 +36,9 @@ pub struct Counter {
     count: f64,
     draft: zant::Str,
     log: tsx::List<zant::Str>,
+    _render_count: f64,
+    _render_draft: zant::Str,
+    _render_log: tsx::List<zant::Str>,
 }
 pub type CounterProps_ = CounterProps;
 impl Default for Counter {
@@ -47,6 +50,9 @@ impl Default for Counter {
             count: 0.0f64,
             draft: zant::Str::from(""),
             log: tsx::List::from_vec(Vec::<zant::Str>::new()),
+            _render_count: 0.0f64,
+            _render_draft: zant::Str::from(""),
+            _render_log: tsx::List::from_vec(Vec::<zant::Str>::new()),
         }
     }
 }
@@ -82,6 +88,9 @@ impl Counter {
         }
     }
     pub fn render(&mut self) -> ui::Node {
+        self._render_count = self.count;
+        self._render_draft = self.draft.clone();
+        self._render_log = self.log.clone();
         return ui::row(ui::BoxOptions {
             gap: 8.0f32,
             align_items: zant::layout::flex::Align::Center,
@@ -107,8 +116,8 @@ impl Counter {
         });
     }
     fn add(&mut self) {
-        let log: tsx::List<zant::Str> = self.log.clone();
-        let draft: zant::Str = self.draft.clone();
+        let log: tsx::List<zant::Str> = self._render_log.clone();
+        let draft: zant::Str = self._render_draft.clone();
         self.log = {
             let mut _items: Vec<zant::Str> = vec![draft.clone()];
             _items.extend(log.clone().iter().cloned());
@@ -285,11 +294,13 @@ impl Title {
 }
 pub struct App {
     ids: tsx::List<u32>,
+    _render_ids: tsx::List<u32>,
 }
 impl Default for App {
     fn default() -> Self {
         Self {
             ids: tsx::List::from_vec(vec![1u32, 2u32]),
+            _render_ids: tsx::List::from_vec(vec![1u32, 2u32]),
         }
     }
 }
@@ -309,7 +320,7 @@ impl tsx::hot::Hot for App {
 }
 impl App {
     fn _on_click3(&mut self) {
-        let ids: tsx::List<u32> = self.ids.clone();
+        let ids: tsx::List<u32> = self._render_ids.clone();
         self.ids = {
             let _items: tsx::List<u32> = ids.clone();
             let _start: usize = tsx::slice_index(1.0f64, _items.as_slice().len());
@@ -323,6 +334,7 @@ impl App {
 }
 impl ui::App for App {
     fn render(&mut self) -> ui::Node {
+        self._render_ids = self.ids.clone();
         return ui::view(ui::ViewOptions {
             padding: ui::inset(16.0f32),
             gap: 8.0f32,

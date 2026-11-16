@@ -298,6 +298,7 @@ pub fn parse_postfix(p: &mut Parser) -> Result<Box<Expr>, Error> {
                     callee: e,
                     type_args: Vec::new(),
                     args,
+                    optional: false,
                 }),
             );
         } else if p.is_p("<") && matches!(&e.data, ExprData::Ident(_)) {
@@ -312,6 +313,7 @@ pub fn parse_postfix(p: &mut Parser) -> Result<Box<Expr>, Error> {
                     callee: e,
                     type_args,
                     args,
+                    optional: false,
                 }),
             );
         } else if p.is_p("?.") {
@@ -319,7 +321,18 @@ pub fn parse_postfix(p: &mut Parser) -> Result<Box<Expr>, Error> {
             if p.is_p("[") {
                 e = parse_index(p, e, true)?;
             } else if p.is_p("(") {
-                return Err(p.fail(p.cur.start, "optional calls (`f?.()`) are not supported"));
+                // `onSave?.(id)`: the codegen checks the callee is optional
+                let args = parse_args(p, &e)?;
+                let loc = e.loc;
+                e = p.expr(
+                    loc,
+                    ExprData::Call(Call {
+                        callee: e,
+                        type_args: Vec::new(),
+                        args,
+                        optional: true,
+                    }),
+                );
             } else {
                 let name = p.expect_ident("a property name")?;
                 let loc = e.loc;

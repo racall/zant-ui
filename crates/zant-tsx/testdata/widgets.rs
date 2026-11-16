@@ -170,6 +170,10 @@ pub struct App {
     path: zant::Str,
     visible: bool,
     changes: f64,
+    _render_source: zant::Str,
+    _render_path: zant::Str,
+    _render_visible: bool,
+    _render_changes: f64,
 }
 impl Default for App {
     fn default() -> Self {
@@ -178,6 +182,12 @@ impl Default for App {
             path: zant::Str::from("tests/fixtures/widgets.pdf"),
             visible: true,
             changes: 0.0f64,
+            _render_source: zant::Str::from(
+                "# Title\n\nFirst paragraph.\n\nSecond **bo",
+            ),
+            _render_path: zant::Str::from("tests/fixtures/widgets.pdf"),
+            _render_visible: true,
+            _render_changes: 0.0f64,
         }
     }
 }
@@ -203,16 +213,20 @@ impl tsx::hot::Hot for App {
 }
 impl App {
     fn _on_change1(&mut self) {
-        let changes: f64 = self.changes;
+        let changes: f64 = self._render_changes;
         self.changes = changes + 1.0f64;
     }
     fn _onChange2(&mut self) {
-        let changes: f64 = self.changes;
+        let changes: f64 = self._render_changes;
         self.changes = changes + 1.0f64;
     }
 }
 impl ui::App for App {
     fn render(&mut self) -> ui::Node {
+        self._render_source = self.source.clone();
+        self._render_path = self.path.clone();
+        self._render_visible = self.visible;
+        self._render_changes = self.changes;
         return ui::view(ui::ViewOptions {
             gap: 8.0f32,
             children: nodes![

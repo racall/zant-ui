@@ -12,12 +12,16 @@ use zant::ui;
 pub struct Conditional {
     visible: bool,
     count: i32,
+    _render_visible: bool,
+    _render_count: i32,
 }
 impl Default for Conditional {
     fn default() -> Self {
         Self {
             visible: true,
             count: -1i32,
+            _render_visible: true,
+            _render_count: -1i32,
         }
     }
 }
@@ -40,6 +44,8 @@ impl tsx::hot::Hot for Conditional {
 impl Conditional {}
 impl ui::App for Conditional {
     fn render(&mut self) -> ui::Node {
+        self._render_visible = self.visible;
+        self._render_count = self.count;
         let header: ui::Node = ui::text(
             zant::Str::from("Always present"),
             ui::TextOptions {

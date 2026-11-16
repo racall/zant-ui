@@ -158,10 +158,14 @@ impl Card {
 }
 pub struct App {
     n: f64,
+    _render_n: f64,
 }
 impl Default for App {
     fn default() -> Self {
-        Self { n: 0.0f64 }
+        Self {
+            n: 0.0f64,
+            _render_n: 0.0f64,
+        }
     }
 }
 impl tsx::hot::Hot for App {
@@ -180,7 +184,7 @@ impl tsx::hot::Hot for App {
 }
 impl App {
     fn _on_click1(&mut self) {
-        let n: f64 = self.n;
+        let n: f64 = self._render_n;
         self.n = n + 1.0f64;
     }
     fn _on_click2(&mut self) {
@@ -189,6 +193,7 @@ impl App {
 }
 impl ui::App for App {
     fn render(&mut self) -> ui::Node {
+        self._render_n = self.n;
         let look: ButtonLook = ButtonLook {
             variant: _Enum1::Primary,
             size: _Enum2::Small,

@@ -243,6 +243,8 @@ export default function App() {{ return <Text>App</Text>; }}
 }
 
 /// The fields of the generated root struct, in order.
+/// The fields of `pub struct Name`, without the `_render_<state>` copies of
+/// the state (React's per-render state, checked on their own).
 fn struct_fields(source: &str, name: &str) -> Vec<String> {
     let start = source
         .find(&format!("pub struct {name} {{\n"))
@@ -253,7 +255,7 @@ fn struct_fields(source: &str, name: &str) -> Vec<String> {
         .lines()
         .skip(1)
         .map(|line| line.trim().to_owned())
-        .filter(|line| !line.is_empty())
+        .filter(|line| !line.is_empty() && !line.starts_with("_render_"))
         .collect()
 }
 
@@ -268,7 +270,11 @@ fn default_fields(source: &str, name: &str) -> Vec<String> {
         .lines()
         .filter_map(|line| {
             let line = line.trim();
-            if line.contains(": ") && !line.starts_with("Self") && !line.starts_with("fn ") {
+            if line.contains(": ")
+                && !line.starts_with("Self")
+                && !line.starts_with("fn ")
+                && !line.starts_with("_render_")
+            {
                 Some(line.trim_end_matches(',').to_owned())
             } else {
                 None
@@ -465,7 +471,16 @@ export default function App() {
     let source = &file.source;
     assert!(source.contains("count: u32,"), "{source}");
     assert!(source.contains("self.count = "), "{source}");
-    assert!(source.contains("let count: u32 = self.count;"), "{source}");
+    // handlers read the state of the last render (`_render_count`, set by
+    // `render`), like React's per-render state
+    assert!(
+        source.contains("let count: u32 = self._render_count;"),
+        "{source}"
+    );
+    assert!(
+        source.contains("self._render_count = self.count;"),
+        "{source}"
+    );
 }
 
 #[test]

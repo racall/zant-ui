@@ -98,23 +98,12 @@ pub fn missing(g: &mut Generator<'_>, p: &ast::Param, ty: Type) -> Result<String
 }
 
 /// `{ size = 14 }`: reading `size` gives `props.size.clone().unwrap_or(14)`.
-pub fn prop(
-    g: &mut Generator<'_>,
-    name: &ast::Name,
-    default: &ast::Expr,
-    ty: Type,
-    code: &str,
-) -> Result<Value> {
+pub fn prop(g: &mut Generator<'_>, default: &ast::Expr, ty: Type, code: &str) -> Result<Value> {
     let Some(child) = model::optional_child(g, ty) else {
-        return fail(
-            g,
-            default.loc,
-            format!(
-                "`{}` is a required prop; a default applies to optional ones (`{}?: …`)",
-                String::from_utf8_lossy(&name.name),
-                String::from_utf8_lossy(&name.name)
-            ),
-        );
+        // TypeScript permits defaults on required properties. Their values
+        // are already defined, so only validate the fallback's type.
+        default_value(g, default, ty)?;
+        return Ok(scope::owned_read(g, ty, code.to_owned()));
     };
     let fallback = default_value(g, default, child)?;
     Ok(Value {

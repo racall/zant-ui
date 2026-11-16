@@ -93,6 +93,42 @@ fn horizontal_layout_with_fixed_widths_and_gap() {
 }
 
 #[test]
+fn an_empty_placeholder_child_takes_no_space_or_gap() {
+    // a TSX component that returned `null` builds `ui::Node::default()`, an
+    // empty Root element: like React's `null` it must not add a gap
+    let mut tree = Tree::init(ant_light());
+    let root = tree.root;
+    tree.get_mut(root).style.gap = 10.0;
+    let first = add_box(
+        &mut tree,
+        FlexStyle {
+            width: Some(100.0),
+            height: Some(50.0),
+            ..Default::default()
+        },
+    );
+    let placeholder = tree.create_node(NodeData::Root);
+    tree.add_child(root, placeholder);
+    let last = add_box(
+        &mut tree,
+        FlexStyle {
+            width: Some(60.0),
+            height: Some(50.0),
+            ..Default::default()
+        },
+    );
+    root_row(
+        &mut tree,
+        Size {
+            width: 500.0,
+            height: 200.0,
+        },
+    );
+    expect_rect(tree.get(first), 0.0, 0.0, 100.0, 50.0);
+    expect_rect(tree.get(last), 110.0, 0.0, 60.0, 50.0);
+}
+
+#[test]
 fn column_layout_and_auto_height() {
     let mut tree = Tree::init(ant_light());
     let root = tree.root;

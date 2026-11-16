@@ -126,6 +126,9 @@ pub struct Call {
     pub callee: Box<Expr>,
     pub type_args: Vec<TypeRef>,
     pub args: Vec<Box<Expr>>,
+    /// `f?.(args)`: nothing happens (the arguments are not evaluated) when
+    /// `f` is absent.
+    pub optional: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -213,13 +216,22 @@ pub struct Param {
     pub ty: Option<TypeRef>,
     /// `x?: T`
     pub optional: bool,
-    /// `function Row({ todo, onToggle }: Props)`: the destructured names
+    /// `function Row({ todo, title: label }: Props)`: properties and local bindings
     /// (the param's `name` is then the whole object's, `props`).
-    pub destructure: Vec<Name>,
+    pub destructure: Vec<DestructuredProp>,
     /// `{ size = 14 }`: a default per destructured name (null: none).
     pub destructure_defaults: Vec<Option<Box<Expr>>>,
     /// `unit = "item"`: the argument callers may leave out.
     pub default: Option<Box<Expr>>,
+}
+
+/// A parameter property: `name` is the field, `local` is its binding.
+/// Keeping property names here also preserves existing prop visitors.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DestructuredProp {
+    pub name: Vec<u8>,
+    pub loc: Loc,
+    pub local: Name,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

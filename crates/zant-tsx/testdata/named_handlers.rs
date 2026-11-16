@@ -102,6 +102,9 @@ pub struct App {
     name: zant::Str,
     said: zant::Str,
     _hotkey7: tsx::desktop::Hotkey,
+    _render_count: f64,
+    _render_name: zant::Str,
+    _render_said: zant::Str,
 }
 impl Default for App {
     fn default() -> Self {
@@ -109,6 +112,9 @@ impl Default for App {
             count: 0.0f64,
             name: zant::Str::from(""),
             said: zant::Str::from(""),
+            _render_count: 0.0f64,
+            _render_name: zant::Str::from(""),
+            _render_said: zant::Str::from(""),
             _hotkey7: Default::default(),
         }
     }
@@ -160,18 +166,18 @@ struct _Capture8 {
 }
 impl App {
     fn _desktop2(&mut self, cap: &_DesktopCapture2) {
-        let count: f64 = self.count;
+        let count: f64 = self._render_count;
         self.count = count + (cap.step as f64);
     }
     fn _set_name(&mut self, value: &str) {
         self.name = zant::Str::copy(value);
     }
     fn _on_click3(&mut self, cap: &_Capture3) {
-        let count: f64 = self.count;
+        let count: f64 = self._render_count;
         self.count = count + (cap.step as f64);
     }
     fn _on_click4(&mut self, cap: &_Capture4) {
-        let count: f64 = self.count;
+        let count: f64 = self._render_count;
         self.count = count + (cap.step as f64);
     }
     fn _on_click5(&mut self, cap: &_Capture5) {
@@ -179,16 +185,19 @@ impl App {
         App::_bump8(self, &(_Capture8 { step: cap.step }));
     }
     fn _onStep6(&mut self, cap: &_Capture6, delta: f64) {
-        let count: f64 = self.count;
+        let count: f64 = self._render_count;
         self.count = count + delta * (cap.step as f64);
     }
     fn _bump8(&mut self, cap: &_Capture8) {
-        let count: f64 = self.count;
+        let count: f64 = self._render_count;
         self.count = count + (cap.step as f64);
     }
 }
 impl ui::App for App {
     fn render(&mut self) -> ui::Node {
+        self._render_count = self.count;
+        self._render_name = self.name.clone();
+        self._render_said = self.said.clone();
         let step: usize = if tsx::utf16_length((self.name.clone()).as_str()) > 0usize {
             tsx::utf16_length((self.name.clone()).as_str())
         } else {

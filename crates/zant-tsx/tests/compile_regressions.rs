@@ -222,7 +222,42 @@ export default function App() {
 }
 "#;
 
+const LOCAL_DESTRUCTURE_RENAME: &str = r#"
+import { View, Text, Button, useState, useTheme } from "zant";
+interface Item { title: string; id: number; }
+function makeItem(): Item { return { title: "Hello", id: 7 }; }
+function localLabel(item: Item): string {
+  const { title: label, id } = item;
+  return `${id}: ${label} ${item.title}`;
+}
+function useTitle() {
+  const [title, setTitle] = useState("Hook");
+  return { title, rename: () => setTitle("Renamed") };
+}
+export default function App() {
+  const [text, setText] = useState("");
+  const item: Item = makeItem();
+  const { title: label, id } = item;
+  const inlineItem: { title: string } = { title: "Inline" };
+  const { title: inlineLabel } = inlineItem;
+  const { title: again } = makeItem();
+  let { title: mutable }: Item = item;
+  mutable = "Changed";
+  const theme = useTheme();
+  const { colorText: ink } = theme;
+  const { title: hookTitle, rename: renameHook } = useTitle();
+  function rename() {
+    const { title: next } = makeItem();
+    setText(next);
+  }
+  return <View><Text color={ink}>{label} {inlineLabel} {id} {again} {mutable} {text} {localLabel(item)}</Text>
+    <Button onClick={rename}>Rename</Button>
+    <Button onClick={renameHook}>{hookTitle}</Button></View>;
+}
+"#;
+
 const MODULES: &[(&str, &str)] = &[
+    ("local_destructure_rename", LOCAL_DESTRUCTURE_RENAME),
     ("child_callbacks", CHILD_CALLBACKS),
     ("props_object_callbacks", PROPS_OBJECT_CALLBACKS),
     ("optional_node", OPTIONAL_NODE),
@@ -230,6 +265,55 @@ const MODULES: &[(&str, &str)] = &[
     ("list_in_child", LIST_IN_CHILD),
     ("optional_children", OPTIONAL_CHILDREN),
 ];
+
+#[test]
+fn local_object_destructuring_preserves_fields_and_evaluates_once() {
+    let generated = compile("local_destructure_rename", LOCAL_DESTRUCTURE_RENAME);
+    contains(&generated, "_destructure.title.clone()");
+    contains(&generated, "_destructure.id");
+    contains(&generated, "color_text");
+    contains(&generated, "let mut mutable: zant::Str");
+    assert_eq!(3, generated.matches("= makeItem();").count(), "{generated}");
+}
+
+#[test]
+fn local_object_destructuring_rejects_missing_fields_and_non_objects() {
+    for (body, expected) in [
+        (
+            "const item: { title: string } = { title: \"a\" }; const { missing: label } = item;",
+            "has no field `missing`",
+        ),
+        (
+            "const { title: label } = 1;",
+            "object destructuring needs an object with a known type",
+        ),
+    ] {
+        let source = format!("export default function App() {{ {body} return <View />; }}");
+        let error =
+            zant_tsx::compile::compile(&source, "invalid.tsx").expect_err("invalid pattern");
+        assert!(error.msg.contains(expected), "{}", error.msg);
+    }
+}
+
+#[test]
+fn renamed_props_resolve_only_the_local_binding_and_validate_the_property() {
+    for (params, value, expected) in [
+        ("title: label", "title", "unknown name `title`"),
+        ("missing: label", "label", "`missing` is not a prop"),
+        (
+            "title: label = 1",
+            "label",
+            "cannot convert f64 to zant::Str",
+        ),
+    ] {
+        let source = format!(
+            "function Label({{ {params} }}: {{ title: string }}) {{ return <Text>{{{value}}}</Text>; }} \
+             export default function App() {{ return <Label title=\"Hello\" />; }}"
+        );
+        let error = zant_tsx::compile::compile(&source, "invalid.tsx").expect_err("invalid prop");
+        assert!(error.msg.contains(expected), "{}", error.msg);
+    }
+}
 
 #[test]
 fn child_callback_props_run_synchronously() {

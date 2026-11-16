@@ -13,6 +13,9 @@ pub struct App {
     draft: zant::Str,
     copied: f64,
     until: f64,
+    _render_draft: zant::Str,
+    _render_copied: f64,
+    _render_until: f64,
 }
 impl Default for App {
     fn default() -> Self {
@@ -20,6 +23,9 @@ impl Default for App {
             draft: zant::Str::from(""),
             copied: 0.0f64,
             until: 0.0f64,
+            _render_draft: zant::Str::from(""),
+            _render_copied: 0.0f64,
+            _render_until: 0.0f64,
         }
     }
 }
@@ -43,7 +49,7 @@ impl tsx::hot::Hot for App {
 }
 impl App {
     fn copy(&mut self) {
-        let draft: zant::Str = self.draft.clone();
+        let draft: zant::Str = self._render_draft.clone();
         if tsx::platform::clipboard::set_text((draft.clone()).as_str()) {
             self.copied = tsx::platform::clipboard::change_count();
             self.until = tsx::builtins::performance_now() + 1800.0f64;
@@ -54,7 +60,7 @@ impl App {
         self.draft = Str::copy(value);
     }
     fn _on_click1(&mut self) {
-        let draft: zant::Str = self.draft.clone();
+        let draft: zant::Str = self._render_draft.clone();
         let _ = tsx::platform::clipboard::set_text((draft.clone()).as_str());
         self.copied = tsx::platform::clipboard::change_count();
     }
@@ -62,7 +68,7 @@ impl App {
         tsx::platform::main_window::hide();
     }
     fn _on_click3(&mut self) {
-        let draft: zant::Str = self.draft.clone();
+        let draft: zant::Str = self._render_draft.clone();
         let _ = tsx::platform::clipboard::set_text((draft.clone()).as_str());
         self.copied = tsx::platform::clipboard::change_count();
     }
@@ -72,6 +78,9 @@ impl App {
 }
 impl ui::App for App {
     fn render(&mut self) -> ui::Node {
+        self._render_draft = self.draft.clone();
+        self._render_copied = self.copied;
+        self._render_until = self.until;
         let insets: zant::platform::platform::TitlebarInsets = ui::titlebar_insets();
         let pad: f32 = insets.left + insets.right;
         let now: f64 = tsx::builtins::performance_now();

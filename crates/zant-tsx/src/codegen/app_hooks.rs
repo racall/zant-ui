@@ -193,8 +193,22 @@ pub fn collect(g: &mut Generator<'_>, e: &ast::Expr) -> Result<()> {
     if call.args.len() != 1 {
         return fail(g, e.loc, format!("{name} takes one function"));
     }
-    let ast::ExprData::Arrow(function) = &call.args[0].data else {
-        return fail(g, e.loc, format!("{name} takes one function"));
+    // `useKeyDown(onKey)`: a function of the component or file, called with
+    // the hook's argument like the inline `(e) => onKey(e)` would be
+    let forwarded;
+    let function = match &call.args[0].data {
+        ast::ExprData::Arrow(function) => function,
+        ast::ExprData::Ident(_) => {
+            forwarded = forwarding_arrow(&call.args[0], hook.param != HookParam::None);
+            &forwarded
+        }
+        _ => {
+            return fail(
+                g,
+                e.loc,
+                format!("{name} takes a function: an inline arrow or the name of a function"),
+            );
+        }
     };
     if function.params.len() > usize::from(hook.param != HookParam::None) {
         let expected = match hook.param {
@@ -288,6 +302,46 @@ pub fn statement(
     // Nothing to emit: the hook's method is a normal method of the component's
     // inherent impl, and `lifecycle` forwards the `impl ui::App` methods to it.
     Ok(String::new())
+}
+
+/// `(e) => callee(e)` (or `() => callee()`) for a named hook callback.
+fn forwarding_arrow(callee: &ast::Expr, takes_argument: bool) -> Box<ast::Function> {
+    let loc = callee.loc;
+    let argument = ast::Name {
+        name: b"_event".to_vec(),
+        loc,
+    };
+    let mut params = Vec::new();
+    let mut args = Vec::new();
+    if takes_argument {
+        params.push(ast::Param {
+            name: argument.clone(),
+            ty: None,
+            optional: false,
+            destructure: Vec::new(),
+            destructure_defaults: Vec::new(),
+            default: None,
+        });
+        args.push(Box::new(ast::Expr {
+            loc,
+            data: ast::ExprData::Ident(argument.name),
+        }));
+    }
+    Box::new(ast::Function {
+        loc,
+        name: Vec::new(),
+        params,
+        ret: None,
+        body: ast::Body::Expr(Box::new(ast::Expr {
+            loc,
+            data: ast::ExprData::Call(ast::Call {
+                callee: Box::new(callee.clone()),
+                type_args: Vec::new(),
+                args,
+                optional: false,
+            }),
+        })),
+    })
 }
 
 /// Declaration-position hooks (`useHotkey`, `useTray`, `useMemo`, `useStore`).

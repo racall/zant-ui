@@ -34,6 +34,7 @@ pub struct Counter {
     _id: u64,
     _state: std::rc::Weak<std::cell::RefCell<Counter>>,
     n: f64,
+    _render_n: f64,
 }
 pub type CounterProps_ = CounterProps;
 impl Default for Counter {
@@ -43,6 +44,7 @@ impl Default for Counter {
             _id: 0,
             _state: Default::default(),
             n: 0.0f64,
+            _render_n: 0.0f64,
         }
     }
 }
@@ -74,6 +76,7 @@ impl Counter {
         }
     }
     pub fn render(&mut self) -> ui::Node {
+        self._render_n = self.n;
         return ui::button(ui::ButtonOptions {
             key: Some(zant::Str::copy(&format!("count-{}", self.props.label.clone()))),
             text: zant::Str::copy(
@@ -95,7 +98,7 @@ impl Counter {
         });
     }
     fn _on_click1(&mut self) {
-        let n: f64 = self.n;
+        let n: f64 = self._render_n;
         self.n = n + 1.0f64;
     }
 }
@@ -104,6 +107,10 @@ pub struct App {
     clicks: f64,
     cards: f64,
     page: f64,
+    _render_open: bool,
+    _render_clicks: f64,
+    _render_cards: f64,
+    _render_page: f64,
 }
 impl Default for App {
     fn default() -> Self {
@@ -112,6 +119,10 @@ impl Default for App {
             clicks: 0.0f64,
             cards: 0.0f64,
             page: 0.0f64,
+            _render_open: false,
+            _render_clicks: 0.0f64,
+            _render_cards: 0.0f64,
+            _render_page: 0.0f64,
         }
     }
 }
@@ -137,22 +148,22 @@ impl tsx::hot::Hot for App {
 }
 impl App {
     fn _on_click2(&mut self) {
-        let clicks: f64 = self.clicks;
+        let clicks: f64 = self._render_clicks;
         self.clicks = clicks + 1.0f64;
     }
     fn _on_click3(&mut self) {
         self.open = true;
     }
     fn _on_click4(&mut self) {
-        let clicks: f64 = self.clicks;
+        let clicks: f64 = self._render_clicks;
         self.clicks = clicks + 1.0f64;
     }
     fn _on_click5(&mut self) {
-        let cards: f64 = self.cards;
+        let cards: f64 = self._render_cards;
         self.cards = cards + 1.0f64;
     }
     fn _on_click6(&mut self) {
-        let clicks: f64 = self.clicks;
+        let clicks: f64 = self._render_clicks;
         self.clicks = clicks + 10.0f64;
     }
     fn _on_close7(&mut self) {
@@ -161,6 +172,10 @@ impl App {
 }
 impl ui::App for App {
     fn render(&mut self) -> ui::Node {
+        self._render_open = self.open;
+        self._render_clicks = self.clicks;
+        self._render_cards = self.cards;
+        self._render_page = self.page;
         let names: tsx::List<zant::Str> = tsx::List::from_vec(
             vec![zant::Str::from("a"), zant::Str::from("b")],
         );

@@ -13,12 +13,16 @@ pub struct App {
     selected: f64,
     epoch: f64,
     _list4: std::rc::Rc<std::cell::RefCell<ui::ListState>>,
+    _render_selected: f64,
+    _render_epoch: f64,
 }
 impl Default for App {
     fn default() -> Self {
         Self {
             selected: 0.0f64,
             epoch: 0.0f64,
+            _render_selected: 0.0f64,
+            _render_epoch: 0.0f64,
             _list4: Default::default(),
         }
     }
@@ -49,12 +53,14 @@ impl App {
         self.selected = 0.0f64;
     }
     fn _on_click3(&mut self) {
-        let epoch: f64 = self.epoch;
+        let epoch: f64 = self._render_epoch;
         self.epoch = epoch + 1.0f64;
     }
 }
 impl ui::App for App {
     fn render(&mut self) -> ui::Node {
+        self._render_selected = self.selected;
+        self._render_epoch = self.epoch;
         let rows: tsx::List<f64> = tsx::List::from_vec(
             vec![
                 0.0f64, 1.0f64, 2.0f64, 3.0f64, 4.0f64, 5.0f64, 6.0f64, 7.0f64, 8.0f64,

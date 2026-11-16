@@ -73,7 +73,8 @@ fn callback_props(g: &Generator<'_>) -> CallbackProps {
             if let Some(field) = field
                 && is_callback(field.ty)
             {
-                props.destructured.push(name.name.clone());
+                // handlers call the local binding (`{ onSave: save }` → `save()`)
+                props.destructured.push(name.local.name.clone());
             }
         }
     } else if !component.param.is_empty() {
@@ -138,7 +139,7 @@ impl Walker<'_, '_> {
                 names.push(param.name.name.clone());
             }
             for name in &param.destructure {
-                names.push(name.name.clone());
+                names.push(name.local.name.clone());
             }
         }
         self.scopes.push(names);

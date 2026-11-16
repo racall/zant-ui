@@ -513,6 +513,15 @@ pub fn call_value(
             return Ok(value);
         }
     }
+    // the callback-prop emitter above handles `onSave?.()`; nothing else
+    // here can be absent
+    if call.optional {
+        return fail(
+            g,
+            loc,
+            "optional calls (`f?.()`) work on optional callback props (`onSave?.()`); call this function directly",
+        );
+    }
     if let Some(value) = builtins::try_call(g, c, loc, call)? {
         return Ok(value);
     }

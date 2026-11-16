@@ -68,7 +68,8 @@ fn check(
     let mut forwarded: Vec<Vec<u8>> = Vec::new();
     for param in &func.params {
         forwarded.push(param.name.name.clone());
-        forwarded.extend(param.destructure.iter().map(|name| name.name.clone()));
+        // the local bindings (`{ onSave: save }` binds `save`)
+        forwarded.extend(param.destructure.iter().map(|name| name.local.name.clone()));
     }
     let mut walker = Walker {
         project,
@@ -336,6 +337,13 @@ impl Walker<'_> {
                 let forwarded = matches!(&member.object.data,
                     ast::ExprData::Ident(object) if self.forwarded.iter().any(|param| param == object));
                 !forwarded && (event_name(attr) || action_prop(tag, attr))
+            }
+            // `ready ? save : reset`: either branch may bind one
+            ast::ExprData::Cond(cond) => {
+                self.binds_handler(tag, attr, &cond.then)
+                    || self.binds_handler(tag, attr, &cond.else_)
+                    || event_name(attr)
+                    || action_prop(tag, attr)
             }
             // literals are no handlers
             ast::ExprData::Number(_)

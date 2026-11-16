@@ -12,12 +12,16 @@ use zant::ui;
 pub struct Counter {
     count: u32,
     name: zant::Str,
+    _render_count: u32,
+    _render_name: zant::Str,
 }
 impl Default for Counter {
     fn default() -> Self {
         Self {
             count: 0u32,
             name: zant::Str::from("App"),
+            _render_count: 0u32,
+            _render_name: zant::Str::from("App"),
         }
     }
 }
@@ -43,14 +47,14 @@ impl Counter {
         self.name = Str::copy(value);
     }
     fn _on_click1(&mut self) {
-        let count: u32 = self.count;
+        let count: u32 = self._render_count;
         self.count = count + 1u32;
     }
     fn _on_click2(&mut self) {
         self.count = 0u32;
     }
     fn _on_click3(&mut self) {
-        let count: u32 = self.count;
+        let count: u32 = self._render_count;
         self.count = count + 1u32;
     }
     fn _on_click4(&mut self) {
@@ -59,6 +63,8 @@ impl Counter {
 }
 impl ui::App for Counter {
     fn render(&mut self) -> ui::Node {
+        self._render_count = self.count;
+        self._render_name = self.name.clone();
         let doubled: u32 = self.count * 2u32;
         let _ = doubled;
         return ui::text("stub", ui::TextOptions::default());

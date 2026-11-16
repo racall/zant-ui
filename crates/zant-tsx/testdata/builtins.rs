@@ -49,10 +49,14 @@ pub fn probe(a: f64, b: f64) -> f64 {
 }
 pub struct App {
     count: f64,
+    _render_count: f64,
 }
 impl Default for App {
     fn default() -> Self {
-        Self { count: 2.5f64 }
+        Self {
+            count: 2.5f64,
+            _render_count: 2.5f64,
+        }
     }
 }
 impl tsx::hot::Hot for App {
@@ -76,6 +80,7 @@ impl App {
 }
 impl ui::App for App {
     fn render(&mut self) -> ui::Node {
+        self._render_count = self.count;
         let wide: u64 = 9007199254740993u64;
         let narrow: u8 = 7u8;
         let signed: i32 = -9i32;

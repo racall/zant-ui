@@ -459,6 +459,11 @@ pub fn coerce(g: &mut Generator<'_>, v: Value, t: Type, loc: ast::Loc) -> Result
             ..Value::default()
         });
     }
+    // `return null` from a component (React renders nothing): an empty node,
+    // which takes no space in its parent's layout
+    if v.ty == Type::Null && t == Type::Node {
+        return Ok(Value::new(t, "ui::Node::default()"));
+    }
     if (v.ty == Type::Node || v.ty == Type::Null) && t == Type::OptionalNode {
         if v.ty == Type::Null {
             return Ok(Value::new(t, "None"));

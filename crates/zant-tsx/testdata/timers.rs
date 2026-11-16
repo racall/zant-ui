@@ -17,6 +17,9 @@ pub struct App {
     _deps10: Option<()>,
     _effect11: Option<ui::Action>,
     _deps12: Option<(f64,)>,
+    _render_note: zant::Str,
+    _render_left: f64,
+    _render_timer: f64,
 }
 impl Default for App {
     fn default() -> Self {
@@ -24,6 +27,9 @@ impl Default for App {
             note: zant::Str::from(""),
             left: 3.0f64,
             timer: 0.0f64,
+            _render_note: zant::Str::from(""),
+            _render_left: 3.0f64,
+            _render_timer: 0.0f64,
             _effect9: Default::default(),
             _deps10: Default::default(),
             _effect11: Default::default(),
@@ -80,7 +86,7 @@ struct _TimeoutCapture7 {
 }
 impl App {
     fn start(&mut self) {
-        let left: f64 = self.left;
+        let left: f64 = self._render_left;
         let row: f64 = left * 10.0f64;
         self.timer = tsx::timers::set(
             8000.0f64,
@@ -147,12 +153,15 @@ impl App {
         );
     }
     fn _on_click8(&mut self) {
-        let timer: f64 = self.timer;
+        let timer: f64 = self._render_timer;
         tsx::timers::clear(timer);
     }
 }
 impl ui::App for App {
     fn render(&mut self) -> ui::Node {
+        self._render_note = self.note.clone();
+        self._render_left = self.left;
+        self._render_timer = self.timer;
         let _deps: () = ();
         if self._deps10.as_ref() != Some(&_deps) {
             self._deps10 = Some(_deps);

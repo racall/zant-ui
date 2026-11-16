@@ -655,9 +655,17 @@ impl RetainedNode {
         self.data.kind()
     }
 
-    /// Takes part in layout and input (visible and not exiting).
+    /// Takes part in layout and input (visible, not exiting, not an empty
+    /// placeholder).
     pub fn in_flow(&self) -> bool {
-        self.visible && !self.exiting
+        self.visible && !self.exiting && !self.empty_placeholder()
+    }
+
+    /// An empty `Root` element inside another node (`ui::Node::default()`,
+    /// e.g. a TSX component that returned `null`): like React's `null` it
+    /// renders nothing and takes no space, not even a `gap`.
+    fn empty_placeholder(&self) -> bool {
+        self.parent.is_some() && matches!(self.data, NodeData::Root) && self.children.is_empty()
     }
 
     pub fn is_interactive(&self) -> bool {

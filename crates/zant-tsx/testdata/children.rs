@@ -242,6 +242,8 @@ impl Panel {
 pub struct App {
     todos: tsx::List<Todo>,
     last: zant::Str,
+    _render_todos: tsx::List<Todo>,
+    _render_last: zant::Str,
 }
 impl Default for App {
     fn default() -> Self {
@@ -253,6 +255,13 @@ impl Default for App {
                 ],
             ),
             last: zant::Str::from(""),
+            _render_todos: tsx::List::from_vec(
+                vec![
+                    Todo { id : 1u32, title : zant::Str::from("Write tests"), done :
+                    false, }
+                ],
+            ),
+            _render_last: zant::Str::from(""),
         }
     }
 }
@@ -274,7 +283,7 @@ impl tsx::hot::Hot for App {
 }
 impl App {
     fn toggle(&mut self, id: u32) {
-        let todos: tsx::List<Todo> = self.todos.clone();
+        let todos: tsx::List<Todo> = self._render_todos.clone();
         self.todos = {
             let _items: tsx::List<Todo> = todos.clone();
             tsx::List::from_vec(
@@ -302,7 +311,7 @@ impl App {
         self.todos = tsx::List::from_vec(Vec::<Todo>::new());
     }
     fn _onRemove4(&mut self, id: u32) {
-        let todos: tsx::List<Todo> = self.todos.clone();
+        let todos: tsx::List<Todo> = self._render_todos.clone();
         self.todos = {
             let _items: tsx::List<Todo> = todos.clone();
             tsx::List::from_vec(
@@ -321,6 +330,8 @@ impl App {
 }
 impl ui::App for App {
     fn render(&mut self) -> ui::Node {
+        self._render_todos = self.todos.clone();
+        self._render_last = self.last.clone();
         return ui::view(ui::ViewOptions {
             padding: ui::inset(16.0f32),
             gap: 8.0f32,

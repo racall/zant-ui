@@ -102,6 +102,7 @@ fn callback(g: &mut Generator<'_>, e: &ast::Expr) -> Result<()> {
                         callee: Box::new(e.clone()),
                         type_args: Vec::new(),
                         args: Vec::new(),
+                        optional: false,
                     }),
                 };
                 ast::Expr {

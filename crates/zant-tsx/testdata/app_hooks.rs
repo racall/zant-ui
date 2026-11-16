@@ -13,6 +13,9 @@ pub struct App {
     dirty: bool,
     asked: f64,
     last: zant::Str,
+    _render_dirty: bool,
+    _render_asked: f64,
+    _render_last: zant::Str,
 }
 impl Default for App {
     fn default() -> Self {
@@ -20,6 +23,9 @@ impl Default for App {
             dirty: true,
             asked: 0.0f64,
             last: zant::Str::from(""),
+            _render_dirty: true,
+            _render_asked: 0.0f64,
+            _render_last: zant::Str::from(""),
         }
     }
 }
@@ -43,8 +49,8 @@ impl tsx::hot::Hot for App {
 }
 impl App {
     fn _root_on_close_request(&mut self) -> bool {
-        let dirty: bool = self.dirty;
-        let asked: f64 = self.asked;
+        let dirty: bool = self._render_dirty;
+        let asked: f64 = self._render_asked;
         if dirty {
             self.asked = asked + 1.0f64;
             return false;
@@ -62,6 +68,9 @@ impl App {
 }
 impl ui::App for App {
     fn render(&mut self) -> ui::Node {
+        self._render_dirty = self.dirty;
+        self._render_asked = self.asked;
+        self._render_last = self.last.clone();
         return ui::view(ui::ViewOptions {
             padding: ui::inset(16.0f32),
             children: nodes![

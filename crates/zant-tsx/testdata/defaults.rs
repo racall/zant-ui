@@ -132,10 +132,14 @@ impl Badge {
 }
 pub struct App {
     count: f64,
+    _render_count: f64,
 }
 impl Default for App {
     fn default() -> Self {
-        Self { count: 0.0f64 }
+        Self {
+            count: 0.0f64,
+            _render_count: 0.0f64,
+        }
     }
 }
 impl tsx::hot::Hot for App {
@@ -154,7 +158,7 @@ impl tsx::hot::Hot for App {
 }
 impl App {
     fn add(&mut self, by: f64) {
-        let count: f64 = self.count;
+        let count: f64 = self._render_count;
         self.count = count + by;
     }
     fn _on_click1(&mut self) {
@@ -166,6 +170,7 @@ impl App {
 }
 impl ui::App for App {
     fn render(&mut self) -> ui::Node {
+        self._render_count = self.count;
         return ui::view(ui::ViewOptions {
             padding: ui::inset(16.0f32),
             gap: 8.0f32,

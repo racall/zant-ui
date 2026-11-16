@@ -12,12 +12,16 @@ use zant::ui;
 pub struct Themed {
     active: bool,
     last: zant::Str,
+    _render_active: bool,
+    _render_last: zant::Str,
 }
 impl Default for Themed {
     fn default() -> Self {
         Self {
             active: false,
             last: zant::Str::from(""),
+            _render_active: false,
+            _render_last: zant::Str::from(""),
         }
     }
 }
@@ -43,7 +47,7 @@ struct _Capture2 {
 }
 impl Themed {
     fn _on_click1(&mut self) {
-        let active: bool = self.active;
+        let active: bool = self._render_active;
         self.active = !active;
     }
     fn _on_click2(&mut self, cap: &_Capture2) {
@@ -54,6 +58,8 @@ impl Themed {
 }
 impl ui::App for Themed {
     fn render(&mut self) -> ui::Node {
+        self._render_active = self.active;
+        self._render_last = self.last.clone();
         let theme: zant::theme::tokens::Theme = ui::current_theme();
         return ui::view(ui::ViewOptions {
             padding: ui::inset(theme.padding_lg),

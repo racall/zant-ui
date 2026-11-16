@@ -239,7 +239,7 @@ impl Expander<'_, '_> {
         for p in &params {
             self.add_local(&p.name.name);
             for n in &p.destructure {
-                self.add_local(&n.name);
+                self.add_local(&n.local.name);
             }
         }
         let mut list: Vec<Box<Stmt>> = match &self.component.body {

@@ -8,7 +8,9 @@ use crate::ast;
 
 use super::expr;
 use super::loops;
+use super::model;
 use super::narrowing;
+use super::rust_text;
 use super::scope;
 use super::types::{self, Type};
 use super::{Generator, Result, fail};
@@ -144,6 +146,9 @@ fn declaration(
             "hooks must be called at the top level of the component",
         );
     }
+    if let ast::Pattern::Object(bindings) = &d.pattern {
+        return object_declaration(g, c, d, e, bindings);
+    }
     let ast::Pattern::Ident(pattern) = &d.pattern else {
         return fail(g, loc, "destructuring is only supported for useState");
     };
@@ -175,6 +180,57 @@ fn declaration(
         binding,
         scope::PLACEHOLDER_END
     ))
+}
+
+/// Read a typed object's fields from one evaluation of the initializer.
+fn object_declaration(
+    g: &mut Generator<'_>,
+    c: &mut scope::Context,
+    d: &ast::Decl,
+    e: &ast::Expr,
+    bindings: &[ast::ObjectBinding],
+) -> Result<String> {
+    let target =
+        d.ty.as_ref()
+            .map(|ty| types::type_ref(g, ty, false))
+            .transpose()?;
+    let mut value = expr::emit(g, c, e, target, false)?;
+    if let Some(target) = target {
+        value = types::coerce(g, value, target, e.loc)?;
+    }
+    if model::info(g, value.ty).is_none_or(|info| info.kind != model::InfoKind::Object) {
+        return fail(
+            g,
+            e.loc,
+            "object destructuring needs an object with a known type",
+        );
+    }
+    let source = scope::bind(g, c, b"_destructure", value.ty, false)?;
+    c.bindings[source].init = Some(value.code);
+    // This compiler-generated temporary is not a TSX local.
+    c.active.pop();
+    let mut out = format!(
+        "{}{source}{}",
+        scope::PLACEHOLDER_START,
+        scope::PLACEHOLDER_END
+    );
+    for binding in bindings {
+        let ty = model::field_type(g, value.ty, &binding.key.name, binding.key.loc)?;
+        let field = match model::field_rust(g, value.ty, &binding.key.name) {
+            Some(field) => field,
+            None => rust_text::id_at(g, &binding.key.name, binding.key.loc)?,
+        };
+        let code = format!("{}.{}", c.bindings[source].rust, field);
+        let read = scope::owned_read(g, ty, code);
+        let local = scope::bind(g, c, &binding.local.name, ty, !d.is_const)?;
+        c.bindings[local].init = Some(read.code);
+        out.push_str(&format!(
+            "{}{local}{}",
+            scope::PLACEHOLDER_START,
+            scope::PLACEHOLDER_END
+        ));
+    }
+    Ok(out)
 }
 
 /// Validate the return value against the surrounding render or handler

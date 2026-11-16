@@ -78,6 +78,10 @@ pub struct Todos {
     name: zant::Str,
     nextId: f64,
     filter: Filter,
+    _render_todos: tsx::List<Todo>,
+    _render_name: zant::Str,
+    _render_nextId: f64,
+    _render_filter: Filter,
 }
 impl Default for Todos {
     fn default() -> Self {
@@ -86,6 +90,10 @@ impl Default for Todos {
             name: zant::Str::from(""),
             nextId: 1.0f64,
             filter: Filter::All,
+            _render_todos: tsx::List::from_vec(Vec::<Todo>::new()),
+            _render_name: zant::Str::from(""),
+            _render_nextId: 1.0f64,
+            _render_filter: Filter::All,
         }
     }
 }
@@ -119,8 +127,8 @@ struct _Capture5 {
 }
 impl Todos {
     fn add(&mut self) {
-        let name: zant::Str = self.name.clone();
-        let nextId: f64 = self.nextId;
+        let name: zant::Str = self._render_name.clone();
+        let nextId: f64 = self._render_nextId;
         if tsx::utf16_length((name.clone()).as_str()) > 0usize {
             {
                 let current: tsx::List<Todo> = self.todos.clone();
@@ -219,6 +227,10 @@ impl Todos {
 }
 impl ui::App for Todos {
     fn render(&mut self) -> ui::Node {
+        self._render_todos = self.todos.clone();
+        self._render_name = self.name.clone();
+        self._render_nextId = self.nextId;
+        self._render_filter = self.filter;
         let visible: tsx::List<Todo> = {
             let _items: tsx::List<Todo> = self.todos.clone();
             tsx::List::from_vec(
