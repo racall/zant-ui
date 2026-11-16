@@ -3,9 +3,16 @@
 use super::message::{Message, MessageError, Part};
 use std::collections::BTreeMap;
 
+/// What a parameter accepts. ICU formats a plain `{x}` from a string or a
+/// number (as FormatJS types it); `select` matches strings; `number` and
+/// `plural` need numbers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ParamKind {
+    /// Only shown as text (`{x}`): a string or a number.
+    Text,
+    /// A `select` value.
     String,
+    /// `{x, number}`, `plural` and `#`.
     Number,
 }
 
@@ -51,8 +58,10 @@ pub fn contract(message: &Message) -> Result<Contract, MessageError> {
                 name,
                 kind: if usage.number.is_some() {
                     ParamKind::Number
-                } else {
+                } else if usage.select.is_some() {
                     ParamKind::String
+                } else {
+                    ParamKind::Text
                 },
                 loc: usage.first.unwrap(),
             })
@@ -109,10 +118,19 @@ pub fn check_translation(default: &Contract, translated: &Contract) -> Result<()
                 "`{}` is not a parameter of the default-language message",
                 param.name
             ),
-            Some(p) if p.kind == ParamKind::String && param.kind == ParamKind::Number => {
+            // a translation may show any parameter as text, but may not
+            // need more than the default message promises its callers
+            Some(p) if param.kind != ParamKind::Text && p.kind != param.kind => {
+                let wanted = |kind| match kind {
+                    ParamKind::Text => "text",
+                    ParamKind::String => "a select value",
+                    ParamKind::Number => "a number",
+                };
                 format!(
-                    "`{}` is a string in the default-language message but is used as a number",
-                    param.name
+                    "`{}` is {} in the default-language message but is used as {} here",
+                    param.name,
+                    wanted(p.kind),
+                    wanted(param.kind)
                 )
             }
             _ => continue,
@@ -240,7 +258,7 @@ mod tests {
                     .iter()
                     .map(|p| (p.name.as_str(), p.kind))
                     .collect::<Vec<_>>(),
-                [("a", ParamKind::String), ("z", ParamKind::Number)]
+                [("a", ParamKind::Text), ("z", ParamKind::Number)]
             );
             assert_eq!(params[1].loc, 0);
         }
@@ -274,6 +292,7 @@ mod tests {
         for text in ["{x}{x, select, other {}}", "{x, select, other {}}{x}"] {
             assert_eq!(requirements(text).params[0].kind, ParamKind::String);
         }
+        assert_eq!(requirements("{x} and {x}").params[0].kind, ParamKind::Text);
     }
 
     #[test]
@@ -281,7 +300,7 @@ mod tests {
         for (default, translated) in [
             ("{x}", ""),
             ("{x, number}", "{x}"),
-            ("{x}", "{x, select, other {}}"),
+            ("{x, select, other {}}", "{x}"),
             ("{x, plural, other {#}}", "{x, number}"),
             ("{x}{y}", "{y}"),
         ] {
@@ -298,13 +317,19 @@ mod tests {
                 "{x}",
                 "a{x, number}",
                 1,
-                "`x` is a string in the default-language message but is used as a number",
+                "`x` is text in the default-language message but is used as a number here",
+            ),
+            (
+                "{x}",
+                "{x, select, other {}}",
+                0,
+                "`x` is text in the default-language message but is used as a select value here",
             ),
             (
                 "{x, select, other {}}",
                 "{x, plural, other {#}}",
                 0,
-                "`x` is a string in the default-language message but is used as a number",
+                "`x` is a select value in the default-language message but is used as a number here",
             ),
         ] {
             assert_eq!(

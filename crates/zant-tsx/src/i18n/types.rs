@@ -44,6 +44,7 @@ pub fn declarations(locales: &[&str], messages: &[(&str, &contract::Contract)]) 
                     out.push_str(match param.kind {
                         ParamKind::Number => ": number",
                         ParamKind::String => ": string",
+                        ParamKind::Text => ": string | number",
                     });
                 }
                 out.push_str(" }");
@@ -103,7 +104,7 @@ declare module "zant" {
   interface I18nMessages {
     "home.add": undefined;
     "home.items": { count: number };
-    "home.welcome": { name: string; when: number };
+    "home.welcome": { name: string | number; when: number };
   }
 }
 "#

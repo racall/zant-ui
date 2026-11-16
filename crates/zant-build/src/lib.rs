@@ -16,6 +16,7 @@
 
 pub mod config;
 mod entry;
+pub mod i18n;
 mod icons;
 mod png;
 #[cfg(test)]
@@ -169,6 +170,10 @@ pub struct BuildReport {
     pub dep_file: PathBuf,
     /// The generated `zant_app.rs` containing native specs, when present.
     pub spec_module: Option<PathBuf>,
+    /// `locales/*.json` (rerun-if-changed).
+    pub locales: Vec<PathBuf>,
+    /// Missing translations, reported as Cargo warnings.
+    pub warnings: Vec<String>,
 }
 
 /// Compile the app at `app_root` into `out_dir` — the testable core of
@@ -227,7 +232,9 @@ pub fn tsx_app_in(app_root: &Path, out_dir: &Path) -> Result<BuildReport, Error>
         None
     };
 
-    let generated = compile::compile_project(&files).map_err(|error| {
+    let translations = i18n::load(app_root)?;
+    let index = translations.as_ref().map(i18n::AppI18n::index);
+    let generated = compile::compile_project_i18n(&files, None, index).map_err(|error| {
         let file = &files[error.file];
         Error::Compile(zant_tsx::error::render_diag(
             &file.path,
@@ -247,6 +254,7 @@ pub fn tsx_app_in(app_root: &Path, out_dir: &Path) -> Result<BuildReport, Error>
         out_dir,
         &generated,
         &module_declarations(&files),
+        translations.as_ref(),
     )?);
     let assets = write_assets(app_root, &generated, out_dir)?;
     let dep_file = write_dep_file(&files, &generated, out_dir)?;
@@ -264,6 +272,13 @@ pub fn tsx_app_in(app_root: &Path, out_dir: &Path) -> Result<BuildReport, Error>
         config,
         dep_file,
         spec_module,
+        locales: translations
+            .as_ref()
+            .map(|translations| translations.files.clone())
+            .unwrap_or_default(),
+        warnings: translations
+            .map(|translations| translations.compiled.warnings)
+            .unwrap_or_default(),
     })
 }
 
@@ -447,7 +462,7 @@ pub fn zant_ui_assets_root() -> PathBuf {
 /// the compiler read) and the fallback warnings.
 pub fn cargo_directives(report: &BuildReport, app_root: &Path) -> Vec<String> {
     let mut out = vec!["cargo:rerun-if-changed=native/build.rs".to_owned()];
-    for directory in ["src", "native", "assets"] {
+    for directory in ["src", "native", "assets", "locales"] {
         let path = app_root.join(directory);
         if path.exists() {
             out.push(format!("cargo:rerun-if-changed={}", path.display()));
@@ -462,10 +477,14 @@ pub fn cargo_directives(report: &BuildReport, app_root: &Path) -> Vec<String> {
         .iter()
         .chain(report.assets.iter())
         .chain(report.icons.iter().map(|icon| &icon.path))
+        .chain(report.locales.iter())
     {
         if seen.insert(path.to_string_lossy().into_owned()) {
             out.push(format!("cargo:rerun-if-changed={}", path.display()));
         }
+    }
+    for warning in &report.warnings {
+        out.push(format!("cargo:warning=zant-build: {warning}"));
     }
     if report.config.is_none() {
         out.push(format!(

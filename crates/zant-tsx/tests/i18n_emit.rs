@@ -108,7 +108,7 @@ fn errors_have_exact_source_locations() {
             r#"{"x":"{n}"}"#,
             r#"{"x":"\u4e2d{n, number}"}"#,
             12,
-            "`n` is a string in the default-language message but is used as a number",
+            "`n` is text in the default-language message but is used as a number here",
         ),
         (
             r#"{"x":"ok"}"#,

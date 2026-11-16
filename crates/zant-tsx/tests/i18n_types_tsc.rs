@@ -66,7 +66,7 @@ const l: Locale = "zh-CN";
     let bad = [
         r#"t("home.nope");"#,
         r#"t("home.add", {});"#,
-        r#"t("home.welcome", { name: 1, when: 1 });"#,
+        r#"t("home.welcome", { name: true, when: 1 });"#,
         r#"t("home.welcome");"#,
         r#"const l: Locale = "fr";"#,
         r#"declare const key: "home.items" | "home.welcome"; t(key, { count: 1 });"#,
