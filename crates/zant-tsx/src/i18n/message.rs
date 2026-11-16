@@ -348,6 +348,8 @@ mod tests {
             ("'{'", "{"),
             ("'{a}'", "{a}"),
             ("It's", "It's"),
+            // `#` is syntax only inside plural branches, so the quote does
+            // not start there (ICU4J MessagePattern, FormatJS)
             ("'#'", "'#'"),
             ("'{abc", "{abc"),
             ("'}", "}"),

@@ -32,7 +32,7 @@ pub struct JsonField {
 
 /// `impl Json` for a generated struct (`generics`: `<T: Json, …>` bounds).
 pub fn struct_impl(rust: &str, generics: &str, fields: &[JsonField]) -> String {
-    let mut write = String::from("tsx::json::object_builder()");
+    let mut write = format!("tsx::json::object_builder({})", fields.len());
     let mut read = String::new();
     for field in fields {
         let name = format!("{:?}", field.name);

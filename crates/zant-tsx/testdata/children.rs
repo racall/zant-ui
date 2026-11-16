@@ -42,7 +42,7 @@ impl tsx::hot::Hot for Todo {
 impl tsx::json::Json for Todo {
     fn to_json(&self) -> Option<tsx::json::JsonValue> {
         Some(
-            tsx::json::object_builder()
+            tsx::json::object_builder(3)
                 .field("id", &self.id)
                 .field("title", &self.title)
                 .field("done", &self.done)

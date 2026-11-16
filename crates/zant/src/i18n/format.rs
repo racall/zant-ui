@@ -3,7 +3,7 @@
 //! (exact `=N` branches first, then the CLDR category of the locale the
 //! message came from), `select` (else `other`) and `#`.
 //!
-//! Numbers print as JavaScript's `String(n)` does, the same as a template
+//! Numbers print as JavaScript's `String(n)` does (`write_js_number`), the same as a template
 //! literal `${n}`; locale digit grouping arrives with number formatting.
 
 use super::catalog::{Locale, Message, Node};
@@ -29,9 +29,7 @@ pub fn format(message: &Message, locale: &Locale, args: &[Arg<'_>]) -> Str {
     }
 }
 
-fn number(value: f64) -> String {
-    crate::tsx::builtins::string(value).as_str().to_owned()
-}
+use crate::tsx::builtins_format::write_js_number;
 
 fn write(out: &mut String, nodes: &[Node], locale: &Locale, args: &[Arg<'_>], pound: Option<f64>) {
     for node in nodes {
@@ -39,12 +37,12 @@ fn write(out: &mut String, nodes: &[Node], locale: &Locale, args: &[Arg<'_>], po
             Node::Text(text) => out.push_str(text),
             Node::Arg(arg) | Node::Number(arg) => match args.get(*arg as usize) {
                 Some(Arg::Str(text)) => out.push_str(text),
-                Some(Arg::Num(value)) => out.push_str(&number(*value)),
+                Some(Arg::Num(value)) => write_js_number(out, *value),
                 None => {}
             },
             Node::Pound => {
                 if let Some(value) = pound {
-                    out.push_str(&number(value));
+                    write_js_number(out, value);
                 }
             }
             Node::Plural {
@@ -74,14 +72,21 @@ fn write(out: &mut String, nodes: &[Node], locale: &Locale, args: &[Arg<'_>], po
                 }
             }
             Node::Select { arg, cases } => {
-                let value = match args.get(*arg as usize) {
-                    Some(Arg::Str(text)) => (*text).to_owned(),
-                    Some(Arg::Num(value)) => number(*value),
-                    None => String::new(),
+                // a number selects by its JS spelling (formatted only then)
+                let spelled;
+                let value: &str = match args.get(*arg as usize) {
+                    Some(Arg::Str(text)) => text,
+                    Some(Arg::Num(value)) => {
+                        let mut text = String::new();
+                        write_js_number(&mut text, *value);
+                        spelled = text;
+                        &spelled
+                    }
+                    None => "",
                 };
                 let branch = cases
                     .iter()
-                    .find(|(key, _)| **key == *value)
+                    .find(|(key, _)| &**key == value)
                     .or_else(|| cases.iter().find(|(key, _)| &**key == "other"))
                     .map(|(_, nodes)| nodes);
                 if let Some(branch) = branch {

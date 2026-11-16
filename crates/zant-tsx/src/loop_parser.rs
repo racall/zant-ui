@@ -1,6 +1,8 @@
 //! Loop and switch syntax, kept separate from the module and expression parsers.
 
-use crate::ast::{Case, Decl, ExprData, For, ForOf, Name, Pattern, Stmt, StmtData, Switch, While};
+use crate::ast::{
+    Call, Case, Decl, ExprData, For, ForOf, Member, Name, Pattern, Stmt, StmtData, Switch, While,
+};
 use crate::expr_parser;
 use crate::lexer::Kind;
 use crate::parser::Parser;
@@ -89,9 +91,44 @@ fn parse_for(p: &mut Parser) -> Result<Box<Stmt>, Error> {
             },
             None => p.expect_ident("a loop variable name")?,
         };
-        if p.is_kw("of") {
+        // `for (const key in object)`: JavaScript visits the object's own
+        // enumerable string keys, which is `Object.keys(object)` here (no
+        // prototype chain to inherit keys from)
+        let keys_of = p.is_kw("in");
+        if keys_of && elements.is_some() {
+            return Err(p.fail(
+                decl_loc,
+                "for…in gives one key; write `for (const [key, value] of Object.entries(object))`",
+            ));
+        }
+        if keys_of || p.is_kw("of") {
             p.advance();
-            let iterable = expr_parser::parse_expr(p)?;
+            let mut iterable = expr_parser::parse_expr(p)?;
+            if keys_of {
+                let at = iterable.loc;
+                let object = p.expr(at, ExprData::Ident(b"Object".to_vec()));
+                let callee = p.expr(
+                    at,
+                    ExprData::Member(Member {
+                        object,
+                        name: Name {
+                            name: b"keys".to_vec(),
+                            loc: at,
+                        },
+                        optional: false,
+                    }),
+                );
+                iterable = p.expr(
+                    at,
+                    ExprData::Call(Call {
+                        callee,
+                        type_args: Vec::new(),
+                        args: vec![iterable],
+                        optional: false,
+                        is_new: false,
+                    }),
+                );
+            }
             p.expect_p(")")?;
             let mut body = p.parse_stmt()?;
             if let Some(elements) = elements {

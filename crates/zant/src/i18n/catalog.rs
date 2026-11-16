@@ -93,6 +93,7 @@ pub struct Locale {
 /// The framework-owned catalog of an app.
 #[derive(Debug)]
 pub struct Catalog {
+    /// Key names by id: shown (and reported) when a lookup fails.
     pub keys: Vec<Str>,
     pub locales: Vec<Locale>,
     pub default: usize,
@@ -142,8 +143,9 @@ fn message(ops: &[Op]) -> Message {
 
 impl Catalog {
     /// Copies `description` (which may live in an app library that is
-    /// unloaded later). Plural rules were validated at build time; a rule
-    /// that does not parse falls back to `other` only.
+    /// unloaded later). Plural rules were parsed at build time (`zant-tsx`
+    /// rejects a catalog whose rules do not parse); a hand-built description
+    /// with a broken rule falls back to `other` only.
     pub fn new(description: &Description) -> Catalog {
         let locales = description
             .locales

@@ -91,7 +91,21 @@ pub fn js_float_string(x: f64) -> Str {
         // `-0` prints as `0`
         return Str::Static("0");
     }
-    Str::from(ryu_js::Buffer::new().format(x).to_owned())
+    Str::copy(ryu_js::Buffer::new().format(x))
+}
+
+/// Appends `String(x)` to `out` without an intermediate string (i18n
+/// messages, plural operands): the one JS number spelling of the runtime.
+pub fn write_js_number(out: &mut String, x: f64) {
+    if x == 0.0 {
+        out.push('0');
+    } else if x.fract() == 0.0 && x.abs() < 9_007_199_254_740_992.0 {
+        // safe integers: plain digits
+        use std::fmt::Write;
+        write!(out, "{}", x as i64).expect("writing to String");
+    } else {
+        out.push_str(ryu_js::Buffer::new().format(x));
+    }
 }
 
 /// `Number.prototype.toFixed(digits)` (JS rounding: exact binary value, ties

@@ -37,7 +37,7 @@ impl tsx::hot::Hot for Peer {
 impl tsx::json::Json for Peer {
     fn to_json(&self) -> Option<tsx::json::JsonValue> {
         Some(
-            tsx::json::object_builder()
+            tsx::json::object_builder(2)
                 .field("name", &self.name)
                 .field("files", &self.files)
                 .build(),
@@ -80,7 +80,7 @@ impl tsx::hot::Hot for Session {
 }
 impl tsx::json::Json for Session {
     fn to_json(&self) -> Option<tsx::json::JsonValue> {
-        Some(tsx::json::object_builder().field("peer", &self.peer).build())
+        Some(tsx::json::object_builder(1).field("peer", &self.peer).build())
     }
     fn from_json(
         value: &tsx::json::JsonValue,
@@ -124,7 +124,7 @@ impl tsx::hot::Hot for _Object4 {
 impl tsx::json::Json for _Object4 {
     fn to_json(&self) -> Option<tsx::json::JsonValue> {
         Some(
-            tsx::json::object_builder()
+            tsx::json::object_builder(2)
                 .field("peer", &self.peer)
                 .optional("note", &self.note)
                 .build(),

@@ -24,7 +24,7 @@ struct Todo {
 impl Json for Todo {
     fn to_json(&self) -> Option<JsonValue> {
         Some(
-            super::super::json::object_builder()
+            super::super::json::object_builder(4)
                 .field("userId", &self.user_id)
                 .field("id", &self.id)
                 .field("title", &self.title)

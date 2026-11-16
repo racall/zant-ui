@@ -42,7 +42,7 @@ impl tsx::hot::Hot for Box_ {
 impl tsx::json::Json for Box_ {
     fn to_json(&self) -> Option<tsx::json::JsonValue> {
         Some(
-            tsx::json::object_builder()
+            tsx::json::object_builder(3)
                 .field("title", &self.title)
                 .field("values", &self.values)
                 .field("nested", &self.nested)
@@ -87,7 +87,7 @@ impl tsx::hot::Hot for _Object2 {
 }
 impl tsx::json::Json for _Object2 {
     fn to_json(&self) -> Option<tsx::json::JsonValue> {
-        Some(tsx::json::object_builder().field("enabled", &self.enabled).build())
+        Some(tsx::json::object_builder(1).field("enabled", &self.enabled).build())
     }
     fn from_json(
         value: &tsx::json::JsonValue,
@@ -173,7 +173,7 @@ impl tsx::hot::Hot for _Object6 {
 }
 impl tsx::json::Json for _Object6 {
     fn to_json(&self) -> Option<tsx::json::JsonValue> {
-        Some(tsx::json::object_builder().field("values", &self.values).build())
+        Some(tsx::json::object_builder(1).field("values", &self.values).build())
     }
     fn from_json(
         value: &tsx::json::JsonValue,

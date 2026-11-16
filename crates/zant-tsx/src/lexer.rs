@@ -36,12 +36,13 @@ impl Token {
 }
 
 /// Longest match first. `>` is always its own token, as in tsc and oxc:
-/// the parser joins `>=` where a binary operator is expected
+/// the parser joins `>=`, `>>`, `>>>`, `>>=` and `>>>=` where an operator is
+/// expected
 /// (`Parser.rescan_greater`), so `>` closing type arguments or a JSX tag
 /// never needs splitting.
-const PUNCTS: [&str; 20] = [
-    "===", "!==", "...", "**=", "=>", "==", "!=", "<=", "&&", "||", "??", "?.", "++", "--", "+=",
-    "-=", "*=", "/=", "%=", "**",
+const PUNCTS: [&str; 25] = [
+    "===", "!==", "...", "**=", "<<=", "=>", "==", "!=", "<=", "<<", "&&", "||", "??", "?.", "++",
+    "--", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "**",
 ];
 const SINGLE_PUNCTS: &str = "{}()[];,<>+-*/%=!?:.&|^~@#";
 
