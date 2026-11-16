@@ -308,6 +308,10 @@ impl Format {
             self.only_string = false;
             return Ok(());
         }
+        let raw = match super::unions::text(g, &raw, loc)? {
+            Some(text) => text,
+            None => raw,
+        };
         let previous_args = self.args.len();
         let previous_pattern = self.pattern.clone();
         let raw_ty = raw.ty.concrete();

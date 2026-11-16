@@ -318,7 +318,12 @@ fn global(
 ) -> Result<Value> {
     arity(g, loc, call, 1, if name == "parseInt" { 2 } else { 1 })?;
     let mut builder = Call::default();
-    let value = expr::emit(g, c, &call.args[0], None, false)?;
+    let mut value = expr::emit(g, c, &call.args[0], None, false)?;
+    if name == "String"
+        && let Some(text) = super::unions::text(g, &value, call.args[0].loc)?
+    {
+        value = text;
+    }
     let conversion = name == "Number" || name == "String";
     if conversion && !value.ty.numeric() && value.ty != Type::String && value.ty != Type::Boolean {
         let message = if super::model::optional_child(g, value.ty).is_some() {

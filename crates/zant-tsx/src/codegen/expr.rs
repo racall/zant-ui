@@ -166,6 +166,9 @@ pub fn unary(
     if u.op == b"delete" {
         return fail(g, loc, "`delete record[key]` is a statement");
     }
+    if u.op == b"typeof" {
+        return super::unions::type_of(g, c, &u.operand);
+    }
     if u.op == b"!" {
         let x = condition(g, c, &u.operand)?;
         return Ok(Value {

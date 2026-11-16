@@ -27,6 +27,8 @@ TSX 是推荐的应用写法，编译期生成 Rust，无 JS 运行时。此表�
 | ✅ | 接受并忽略 React 默认 / 命名空间导入（不提供 React 运行时） |
 | ✅ | Image 内存图片、HotkeyInput、isMacos/isWindows、keyLabel、titlebarInsets、wakeAfter |
 | ✅ | TypeScript `enum` / `const enum`（成员内联）、穷尽的联合 `switch` |
+| ✅ | 基本类型联合与可辨识联合（Rust 枚举）、`typeof` / 判别字段收窄 |
+| ✅ | `Record` / 索引签名 / `Map` / `Set` / `Object.*`、元组、`keyof` / `typeof` / `T["k"]`、对象字面量推断与结构赋值 |
 | ✅ | 泛型类型（Rust 泛型结构体）与泛型函数（单态化、实参推断、默认值、约束） |
 | ⬜ | 泛型组件、跨文件泛型函数 |
 

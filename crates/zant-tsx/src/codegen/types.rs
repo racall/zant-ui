@@ -385,6 +385,10 @@ pub fn coerce(g: &mut Generator<'_>, v: Value, t: Type, loc: ast::Loc) -> Result
     if v.ty == t {
         return Ok(v);
     }
+    // a member of a union becomes the union (`U::Num(v)`)
+    if let Some(wrapped) = super::unions::wrap(g, &v, t, loc)? {
+        return Ok(wrapped);
+    }
     if t == Type::String && model::enum_type(g, v.ty) {
         return Ok(Value {
             ty: Type::String,

@@ -82,6 +82,8 @@ pub enum InfoKind {
     Map,
     /// `Set<T>`: `child` is T.
     Set,
+    /// `string | number`, discriminated object unions (`unions`).
+    Union,
 }
 
 #[derive(Clone, Debug)]
@@ -251,7 +253,7 @@ pub fn owned(g: &Generator<'_>, ty: Type) -> bool {
             .params
             .iter()
             .any(|item| owned(g, *item) || *item == Type::String),
-        InfoKind::Record | InfoKind::Map | InfoKind::Set => true,
+        InfoKind::Record | InfoKind::Map | InfoKind::Set | InfoKind::Union => true,
     }
 }
 
@@ -639,18 +641,25 @@ fn union_type(
             types::type_ref(g, &nonnull[0], false)?
         }
     } else {
-        let mut names: Vec<Vec<u8>> = Vec::new();
-        for member in &nonnull {
-            let Some(ast::TypeDetail::StringLit(member)) = member.detail.as_deref() else {
-                return fail(
-                    g,
-                    loc,
-                    "unions must contain string literals or one type and null",
-                );
-            };
-            names.push(member.clone());
+        let literals = nonnull.iter().all(|member| {
+            matches!(
+                member.detail.as_deref(),
+                Some(ast::TypeDetail::StringLit(_))
+            )
+        });
+        if literals {
+            let names: Vec<Vec<u8>> = nonnull
+                .iter()
+                .map(|member| match member.detail.as_deref() {
+                    Some(ast::TypeDetail::StringLit(text)) => text.clone(),
+                    _ => unreachable!("string literal"),
+                })
+                .collect();
+            enumeration(g, &names, name)?
+        } else {
+            // `string | number`, discriminated object unions
+            super::unions::declare(g, loc, &nonnull, name)?
         }
-        enumeration(g, &names, name)?
     };
     if nullable { optional(g, ty) } else { Ok(ty) }
 }

@@ -101,6 +101,10 @@ fn facts(
                 facts(g, c, &b.rhs, positive)?;
                 return Ok(());
             }
+            // `typeof x === "string"` / `s.kind === "circle"` on a union
+            if super::unions::fact(g, c, b, positive)? {
+                return Ok(());
+            }
             let not_equal = b.op == b"!=" || b.op == b"!==";
             let equal = b.op == b"==" || b.op == b"===";
             let proves = (not_equal && positive) || (equal && !positive);

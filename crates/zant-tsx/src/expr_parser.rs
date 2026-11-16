@@ -301,7 +301,18 @@ pub fn parse_unary(p: &mut Parser) -> Result<Box<Expr>, Error> {
     if p.is_kw("new") {
         return parse_new(p, loc);
     }
-    for kw in ["typeof", "void", "await"] {
+    if p.is_kw("typeof") {
+        p.advance();
+        let operand = parse_unary(p)?;
+        return Ok(p.expr(
+            loc,
+            ExprData::Unary(Unary {
+                op: b"typeof".to_vec(),
+                operand,
+            }),
+        ));
+    }
+    for kw in ["void", "await"] {
         if p.is_kw(kw) {
             return Err(p.fail(loc, format!("`{kw}` is not supported")));
         }
