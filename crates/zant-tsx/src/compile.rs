@@ -181,6 +181,17 @@ pub fn compile_project_with(
     files: &[SourceFile],
     install_extra: Option<fn(&mut codegen::Generator<'_>)>,
 ) -> Result<GeneratedProject, ProjectError> {
+    compile_project_i18n(files, install_extra, None)
+}
+
+/// [`compile_project_with`] for an app with translations: `t(…)` calls are
+/// checked against `i18n` (the compiled `locales/*.json`, see
+/// [`crate::i18n::emit`]).
+pub fn compile_project_i18n(
+    files: &[SourceFile],
+    install_extra: Option<fn(&mut codegen::Generator<'_>)>,
+    i18n: Option<codegen::i18n_calls::Index>,
+) -> Result<GeneratedProject, ProjectError> {
     // case-insensitive output collision check (macOS and Windows file systems
     // are by default case-insensitive)
     let mut names: Vec<String> = Vec::with_capacity(files.len());
@@ -284,6 +295,7 @@ pub fn compile_project_with(
         root: String::new(),
         config: None,
         window_components,
+        i18n: i18n.map(Rc::new),
     });
     let _guard = app_state::set_project(Some(Rc::clone(&project)));
     let module_sources = project.module_sources();

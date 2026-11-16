@@ -84,6 +84,7 @@ pub mod functions;
 pub mod generate;
 pub mod globals;
 pub mod hooks;
+pub mod i18n_calls;
 pub mod imports;
 pub mod jsx;
 pub mod jsx_children;
