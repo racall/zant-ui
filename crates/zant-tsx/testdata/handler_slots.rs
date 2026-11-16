@@ -34,6 +34,30 @@ impl tsx::hot::Hot for Counts {
         Some(instance)
     }
 }
+impl tsx::json::Json for Counts {
+    fn to_json(&self) -> Option<tsx::json::JsonValue> {
+        Some(
+            tsx::json::object_builder()
+                .field("clicks", &self.clicks)
+                .field("on", &self.on)
+                .build(),
+        )
+    }
+    fn from_json(
+        value: &tsx::json::JsonValue,
+        path: &mut tsx::json::JsonPath,
+    ) -> Result<Self, String> {
+        if !matches!(value, tsx::json::JsonValue::Object(_)) {
+            return Err(path.expected("an object", value));
+        }
+        #[allow(clippy::needless_update)]
+        Ok(Self {
+            clicks: tsx::json::read_field(value, "clicks", path)?,
+            on: tsx::json::read_field(value, "on", path)?,
+            ..Default::default()
+        })
+    }
+}
 #[derive(Clone, PartialEq, Default)]
 pub struct _Object1 {
     pub label: zant::Str,
@@ -52,6 +76,24 @@ impl tsx::hot::Hot for _Object1 {
             return None;
         }
         Some(instance)
+    }
+}
+impl tsx::json::Json for _Object1 {
+    fn to_json(&self) -> Option<tsx::json::JsonValue> {
+        Some(tsx::json::object_builder().field("label", &self.label).build())
+    }
+    fn from_json(
+        value: &tsx::json::JsonValue,
+        path: &mut tsx::json::JsonPath,
+    ) -> Result<Self, String> {
+        if !matches!(value, tsx::json::JsonValue::Object(_)) {
+            return Err(path.expected("an object", value));
+        }
+        #[allow(clippy::needless_update)]
+        Ok(Self {
+            label: tsx::json::read_field(value, "label", path)?,
+            ..Default::default()
+        })
     }
 }
 #[derive(Clone)]

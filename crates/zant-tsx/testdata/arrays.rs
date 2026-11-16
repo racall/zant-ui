@@ -39,6 +39,32 @@ impl tsx::hot::Hot for Box {
         Some(instance)
     }
 }
+impl tsx::json::Json for Box {
+    fn to_json(&self) -> Option<tsx::json::JsonValue> {
+        Some(
+            tsx::json::object_builder()
+                .field("title", &self.title)
+                .field("values", &self.values)
+                .field("nested", &self.nested)
+                .build(),
+        )
+    }
+    fn from_json(
+        value: &tsx::json::JsonValue,
+        path: &mut tsx::json::JsonPath,
+    ) -> Result<Self, String> {
+        if !matches!(value, tsx::json::JsonValue::Object(_)) {
+            return Err(path.expected("an object", value));
+        }
+        #[allow(clippy::needless_update)]
+        Ok(Self {
+            title: tsx::json::read_field(value, "title", path)?,
+            values: tsx::json::read_field(value, "values", path)?,
+            nested: tsx::json::read_field(value, "nested", path)?,
+            ..Default::default()
+        })
+    }
+}
 #[derive(Clone, PartialEq, Default)]
 pub struct _Object2 {
     pub enabled: bool,
@@ -59,6 +85,24 @@ impl tsx::hot::Hot for _Object2 {
         Some(instance)
     }
 }
+impl tsx::json::Json for _Object2 {
+    fn to_json(&self) -> Option<tsx::json::JsonValue> {
+        Some(tsx::json::object_builder().field("enabled", &self.enabled).build())
+    }
+    fn from_json(
+        value: &tsx::json::JsonValue,
+        path: &mut tsx::json::JsonPath,
+    ) -> Result<Self, String> {
+        if !matches!(value, tsx::json::JsonValue::Object(_)) {
+            return Err(path.expected("an object", value));
+        }
+        #[allow(clippy::needless_update)]
+        Ok(Self {
+            enabled: tsx::json::read_field(value, "enabled", path)?,
+            ..Default::default()
+        })
+    }
+}
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum Mode {
     #[default]
@@ -76,6 +120,22 @@ impl Mode {
         match self {
             Mode::All => "all",
             Mode::Type => "type",
+        }
+    }
+}
+impl tsx::json::Json for Mode {
+    fn to_json(&self) -> Option<tsx::json::JsonValue> {
+        Some(tsx::json::JsonValue::String(zant::Str::Static(self.as_str())))
+    }
+    fn from_json(
+        value: &tsx::json::JsonValue,
+        path: &mut tsx::json::JsonPath,
+    ) -> Result<Self, String> {
+        let text: zant::Str = tsx::json::Json::from_json(value, path)?;
+        match text.as_str() {
+            "all" => Ok(Self::All),
+            "type" => Ok(Self::Type),
+            _ => Err(path.expected("one of the type's strings", value)),
         }
     }
 }
@@ -109,6 +169,24 @@ impl tsx::hot::Hot for _Object6 {
             return None;
         }
         Some(instance)
+    }
+}
+impl tsx::json::Json for _Object6 {
+    fn to_json(&self) -> Option<tsx::json::JsonValue> {
+        Some(tsx::json::object_builder().field("values", &self.values).build())
+    }
+    fn from_json(
+        value: &tsx::json::JsonValue,
+        path: &mut tsx::json::JsonPath,
+    ) -> Result<Self, String> {
+        if !matches!(value, tsx::json::JsonValue::Object(_)) {
+            return Err(path.expected("an object", value));
+        }
+        #[allow(clippy::needless_update)]
+        Ok(Self {
+            values: tsx::json::read_field(value, "values", path)?,
+            ..Default::default()
+        })
     }
 }
 fn PLANS() -> tsx::List<zant::Str> {

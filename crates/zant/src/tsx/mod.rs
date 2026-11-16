@@ -65,6 +65,9 @@ pub mod hooks;
 pub mod hot;
 #[forbid(unsafe_code)]
 pub mod ids;
+/// `JSON.parse` / `JSON.stringify` (`Json`, Node-exact output).
+#[forbid(unsafe_code)]
+pub mod json;
 #[forbid(unsafe_code)]
 pub mod list;
 /// In-place array methods (`fill`, `sort`, index assignment).
@@ -92,6 +95,7 @@ pub use dict::{Dict, DictKey, Set};
 pub use error::{Completion, Error, Thrown};
 pub use hooks::{Callback, Deps, Effect, Memo, Ref, callback, local_state, new_ref};
 pub use ids::{ChildKey, child_id, site_id};
+pub use json::Json;
 pub use list::List;
 pub use window::{Component as WindowComponent, Window};
 

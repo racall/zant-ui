@@ -94,6 +94,7 @@ pub mod globals;
 pub mod hooks;
 pub mod i18n_calls;
 pub mod imports;
+pub mod json;
 pub mod jsx;
 pub mod jsx_children;
 pub mod jsx_values;

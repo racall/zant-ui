@@ -50,6 +50,36 @@ pub mod clips {
             Some(instance)
         }
     }
+    impl tsx::json::Json for ListEntry {
+        fn to_json(&self) -> Option<tsx::json::JsonValue> {
+            Some(
+                tsx::json::object_builder()
+                    .field("row", &self.row)
+                    .field("kind", &self.kind)
+                    .field("preview", &self.preview)
+                    .field("from", &self.from)
+                    .optional("pinned", &self.pinned)
+                    .build(),
+            )
+        }
+        fn from_json(
+            value: &tsx::json::JsonValue,
+            path: &mut tsx::json::JsonPath,
+        ) -> Result<Self, String> {
+            if !matches!(value, tsx::json::JsonValue::Object(_)) {
+                return Err(path.expected("an object", value));
+            }
+            #[allow(clippy::needless_update)]
+            Ok(Self {
+                row: tsx::json::read_field(value, "row", path)?,
+                kind: tsx::json::read_field(value, "kind", path)?,
+                preview: tsx::json::read_field(value, "preview", path)?,
+                from: tsx::json::read_field(value, "from", path)?,
+                pinned: tsx::json::read_optional(value, "pinned", path)?,
+                ..Default::default()
+            })
+        }
+    }
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
     pub enum CopyResult {
         #[default]
@@ -74,6 +104,23 @@ pub mod clips {
         }
     }
 
+    impl tsx::json::Json for CopyResult {
+        fn to_json(&self) -> Option<tsx::json::JsonValue> {
+            Some(tsx::json::JsonValue::String(zant::Str::Static(self.as_str())))
+        }
+        fn from_json(
+            value: &tsx::json::JsonValue,
+            path: &mut tsx::json::JsonPath,
+        ) -> Result<Self, String> {
+            let text: zant::Str = tsx::json::Json::from_json(value, path)?;
+            match text.as_str() {
+                "ok" => Ok(Self::Ok),
+                "not_found" => Ok(Self::NotFound),
+                "missing_content" => Ok(Self::MissingContent),
+                _ => Err(path.expected("one of the type's strings", value)),
+            }
+        }
+    }
     impl tsx::hot::Hot for CopyResult {
         fn save(&self) -> tsx::hot::Value {
             tsx::hot::Value::from(self.as_str())
@@ -106,6 +153,24 @@ pub mod clips {
                 return None;
             }
             Some(instance)
+        }
+    }
+    impl tsx::json::Json for Probe {
+        fn to_json(&self) -> Option<tsx::json::JsonValue> {
+            Some(tsx::json::object_builder().field("hint", &self.hint).build())
+        }
+        fn from_json(
+            value: &tsx::json::JsonValue,
+            path: &mut tsx::json::JsonPath,
+        ) -> Result<Self, String> {
+            if !matches!(value, tsx::json::JsonValue::Object(_)) {
+                return Err(path.expected("an object", value));
+            }
+            #[allow(clippy::needless_update)]
+            Ok(Self {
+                hint: tsx::json::read_field(value, "hint", path)?,
+                ..Default::default()
+            })
         }
     }
 
@@ -158,6 +223,23 @@ pub mod kinds {
         }
     }
 
+    impl tsx::json::Json for Kind {
+        fn to_json(&self) -> Option<tsx::json::JsonValue> {
+            Some(tsx::json::JsonValue::String(zant::Str::Static(self.as_str())))
+        }
+        fn from_json(
+            value: &tsx::json::JsonValue,
+            path: &mut tsx::json::JsonPath,
+        ) -> Result<Self, String> {
+            let text: zant::Str = tsx::json::Json::from_json(value, path)?;
+            match text.as_str() {
+                "text" => Ok(Self::Text),
+                "image" => Ok(Self::Image),
+                "files" => Ok(Self::Files),
+                _ => Err(path.expected("one of the type's strings", value)),
+            }
+        }
+    }
     impl tsx::hot::Hot for Kind {
         fn save(&self) -> tsx::hot::Value {
             tsx::hot::Value::from(self.as_str())

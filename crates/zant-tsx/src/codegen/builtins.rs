@@ -15,7 +15,7 @@ use super::{Generator, Result, fail};
 
 const MATH_NAMES: &str = "floor, ceil, round, trunc, abs, sign, sqrt, cbrt, pow, exp, log, log2, log10, \
 sin, cos, tan, atan, atan2, hypot, min, max, random, PI, E";
-const NUMBER_NAMES: &str = "isNaN, isFinite, isInteger, MAX_SAFE_INTEGER, EPSILON";
+const NUMBER_NAMES: &str = "isNaN, isFinite, isInteger, MAX_SAFE_INTEGER, MIN_SAFE_INTEGER, EPSILON, MAX_VALUE, MIN_VALUE, NaN, POSITIVE_INFINITY, NEGATIVE_INFINITY";
 const UNARY_NAMES: [&str; 16] = [
     "floor", "ceil", "round", "trunc", "abs", "sign", "sqrt", "cbrt", "exp", "log", "log2",
     "log10", "sin", "cos", "tan", "atan",
@@ -104,7 +104,13 @@ pub fn member(
     } else if object == "Number" {
         match name.as_str() {
             "MAX_SAFE_INTEGER" => Some("9_007_199_254_740_991f64"),
+            "MIN_SAFE_INTEGER" => Some("-9_007_199_254_740_991f64"),
             "EPSILON" => Some("f64::EPSILON"),
+            "MAX_VALUE" => Some("f64::MAX"),
+            "MIN_VALUE" => Some("5e-324f64"),
+            "NaN" => Some("f64::NAN"),
+            "POSITIVE_INFINITY" => Some("f64::INFINITY"),
+            "NEGATIVE_INFINITY" => Some("f64::NEG_INFINITY"),
             _ => None,
         }
     } else {

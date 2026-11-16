@@ -29,6 +29,24 @@ impl tsx::hot::Hot for CounterProps {
         Some(instance)
     }
 }
+impl tsx::json::Json for CounterProps {
+    fn to_json(&self) -> Option<tsx::json::JsonValue> {
+        Some(tsx::json::object_builder().field("label", &self.label).build())
+    }
+    fn from_json(
+        value: &tsx::json::JsonValue,
+        path: &mut tsx::json::JsonPath,
+    ) -> Result<Self, String> {
+        if !matches!(value, tsx::json::JsonValue::Object(_)) {
+            return Err(path.expected("an object", value));
+        }
+        #[allow(clippy::needless_update)]
+        Ok(Self {
+            label: tsx::json::read_field(value, "label", path)?,
+            ..Default::default()
+        })
+    }
+}
 pub struct Counter {
     props: CounterProps_,
     _id: u64,

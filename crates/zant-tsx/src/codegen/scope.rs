@@ -497,6 +497,12 @@ pub fn read(g: &mut Generator<'_>, c: &mut Context, n: &[u8], loc: ast::Loc) -> 
             ),
         );
     }
+    // the global number constants (any local of the same name came first)
+    match n {
+        b"NaN" => return Ok(Value::new(Type::F64, "f64::NAN")),
+        b"Infinity" => return Ok(Value::new(Type::F64, "f64::INFINITY")),
+        _ => {}
+    }
     fail(
         g,
         loc,

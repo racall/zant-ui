@@ -39,6 +39,32 @@ impl tsx::hot::Hot for Item {
         Some(instance)
     }
 }
+impl tsx::json::Json for Item {
+    fn to_json(&self) -> Option<tsx::json::JsonValue> {
+        Some(
+            tsx::json::object_builder()
+                .field("id", &self.id)
+                .field("title", &self.title)
+                .field("done", &self.done)
+                .build(),
+        )
+    }
+    fn from_json(
+        value: &tsx::json::JsonValue,
+        path: &mut tsx::json::JsonPath,
+    ) -> Result<Self, String> {
+        if !matches!(value, tsx::json::JsonValue::Object(_)) {
+            return Err(path.expected("an object", value));
+        }
+        #[allow(clippy::needless_update)]
+        Ok(Self {
+            id: tsx::json::read_field(value, "id", path)?,
+            title: tsx::json::read_field(value, "title", path)?,
+            done: tsx::json::read_field(value, "done", path)?,
+            ..Default::default()
+        })
+    }
+}
 #[derive(Clone, PartialEq, Default)]
 pub struct StatsProps {
     pub items: tsx::List<Item>,
@@ -59,6 +85,24 @@ impl tsx::hot::Hot for StatsProps {
         Some(instance)
     }
 }
+impl tsx::json::Json for StatsProps {
+    fn to_json(&self) -> Option<tsx::json::JsonValue> {
+        Some(tsx::json::object_builder().field("items", &self.items).build())
+    }
+    fn from_json(
+        value: &tsx::json::JsonValue,
+        path: &mut tsx::json::JsonPath,
+    ) -> Result<Self, String> {
+        if !matches!(value, tsx::json::JsonValue::Object(_)) {
+            return Err(path.expected("an object", value));
+        }
+        #[allow(clippy::needless_update)]
+        Ok(Self {
+            items: tsx::json::read_field(value, "items", path)?,
+            ..Default::default()
+        })
+    }
+}
 #[derive(Clone, PartialEq, Default)]
 pub struct TickerProps {
     pub label: zant::Str,
@@ -77,6 +121,24 @@ impl tsx::hot::Hot for TickerProps {
             return None;
         }
         Some(instance)
+    }
+}
+impl tsx::json::Json for TickerProps {
+    fn to_json(&self) -> Option<tsx::json::JsonValue> {
+        Some(tsx::json::object_builder().field("label", &self.label).build())
+    }
+    fn from_json(
+        value: &tsx::json::JsonValue,
+        path: &mut tsx::json::JsonPath,
+    ) -> Result<Self, String> {
+        if !matches!(value, tsx::json::JsonValue::Object(_)) {
+            return Err(path.expected("an object", value));
+        }
+        #[allow(clippy::needless_update)]
+        Ok(Self {
+            label: tsx::json::read_field(value, "label", path)?,
+            ..Default::default()
+        })
     }
 }
 pub struct Stats {

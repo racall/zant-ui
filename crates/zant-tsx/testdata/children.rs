@@ -39,6 +39,32 @@ impl tsx::hot::Hot for Todo {
         Some(instance)
     }
 }
+impl tsx::json::Json for Todo {
+    fn to_json(&self) -> Option<tsx::json::JsonValue> {
+        Some(
+            tsx::json::object_builder()
+                .field("id", &self.id)
+                .field("title", &self.title)
+                .field("done", &self.done)
+                .build(),
+        )
+    }
+    fn from_json(
+        value: &tsx::json::JsonValue,
+        path: &mut tsx::json::JsonPath,
+    ) -> Result<Self, String> {
+        if !matches!(value, tsx::json::JsonValue::Object(_)) {
+            return Err(path.expected("an object", value));
+        }
+        #[allow(clippy::needless_update)]
+        Ok(Self {
+            id: tsx::json::read_field(value, "id", path)?,
+            title: tsx::json::read_field(value, "title", path)?,
+            done: tsx::json::read_field(value, "done", path)?,
+            ..Default::default()
+        })
+    }
+}
 #[derive(Clone)]
 pub struct RowProps {
     pub todo: Todo,
