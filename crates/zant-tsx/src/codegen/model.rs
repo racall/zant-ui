@@ -271,43 +271,48 @@ pub fn resolve(
 }
 
 /// A field of an object type being declared, already resolved.
-struct Member {
-    name: Vec<u8>,
-    loc: ast::Loc,
-    ty: Type,
-    optional: bool,
+pub(super) struct Member {
+    pub name: Vec<u8>,
+    pub loc: ast::Loc,
+    pub ty: Type,
+    pub optional: bool,
 }
 
 fn object(g: &mut Generator<'_>, fields: &[ast::TypeField], name: Option<&[u8]>) -> Result<Type> {
-    object_with(g, name, |g| {
-        let mut result: Vec<Member> = Vec::new();
-        for field in fields {
-            if result
-                .iter()
-                .any(|previous| previous.name == field.name.name)
-            {
-                return fail(
-                    g,
-                    field.name.loc,
-                    format!(
-                        "duplicate field `{}`",
-                        String::from_utf8_lossy(&field.name.name)
-                    ),
-                );
-            }
-            let mut ty = types::type_ref(g, &field.ty, false)?;
-            if field.optional {
-                ty = optional(g, ty)?;
-            }
-            result.push(Member {
-                name: field.name.name.clone(),
-                loc: field.name.loc,
-                ty,
-                optional: field.optional,
-            });
+    object_with(g, name, |g| object_members(g, fields))
+}
+
+pub(super) fn object_members(
+    g: &mut Generator<'_>,
+    fields: &[ast::TypeField],
+) -> Result<Vec<Member>> {
+    let mut result: Vec<Member> = Vec::new();
+    for field in fields {
+        if result
+            .iter()
+            .any(|previous| previous.name == field.name.name)
+        {
+            return fail(
+                g,
+                field.name.loc,
+                format!(
+                    "duplicate field `{}`",
+                    String::from_utf8_lossy(&field.name.name)
+                ),
+            );
         }
-        Ok(result)
-    })
+        let mut ty = types::type_ref(g, &field.ty, false)?;
+        if field.optional {
+            ty = optional(g, ty)?;
+        }
+        result.push(Member {
+            name: field.name.name.clone(),
+            loc: field.name.loc,
+            ty,
+            optional: field.optional,
+        });
+    }
+    Ok(result)
 }
 
 /// `A & B` / `interface B extends A`: one struct with every member's fields,
@@ -318,71 +323,75 @@ fn intersection(
     members: &[ast::TypeRef],
     name: Option<&[u8]>,
 ) -> Result<Type> {
-    object_with(g, name, |g| {
-        let mut result: Vec<Member> = Vec::new();
-        for member in members {
-            let ty = types::type_ref(g, member, false)?;
-            let fields = match info(g, ty) {
-                // another native spec's type is opaque here: its fields are
-                // not known, so they cannot be copied
-                Some(entry)
-                    if entry.kind == InfoKind::Object
-                        && entry.fields.is_empty()
-                        && entry.declaration.is_none() =>
-                {
-                    return fail(
-                        g,
-                        member.loc,
-                        "this type's fields are not known in this file; declare the combined type next to it",
-                    );
-                }
-                Some(entry) if entry.kind == InfoKind::Object => entry.fields,
-                _ => {
-                    return fail(
-                        g,
-                        member.loc,
-                        "`&` and `extends` combine object types (interfaces or `{ .. }` types)",
-                    );
-                }
-            };
-            for field in fields {
-                let required = optional_child(g, field.ty).filter(|_| field.optional);
-                match result
-                    .iter_mut()
-                    .find(|previous| previous.name == field.name)
-                {
-                    None => result.push(Member {
-                        name: field.name,
-                        loc: member.loc,
-                        ty: field.ty,
-                        optional: field.optional,
-                    }),
-                    Some(previous) => {
-                        let previous_required =
-                            optional_child(g, previous.ty).filter(|_| previous.optional);
-                        let same = previous.ty == field.ty
-                            || previous_required.unwrap_or(previous.ty)
-                                == required.unwrap_or(field.ty);
-                        if !same {
-                            let name = String::from_utf8_lossy(&field.name).into_owned();
-                            return fail(
-                                g,
-                                member.loc,
-                                format!(
-                                    "field `{name}` has different types in the combined types; declare it with one type"
-                                ),
-                            );
-                        }
-                        if previous.optional && !field.optional {
-                            previous.ty = required.unwrap_or(field.ty);
-                            previous.optional = false;
-                        }
+    object_with(g, name, |g| intersection_members(g, members))
+}
+
+pub(super) fn intersection_members(
+    g: &mut Generator<'_>,
+    members: &[ast::TypeRef],
+) -> Result<Vec<Member>> {
+    let mut result: Vec<Member> = Vec::new();
+    for member in members {
+        let ty = types::type_ref(g, member, false)?;
+        let fields = match info(g, ty) {
+            // another native spec's type is opaque here: its fields are
+            // not known, so they cannot be copied
+            Some(entry)
+                if entry.kind == InfoKind::Object
+                    && entry.fields.is_empty()
+                    && entry.declaration.is_none() =>
+            {
+                return fail(
+                    g,
+                    member.loc,
+                    "this type's fields are not known in this file; declare the combined type next to it",
+                );
+            }
+            Some(entry) if entry.kind == InfoKind::Object => entry.fields,
+            _ => {
+                return fail(
+                    g,
+                    member.loc,
+                    "`&` and `extends` combine object types (interfaces or `{ .. }` types)",
+                );
+            }
+        };
+        for field in fields {
+            let required = optional_child(g, field.ty).filter(|_| field.optional);
+            match result
+                .iter_mut()
+                .find(|previous| previous.name == field.name)
+            {
+                None => result.push(Member {
+                    name: field.name,
+                    loc: member.loc,
+                    ty: field.ty,
+                    optional: field.optional,
+                }),
+                Some(previous) => {
+                    let previous_required =
+                        optional_child(g, previous.ty).filter(|_| previous.optional);
+                    let same = previous.ty == field.ty
+                        || previous_required.unwrap_or(previous.ty) == required.unwrap_or(field.ty);
+                    if !same {
+                        let name = String::from_utf8_lossy(&field.name).into_owned();
+                        return fail(
+                            g,
+                            member.loc,
+                            format!(
+                                "field `{name}` has different types in the combined types; declare it with one type"
+                            ),
+                        );
+                    }
+                    if previous.optional && !field.optional {
+                        previous.ty = required.unwrap_or(field.ty);
+                        previous.optional = false;
                     }
                 }
             }
         }
-        Ok(result)
-    })
+    }
+    Ok(result)
 }
 
 /// Declares the struct for an object type whose fields `members` resolves
@@ -663,6 +672,10 @@ fn enumeration(g: &mut Generator<'_>, members: &[Vec<u8>], name: Option<&[u8]>) 
 /// Lazily resolve named declarations, permitting references to later
 /// declarations.
 pub fn named(g: &mut Generator<'_>, name: &[u8]) -> Result<Option<Type>> {
+    // a type parameter of the generic declaration being instantiated
+    if let Some(ty) = super::generic_types::bound(g, name) {
+        return Ok(Some(ty));
+    }
     if g.type_scope {
         return match g.extensions.hooks.imported_type {
             Some(hook) => hook(g, &String::from_utf8_lossy(name)),
@@ -691,11 +704,14 @@ pub fn named(g: &mut Generator<'_>, name: &[u8]) -> Result<Option<Type>> {
         return Ok(None);
     };
     if !g.type_decls[index].type_params.is_empty() {
-        return fail(
-            g,
-            g.type_decls[index].name.loc,
-            "generic types are not supported yet",
-        );
+        // `Box` alone: every parameter must have a default
+        let reference = ast::TypeRef {
+            name: name.to_vec(),
+            loc: g.type_decls[index].name.loc,
+            detail: None,
+            args: Vec::new(),
+        };
+        return super::generic_types::instantiate(g, &reference, index).map(Some);
     }
     if g.resolving[index] {
         return fail(

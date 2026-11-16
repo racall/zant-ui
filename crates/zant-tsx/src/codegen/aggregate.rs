@@ -157,7 +157,8 @@ pub fn object(
     }
     if spread {
         let ty_rust = ty.rust(g).to_owned();
-        let mut block = format!("{{\n    let mut {temp}: {ty_rust} = {ty_rust}::default();\n");
+        let path = rust_text::expression_path(&ty_rust);
+        let mut block = format!("{{\n    let mut {temp}: {ty_rust} = {path}::default();\n");
         for write in &writes {
             block.push_str(&format!("    {write}\n"));
         }
@@ -210,7 +211,11 @@ pub fn object(
     }
     Ok(Value {
         ty,
-        code: format!("{} {{\n{}\n}}", ty.rust(g), initial.join("\n")),
+        code: format!(
+            "{} {{\n{}\n}}",
+            rust_text::expression_path(ty.rust(g)),
+            initial.join("\n")
+        ),
         ..Value::default()
     })
 }

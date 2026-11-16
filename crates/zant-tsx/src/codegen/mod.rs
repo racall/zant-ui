@@ -83,6 +83,7 @@ pub mod expr;
 pub mod free_names;
 pub mod functions;
 pub mod generate;
+pub mod generic_types;
 pub(crate) mod generics;
 pub mod globals;
 pub mod hooks;
@@ -462,6 +463,11 @@ pub struct Generator<'a> {
     pub react_imports: Vec<ast::Import>,
     pub resolving: Vec<bool>,
     pub resolved_types: Vec<ResolvedType>,
+    /// Type parameters bound while a generic declaration is instantiated
+    /// (`generic_types`): innermost last.
+    pub type_env: Vec<(Vec<u8>, types::Type)>,
+    /// Instantiated generic types (`Box<number>`), by declaration and arguments.
+    pub generic_instances: Vec<generic_types::Instance>,
     pub constants: Vec<Constant>,
     /// Plain functions of this file and imported ones (`functions`).
     pub functions: Vec<functions::Function>,
@@ -533,6 +539,8 @@ impl<'a> Generator<'a> {
             react_imports: Vec::new(),
             resolving: Vec::new(),
             resolved_types: Vec::new(),
+            type_env: Vec::new(),
+            generic_instances: Vec::new(),
             constants: Vec::new(),
             functions: Vec::new(),
             events: Vec::new(),

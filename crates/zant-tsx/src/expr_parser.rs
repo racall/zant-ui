@@ -742,8 +742,8 @@ mod tests {
     #[test]
     fn const_assertions_do_not_relax_other_assertion_targets() {
         expect_codegen_error(
-            "const value = 1 as Record<string, number>;",
-            "generic type `Record<…>` is not supported; only `Array<T>` is",
+            "const value = 1 as Record<string, number>;\nexport default function App() { return null; }",
+            "generic type `Record<…>` is not supported yet; declare it in this file (`interface X<T>`) or use a concrete type",
             "Record",
         );
         expect_syntax_error(
@@ -767,7 +767,7 @@ mod tests {
     fn typed_arrows_report_errors_inside_their_parameters() {
         expect_codegen_error(
             "function f() { return (v: Record<string, number>) => v; }",
-            "generic type `Record<…>` is not supported; only `Array<T>` is",
+            "generic type `Record<…>` is not supported yet; declare it in this file (`interface X<T>`) or use a concrete type",
             "Record",
         );
         expect_syntax_error(

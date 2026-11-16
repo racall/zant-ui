@@ -4,8 +4,6 @@
 use crate::ast::*;
 use crate::error::Diag;
 
-use super::types;
-
 type Result = std::result::Result<(), Diag>;
 
 fn error(loc: Loc, msg: &str) -> Result {
@@ -15,7 +13,25 @@ fn error(loc: Loc, msg: &str) -> Result {
     })
 }
 
+thread_local! {
+    /// Generic declarations of the module being validated (`Box` in `Box<T>`).
+    static GENERIC: std::cell::RefCell<Vec<Vec<u8>>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
 pub(crate) fn validate(module: &Module) -> Result {
+    let names: Vec<Vec<u8>> = module
+        .types
+        .iter()
+        .filter(|decl| !decl.type_params.is_empty())
+        .map(|decl| decl.name.name.clone())
+        .collect();
+    GENERIC.with(|generic| *generic.borrow_mut() = names);
+    let result = validate_module(module);
+    GENERIC.with(|generic| generic.borrow_mut().clear());
+    result
+}
+
+fn validate_module(module: &Module) -> Result {
     for top in &module.declared {
         if !top.func.type_params.is_empty() {
             return error(top.func.loc, "native functions are not generic");
@@ -23,9 +39,6 @@ pub(crate) fn validate(module: &Module) -> Result {
         function(&top.func)?;
     }
     for decl in &module.types {
-        if !decl.type_params.is_empty() {
-            return error(decl.name.loc, "generic types are not supported yet");
-        }
         type_ref(&decl.ty)?;
     }
     for top in &module.functions {
@@ -66,8 +79,14 @@ fn optional_type(t: Option<&TypeRef>) -> Result {
 }
 
 fn type_ref(t: &TypeRef) -> Result {
-    if let Some(diag) = types::generic_error(t) {
+    if !t.args.is_empty()
+        && !GENERIC.with(|generic| generic.borrow().contains(&t.name))
+        && let Some(diag) = super::types::generic_error(t)
+    {
         return Err(diag);
+    }
+    for arg in &t.args {
+        type_ref(arg)?;
     }
     match t.detail.as_deref() {
         Some(TypeDetail::Array(t)) => type_ref(t),

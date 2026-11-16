@@ -541,6 +541,15 @@ pub fn count_identifiers(body: &str) -> std::collections::HashMap<String, usize>
     counts
 }
 
+/// A type spelling usable as an expression path: generic arguments need the
+/// turbofish there (`Box<f64>` → `Box::<f64>`, as in `Box::<f64> { .. }`).
+pub fn expression_path(rust: &str) -> String {
+    match rust.find('<') {
+        Some(at) if !rust[..at].ends_with("::") => format!("{}::{}", &rust[..at], &rust[at..]),
+        _ => rust.to_owned(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

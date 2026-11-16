@@ -60,15 +60,19 @@ fn declarations_and_arrows_parse_but_codegen_rejects_type_parameters() {
 }
 
 #[test]
-fn generic_type_declarations_have_their_own_diagnostic() {
+fn unused_generic_type_declarations_generate_nothing() {
+    // a generic declaration is emitted with its first use (`Box<number>`)
     for source in [
         "interface Box<T> { value: T }",
-        "export interface B<T> extends A<T> { value: T }",
         "type Pair<A, B> = { first: A; second: B };",
     ] {
-        let diag = diagnostic(source, false);
-        assert_eq!(diag.msg, "generic types are not supported yet");
-        assert_eq!(diag.loc, parse(source).types[0].name.loc);
+        let module = parse(source);
+        let options = generate::Options {
+            require_root: false,
+            ..Default::default()
+        };
+        let generated = generate::generate("test.tsx", &module, &options).expect("generates");
+        assert!(!generated.source.contains("pub struct"), "{source}");
     }
 }
 
@@ -100,7 +104,9 @@ fn generic_references_are_rejected_after_parsing_including_known_type_names() {
         let diag = diagnostic(&source, false);
         assert_eq!(
             diag.msg,
-            format!("generic type `{name}<…>` is not supported; only `Array<T>` is")
+            format!(
+                "generic type `{name}<…>` is not supported yet; declare it in this file (`interface X<T>`) or use a concrete type"
+            )
         );
         assert_eq!(diag.loc as usize, source.rfind(ty).unwrap());
     }
@@ -174,14 +180,20 @@ fn generic_custom_hooks_fail_before_expansion_can_erase_them() {
 
 #[test]
 fn core_type_resolution_and_function_collection_also_reject_generics() {
-    for source in ["interface Box<T> { value: T }", "type F = <T>(x:T) => T;"] {
+    for (source, message) in [
+        (
+            "interface Box<T> { value: T }",
+            "`Box` needs a type argument for `T`",
+        ),
+        ("type F = <T>(x:T) => T;", "not supported yet"),
+    ] {
         let m = parse(source);
         let mut diag = None;
         let mut g = Generator::new(&mut diag);
         g.type_decls = m.types.clone();
         g.resolving = vec![false; m.types.len()];
         assert!(model::named(&mut g, &m.types[0].name.name).is_err());
-        assert!(diag.unwrap().msg.contains("not supported yet"));
+        assert!(diag.unwrap().msg.contains(message), "{source}");
     }
     let m = parse("type X = Box<number>;");
     let mut diag = None;

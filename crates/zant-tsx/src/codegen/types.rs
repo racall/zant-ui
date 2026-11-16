@@ -283,7 +283,7 @@ pub(crate) fn generic_error(reference: &ast::TypeRef) -> Option<super::Diag> {
     Some(super::Diag {
         loc: reference.loc,
         msg: format!(
-            "generic type `{}<…>` is not supported; only `Array<T>` is",
+            "generic type `{}<…>` is not supported yet; declare it in this file (`interface X<T>`) or use a concrete type",
             String::from_utf8_lossy(&reference.name)
         ),
     })
@@ -291,22 +291,33 @@ pub(crate) fn generic_error(reference: &ast::TypeRef) -> Option<super::Diag> {
 
 /// Resolve a type annotation.
 pub fn type_ref(g: &mut Generator<'_>, reference: &ast::TypeRef, allow_void: bool) -> Result<Type> {
-    if let Some(diag) = generic_error(reference) {
-        return fail(g, diag.loc, diag.msg);
+    if !reference.args.is_empty() {
+        if let Some(index) = super::generic_types::generic_decl(g, &reference.name) {
+            return super::generic_types::instantiate(g, reference, index);
+        }
+        if let Some(diag) = generic_error(reference) {
+            return fail(g, diag.loc, diag.msg);
+        }
     }
     if let Some(detail) = reference.detail.as_deref() {
-        if let Some(resolved) = g
-            .resolved_types
-            .iter()
-            .find(|resolved| resolved.detail == *detail)
+        // inside a generic declaration the same detail (`{ value: T }`)
+        // means a different type per instantiation: no cache
+        let cacheable = g.type_env.is_empty();
+        if cacheable
+            && let Some(resolved) = g
+                .resolved_types
+                .iter()
+                .find(|resolved| resolved.detail == *detail)
         {
             return Ok(resolved.ty);
         }
         let ty = model::resolve(g, reference, None)?;
-        g.resolved_types.push(super::ResolvedType {
-            detail: detail.clone(),
-            ty,
-        });
+        if cacheable {
+            g.resolved_types.push(super::ResolvedType {
+                detail: detail.clone(),
+                ty,
+            });
+        }
         return Ok(ty);
     }
     let name = reference.name.as_slice();

@@ -390,8 +390,8 @@ pub fn signature(
 /// call each other in any order).
 pub fn collect(g: &mut Generator<'_>, module: &ast::Module) -> Result<()> {
     for top in &module.functions {
-        if let Err(diag) = super::generics::function(&top.func) {
-            return fail(g, diag.loc, diag.msg);
+        if !top.func.type_params.is_empty() {
+            return fail(g, top.func.loc, "generic functions are not supported yet");
         }
         if !is_function(&top.func) {
             continue;
