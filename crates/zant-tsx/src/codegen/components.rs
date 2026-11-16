@@ -438,6 +438,34 @@ pub fn try_call(
     }))
 }
 
+/// The type and callback entry of `e` when it is this component's callback
+/// prop (`on_save` or `props.on_save`).
+fn forwarded_callback(g: &mut Generator<'_>, e: &ast::Expr) -> Result<Option<(Type, model::Info)>> {
+    if g.current_component.is_none() {
+        return Ok(None);
+    }
+    let ty = match &e.data {
+        ast::ExprData::Ident(name) => match read_prop(g, &String::from_utf8_lossy(name))? {
+            Some(value) => value.ty,
+            None => return Ok(None),
+        },
+        ast::ExprData::Member(m) => {
+            let ast::ExprData::Ident(object) = &m.object.data else {
+                return Ok(None);
+            };
+            let Some(object) = read_prop(g, &String::from_utf8_lossy(object))? else {
+                return Ok(None);
+            };
+            match field_type(g, object.ty, &m.name.name) {
+                Some(ty) => ty,
+                None => return Ok(None),
+            }
+        }
+        _ => return Ok(None),
+    };
+    Ok(callback_info(g, ty).map(|entry| (ty, entry)))
+}
+
 /// Whether `e` is this component's callback prop (`on_save` or
 /// `props.on_save`) with the signature of the ui event `kind`.
 pub fn forwarded_prop(
@@ -446,37 +474,41 @@ pub fn forwarded_prop(
     kind: tags::Kind,
     loc: ast::Loc,
 ) -> Result<bool> {
-    if g.current_component.is_none() {
-        return Ok(false);
-    }
-    let ty = match &e.data {
-        ast::ExprData::Ident(name) => match read_prop(g, &String::from_utf8_lossy(name))? {
-            Some(value) => value.ty,
-            None => return Ok(false),
-        },
-        ast::ExprData::Member(m) => {
-            let ast::ExprData::Ident(object) = &m.object.data else {
-                return Ok(false);
-            };
-            let Some(object) = read_prop(g, &String::from_utf8_lossy(object))? else {
-                return Ok(false);
-            };
-            match field_type(g, object.ty, &m.name.name) {
-                Some(ty) => ty,
-                None => return Ok(false),
-            }
-        }
-        _ => return Ok(false),
-    };
-    let Some(entry) = callback_info(g, ty) else {
+    let Some((ty, entry)) = forwarded_callback(g, e)? else {
         return Ok(false);
     };
     if model::optional_child(g, ty).is_some() {
         return fail(
             g,
             loc,
-            "an optional callback prop cannot be passed to a ui event; make it required",
+            "an optional callback prop is passed to this event as is only where the event may be absent \
+             (`onClick={onClose}` on a built-in element); call it instead: `() => onClose?.()`",
         );
+    }
+    if action_kind(&entry.params) != Some(kind) {
+        return fail(
+            g,
+            loc,
+            "this callback prop does not have the event's signature",
+        );
+    }
+    Ok(true)
+}
+
+/// Whether `e` is this component's optional callback prop
+/// (`onClose?: () => void`) with the signature of the ui event `kind`: like
+/// React, an absent callback leaves the event absent.
+pub fn optional_forwarded_prop(
+    g: &mut Generator<'_>,
+    e: &ast::Expr,
+    kind: tags::Kind,
+    loc: ast::Loc,
+) -> Result<bool> {
+    let Some((ty, entry)) = forwarded_callback(g, e)? else {
+        return Ok(false);
+    };
+    if model::optional_child(g, ty).is_none() {
+        return Ok(false);
     }
     if action_kind(&entry.params) != Some(kind) {
         return fail(

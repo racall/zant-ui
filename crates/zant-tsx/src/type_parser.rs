@@ -30,7 +30,12 @@ pub fn parse_type(p: &mut Parser) -> Result<TypeRef, Error> {
 /// A primary type followed by any number of `[]`.
 fn parse_postfix(p: &mut Parser) -> Result<TypeRef, Error> {
     let loc = p.cur.start;
+    let readonly = p.is_kw("readonly");
+    if readonly {
+        p.advance();
+    }
     let mut t = parse_primary(p)?;
+    let mut array = false;
     while p.is_p("[") {
         p.advance();
         if !p.is_p("]") {
@@ -41,6 +46,11 @@ fn parse_postfix(p: &mut Parser) -> Result<TypeRef, Error> {
         }
         p.advance();
         t = detailed(loc, TypeDetail::Array(t));
+        array = true;
+    }
+    // TypeScript permits this modifier only on array syntax, not named types.
+    if readonly && !array {
+        return Err(p.fail(loc, "`readonly` requires an array type written as `T[]`"));
     }
     Ok(t)
 }
@@ -248,6 +258,51 @@ mod tests {
 
     fn text(value: &[u8]) -> &str {
         std::str::from_utf8(value).expect("text is UTF-8")
+    }
+
+    #[test]
+    fn readonly_arrays_use_the_readonly_array_representation() {
+        for (source, depth) in [
+            ("readonly string[]", 1),
+            ("ReadonlyArray<string>", 1),
+            ("readonly string[][]", 2),
+            ("ReadonlyArray<string[]>", 2),
+        ] {
+            let mut p = Parser::init(source);
+            let ty = p.parse_type().expect("array type");
+            assert_eq!(p.cur.kind, Kind::Eof);
+            let mut item = &ty;
+            for _ in 0..depth {
+                item = match item.detail.as_deref() {
+                    Some(TypeDetail::Array(inner)) => inner,
+                    _ => panic!("expected an array in {source}"),
+                };
+            }
+            assert_eq!("string", text(&item.name));
+            assert!(item.detail.is_none());
+        }
+        let m = parse_ok(
+            "type Rows = readonly string[] | null;\n\
+             interface Props { rows: readonly (string | null)[] }\n\
+             function rows(value: readonly string[][]): readonly string[][] { return value; }",
+        );
+        assert!(matches!(
+            m.types[0].ty.detail.as_deref(),
+            Some(TypeDetail::Union(members))
+                if matches!(members[0].detail.as_deref(), Some(TypeDetail::Array(_)))
+                    && matches!(members[1].detail.as_deref(), Some(TypeDetail::Null))
+        ));
+    }
+
+    #[test]
+    fn readonly_still_requires_array_syntax() {
+        for ty in ["readonly string", "readonly Array<string>"] {
+            crate::parser::expect_syntax_error(
+                &format!("type Rows = {ty};"),
+                "`readonly` requires an array type written as `T[]`",
+                "readonly",
+            );
+        }
     }
 
     #[test]

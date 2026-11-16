@@ -284,6 +284,18 @@ impl Walker<'_> {
         }
         let tag = tags::find(&name);
         for a in &j.attrs {
+            // `{...{ onClick: save }}`: each property is an attribute; a
+            // spread of anything else may carry handlers too (`{...look}`)
+            if a.spread
+                && let Some(v) = a.value.as_deref()
+            {
+                if self.spread_binds_handler(tag, v) {
+                    self.found = true;
+                    return;
+                }
+                self.expr(v);
+                continue;
+            }
             if let Some(v) = a.value.as_deref() {
                 // a handler becomes a method reached through the instance's
                 // state slot: without a slot the event is lost
@@ -335,6 +347,25 @@ impl Walker<'_> {
             // goes: conservatively a handler (a slot too many costs little, a
             // missing one drops events)
             _ => event_name(attr) || action_prop(tag, attr),
+        }
+    }
+
+    /// `{...value}` on an element: an object literal binds a handler when one
+    /// of its properties does; any other value (a typed object, props) might
+    /// carry a callback field, so it conservatively counts as one.
+    fn spread_binds_handler(&self, tag: Option<&tags::Tag>, value: &ast::Expr) -> bool {
+        match &value.data {
+            ast::ExprData::Object(properties) => properties.iter().any(|property| {
+                if property.spread {
+                    self.spread_binds_handler(tag, &property.value)
+                } else {
+                    self.binds_handler(tag, &property.key.name, &property.value)
+                }
+            }),
+            // the component's own props passed on: their callbacks are
+            // forwarded values
+            ast::ExprData::Ident(name) => !self.forwarded.iter().any(|param| param == name),
+            _ => true,
         }
     }
 
@@ -501,7 +532,9 @@ mod tests {
              function Forwarded({ onSave }: P) { return <Button onClick={onSave}>Save</Button>; }\n\
              function ForwardedProps(props: P) { return <Button onClick={props.onSave}>Save</Button>; }\n\
              function Visual() { const theme = useTheme(); return <Text color={theme.colorText}>{label}</Text>; }\n\
-             function Conditional({ busy }: P) { return <Button onClick={busy ? undefined : save}>Save</Button>; }\n";
+             function Conditional({ busy }: P) { return <Button onClick={busy ? undefined : save}>Save</Button>; }\n\
+             function SpreadLiteral() { return <Button {...{ onClick: save }}>Save</Button>; }\n\
+             function SpreadLook() { return <Button {...{ width: 120 }}>Save</Button>; }\n";
         let module = parse_module(src);
         let expected = [
             ("save", false),
@@ -518,6 +551,8 @@ mod tests {
             ("ForwardedProps", false),
             ("Visual", false),
             ("Conditional", true),
+            ("SpreadLiteral", true),
+            ("SpreadLook", false),
         ];
         for (top, (name, want)) in module.functions.iter().zip(expected) {
             assert_eq!(name.as_bytes(), top.func.name.as_slice());

@@ -366,6 +366,8 @@ fn validate_imports(g: &mut Generator<'_>, module: &ast::Module) -> Result<()> {
                 || matches!(
                     imported.as_ref(),
                     "useState"
+                        // lowered to its function (`react_compat`)
+                        | "useCallback"
                         | "useTheme"
                         | "List"
                         | "createStore"

@@ -1,6 +1,12 @@
 //! Lower qualified React hooks and Fragment to the existing Zant syntax.
 //! Runs after parsing all imports, before stateful analysis or generation.
 //!
+//! Also lowers the memoization-only hooks the way their React semantics
+//! allow: `useCallback(fn, deps)` only keeps `fn`'s identity stable between
+//! renders, so it is `fn` (Zant rebuilds handlers every render anyway), and a
+//! `useMemo` whose factory returns a function (`useMemo(() => () => …, deps)`)
+//! is that function.
+//!
 //! The walker mutates the tree in place (`&mut Module`).
 
 use crate::ast::{
@@ -52,7 +58,10 @@ pub fn normalize(module: &mut Module) {
         }
     }
     for name in bindings {
-        let mut walker = Walker { name };
+        let mut walker = Walker {
+            name,
+            mode: Mode::Namespace,
+        };
         for top in &mut module.functions {
             walker.function(&mut top.func);
         }
@@ -60,10 +69,47 @@ pub fn normalize(module: &mut Module) {
             walker.expr(&mut decl.value);
         }
     }
+    // `useCallback` / `useMemo` under the local names they are imported as
+    // (React's qualified `React.useCallback` was renamed to the plain hook above)
+    for (hook, mode) in [
+        (b"useCallback".as_slice(), Mode::Callback),
+        (b"useMemo".as_slice(), Mode::FunctionMemo),
+    ] {
+        let mut names: Vec<Vec<u8>> = vec![hook.to_vec()];
+        for imp in &module.imports {
+            if imp.type_only
+                || (imp.source.as_slice() != b"react" && imp.source.as_slice() != b"zant")
+            {
+                continue;
+            }
+            for n in &imp.names {
+                if n.imported.name.as_slice() == hook && n.local.name.as_slice() != hook {
+                    names.push(n.local.name.clone());
+                }
+            }
+        }
+        for name in names {
+            let mut walker = Walker { name, mode };
+            for top in &mut module.functions {
+                walker.function(&mut top.func);
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Mode {
+    /// `name` is React's default / namespace binding: `React.useState` → `useState`.
+    Namespace,
+    /// `name` is `useCallback`: `useCallback(fn, deps)` → `fn`.
+    Callback,
+    /// `name` is `useMemo`: `useMemo(() => fn, deps)` with an arrow `fn` → `fn`.
+    FunctionMemo,
 }
 
 struct Walker {
     name: Vec<u8>,
+    mode: Mode,
 }
 
 impl Walker {
@@ -197,6 +243,38 @@ impl Walker {
             | ExprData::Boolean(_)
             | ExprData::NullLit
             | ExprData::Ident(_) => {}
+            ExprData::Call(c) if self.mode != Mode::Namespace => {
+                let lowered = match &c.callee.data {
+                    ExprData::Ident(callee)
+                        if self.matches(callee) && !c.args.is_empty() && c.args.len() <= 2 =>
+                    {
+                        match self.mode {
+                            Mode::Callback => Some((*c.args[0]).clone()),
+                            _ => match &c.args[0].data {
+                                ExprData::Arrow(factory) => match &factory.body {
+                                    Body::Expr(inner)
+                                        if matches!(inner.data, ExprData::Arrow(_)) =>
+                                    {
+                                        Some((**inner).clone())
+                                    }
+                                    _ => None,
+                                },
+                                _ => None,
+                            },
+                        }
+                    }
+                    _ => None,
+                };
+                if let Some(function) = lowered {
+                    *e = function;
+                    self.expr(e);
+                    return;
+                }
+                self.expr(&mut c.callee);
+                for a in &mut c.args {
+                    self.expr(a);
+                }
+            }
             ExprData::Call(c) => {
                 let mut replacement: Option<&'static str> = None;
                 if let ExprData::Member(m) = &c.callee.data
@@ -204,7 +282,7 @@ impl Walker {
                     && let ExprData::Ident(object) = &m.object.data
                     && self.matches(object)
                 {
-                    for hook in ["useState", "useEffect", "useMemo", "useRef"] {
+                    for hook in ["useState", "useEffect", "useMemo", "useRef", "useCallback"] {
                         if m.name.name.as_slice() == hook.as_bytes() {
                             replacement = Some(hook);
                         }
@@ -261,7 +339,8 @@ impl Walker {
     }
 
     fn jsx(&mut self, j: &mut Jsx) {
-        if let Some(dot) = j.name.iter().position(|&b| b == b'.')
+        if self.mode == Mode::Namespace
+            && let Some(dot) = j.name.iter().position(|&b| b == b'.')
             && self.matches(&j.name[..dot])
             && &j.name[dot + 1..] == b"Fragment".as_slice()
         {

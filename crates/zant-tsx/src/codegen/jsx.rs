@@ -456,8 +456,8 @@ pub fn property(
             put(fields, &prop_named("basis"), "Some(0.0f32)".to_owned());
         }
         Kind::Action | Kind::BoolAction | Kind::TextAction | Kind::IndexAction => {
-            let code = events::event_value(g, c, e, prop.kind)?;
-            put(fields, prop, format!("Some({code})"));
+            let code = events::optional_event_value(g, c, e, prop.kind)?;
+            put(fields, prop, code);
         }
         Kind::ShortcutAction => {
             let code = events::event_value(g, c, e, Kind::TextAction)?;

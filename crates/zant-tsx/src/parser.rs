@@ -197,10 +197,20 @@ impl<'a> Parser<'a> {
                 if default {
                     self.advance();
                 }
-                if default && self.cur.kind == Kind::Identifier && !self.is_kw("function") {
+                if default
+                    && self.cur.kind == Kind::Identifier
+                    && !self.is_kw("function")
+                    && !self.is_kw("enum")
+                {
                     self.mark_default(&mut m)?;
                     continue;
                 }
+            }
+            if self.is_kw("enum") {
+                return Err(self.fail(
+                    self.cur.start,
+                    "enum declarations are not supported; use a string union type (\"a\" | \"b\") and constants instead",
+                ));
             }
             if !default && self.is_kw("declare") {
                 // `export declare function copy(row: i64): CopyResult;` (native module specs)
@@ -215,7 +225,7 @@ impl<'a> Parser<'a> {
                     default: false,
                 });
             } else if self.is_kw("function") {
-                let func = self.parse_function()?;
+                let func = self.parse_function_with_default(default)?;
                 m.functions.push(TopFunction {
                     func,
                     exported,
@@ -360,12 +370,21 @@ impl<'a> Parser<'a> {
     // ── functions and types ─────────────────────────────────────────────
 
     pub fn parse_function(&mut self) -> Result<Box<Function>, Error> {
+        self.parse_function_with_default(false)
+    }
+
+    fn parse_function_with_default(&mut self, default: bool) -> Result<Box<Function>, Error> {
         let loc = self.cur.start;
         self.advance(); // function
         if self.is_p("*") {
             return Err(self.fail(self.cur.start, "generator functions are not supported"));
         }
-        let name = self.expect_ident("a function name")?;
+        let name = if default && self.is_p("(") {
+            // The parser has no file name; anonymous default components use App.
+            b"App".to_vec()
+        } else {
+            self.expect_ident("a function name")?.name
+        };
         if self.is_p("<") {
             return Err(self.fail(self.cur.start, "generic functions are not supported"));
         }
@@ -377,7 +396,7 @@ impl<'a> Parser<'a> {
         let body = self.parse_block()?;
         Ok(Box::new(Function {
             loc,
-            name: name.name,
+            name,
             params,
             ret,
             body: Body::Block(body),
@@ -737,6 +756,46 @@ mod tests {
 
     fn text(value: &[u8]) -> &str {
         std::str::from_utf8(value).expect("text is UTF-8")
+    }
+
+    #[test]
+    fn anonymous_default_components_use_app_without_a_file_name() {
+        let source = r#"import { View } from "zant";
+export default function () { return <View />; }"#;
+        let m = parse_ok(source);
+        assert_eq!(m.functions.len(), 1);
+        let f = &m.functions[0];
+        assert_eq!("App", text(&f.func.name));
+        assert!(f.default && f.exported);
+        assert!(matches!(
+            &ret_expr(&block(&f.func)[0]).data,
+            ExprData::Jsx(_)
+        ));
+        crate::compile::compile(source, "Other.tsx").expect("anonymous default compiles as App");
+        expect_syntax_error(
+            "function () {}",
+            "expected `a function name`, found `(`",
+            "(",
+        );
+        expect_syntax_error(
+            "export function () {}",
+            "expected `a function name`, found `(`",
+            "(",
+        );
+    }
+
+    #[test]
+    fn enums_report_the_supported_alternative_at_the_keyword() {
+        for source in [
+            "enum Kind { A, B }",
+            "export enum Kind { A = 'a', B = 'b' }",
+        ] {
+            expect_syntax_error(
+                source,
+                "enum declarations are not supported; use a string union type (\"a\" | \"b\") and constants instead",
+                "enum",
+            );
+        }
     }
 
     #[test]

@@ -28,6 +28,8 @@
   export function useState<T>(initial: T): [T, StateSetter<T>];
   export function useEffect(effect: () => void | (() => void), dependencies?: readonly unknown[]): void;
   export function useMemo<T>(compute: () => T, dependencies: readonly unknown[]): T;
+  /** React's `useCallback`: the function itself (handlers are rebuilt every render). */
+  export function useCallback<T extends (...args: never[]) => unknown>(callback: T, dependencies?: readonly unknown[]): T;
   export function useRef<T>(initial: T): { current: T };
   export function useTheme(): Theme;
 

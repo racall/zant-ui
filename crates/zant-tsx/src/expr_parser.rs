@@ -347,7 +347,9 @@ pub fn parse_postfix(p: &mut Parser) -> Result<Box<Expr>, Error> {
         } else if p.is_kw("as") && !p.cur.nl_before {
             p.advance();
             if p.is_kw("const") {
-                return Err(p.fail(p.cur.start, "`as const` is not supported"));
+                // Preserve literal inference; this subset does not model const types.
+                p.advance();
+                continue;
             }
             let ty = p.parse_type()?;
             let loc = e.loc;
@@ -650,6 +652,42 @@ mod tests {
 
     fn text(value: &[u8]) -> &str {
         std::str::from_utf8(value).expect("text is UTF-8")
+    }
+
+    #[test]
+    fn const_assertions_preserve_literal_expressions() {
+        for literal in [
+            "42",
+            "-42",
+            "true",
+            "false",
+            r#""ready""#,
+            "`ready`",
+            "[]",
+            r#"[1, "two", { done: true }]"#,
+            r#"({ kind: "ready", values: [1, 2] })"#,
+            r#"{ kind: "ready" as const, values: [1, 2] as const }"#,
+        ] {
+            let plain = parse_ok(&format!("const value = {literal};"));
+            let asserted = parse_ok(&format!("const value = {literal} as const;"));
+            assert_eq!(plain.consts[0].value, asserted.consts[0].value, "{literal}");
+        }
+        let m = parse_ok("const value = ([1, 2] as const)[0];");
+        assert!(matches!(&m.consts[0].value.data, ExprData::Index(_)));
+    }
+
+    #[test]
+    fn const_assertions_do_not_relax_other_assertion_targets() {
+        expect_syntax_error(
+            "const value = 1 as Record<string, number>;",
+            "generic type `Record<…>` is not supported; only `Array<T>` is",
+            "Record",
+        );
+        expect_syntax_error(
+            "const value = 1 as typeof other;",
+            "`typeof` types are not supported",
+            "typeof",
+        );
     }
 
     #[test]

@@ -431,9 +431,24 @@ pub fn signature(
 
 /// Validate the action signature and reuse one adapter per setter and action kind.
 pub fn event(g: &mut Generator<'_>, e: &ast::Expr, prop: &tags::Prop, loc: ast::Loc) -> Result<()> {
+    // `ready ? save : undefined`: each present branch is a handler of its own
+    // (the branch is picked at render time, `optional_event_value`)
+    if let ast::ExprData::Cond(cond) = &e.data
+        && optional_event(prop.kind)
+    {
+        for branch in [&cond.then, &cond.else_] {
+            if !absent(branch) {
+                event(g, branch, prop, loc)?;
+            }
+        }
+        return Ok(());
+    }
     // a child component's callback prop forwarded to a ui event is emitted
     // directly (`onClick={onSave}`), nothing to register
-    if super::components::forwarded_prop(g, e, prop.kind, loc)? {
+    if (optional_event(prop.kind)
+        && super::components::optional_forwarded_prop(g, e, prop.kind, loc)?)
+        || super::components::forwarded_prop(g, e, prop.kind, loc)?
+    {
         return Ok(());
     }
     for previous in &g.events {
@@ -493,11 +508,15 @@ pub fn event(g: &mut Generator<'_>, e: &ast::Expr, prop: &tags::Prop, loc: ast::
                     data: ast::ExprData::Arrow(function),
                 };
                 index = register_arrow(g, prop, &arrow)?;
-            } else if scope::source_method(g, name).is_none()
-                && functions::find_index(g, name).is_some()
-            {
-                // a plain function: handled as `(v) => fn(v)`
-                let arrow = function_arrow(e, prop.kind);
+            } else if let (None, Some(function)) = (
+                scope::source_method(g, name),
+                functions::find_index(g, name),
+            ) {
+                // a plain function: handled as `(v) => fn(v)`, or `(v) => fn()`
+                // when it ignores the event's value (TypeScript accepts a
+                // callback with fewer parameters)
+                let pass_value = !g.functions[function].params.is_empty();
+                let arrow = function_arrow(e, prop.kind, pass_value);
                 index = register_arrow(g, prop, &arrow)?;
             } else {
                 let Some(method_index) = scope::source_method(g, name) else {
@@ -508,6 +527,21 @@ pub fn event(g: &mut Generator<'_>, e: &ast::Expr, prop: &tags::Prop, loc: ast::
                     );
                 };
                 let m = g.methods[method_index].clone();
+                let ignores_value = prop.kind != Kind::Action
+                    && m.func
+                        .as_ref()
+                        .is_some_and(|function| function.params.is_empty());
+                if ignores_value {
+                    // `function save() {}` on `onChange`: `(v) => save()`
+                    let arrow = function_arrow(e, prop.kind, false);
+                    index = register_arrow(g, prop, &arrow)?;
+                    g.events.push(Event {
+                        loc: e.loc,
+                        kind: prop.kind,
+                        method: index,
+                    });
+                    return Ok(());
+                }
                 signature(g, &m, prop.kind, loc, false)?;
                 if let Some(previous) = m.action
                     && previous != prop.kind
@@ -539,6 +573,48 @@ pub fn event(g: &mut Generator<'_>, e: &ast::Expr, prop: &tags::Prop, loc: ast::
         method: index,
     });
     Ok(())
+}
+
+/// Events whose field is an `Option<ui::…Action>` the value may leave empty.
+fn optional_event(kind: Kind) -> bool {
+    matches!(
+        kind,
+        Kind::Action | Kind::TextAction | Kind::BoolAction | Kind::IndexAction
+    )
+}
+
+/// `undefined` / `null` where a handler goes: no handler.
+fn absent(e: &ast::Expr) -> bool {
+    match &e.data {
+        ast::ExprData::NullLit => true,
+        ast::ExprData::Ident(name) => name == b"undefined",
+        _ => false,
+    }
+}
+
+/// The `Option<ui::…Action>` of an event attribute. As in React the value is
+/// evaluated at render time: `cond ? a : b` picks its branch then, an
+/// `undefined` / `null` branch and an absent optional callback prop leave the
+/// event empty.
+pub fn optional_event_value(
+    g: &mut Generator<'_>,
+    c: &mut scope::Context,
+    e: &ast::Expr,
+    kind: Kind,
+) -> Result<String> {
+    if absent(e) {
+        return Ok("None".to_owned());
+    }
+    if let ast::ExprData::Cond(cond) = &e.data {
+        let test = expr::condition(g, c, &cond.cond)?.code;
+        let then = optional_event_value(g, c, &cond.then, kind)?;
+        let otherwise = optional_event_value(g, c, &cond.else_, kind)?;
+        return Ok(format!("if {test} {{ {then} }} else {{ {otherwise} }}"));
+    }
+    if super::components::optional_forwarded_prop(g, e, kind, e.loc)? {
+        return Ok(expr::emit(g, c, e, None, false)?.code);
+    }
+    Ok(format!("Some({})", event_value(g, c, e, kind)?))
 }
 
 /// `ui::action(..)` for a registered handler expression.
@@ -867,15 +943,17 @@ fn inline_function(g: &Generator<'_>, name: &[u8]) -> Option<Box<ast::Function>>
 }
 
 /// `fn` passed as a handler, as the arrow `() => fn()` / `(v) => fn(v)`.
-fn function_arrow(e: &ast::Expr, kind: Kind) -> ast::Expr {
+fn function_arrow(e: &ast::Expr, kind: Kind, pass_value: bool) -> ast::Expr {
     let takes_value = kind != Kind::Action;
     let mut args: Vec<Box<ast::Expr>> = Vec::new();
     let mut params: Vec<ast::Param> = Vec::new();
     if takes_value {
-        args.push(Box::new(ast::Expr {
-            loc: e.loc,
-            data: ast::ExprData::Ident(b"_value".to_vec()),
-        }));
+        if pass_value {
+            args.push(Box::new(ast::Expr {
+                loc: e.loc,
+                data: ast::ExprData::Ident(b"_value".to_vec()),
+            }));
+        }
         params.push(ast::Param {
             name: ast::Name {
                 name: b"_value".to_vec(),
