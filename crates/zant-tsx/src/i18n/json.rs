@@ -48,6 +48,32 @@ pub fn parse(src: &str) -> Result<Value, Diag> {
     Ok(value)
 }
 
+/// Map a decoded byte offset in a valid JSON string back to its source.
+/// Escaped scalar bytes map to their backslash; the end maps to the closing quote.
+pub fn source_offset(src: &str, string_loc: u32, decoded: u32) -> u32 {
+    let mut reader = Reader {
+        src,
+        at: string_loc as usize + 1,
+    };
+    let mut remaining = decoded as usize;
+    while remaining > 0 && !matches!(reader.peek(), None | Some(b'"')) {
+        let start = reader.at;
+        if reader.take(b'\\') {
+            let Ok(c) = reader.escape() else {
+                return start as u32;
+            };
+            if remaining < c.len_utf8() {
+                return start as u32;
+            }
+            remaining -= c.len_utf8();
+        } else {
+            reader.at += 1;
+            remaining -= 1;
+        }
+    }
+    reader.at as u32
+}
+
 struct Reader<'a> {
     src: &'a str,
     at: usize,
@@ -277,6 +303,25 @@ impl Reader<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn decoded_offsets_map_escapes_and_utf8_to_source_bytes() {
+        let utf8: &[u32] = &[1, 2, 4, 4, 4, 10, 10, 10, 10, 22];
+        let escapes: &[u32] = &[1, 3, 5, 7, 9, 11, 13, 15, 21];
+        for (src, expected) in [
+            (r#""a\n\u4E2D\uD83D\uDE00""#, utf8),
+            ("\"中😀\"", &[1, 2, 3, 4, 5, 6, 7, 8][..]),
+            (r#""\"\\\/\b\f\r\t\u0041""#, escapes),
+            (r#""""#, &[1][..]),
+        ] {
+            for (prefix, loc) in [("", 0), ("中:", 4)] {
+                let src = format!("{prefix}{src}");
+                for (offset, source) in expected.iter().copied().enumerate() {
+                    assert_eq!(source_offset(&src, loc, offset as u32), source + loc);
+                }
+            }
+        }
+    }
 
     #[test]
     fn strings_decode_every_escape_and_unicode() {
