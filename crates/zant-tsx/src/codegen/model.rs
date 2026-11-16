@@ -280,6 +280,13 @@ pub fn resolve(
         ast::TypeDetail::Null => Ok(Type::Null),
         ast::TypeDetail::Func(f) => callback_type(g, reference.loc, f),
         ast::TypeDetail::Intersection(members) => intersection(g, members, name),
+        ast::TypeDetail::Keyof(inner) => super::type_ops::keyof(g, inner, name),
+        ast::TypeDetail::Typeof(value) => super::type_ops::type_of(g, value),
+        ast::TypeDetail::Indexed(inner, key) => {
+            super::type_ops::indexed(g, inner, key, reference.loc)
+        }
+        // number literal types are checked as `number`
+        ast::TypeDetail::NumberLit(_) => Ok(Type::F64),
         ast::TypeDetail::Tuple(members) => {
             let mut items = Vec::with_capacity(members.len());
             for member in members {
@@ -616,7 +623,16 @@ fn union_type(
             Ok(list)
         };
     }
-    let ty = if nonnull.len() == 1 {
+    let numbers = nonnull.iter().all(|member| {
+        matches!(
+            member.detail.as_deref(),
+            Some(ast::TypeDetail::NumberLit(_))
+        )
+    });
+    let ty = if numbers {
+        // `1 | 2 | 3`: checked as `number`
+        Type::F64
+    } else if nonnull.len() == 1 {
         if nonnull[0].detail.is_some() {
             resolve(g, &nonnull[0], name)?
         } else {
@@ -666,7 +682,11 @@ fn node_or_nodes(g: &mut Generator<'_>, members: &[ast::TypeRef]) -> Result<Opti
     Ok(None)
 }
 
-fn enumeration(g: &mut Generator<'_>, members: &[Vec<u8>], name: Option<&[u8]>) -> Result<Type> {
+pub(super) fn enumeration(
+    g: &mut Generator<'_>,
+    members: &[Vec<u8>],
+    name: Option<&[u8]>,
+) -> Result<Type> {
     let external = match name {
         Some(name) => match g.extensions.hooks.external_name {
             Some(hook) => hook(g, &String::from_utf8_lossy(name))?,

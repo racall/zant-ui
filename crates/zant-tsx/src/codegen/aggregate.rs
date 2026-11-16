@@ -560,6 +560,9 @@ pub fn index(
     if super::dicts::kind(g, value.ty).is_some() {
         return super::dicts::index(g, c, value, &ix.index);
     }
+    if let Some(read) = super::type_ops::field_by_key(g, c, &value, &ix.index)? {
+        return Ok(read);
+    }
     if let Some(items) = model::tuple_items(g, value.ty) {
         // `pair[1]`: a literal position
         let position = match &ix.index.data {

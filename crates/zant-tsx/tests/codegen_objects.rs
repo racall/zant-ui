@@ -87,3 +87,28 @@ fn tuples_are_rust_tuples() {
             .unwrap_err();
     assert!(message.contains("literal position"), "{message}");
 }
+
+#[test]
+fn type_operators() {
+    let rust = compile_module(
+        "const labels = { open: \"Open\", done: \"Done\" };\ntype Key = keyof typeof labels;\ninterface Todo { id: number; title: string }\ntype Title = Todo[\"title\"];\ntype Size = 1 | 2 | 3;\nfunction label(k: Key): string { return labels[k]; }\nfunction title(t: Todo): Title { return t.title; }\nfunction twice(s: Size): number { return s * 2; }",
+    )
+    .unwrap();
+    let flat = squash(&rust);
+    for needle in [
+        "pub enum Key",
+        "Key::Open => _object.open.clone()",
+        "pub fn title(t: Todo) -> zant::Str",
+        "pub fn twice(s: f64) -> f64",
+    ] {
+        assert!(
+            flat.contains(&squash(needle)),
+            "missing `{needle}` in {rust}"
+        );
+    }
+    let message = compile_module(
+        "interface T { id: number; title: string }\nfunction f(t: T, k: keyof T): string { return t[k]; }",
+    )
+    .unwrap_err();
+    assert!(message.contains("different types"), "{message}");
+}

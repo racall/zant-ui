@@ -54,10 +54,19 @@ fn parse_postfix(p: &mut Parser) -> Result<TypeRef, Error> {
     let mut array = false;
     while p.is_p("[") {
         p.advance();
+        if p.cur.kind == Kind::String {
+            // `T["field"]`
+            let key = lexer::decode_string(p.text().as_bytes())
+                .map_err(|_| p.fail(p.cur.start, "invalid escape in string"))?;
+            p.advance();
+            p.expect_p("]")?;
+            t = detailed(loc, TypeDetail::Indexed(t, key));
+            continue;
+        }
         if !p.is_p("]") {
             return Err(p.fail(
                 p.cur.start,
-                "indexed access types are not supported; write `T[]` for an array",
+                "indexed access types take a field name in quotes (`T[\"title\"]`); write `T[]` for an array",
             ));
         }
         p.advance();
@@ -83,10 +92,9 @@ fn parse_primary(p: &mut Parser) -> Result<TypeRef, Error> {
             return Ok(detailed(loc, TypeDetail::StringLit(value)));
         }
         Kind::Number => {
-            return Err(p.fail(
-                loc,
-                "number literal types are not supported; use a string literal union",
-            ));
+            let text = p.text().as_bytes().to_vec();
+            p.advance();
+            return Ok(detailed(loc, TypeDetail::NumberLit(text)));
         }
         Kind::Identifier => {}
         _ => {
@@ -111,7 +119,23 @@ fn parse_primary(p: &mut Parser) -> Result<TypeRef, Error> {
         p.advance();
         return Ok(detailed(loc, TypeDetail::Null));
     }
-    for kw in ["typeof", "keyof", "infer", "unique", "readonly"] {
+    if word == "keyof" {
+        p.advance();
+        let inner = parse_postfix(p)?;
+        return Ok(detailed(loc, TypeDetail::Keyof(inner)));
+    }
+    if word == "typeof" {
+        p.advance();
+        let name = p.expect_ident("a constant name after `typeof`")?;
+        if p.is_p(".") {
+            return Err(p.fail(
+                p.cur.start,
+                "`typeof` names a top-level constant (`typeof labels`)",
+            ));
+        }
+        return Ok(detailed(loc, TypeDetail::Typeof(name)));
+    }
+    for kw in ["infer", "unique", "readonly"] {
         if word == kw {
             return Err(p.fail(loc, format!("`{kw}` types are not supported")));
         }

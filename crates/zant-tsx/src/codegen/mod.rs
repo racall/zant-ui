@@ -111,6 +111,7 @@ pub mod stmt;
 pub mod stores;
 pub mod string_methods;
 pub mod structural;
+pub mod type_ops;
 pub mod types;
 pub mod windows;
 pub mod zant_api;
@@ -475,6 +476,8 @@ pub struct Generator<'a> {
     pub generic_instances: Vec<generic_types::Instance>,
     /// `enum` declarations of this file (`enums`).
     pub enums: Vec<ast::EnumDecl>,
+    /// Top-level constants of this file, for `typeof name` in types.
+    pub const_decls: Vec<ast::TopConst>,
     /// Generic function templates of this file (`generic_functions`).
     pub generic_functions: Vec<generic_functions::Template>,
     /// How many of `functions` were emitted (`functions::emit_all`).
@@ -553,6 +556,7 @@ impl<'a> Generator<'a> {
             type_env: Vec::new(),
             generic_instances: Vec::new(),
             enums: Vec::new(),
+            const_decls: Vec::new(),
             generic_functions: Vec::new(),
             emitted_functions: 0,
             constants: Vec::new(),

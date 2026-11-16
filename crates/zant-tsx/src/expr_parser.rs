@@ -802,10 +802,11 @@ mod tests {
             "generic type `Promise<…>` is not supported yet; declare it in this file (`interface X<T>`) or use a concrete type",
             "Promise",
         );
-        expect_syntax_error(
-            "const value = 1 as typeof other;",
-            "`typeof` types are not supported",
-            "typeof",
+        // `typeof` names a top-level constant of the file
+        expect_codegen_error(
+            "const value = 1 as typeof other;\nexport default function App() { return null; }",
+            "`typeof other`: only top-level constants of this file can be named here",
+            "other",
         );
     }
 

@@ -190,6 +190,14 @@ pub fn spelling(reference: &ast::TypeRef) -> String {
         Some(ast::TypeDetail::Union(members)) => join(members, " | "),
         Some(ast::TypeDetail::Intersection(members)) => join(members, " & "),
         Some(ast::TypeDetail::Tuple(members)) => format!("[{}]", join(members, ", ")),
+        Some(ast::TypeDetail::Keyof(inner)) => format!("keyof {}", spelling(inner)),
+        Some(ast::TypeDetail::Typeof(name)) => {
+            format!("typeof {}", String::from_utf8_lossy(&name.name))
+        }
+        Some(ast::TypeDetail::Indexed(inner, key)) => {
+            format!("{}[{:?}]", spelling(inner), String::from_utf8_lossy(key))
+        }
+        Some(ast::TypeDetail::NumberLit(value)) => String::from_utf8_lossy(value).into_owned(),
         Some(ast::TypeDetail::StringLit(text)) => format!("{:?}", String::from_utf8_lossy(text)),
         Some(ast::TypeDetail::Null) => "null".to_owned(),
         Some(ast::TypeDetail::Func(_)) => "(…) => …".to_owned(),

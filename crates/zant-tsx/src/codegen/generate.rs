@@ -238,6 +238,7 @@ fn generate_inner(
     super::loops::reset_exhaustive();
     g.type_decls = module.types.clone();
     g.enums = module.enums.clone();
+    g.const_decls = module.consts.clone();
     g.react_imports = module.imports.clone();
     g.resolving = vec![false; module.types.len()];
     install(&mut g);

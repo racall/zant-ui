@@ -47,6 +47,14 @@ pub enum TypeDetail {
     Intersection(Vec<TypeRef>),
     /// `[string, number]`: a fixed-length tuple.
     Tuple(Vec<TypeRef>),
+    /// `keyof T`: the names of T's fields, as a string-literal union.
+    Keyof(TypeRef),
+    /// `typeof value` in a type: the type of a top-level constant.
+    Typeof(Name),
+    /// `T["field"]`: the type of one field.
+    Indexed(TypeRef, Vec<u8>),
+    /// `1` / `-2.5` as a type (checked as `number`).
+    NumberLit(Vec<u8>),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
