@@ -604,3 +604,30 @@ fn run_cargo_check(crate_dir: &Path) -> (bool, String) {
         ),
     }
 }
+
+/// Boolean children render nothing (React); `for…in` visits record keys.
+#[test]
+fn boolean_children_and_for_in() {
+    let out = compile(
+        "bool_children",
+        r#"import { useState, View, Text } from "zant";
+function count(scores: Record<string, number>): number {
+  let n = 0;
+  for (const key in scores) n += key.length;
+  return n;
+}
+export default function App() {
+  const [flag, setFlag] = useState(false);
+  return <View>{flag}{true}<Text>{count({ a: 1 })}</Text></View>;
+}
+"#,
+    );
+    contains(&out, "let _ = self.flag");
+    contains(&out, "scores.clone().keys()");
+    let error = zant_tsx::compile::compile(
+        "function f(o: Record<string, number>): void { for (const [k, v] in o) {} }\nexport default function App() { return <View />; }",
+        "for_in.tsx",
+    )
+    .unwrap_err();
+    assert!(error.msg.contains("Object.entries"), "{}", error.msg);
+}

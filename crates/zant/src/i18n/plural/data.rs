@@ -44,10 +44,11 @@ pub(super) fn locales() -> &'static Locales {
 
 /// Look up embedded CLDR cardinal rule strings for a BCP-47 language tag.
 ///
-/// Tries the exact tag, removes trailing subtags (region before script), then
-/// tries the language and `root`. Matching is ASCII case-insensitive. Unicode
-/// extensions and private-use subtags do not affect lookup. Returns `None` if
-/// CLDR has neither the language nor a root entry.
+/// Tries the exact tag, then removes trailing subtags (region before script)
+/// down to the language. Matching is ASCII case-insensitive. Unicode
+/// extensions and private-use subtags do not affect lookup. Returns `None`
+/// when CLDR does not know the language (the caller decides: the build warns
+/// and uses `other` only, which is CLDR's `und` root).
 pub fn cldr_rules(tag: &str) -> Option<Vec<(Category, &'static str)>> {
     let mut parts: Vec<_> = tag.split('-').collect();
     if let Some(extension) = parts.iter().position(|part| part.len() == 1) {
@@ -64,5 +65,5 @@ pub fn cldr_rules(tag: &str) -> Option<Vec<(Category, &'static str)>> {
         }
         parts.pop();
     }
-    data.get("root").cloned()
+    None
 }

@@ -37,7 +37,7 @@ impl tsx::hot::Hot for Item {
 impl tsx::json::Json for Item {
     fn to_json(&self) -> Option<tsx::json::JsonValue> {
         Some(
-            tsx::json::object_builder()
+            tsx::json::object_builder(2)
                 .field("title", &self.title)
                 .field("id", &self.id)
                 .build(),
@@ -80,7 +80,7 @@ impl tsx::hot::Hot for _Object1 {
 }
 impl tsx::json::Json for _Object1 {
     fn to_json(&self) -> Option<tsx::json::JsonValue> {
-        Some(tsx::json::object_builder().field("title", &self.title).build())
+        Some(tsx::json::object_builder(1).field("title", &self.title).build())
     }
     fn from_json(
         value: &tsx::json::JsonValue,
@@ -124,7 +124,7 @@ impl tsx::hot::Hot for _Object2 {
 impl tsx::json::Json for _Object2 {
     fn to_json(&self) -> Option<tsx::json::JsonValue> {
         Some(
-            tsx::json::object_builder()
+            tsx::json::object_builder(2)
                 .field("id", &self.id)
                 .optional("title", &self.title)
                 .build(),
@@ -167,7 +167,7 @@ impl tsx::hot::Hot for _Object4 {
 }
 impl tsx::json::Json for _Object4 {
     fn to_json(&self) -> Option<tsx::json::JsonValue> {
-        Some(tsx::json::object_builder().field("title", &self.title).build())
+        Some(tsx::json::object_builder(1).field("title", &self.title).build())
     }
     fn from_json(
         value: &tsx::json::JsonValue,

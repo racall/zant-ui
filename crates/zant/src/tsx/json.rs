@@ -97,21 +97,22 @@ impl JsonPath {
     }
 }
 
-/// Builder for generated struct serializers; repeated fields replace in place.
+/// Builder for generated struct serializers (one call per field).
 #[derive(Default)]
 pub struct ObjectBuilder(Vec<(Str, JsonValue)>);
-/// Start a generated struct serializer.
-pub fn object_builder() -> ObjectBuilder {
-    ObjectBuilder::default()
+/// Start a generated struct serializer for at most `fields` fields.
+pub fn object_builder(fields: usize) -> ObjectBuilder {
+    ObjectBuilder(Vec::with_capacity(fields))
 }
 impl ObjectBuilder {
+    /// Generated structs have unique field names, so this appends.
     pub fn field(mut self, name: &'static str, value: &impl Json) -> Self {
+        debug_assert!(
+            self.0.iter().all(|(key, _)| key.as_str() != name),
+            "duplicate field `{name}`"
+        );
         if let Some(value) = value.to_json() {
-            if let Some((_, old)) = self.0.iter_mut().find(|(key, _)| key.as_str() == name) {
-                *old = value;
-            } else {
-                self.0.push((Str::Static(name), value));
-            }
+            self.0.push((Str::Static(name), value));
         }
         self
     }

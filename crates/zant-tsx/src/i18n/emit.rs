@@ -111,8 +111,25 @@ pub fn compile(
         out.push_str(", name: ");
         literal(&mut out, names::name(&catalog.locale));
         out.push_str(", plural: &[");
-        for (category, rule) in zant::i18n::plural::cldr_rules(&catalog.locale).unwrap_or_default()
-        {
+        let rules = match zant::i18n::plural::cldr_rules(&catalog.locale) {
+            Some(rules) => rules,
+            None => {
+                warnings.push(format!(
+                    "{}: CLDR has no plural rules for `{}`; plural messages always use `other`",
+                    catalog.path, catalog.locale
+                ));
+                Vec::new()
+            }
+        };
+        // checked here so the runtime never meets a rule it cannot parse
+        if let Err(why) = zant::i18n::plural::Rules::parse(&rules) {
+            return Err(error(
+                &catalog.path,
+                0,
+                format!("plural rules of `{}` do not parse: {why}", catalog.locale),
+            ));
+        }
+        for (category, rule) in rules {
             write!(out, "(zant::i18n::plural::Category::{category:?},").unwrap();
             literal(&mut out, rule);
             out.push_str("),");

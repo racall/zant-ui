@@ -37,7 +37,7 @@ impl tsx::hot::Hot for Counts {
 impl tsx::json::Json for Counts {
     fn to_json(&self) -> Option<tsx::json::JsonValue> {
         Some(
-            tsx::json::object_builder()
+            tsx::json::object_builder(2)
                 .field("clicks", &self.clicks)
                 .field("on", &self.on)
                 .build(),
@@ -80,7 +80,7 @@ impl tsx::hot::Hot for _Object1 {
 }
 impl tsx::json::Json for _Object1 {
     fn to_json(&self) -> Option<tsx::json::JsonValue> {
-        Some(tsx::json::object_builder().field("label", &self.label).build())
+        Some(tsx::json::object_builder(1).field("label", &self.label).build())
     }
     fn from_json(
         value: &tsx::json::JsonValue,

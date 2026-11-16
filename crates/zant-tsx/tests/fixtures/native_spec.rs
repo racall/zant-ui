@@ -53,7 +53,7 @@ pub mod clips {
     impl tsx::json::Json for ListEntry {
         fn to_json(&self) -> Option<tsx::json::JsonValue> {
             Some(
-                tsx::json::object_builder()
+                tsx::json::object_builder(5)
                     .field("row", &self.row)
                     .field("kind", &self.kind)
                     .field("preview", &self.preview)
@@ -157,7 +157,7 @@ pub mod clips {
     }
     impl tsx::json::Json for Probe {
         fn to_json(&self) -> Option<tsx::json::JsonValue> {
-            Some(tsx::json::object_builder().field("hint", &self.hint).build())
+            Some(tsx::json::object_builder(1).field("hint", &self.hint).build())
         }
         fn from_json(
             value: &tsx::json::JsonValue,

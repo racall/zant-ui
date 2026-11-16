@@ -178,13 +178,20 @@ fn translate(
         else {
             return fail(g, params.loc, format!("missing parameter `{}`", param.name));
         };
-        let ty = match param.kind {
-            ParamKind::String => Type::String,
-            ParamKind::Number => Type::F64,
+        // emitted once: a second emission would repeat its temporaries
+        let (value, ty) = match param.kind {
+            ParamKind::String => (
+                expr::emit(g, c, &property.value, Some(Type::String), false)?,
+                Type::String,
+            ),
+            ParamKind::Number => (
+                expr::emit(g, c, &property.value, Some(Type::F64), false)?,
+                Type::F64,
+            ),
             // shown as text: a string or a number, as the caller has it
             ParamKind::Text => {
                 let value = expr::emit(g, c, &property.value, None, false)?;
-                if value.ty == Type::String {
+                let ty = if value.ty == Type::String {
                     Type::String
                 } else if value.ty.numeric() {
                     Type::F64
@@ -197,11 +204,11 @@ fn translate(
                             param.name
                         ),
                     );
-                }
+                };
+                (value, ty)
             }
         };
         let wrap = if ty == Type::String { "Str" } else { "Num" };
-        let value = expr::emit(g, c, &property.value, Some(ty), false)?;
         let value = types::coerce(g, value, ty, property.value.loc)?;
         let temp = format!("_t{position}");
         setup.push_str(&format!("let {temp}: {} = {};\n", ty.rust(g), value.code));

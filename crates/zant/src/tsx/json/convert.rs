@@ -188,11 +188,26 @@ impl Json for Bytes {
         let JsonValue::Object(items) = value else {
             return Err(path.expected("an object", value));
         };
-        let mut bytes = Vec::with_capacity(items.len());
-        for i in 0..items.len() {
-            bytes.push(read_field(value, &i.to_string(), path)?);
+        // one pass in any key order (`stringify` writes "0".."n-1"); each
+        // index exactly once
+        let mut bytes: Vec<Option<u8>> = vec![None; items.len()];
+        for (key, item) in items {
+            let slot = key
+                .as_str()
+                .parse::<usize>()
+                .ok()
+                .filter(|&i| i < bytes.len() && (i == 0 || !key.as_str().starts_with('0')));
+            let Some(i) = slot else {
+                return path.field(key.as_str(), |path| {
+                    Err(format!("expected a byte index at {path}"))
+                });
+            };
+            bytes[i] = Some(path.index(i, |path| u8::from_json(item, path))?);
         }
-        Ok(bytes.into())
+        let bytes: Option<Vec<u8>> = bytes.into_iter().collect();
+        bytes
+            .map(Into::into)
+            .ok_or_else(|| format!("missing byte index at {path}"))
     }
 }
 impl Json for Any {

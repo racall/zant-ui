@@ -23,7 +23,9 @@ pub fn parse_assign(p: &mut Parser) -> Result<Box<Expr>, Error> {
         return Ok(arrow);
     }
     let lhs = parse_cond(p)?;
-    for op in ["=", "+=", "-=", "*=", "/=", "%="] {
+    for op in [
+        "=", "+=", "-=", "*=", "/=", "%=", "**=", "&=", "|=", "^=", "<<=", ">>=", ">>>=",
+    ] {
         if p.is_p(op) {
             p.advance();
             let value = parse_assign(p)?;
@@ -208,7 +210,7 @@ pub fn binary_prec(p: &mut Parser) -> Option<u8> {
         return None;
     }
     let t = p.text();
-    let table: [(&str, u8); 20] = [
+    let table: [(&str, u8); 23] = [
         ("??", 1),
         ("||", 2),
         ("&&", 3),
@@ -223,12 +225,15 @@ pub fn binary_prec(p: &mut Parser) -> Option<u8> {
         (">", 8),
         ("<=", 8),
         (">=", 8),
-        ("+", 9),
-        ("-", 9),
-        ("*", 10),
-        ("/", 10),
-        ("%", 10),
-        ("**", 11),
+        ("<<", 9),
+        (">>", 9),
+        (">>>", 9),
+        ("+", 10),
+        ("-", 10),
+        ("*", 11),
+        ("/", 11),
+        ("%", 11),
+        ("**", 12),
     ];
     for (op, prec) in table {
         if t == op {
@@ -260,7 +265,7 @@ pub fn parse_binary(p: &mut Parser, min_prec: u8) -> Result<Box<Expr>, Error> {
 
 pub fn parse_unary(p: &mut Parser) -> Result<Box<Expr>, Error> {
     let loc = p.cur.start;
-    for op in ["!", "-", "+"] {
+    for op in ["!", "-", "+", "~"] {
         if p.is_p(op) {
             p.advance();
             let operand = parse_unary(p)?;

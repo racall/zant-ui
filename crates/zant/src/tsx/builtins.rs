@@ -154,6 +154,50 @@ pub fn pow(x: f64, y: f64) -> f64 {
     x.powf(y)
 }
 
+/// ECMAScript ToInt32: the number truncated and wrapped to 32 bits
+/// (NaN and infinities are 0), as bitwise operators read their operands.
+pub fn to_int32(x: f64) -> i32 {
+    if !x.is_finite() {
+        return 0;
+    }
+    x.trunc().rem_euclid(4_294_967_296.0) as u32 as i32
+}
+
+/// A JavaScript bitwise or shift operator on numbers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Bitwise {
+    And,
+    Or,
+    Xor,
+    /// `<<`
+    Shl,
+    /// `>>` (sign-propagating)
+    Shr,
+    /// `>>>` (zero-fill; the result is unsigned)
+    Ushr,
+}
+
+/// `a & b`, `a | 0`, `1 << n`, `x >>> 0`, … with JavaScript semantics
+/// (32-bit operands, shift counts modulo 32).
+pub fn bitwise(op: Bitwise, a: f64, b: f64) -> f64 {
+    let x = to_int32(a);
+    let y = to_int32(b);
+    let count = (y as u32) & 31;
+    f64::from(match op {
+        Bitwise::And => x & y,
+        Bitwise::Or => x | y,
+        Bitwise::Xor => x ^ y,
+        Bitwise::Shl => x.wrapping_shl(count),
+        Bitwise::Shr => x >> count,
+        Bitwise::Ushr => return f64::from((x as u32) >> count),
+    })
+}
+
+/// `~x`.
+pub fn bit_not(x: f64) -> f64 {
+    f64::from(!to_int32(x))
+}
+
 /// `Math.atan2` (Rust's `atan2` keeps quadrant and signed-zero semantics).
 pub fn atan2(y: f64, x: f64) -> f64 {
     y.atan2(x)

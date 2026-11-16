@@ -31,7 +31,7 @@ impl tsx::hot::Hot for Prefs {
 }
 impl tsx::json::Json for Prefs {
     fn to_json(&self) -> Option<tsx::json::JsonValue> {
-        Some(tsx::json::object_builder().field("unit", &self.unit).build())
+        Some(tsx::json::object_builder(1).field("unit", &self.unit).build())
     }
     fn from_json(
         value: &tsx::json::JsonValue,
@@ -69,7 +69,7 @@ impl tsx::hot::Hot for _Object2 {
 }
 impl tsx::json::Json for _Object2 {
     fn to_json(&self) -> Option<tsx::json::JsonValue> {
-        Some(tsx::json::object_builder().field("count", &self.count).build())
+        Some(tsx::json::object_builder(1).field("count", &self.count).build())
     }
     fn from_json(
         value: &tsx::json::JsonValue,

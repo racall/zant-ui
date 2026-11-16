@@ -31,7 +31,7 @@ impl tsx::hot::Hot for _Object0 {
 }
 impl tsx::json::Json for _Object0 {
     fn to_json(&self) -> Option<tsx::json::JsonValue> {
-        Some(tsx::json::object_builder().field("source", &self.source).build())
+        Some(tsx::json::object_builder(1).field("source", &self.source).build())
     }
     fn from_json(
         value: &tsx::json::JsonValue,
