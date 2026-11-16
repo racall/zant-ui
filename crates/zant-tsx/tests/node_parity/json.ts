@@ -51,7 +51,8 @@ function parseErrors(): string {
       const value = JSON.parse(text) as number[];
       out += "ok " + value.length + "\n";
     } catch (e) {
-      out += (e instanceof SyntaxError ? "SyntaxError: " + e.message : "other") + "\n";
+      // the error kind matches JavaScript; the wording is serde_json's
+      out += (e instanceof SyntaxError ? "SyntaxError" : "other") + "\n";
     }
   }
   return out;
