@@ -235,7 +235,9 @@ fn generate_inner(
     }
     let mut g = Generator::new(diag);
     g.name.clear();
+    super::loops::reset_exhaustive();
     g.type_decls = module.types.clone();
+    g.enums = module.enums.clone();
     g.react_imports = module.imports.clone();
     g.resolving = vec![false; module.types.len()];
     install(&mut g);
@@ -1123,11 +1125,15 @@ pub fn collect_state(
             | ast::ExprData::NullLit
             | ast::ExprData::Ident(_)
     );
-    if !types::is_literal(init) && !aggregate_init {
+    // `useState(Mode.Light)`: an enum member is a constant too
+    let enum_init = matches!(&init.data, ast::ExprData::Member(member)
+        if matches!(&member.object.data, ast::ExprData::Ident(name)
+            if g.enums.iter().any(|decl| decl.name.name == *name)));
+    if !types::is_literal(init) && !aggregate_init && !enum_init {
         return fail(
             g,
             init.loc,
-            "useState initializer must be a number, string, or boolean literal",
+            "useState initializer must be a literal, a constant or an enum member",
         );
     }
     let mut c = scope::Context {

@@ -397,6 +397,30 @@ pub struct Module {
     pub consts: Vec<TopConst>,
     /// `export declare function` signatures (native module specs, native/*.ts).
     pub declared: Vec<TopFunction>,
+    /// `enum` declarations (their type is also in `types`).
+    pub enums: Vec<EnumDecl>,
+}
+
+/// `enum Mode { Light = "light" }`: members are inlined where they are read
+/// (`Mode.Light`), as tsc does for `const enum`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EnumDecl {
+    pub name: Name,
+    pub members: Vec<EnumMember>,
+    pub exported: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EnumMember {
+    pub name: Name,
+    pub value: EnumValue,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum EnumValue {
+    Text(Vec<u8>),
+    /// The number as a Rust `f64` literal (`5.0`, `-1.0`).
+    Number(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

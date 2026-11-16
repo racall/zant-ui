@@ -577,6 +577,8 @@ fn emit_function(g: &mut Generator<'_>, index: usize) -> Result<String> {
     }
     let body = match &function.func.body {
         ast::Body::Block(ss) => {
+            // checked after generating: an exhaustive switch is known then
+            let body = stmt::statements(g, &mut c, ss, false)?;
             if function.ret != Type::Void && !stmt::returns_all(ss) {
                 return fail(
                     g,
@@ -584,7 +586,7 @@ fn emit_function(g: &mut Generator<'_>, index: usize) -> Result<String> {
                     format!("`{}` must return a value on every path", function.name),
                 );
             }
-            stmt::statements(g, &mut c, ss, false)?
+            body
         }
         ast::Body::Expr(e) => {
             if function.ret == Type::Void {

@@ -78,6 +78,7 @@ pub mod callbacks;
 pub mod captures;
 pub mod components;
 pub mod desktop_hooks;
+pub mod enums;
 pub mod events;
 pub mod expr;
 pub mod free_names;
@@ -471,6 +472,8 @@ pub struct Generator<'a> {
     pub type_env: Vec<(Vec<u8>, types::Type)>,
     /// Instantiated generic types (`Box<number>`), by declaration and arguments.
     pub generic_instances: Vec<generic_types::Instance>,
+    /// `enum` declarations of this file (`enums`).
+    pub enums: Vec<ast::EnumDecl>,
     /// Generic function templates of this file (`generic_functions`).
     pub generic_functions: Vec<generic_functions::Template>,
     /// How many of `functions` were emitted (`functions::emit_all`).
@@ -548,6 +551,7 @@ impl<'a> Generator<'a> {
             resolved_types: Vec::new(),
             type_env: Vec::new(),
             generic_instances: Vec::new(),
+            enums: Vec::new(),
             generic_functions: Vec::new(),
             emitted_functions: 0,
             constants: Vec::new(),

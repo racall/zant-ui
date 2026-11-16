@@ -391,6 +391,9 @@ pub fn coalesce(
 /// Optional access evaluates its receiver once and preserves null through the
 /// member.
 pub fn member(g: &mut Generator<'_>, c: &mut scope::Context, m: &ast::Member) -> Result<Value> {
+    if let Some(value) = super::enums::member(g, c, m)? {
+        return Ok(value);
+    }
     if !c.narrowed.is_empty() && !m.optional {
         // `s.prompt` narrowed by `s.prompt !== null && …`
         let expression = ast::Expr {
