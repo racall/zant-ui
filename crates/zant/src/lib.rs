@@ -22,6 +22,7 @@ pub mod desktop;
 pub mod error;
 #[allow(unsafe_code)]
 pub mod hot;
+pub mod i18n;
 pub mod launch;
 pub mod layout;
 pub mod markdown;
