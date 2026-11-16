@@ -26,8 +26,9 @@ TSX 是推荐的应用写法，编译期生成 Rust，无 JS 运行时。此表�
 | ✅ | Uint8Array、资源导入；原生规范共享 interface 与字符串联合类型 |
 | ✅ | 接受并忽略 React 默认 / 命名空间导入（不提供 React 运行时） |
 | ✅ | Image 内存图片、HotkeyInput、isMacos/isWindows、keyLabel、titlebarInsets、wakeAfter |
-| ⬜ | TypeScript `enum` 声明（字符串联合类型可用） |
-| ⬜ | 泛型函数与泛型类型声明 |
+| ✅ | TypeScript `enum` / `const enum`（成员内联）、穷尽的联合 `switch` |
+| ✅ | 泛型类型（Rust 泛型结构体）与泛型函数（单态化、实参推断、默认值、约束） |
+| ⬜ | 泛型组件、跨文件泛型函数 |
 
 ## 运行时与工具链
 

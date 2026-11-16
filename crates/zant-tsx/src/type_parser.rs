@@ -54,10 +54,19 @@ fn parse_postfix(p: &mut Parser) -> Result<TypeRef, Error> {
     let mut array = false;
     while p.is_p("[") {
         p.advance();
+        if p.cur.kind == Kind::String {
+            // `T["field"]`
+            let key = lexer::decode_string(p.text().as_bytes())
+                .map_err(|_| p.fail(p.cur.start, "invalid escape in string"))?;
+            p.advance();
+            p.expect_p("]")?;
+            t = detailed(loc, TypeDetail::Indexed(t, key));
+            continue;
+        }
         if !p.is_p("]") {
             return Err(p.fail(
                 p.cur.start,
-                "indexed access types are not supported; write `T[]` for an array",
+                "indexed access types take a field name in quotes (`T[\"title\"]`); write `T[]` for an array",
             ));
         }
         p.advance();
@@ -83,15 +92,17 @@ fn parse_primary(p: &mut Parser) -> Result<TypeRef, Error> {
             return Ok(detailed(loc, TypeDetail::StringLit(value)));
         }
         Kind::Number => {
-            return Err(p.fail(
-                loc,
-                "number literal types are not supported; use a string literal union",
-            ));
+            let text = p.text().as_bytes().to_vec();
+            p.advance();
+            return Ok(detailed(loc, TypeDetail::NumberLit(text)));
         }
         Kind::Identifier => {}
         _ => {
             if p.is_p("{") {
-                return Ok(detailed(loc, TypeDetail::Object(parse_members(p)?)));
+                return parse_object_type(p, loc);
+            }
+            if p.is_p("[") {
+                return parse_tuple(p, loc);
             }
             if p.is_p("<") {
                 let type_params = crate::type_params::parse_params(p)?;
@@ -108,7 +119,23 @@ fn parse_primary(p: &mut Parser) -> Result<TypeRef, Error> {
         p.advance();
         return Ok(detailed(loc, TypeDetail::Null));
     }
-    for kw in ["typeof", "keyof", "infer", "unique", "readonly"] {
+    if word == "keyof" {
+        p.advance();
+        let inner = parse_postfix(p)?;
+        return Ok(detailed(loc, TypeDetail::Keyof(inner)));
+    }
+    if word == "typeof" {
+        p.advance();
+        let name = p.expect_ident("a constant name after `typeof`")?;
+        if p.is_p(".") {
+            return Err(p.fail(
+                p.cur.start,
+                "`typeof` names a top-level constant (`typeof labels`)",
+            ));
+        }
+        return Ok(detailed(loc, TypeDetail::Typeof(name)));
+    }
+    for kw in ["infer", "unique", "readonly"] {
         if word == kw {
             return Err(p.fail(loc, format!("`{kw}` types are not supported")));
         }
@@ -159,7 +186,7 @@ pub fn parse_members(p: &mut Parser) -> Result<Vec<TypeField>, Error> {
         if p.is_p("[") {
             return Err(p.fail(
                 p.cur.start,
-                "index signatures are not supported; use an array of objects",
+                "an index signature must be the type's only member (`{ [key: string]: V }`); keep the other fields in a separate type",
             ));
         }
         if p.is_kw("readonly") {
@@ -278,6 +305,79 @@ fn detailed(loc: u32, detail: TypeDetail) -> TypeRef {
         loc,
         detail: Some(Box::new(detail)),
     }
+}
+
+/// `[A, B]`: fixed elements (optional `?` and rest `...` elements are not
+/// supported).
+fn parse_tuple(p: &mut Parser, loc: u32) -> Result<TypeRef, Error> {
+    p.advance(); // [
+    let mut items = Vec::new();
+    while !p.is_p("]") {
+        if p.is_p("...") {
+            return Err(p.fail(
+                p.cur.start,
+                "rest elements in tuple types are not supported; use an array `T[]`",
+            ));
+        }
+        // a labeled element `[name: string, age: number]`
+        let state = p.save();
+        if p.cur.kind == Kind::Identifier {
+            p.advance();
+            if !p.eat_p(":") {
+                p.restore(state);
+            }
+        }
+        items.push(parse_type(p)?);
+        if p.is_p("?") {
+            return Err(p.fail(
+                p.cur.start,
+                "optional tuple elements are not supported; use `T | null`",
+            ));
+        }
+        if !p.eat_p(",") {
+            break;
+        }
+    }
+    p.expect_p("]")?;
+    if items.is_empty() {
+        return Err(p.fail(loc, "an empty tuple type is not supported"));
+    }
+    Ok(detailed(loc, TypeDetail::Tuple(items)))
+}
+
+/// `{ … }`: an object type, or `{ [key: string]: V }` — TypeScript's index
+/// signature, which is `Record<string, V>`.
+pub fn parse_object_type(p: &mut Parser, loc: u32) -> Result<TypeRef, Error> {
+    let state = p.save();
+    p.advance(); // {
+    if p.is_kw("readonly") {
+        p.advance();
+    }
+    if p.eat_p("[") && p.cur.kind == Kind::Identifier {
+        p.advance(); // the key's name
+        if p.eat_p(":") {
+            let key = parse_type(p)?;
+            p.expect_p("]")?;
+            p.expect_p(":")?;
+            let value = parse_type(p)?;
+            let _ = p.eat_p(";") || p.eat_p(",");
+            if !p.is_p("}") {
+                return Err(p.fail(
+                    p.cur.start,
+                    "an index signature must be the type's only member (`{ [key: string]: V }`); keep the other fields in a separate type",
+                ));
+            }
+            p.advance();
+            return Ok(TypeRef {
+                name: b"Record".to_vec(),
+                loc,
+                detail: None,
+                args: vec![key, value],
+            });
+        }
+    }
+    p.restore(state);
+    Ok(detailed(loc, TypeDetail::Object(parse_members(p)?)))
 }
 
 #[cfg(test)]

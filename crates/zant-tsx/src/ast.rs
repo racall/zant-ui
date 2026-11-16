@@ -45,6 +45,16 @@ pub enum TypeDetail {
     /// `A & B & { extra: string }` (two or more members); `interface B
     /// extends A { .. }` is the intersection of `A` and the body.
     Intersection(Vec<TypeRef>),
+    /// `[string, number]`: a fixed-length tuple.
+    Tuple(Vec<TypeRef>),
+    /// `keyof T`: the names of T's fields, as a string-literal union.
+    Keyof(TypeRef),
+    /// `typeof value` in a type: the type of a top-level constant.
+    Typeof(Name),
+    /// `T["field"]`: the type of one field.
+    Indexed(TypeRef, Vec<u8>),
+    /// `1` / `-2.5` as a type (checked as `number`).
+    NumberLit(Vec<u8>),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -144,6 +154,8 @@ pub struct Call {
     /// `f?.(args)`: nothing happens (the arguments are not evaluated) when
     /// `f` is absent.
     pub optional: bool,
+    /// `new Map<K, V>(args)`: a constructor call.
+    pub is_new: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -397,6 +409,30 @@ pub struct Module {
     pub consts: Vec<TopConst>,
     /// `export declare function` signatures (native module specs, native/*.ts).
     pub declared: Vec<TopFunction>,
+    /// `enum` declarations (their type is also in `types`).
+    pub enums: Vec<EnumDecl>,
+}
+
+/// `enum Mode { Light = "light" }`: members are inlined where they are read
+/// (`Mode.Light`), as tsc does for `const enum`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EnumDecl {
+    pub name: Name,
+    pub members: Vec<EnumMember>,
+    pub exported: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EnumMember {
+    pub name: Name,
+    pub value: EnumValue,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum EnumValue {
+    Text(Vec<u8>),
+    /// The number as a Rust `f64` literal (`5.0`, `-1.0`).
+    Number(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

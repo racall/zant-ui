@@ -235,7 +235,10 @@ fn generate_inner(
     }
     let mut g = Generator::new(diag);
     g.name.clear();
+    super::loops::reset_exhaustive();
     g.type_decls = module.types.clone();
+    g.enums = module.enums.clone();
+    g.const_decls = module.consts.clone();
     g.react_imports = module.imports.clone();
     g.resolving = vec![false; module.types.len()];
     install(&mut g);
@@ -316,7 +319,7 @@ fn generate_inner(
         Some(hook) => hook(&mut g, module)?,
         None => String::new(),
     };
-    let function_code = functions::emit_all(&mut g)?;
+    let mut function_code = functions::emit_all(&mut g)?;
     // children first, then the root; the header needs every compound type
     let mut bodies = String::new();
     for index in 0..g.components.len() {
@@ -330,6 +333,8 @@ fn generate_inner(
     if let Some(function) = &root {
         bodies.push_str(&emit_component(&mut g, function, None)?);
     }
+    // generic function instances the components asked for
+    function_code.push_str(&functions::emit_all(&mut g)?);
     let source_name = source_name.replace('\n', " ");
     let declarations = globals::declarations(&g);
     let mut out = String::new();
@@ -1121,11 +1126,15 @@ pub fn collect_state(
             | ast::ExprData::NullLit
             | ast::ExprData::Ident(_)
     );
-    if !types::is_literal(init) && !aggregate_init {
+    // `useState(Mode.Light)`: an enum member is a constant too
+    let enum_init = matches!(&init.data, ast::ExprData::Member(member)
+        if matches!(&member.object.data, ast::ExprData::Ident(name)
+            if g.enums.iter().any(|decl| decl.name.name == *name)));
+    if !types::is_literal(init) && !aggregate_init && !enum_init {
         return fail(
             g,
             init.loc,
-            "useState initializer must be a number, string, or boolean literal",
+            "useState initializer must be a literal, a constant or an enum member",
         );
     }
     let mut c = scope::Context {

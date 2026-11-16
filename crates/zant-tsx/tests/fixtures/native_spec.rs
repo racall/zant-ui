@@ -50,12 +50,18 @@ pub mod clips {
             Some(instance)
         }
     }
-    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
     pub enum CopyResult {
         #[default]
         Ok,
         NotFound,
         MissingContent,
+    }
+    impl tsx::DictKey for CopyResult {
+        type Stored = Self;
+        fn stored(&self) -> Self {
+            *self
+        }
     }
 
     impl CopyResult {
@@ -128,12 +134,18 @@ pub mod clips {
 pub mod kinds {
     use zant::tsx;
 
-    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
     pub enum Kind {
         #[default]
         Text,
         Image,
         Files,
+    }
+    impl tsx::DictKey for Kind {
+        type Stored = Self;
+        fn stored(&self) -> Self {
+            *self
+        }
     }
 
     impl Kind {

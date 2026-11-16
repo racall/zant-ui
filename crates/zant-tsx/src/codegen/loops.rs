@@ -134,6 +134,40 @@ fn for_of(
     label: &str,
 ) -> Result<String> {
     let mut iterable = expr::emit(g, c, &v.iterable, None, false)?;
+    // a Map iterates its `[key, value]` entries, a Set its values
+    match super::dicts::kind(g, iterable.ty) {
+        Some(model::InfoKind::Map) => {
+            let info = model::info(g, iterable.ty).expect("map");
+            let pair = model::tuple(g, vec![info.params[0], info.child])?;
+            iterable = types::Value {
+                ty: model::array(g, pair)?,
+                code: format!(
+                    "{}.entries()",
+                    rust_text::operand(&iterable, rust_text::Precedence::Suffix, false)
+                ),
+                ..types::Value::default()
+            };
+        }
+        Some(model::InfoKind::Set) => {
+            let info = model::info(g, iterable.ty).expect("set");
+            iterable = types::Value {
+                ty: model::array(g, info.child)?,
+                code: format!(
+                    "{}.values()",
+                    rust_text::operand(&iterable, rust_text::Precedence::Suffix, false)
+                ),
+                ..types::Value::default()
+            };
+        }
+        Some(_) => {
+            return fail(
+                g,
+                v.iterable.loc,
+                "a record is not iterable; loop over Object.entries(record) / Object.keys(record)",
+            );
+        }
+        None => {}
+    }
     if iterable.ty == Type::String {
         // by code point, like JS: `for (const ch of name)`
         iterable = types::Value {
@@ -216,6 +250,21 @@ fn switch_statement(
             "switch requires a number, string, boolean or string-literal union",
         );
     }
+    // every member of a string union handled and no default: exhaustive
+    // (TypeScript's control-flow analysis knows nothing falls through)
+    let exhaustive = model::enum_type(g, value.ty)
+        && v.cases.iter().all(|case| case.value.is_some())
+        && model::info(g, value.ty).is_some_and(|info| {
+            info.members.iter().all(|member| {
+                v.cases.iter().any(|case| {
+                    matches!(case.value.as_deref().map(|e| &e.data), Some(ast::ExprData::String(text)) if text == member)
+                        || case.value.as_deref().is_some_and(|e| enum_member_text(g, e).as_deref() == Some(member.as_slice()))
+                })
+            })
+        });
+    if exhaustive {
+        EXHAUSTIVE.with(|switches| switches.borrow_mut().push(v.value.loc));
+    }
     let discriminant = aggregate::temporary(g, c, b"_value")?;
     let default_label = if grouped_default(v) {
         Some(aggregate::temporary(g, c, b"_default")?)
@@ -289,6 +338,8 @@ fn switch_statement(
             branches.push_str(" else ");
         }
         branches.push_str(&block);
+    } else if exhaustive && !branches.is_empty() {
+        branches.push_str(" else { unreachable!(\"every member is handled\") }");
     }
     // Even an empty switch evaluates its discriminant once.
     let discard = if v.cases.is_empty() || branches.is_empty() || !has_tests(v) {
@@ -366,10 +417,21 @@ fn ends_case(ss: &[Box<ast::Stmt>]) -> bool {
     ss.iter().any(|s| exits(s))
 }
 
-/// A switch returns on every path only with a default and a returning body for
-/// each group.
+thread_local! {
+    /// Switches (by discriminant location) whose cases cover every member of
+    /// a string union: with no `default` they still cannot fall through.
+    static EXHAUSTIVE: std::cell::RefCell<Vec<ast::Loc>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Forgets the exhaustive switches of the previous module.
+pub fn reset_exhaustive() {
+    EXHAUSTIVE.with(|switches| switches.borrow_mut().clear());
+}
+
+/// A switch returns on every path only with a default (or every member of
+/// its string union handled) and a returning body for each group.
 pub fn returns(v: &ast::Switch) -> bool {
-    let mut has_default = false;
+    let mut has_default = EXHAUSTIVE.with(|switches| switches.borrow().contains(&v.value.loc));
     for (index, case) in v.cases.iter().enumerate() {
         if case.value.is_none() {
             has_default = true;
@@ -418,4 +480,23 @@ fn sequence_jumps(ss: &[Box<ast::Stmt>], include_break: bool) -> bool {
         }
     }
     false
+}
+
+/// The text of `E.Member` when `e` reads a string enum member.
+fn enum_member_text(g: &Generator<'_>, e: &ast::Expr) -> Option<Vec<u8>> {
+    let ast::ExprData::Member(member) = &e.data else {
+        return None;
+    };
+    let ast::ExprData::Ident(name) = &member.object.data else {
+        return None;
+    };
+    let decl = g.enums.iter().find(|decl| decl.name.name == *name)?;
+    decl.members
+        .iter()
+        .find_map(|candidate| match &candidate.value {
+            ast::EnumValue::Text(text) if candidate.name.name == member.name.name => {
+                Some(text.clone())
+            }
+            _ => None,
+        })
 }

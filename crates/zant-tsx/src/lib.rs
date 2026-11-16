@@ -10,6 +10,7 @@ pub mod codegen;
 pub mod compile;
 pub mod dump;
 pub mod entry;
+pub mod enum_parser;
 pub mod error;
 pub mod expr_parser;
 pub mod hooks;

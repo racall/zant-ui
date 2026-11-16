@@ -42,7 +42,15 @@ fn validate_module(module: &Module) -> Result {
         type_ref(&decl.ty)?;
     }
     for top in &module.functions {
-        function(&top.func)?;
+        // a generic plain function is monomorphized (`generic_functions`);
+        // generic components and custom hooks are not supported yet
+        let plain = super::functions::is_function(&top.func)
+            && !crate::hooks::resolve::is_hook_name(&top.func.name);
+        if plain {
+            body(&top.func)?;
+        } else {
+            function(&top.func)?;
+        }
     }
     for c in &module.consts {
         optional_type(c.ty.as_ref())?;
@@ -53,8 +61,21 @@ fn validate_module(module: &Module) -> Result {
 
 pub(crate) fn function(f: &Function) -> Result {
     if !f.type_params.is_empty() {
-        return error(f.loc, "generic functions are not supported yet");
+        let what = if crate::hooks::resolve::is_hook_name(&f.name) {
+            "generic custom hooks are not supported yet"
+        } else if f.name.first().is_some_and(u8::is_ascii_uppercase) {
+            "generic components are not supported yet"
+        } else {
+            "generic functions are supported as top-level `function` declarations"
+        };
+        return error(f.loc, what);
     }
+    body(f)
+}
+
+/// The parameters, return type and body (the type parameters checked by the
+/// caller).
+fn body(f: &Function) -> Result {
     params(&f.params)?;
     optional_type(f.ret.as_ref())?;
     match &f.body {
@@ -79,7 +100,12 @@ fn optional_type(t: Option<&TypeRef>) -> Result {
 }
 
 fn type_ref(t: &TypeRef) -> Result {
+    let builtin = matches!(
+        t.name.as_slice(),
+        b"Record" | b"Map" | b"Set" | b"ReadonlyMap" | b"ReadonlySet"
+    );
     if !t.args.is_empty()
+        && !builtin
         && !GENERIC.with(|generic| generic.borrow().contains(&t.name))
         && let Some(diag) = super::types::generic_error(t)
     {
@@ -90,7 +116,7 @@ fn type_ref(t: &TypeRef) -> Result {
     }
     match t.detail.as_deref() {
         Some(TypeDetail::Array(t)) => type_ref(t),
-        Some(TypeDetail::Union(ts) | TypeDetail::Intersection(ts)) => {
+        Some(TypeDetail::Union(ts) | TypeDetail::Intersection(ts) | TypeDetail::Tuple(ts)) => {
             for t in ts {
                 type_ref(t)?;
             }

@@ -44,12 +44,18 @@ impl tsx::hot::Hot for Todo {
         Some(instance)
     }
 }
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum Filter {
     #[default]
     All,
     Active,
     Done,
+}
+impl tsx::DictKey for Filter {
+    type Stored = Self;
+    fn stored(&self) -> Self {
+        *self
+    }
 }
 impl Filter {
     pub fn as_str(self) -> &'static str {

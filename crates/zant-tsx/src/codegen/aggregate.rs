@@ -22,6 +22,9 @@ pub fn array(
     items: &[Box<ast::Expr>],
     expected: Option<Type>,
 ) -> Result<Value> {
+    if let Some(items_ty) = expected.and_then(|ty| model::tuple_items(g, unwrap(g, ty))) {
+        return tuple(g, c, loc, items, expected.unwrap(), &items_ty);
+    }
     let mut child: Option<Type> = match expected {
         Some(ty) => model::element(g, unwrap(g, ty)),
         None => None,
@@ -40,7 +43,19 @@ pub fn array(
             ast::ExprData::Spread(inner) => inner,
             _ => item,
         };
+        // `[...xs]` copies the array: a later change of `xs` is not seen
+        // here unless the items themselves are shared objects
+        if spread {
+            super::place::project(c, target);
+        }
         let value = expr::emit(g, c, target, if spread { None } else { context }, false)?;
+        if spread
+            && let ast::ExprData::Ident(name) = &target.data
+            && let Some(index) = scope::local_index(c, name)
+            && model::element(g, value.ty).is_some_and(|item| model::owned(g, item))
+        {
+            c.bindings[index].escaped = true;
+        }
         if spread && model::optional_child(g, value.ty).is_some() {
             return fail(g, item.loc, "optional array needs ?? or ! before spread");
         }
@@ -112,6 +127,97 @@ pub fn array(
     })
 }
 
+/// `[a, b]` where a tuple `[A, B]` is expected.
+fn tuple(
+    g: &mut Generator<'_>,
+    c: &mut scope::Context,
+    loc: ast::Loc,
+    items: &[Box<ast::Expr>],
+    expected: Type,
+    types_of: &[Type],
+) -> Result<Value> {
+    if items.len() != types_of.len()
+        || items
+            .iter()
+            .any(|item| matches!(item.data, ast::ExprData::Spread(_)))
+    {
+        return fail(
+            g,
+            loc,
+            format!("this tuple has {} elements", types_of.len()),
+        );
+    }
+    let mut parts = Vec::new();
+    for (item, ty) in items.iter().zip(types_of) {
+        let value = expr::emit(g, c, item, Some(*ty), false)?;
+        parts.push(types::coerce(g, value, *ty, item.loc)?.code);
+    }
+    let tuple_ty = unwrap(g, expected);
+    let code = if parts.len() == 1 {
+        format!("({},)", parts[0])
+    } else {
+        format!("({})", parts.join(", "))
+    };
+    Ok(Value::new(tuple_ty, code))
+}
+
+/// The type of an object literal without a contextual type, as TypeScript
+/// infers it: each property's (widened) value type, in source order. A lone
+/// spread base (`{ ...todo, done: true }`) keeps the base's type.
+fn infer_object(
+    g: &mut Generator<'_>,
+    c: &mut scope::Context,
+    loc: ast::Loc,
+    properties: &[ast::Property],
+) -> Result<Type> {
+    let spreads: Vec<&ast::Property> = properties.iter().filter(|p| p.spread).collect();
+    if let [base] = spreads.as_slice() {
+        let value = expr::emit(g, c, &base.value, None, false)?;
+        if model::info(g, value.ty).is_some_and(|info| info.kind == model::InfoKind::Object) {
+            return Ok(value.ty);
+        }
+        return fail(g, base.value.loc, "spread needs an object");
+    }
+    if !spreads.is_empty() {
+        return fail(
+            g,
+            loc,
+            "an object with several spreads needs a type annotation (`const x: T = { … }`)",
+        );
+    }
+    let mut members: Vec<model::Member> = Vec::new();
+    for property in properties {
+        if matches!(property.value.data, ast::ExprData::NullLit) {
+            return fail(
+                g,
+                property.value.loc,
+                format!(
+                    "`{}` is null: give the object a type so the field's type is known (`const x: T = {{ … }}`)",
+                    String::from_utf8_lossy(&property.key.name)
+                ),
+            );
+        }
+        let value = expr::emit(g, c, &property.value, None, false)?;
+        if value.ty == Type::Void || value.ty == Type::Node || value.ty == Type::OptionalNode {
+            return fail(
+                g,
+                property.value.loc,
+                "this value cannot be an object field",
+            );
+        }
+        let ty = value.ty.concrete();
+        // a repeated key: the last one wins, as in JavaScript
+        members.retain(|member| member.name != property.key.name);
+        members.push(model::Member {
+            name: property.key.name.clone(),
+            loc: property.key.loc,
+            ty,
+            optional: false,
+        });
+    }
+    model::literal_object(g, members)
+}
+
 /// Copy a spread exactly once, then apply fields in source order (last write
 /// wins).
 pub fn object(
@@ -121,10 +227,23 @@ pub fn object(
     properties: &[ast::Property],
     expected: Option<Type>,
 ) -> Result<Value> {
-    let Some(expected) = expected else {
-        return fail(g, loc, "object literal needs a type annotation");
+    let expected = match expected {
+        Some(expected) => expected,
+        None => infer_object(g, c, loc, properties)?,
     };
     let ty = unwrap(g, expected);
+    if super::dicts::kind(g, ty) == Some(model::InfoKind::Record) {
+        let value = super::dicts::literal(g, c, loc, properties, ty)?;
+        return Ok(Value {
+            ty: expected,
+            code: if expected == ty {
+                value.code
+            } else {
+                format!("Some({})", value.code)
+            },
+            ..Value::default()
+        });
+    }
     let Some(entry) = model::info(g, ty) else {
         return fail(g, loc, "object literal needs a struct type");
     };
@@ -285,6 +404,26 @@ pub fn coalesce(
     let Some(child) = model::optional_child(g, value.ty) else {
         return fail(g, loc, "?? needs an optional value");
     };
+    // `find(…) ?? null`: still `T | null`
+    if matches!(binary.rhs.data, ast::ExprData::NullLit) {
+        return Ok(value);
+    }
+    // an optional fallback where an optional is expected: `a ?? b` is
+    // `T | null` again
+    if expected.is_some_and(|ty| model::optional_child(g, ty).is_some()) {
+        let fallback = expr::emit(g, c, &binary.rhs, Some(value.ty), false)?;
+        let fallback = types::coerce(g, fallback, value.ty, binary.rhs.loc)?;
+        return Ok(Value {
+            ty: value.ty,
+            code: format!(
+                "{}.or_else(|| {})",
+                rust_text::operand(&value, Precedence::Suffix, false),
+                fallback.code
+            ),
+            precedence: Precedence::Suffix,
+            ..Value::default()
+        });
+    }
     let fallback = expr::emit(g, c, &binary.rhs, Some(child), false)?;
     Ok(Value {
         ty: child,
@@ -301,6 +440,9 @@ pub fn coalesce(
 /// Optional access evaluates its receiver once and preserves null through the
 /// member.
 pub fn member(g: &mut Generator<'_>, c: &mut scope::Context, m: &ast::Member) -> Result<Value> {
+    if let Some(value) = super::enums::member(g, c, m)? {
+        return Ok(value);
+    }
     if !c.narrowed.is_empty() && !m.optional {
         // `s.prompt` narrowed by `s.prompt !== null && …`
         let expression = ast::Expr {
@@ -348,6 +490,9 @@ pub fn member(g: &mut Generator<'_>, c: &mut scope::Context, m: &ast::Member) ->
             "optional value needs ?? or ! before member access",
         );
     }
+    if let Some(read) = super::dicts::member(g, &value, &m.name)? {
+        return Ok(read);
+    }
     let operand = rust_text::operand(&value, Precedence::Suffix, false);
     member_read(g, value.ty, &operand, &m.name)
 }
@@ -370,6 +515,11 @@ fn member_read(
             precedence: Precedence::Suffix,
             ..Value::default()
         });
+    }
+    if name.name == b"length"
+        && let Some(items) = model::tuple_items(g, object_ty)
+    {
+        return Ok(Value::new(Type::Usize, format!("{}usize", items.len())));
     }
     if length {
         return Ok(Value {
@@ -407,6 +557,44 @@ pub fn index(
 ) -> Result<Value> {
     super::place::project(c, &ix.object);
     let value = expr::emit(g, c, &ix.object, None, false)?;
+    if super::dicts::kind(g, value.ty).is_some() {
+        return super::dicts::index(g, c, value, &ix.index);
+    }
+    if let Some(read) = super::type_ops::field_by_key(g, c, &value, &ix.index)? {
+        return Ok(read);
+    }
+    if let Some(items) = model::tuple_items(g, value.ty) {
+        // `pair[1]`: a literal position
+        let position = match &ix.index.data {
+            ast::ExprData::Number(n) => std::str::from_utf8(n)
+                .ok()
+                .and_then(|n| n.parse::<usize>().ok()),
+            _ => None,
+        };
+        let Some(position) = position.filter(|position| *position < items.len()) else {
+            return fail(
+                g,
+                ix.index.loc,
+                format!(
+                    "index a tuple with a literal position 0..{}",
+                    items.len() - 1
+                ),
+            );
+        };
+        let item = items[position];
+        let operand = rust_text::operand(&value, Precedence::Suffix, false);
+        let code = if item.copy(g) {
+            format!("{operand}.{position}")
+        } else {
+            format!("{operand}.{position}.clone()")
+        };
+        return Ok(Value {
+            ty: item,
+            code,
+            precedence: Precedence::Suffix,
+            ..Value::default()
+        });
+    }
     let ty = unwrap(g, value.ty);
     if !ix.optional && ty != value.ty {
         return fail(g, loc, "optional array needs ?? or !");

@@ -473,6 +473,7 @@ impl Rewriter<'_> {
                 Ok(self.new_expr(
                     e.loc,
                     ast::ExprData::Call(ast::Call {
+                        is_new: false,
                         callee,
                         type_args,
                         args,
@@ -718,6 +719,29 @@ impl Rewriter<'_> {
                         out.push(self.type_ref(m)?);
                     }
                     ast::TypeDetail::Intersection(out)
+                }
+                ast::TypeDetail::Keyof(inner) => ast::TypeDetail::Keyof(self.type_ref(inner)?),
+                ast::TypeDetail::Indexed(inner, key) => {
+                    ast::TypeDetail::Indexed(self.type_ref(inner)?, key.clone())
+                }
+                ast::TypeDetail::NumberLit(value) => ast::TypeDetail::NumberLit(value.clone()),
+                ast::TypeDetail::Typeof(name) => {
+                    // a value name, resolved like any other free name
+                    let resolved = match self.free.as_mut() {
+                        Some(free) => free.resolve(&name.name, name.loc | loc_tag, Kind::Value)?,
+                        None => name.name.clone(),
+                    };
+                    ast::TypeDetail::Typeof(ast::Name {
+                        name: resolved,
+                        loc: self.loc(name.loc),
+                    })
+                }
+                ast::TypeDetail::Tuple(members) => {
+                    let mut out = Vec::with_capacity(members.len());
+                    for m in members {
+                        out.push(self.type_ref(m)?);
+                    }
+                    ast::TypeDetail::Tuple(out)
                 }
                 ast::TypeDetail::StringLit(value) => ast::TypeDetail::StringLit(value.clone()),
                 ast::TypeDetail::Null => ast::TypeDetail::Null,

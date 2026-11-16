@@ -74,6 +74,14 @@ pub enum InfoKind {
     Optional,
     Enumeration,
     Callback,
+    /// `[A, B]`: the element types are `params`.
+    Tuple,
+    /// `Record<K, V>` / `{ [key: string]: V }`: `params[0]` is K, `child` V.
+    Record,
+    /// `Map<K, V>`: `params[0]` is K, `child` V.
+    Map,
+    /// `Set<T>`: `child` is T.
+    Set,
 }
 
 #[derive(Clone, Debug)]
@@ -239,6 +247,11 @@ pub fn owned(g: &Generator<'_>, ty: Type) -> bool {
         InfoKind::Array | InfoKind::Object => true,
         InfoKind::Optional => owned(g, entry.child) || entry.child == Type::String,
         InfoKind::Enumeration | InfoKind::Callback => false,
+        InfoKind::Tuple => entry
+            .params
+            .iter()
+            .any(|item| owned(g, *item) || *item == Type::String),
+        InfoKind::Record | InfoKind::Map | InfoKind::Set => true,
     }
 }
 
@@ -267,6 +280,20 @@ pub fn resolve(
         ast::TypeDetail::Null => Ok(Type::Null),
         ast::TypeDetail::Func(f) => callback_type(g, reference.loc, f),
         ast::TypeDetail::Intersection(members) => intersection(g, members, name),
+        ast::TypeDetail::Keyof(inner) => super::type_ops::keyof(g, inner, name),
+        ast::TypeDetail::Typeof(value) => super::type_ops::type_of(g, value),
+        ast::TypeDetail::Indexed(inner, key) => {
+            super::type_ops::indexed(g, inner, key, reference.loc)
+        }
+        // number literal types are checked as `number`
+        ast::TypeDetail::NumberLit(_) => Ok(Type::F64),
+        ast::TypeDetail::Tuple(members) => {
+            let mut items = Vec::with_capacity(members.len());
+            for member in members {
+                items.push(types::type_ref(g, member, false)?);
+            }
+            tuple(g, items)
+        }
     }
 }
 
@@ -392,6 +419,59 @@ pub(super) fn intersection_members(
         }
     }
     Ok(result)
+}
+
+/// `[A, B]` as a Rust tuple `(A, B)` (interned by element types).
+pub fn tuple(g: &mut Generator<'_>, items: Vec<Type>) -> Result<Type> {
+    for (index, entry) in g.compounds.iter().enumerate() {
+        if entry.kind == InfoKind::Tuple && entry.params == items {
+            return Ok(Type::Compound(index as u32));
+        }
+    }
+    let spelled: Vec<String> = items.iter().map(|item| item.rust(g).to_owned()).collect();
+    let rust = if spelled.len() == 1 {
+        format!("({},)", spelled[0])
+    } else {
+        format!("({})", spelled.join(", "))
+    };
+    let copy = items.iter().all(|item| item.copy(g));
+    add(
+        g,
+        Info {
+            kind: InfoKind::Tuple,
+            rust,
+            params: items,
+            copy,
+            ..Info::default()
+        },
+    )
+}
+
+/// The element types when `ty` is a tuple.
+pub fn tuple_items(g: &Generator<'_>, ty: Type) -> Option<Vec<Type>> {
+    info(g, ty)
+        .filter(|entry| entry.kind == InfoKind::Tuple)
+        .map(|entry| entry.params)
+}
+
+/// The struct of an untyped object literal (`const p = { x: 1 }`): one
+/// anonymous struct per shape, so literals of the same shape share a type.
+pub(super) fn literal_object(g: &mut Generator<'_>, members: Vec<Member>) -> Result<Type> {
+    for (index, entry) in g.compounds.iter().enumerate() {
+        let same = entry.kind == InfoKind::Object
+            && entry.rust.starts_with("_Object")
+            && entry.declaration.is_some()
+            && entry.fields.len() == members.len()
+            && entry
+                .fields
+                .iter()
+                .zip(&members)
+                .all(|(field, member)| field.name == member.name && field.ty == member.ty);
+        if same {
+            return Ok(Type::Compound(index as u32));
+        }
+    }
+    object_with(g, None, |_| Ok(members))
 }
 
 /// Declares the struct for an object type whose fields `members` resolves
@@ -543,7 +623,16 @@ fn union_type(
             Ok(list)
         };
     }
-    let ty = if nonnull.len() == 1 {
+    let numbers = nonnull.iter().all(|member| {
+        matches!(
+            member.detail.as_deref(),
+            Some(ast::TypeDetail::NumberLit(_))
+        )
+    });
+    let ty = if numbers {
+        // `1 | 2 | 3`: checked as `number`
+        Type::F64
+    } else if nonnull.len() == 1 {
         if nonnull[0].detail.is_some() {
             resolve(g, &nonnull[0], name)?
         } else {
@@ -593,7 +682,11 @@ fn node_or_nodes(g: &mut Generator<'_>, members: &[ast::TypeRef]) -> Result<Opti
     Ok(None)
 }
 
-fn enumeration(g: &mut Generator<'_>, members: &[Vec<u8>], name: Option<&[u8]>) -> Result<Type> {
+pub(super) fn enumeration(
+    g: &mut Generator<'_>,
+    members: &[Vec<u8>],
+    name: Option<&[u8]>,
+) -> Result<Type> {
     let external = match name {
         Some(name) => match g.extensions.hooks.external_name {
             Some(hook) => hook(g, &String::from_utf8_lossy(name))?,
@@ -635,7 +728,7 @@ fn enumeration(g: &mut Generator<'_>, members: &[Vec<u8>], name: Option<&[u8]>) 
     if !names.is_empty() {
         variants[0] = format!("    #[default]\n{}", variants[0]);
         declaration.push_str(&format!(
-            "#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]\npub enum {rust} {{\n{}\n}}\n\n",
+            "#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]\npub enum {rust} {{\n{}\n}}\nimpl tsx::DictKey for {rust} {{\n    type Stored = Self;\n    fn stored(&self) -> Self {{\n        *self\n    }}\n}}\n\n",
             variants.join("\n")
         ));
         declaration.push_str(&format!(
@@ -964,7 +1057,7 @@ mod tests {
             assert!(ty.copy(g));
             let declaration = declarations(g);
             assert!(
-                declaration.contains("#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]"),
+                declaration.contains("#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]"),
                 "{declaration}"
             );
             assert!(declaration.contains("InProgress,"), "{declaration}");

@@ -163,6 +163,9 @@ pub fn unary(
     u: &ast::Unary,
     expected: Option<Type>,
 ) -> Result<Value> {
+    if u.op == b"delete" {
+        return fail(g, loc, "`delete record[key]` is a statement");
+    }
     if u.op == b"!" {
         let x = condition(g, c, &u.operand)?;
         return Ok(Value {
@@ -255,6 +258,9 @@ pub fn binary(
 ) -> Result<Value> {
     if b.op == b"??" {
         return aggregate::coalesce(g, c, loc, b, expected);
+    }
+    if b.op == b"in" {
+        return super::dicts::contains(g, c, &b.lhs, &b.rhs);
     }
     if b.op == b"**" {
         return fail(g, loc, "** is not supported yet");
@@ -524,6 +530,9 @@ pub fn call_value(
     call: &ast::Call,
     expected: Option<Type>,
 ) -> Result<Value> {
+    if call.is_new {
+        return super::dicts::construct(g, c, loc, call, expected);
+    }
     for hook in g.extensions.call_before_functions.clone() {
         if let Some(value) = hook(g, c, loc, call)? {
             return Ok(value);
@@ -545,6 +554,9 @@ pub fn call_value(
             loc,
             "optional calls (`f?.()`) work on optional callback props (`onSave?.()`); call this function directly",
         );
+    }
+    if let Some(value) = super::dicts::object_call(g, c, loc, call)? {
+        return Ok(value);
     }
     if let Some(value) = builtins::try_call(g, c, loc, call)? {
         return Ok(value);
@@ -758,9 +770,13 @@ fn explicit_cast(
     child: bool,
 ) -> Result<Value> {
     let target = types::type_ref(g, &cast.ty, false)?;
-    if cast.satisfies {
-        // TypeScript checks assignability and keeps the value unchanged; here
-        // the contextual type also decides the literal's Rust type.
+    // `satisfies` checks assignability and keeps the value unchanged; `[…]
+    // as T` / `{…} as T` give the literal T as its context, as in TS
+    let literal = matches!(
+        cast.expr.data,
+        ast::ExprData::Array(_) | ast::ExprData::Object(_)
+    );
+    if cast.satisfies || literal {
         return emit(g, c, &cast.expr, Some(target), child);
     }
     let value = emit(g, c, &cast.expr, None, child)?;

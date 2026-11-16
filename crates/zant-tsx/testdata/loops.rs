@@ -9,11 +9,17 @@ use zant::nodes;
 use zant::tsx;
 #[allow(unused_imports)]
 use zant::ui;
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum Mode {
     #[default]
     A,
     B,
+}
+impl tsx::DictKey for Mode {
+    type Stored = Self;
+    fn stored(&self) -> Self {
+        *self
+    }
 }
 impl Mode {
     pub fn as_str(self) -> &'static str {

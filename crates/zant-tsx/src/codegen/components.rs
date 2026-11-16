@@ -740,6 +740,7 @@ fn forward_arrow(g: &mut Generator<'_>, e: &ast::Expr, count: usize) -> Result<a
         body: ast::Body::Expr(Box::new(ast::Expr {
             loc: e.loc,
             data: ast::ExprData::Call(ast::Call {
+                is_new: false,
                 callee: Box::new(e.clone()),
                 type_args: Vec::new(),
                 args,

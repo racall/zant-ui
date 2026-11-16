@@ -155,6 +155,7 @@ pub fn compile(src: &str, source_name: &str) -> Result<String, Diag> {
             types: Vec::new(),
             consts: Vec::new(),
             declared: Vec::new(),
+            enums: Vec::new(),
         },
     );
     let options = generate::Options {
@@ -268,6 +269,7 @@ pub fn compile_project_i18n(
                     types: Vec::new(),
                     consts: Vec::new(),
                     declared: Vec::new(),
+                    enums: Vec::new(),
                 },
             ),
             added: Vec::new(),

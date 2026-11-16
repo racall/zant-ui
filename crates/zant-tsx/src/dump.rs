@@ -271,6 +271,28 @@ impl Dumper {
                 self.depth -= 1;
             }
             TypeDetail::Func(f) => self.func_type(f),
+            TypeDetail::Keyof(inner) => {
+                self.line("keyof");
+                self.depth += 1;
+                self.type_ref(inner);
+                self.depth -= 1;
+            }
+            TypeDetail::Typeof(name) => self.line_fmt(format!("typeof {}", quote(&name.name))),
+            TypeDetail::Indexed(inner, key) => {
+                self.line_fmt(format!("indexed {}", quote(key)));
+                self.depth += 1;
+                self.type_ref(inner);
+                self.depth -= 1;
+            }
+            TypeDetail::NumberLit(value) => self.line_fmt(format!("number-lit {}", quote(value))),
+            TypeDetail::Tuple(members) => {
+                self.line("tuple");
+                self.depth += 1;
+                for m in members {
+                    self.type_ref(m);
+                }
+                self.depth -= 1;
+            }
             TypeDetail::Intersection(members) => {
                 self.line("intersection");
                 self.depth += 1;

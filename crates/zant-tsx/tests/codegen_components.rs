@@ -617,7 +617,9 @@ fn interface_and_enum_declarations_are_emitted() {
     let file = generate::generate("types.tsx", &module, &options).expect("types generate");
     let source = &file.source;
     assert!(
-        source.contains("#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]\npub enum Mode {"),
+        source.contains(
+            "#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]\npub enum Mode {"
+        ),
         "{source}"
     );
     assert!(source.contains("InProgress,"), "{source}");

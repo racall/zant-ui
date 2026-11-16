@@ -338,6 +338,7 @@ fn forwarding_arrow(callee: &ast::Expr, takes_argument: bool) -> Box<ast::Functi
         body: ast::Body::Expr(Box::new(ast::Expr {
             loc,
             data: ast::ExprData::Call(ast::Call {
+                is_new: false,
                 callee: Box::new(callee.clone()),
                 type_args: Vec::new(),
                 args,

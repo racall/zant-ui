@@ -78,11 +78,14 @@ pub mod callbacks;
 pub mod captures;
 pub mod components;
 pub mod desktop_hooks;
+pub mod dicts;
+pub mod enums;
 pub mod events;
 pub mod expr;
 pub mod free_names;
 pub mod functions;
 pub mod generate;
+pub mod generic_functions;
 pub mod generic_types;
 pub(crate) mod generics;
 pub mod globals;
@@ -107,6 +110,8 @@ pub mod stateful;
 pub mod stmt;
 pub mod stores;
 pub mod string_methods;
+pub mod structural;
+pub mod type_ops;
 pub mod types;
 pub mod windows;
 pub mod zant_api;
@@ -469,6 +474,14 @@ pub struct Generator<'a> {
     pub type_env: Vec<(Vec<u8>, types::Type)>,
     /// Instantiated generic types (`Box<number>`), by declaration and arguments.
     pub generic_instances: Vec<generic_types::Instance>,
+    /// `enum` declarations of this file (`enums`).
+    pub enums: Vec<ast::EnumDecl>,
+    /// Top-level constants of this file, for `typeof name` in types.
+    pub const_decls: Vec<ast::TopConst>,
+    /// Generic function templates of this file (`generic_functions`).
+    pub generic_functions: Vec<generic_functions::Template>,
+    /// How many of `functions` were emitted (`functions::emit_all`).
+    pub emitted_functions: usize,
     pub constants: Vec<Constant>,
     /// Plain functions of this file and imported ones (`functions`).
     pub functions: Vec<functions::Function>,
@@ -542,6 +555,10 @@ impl<'a> Generator<'a> {
             resolved_types: Vec::new(),
             type_env: Vec::new(),
             generic_instances: Vec::new(),
+            enums: Vec::new(),
+            const_decls: Vec::new(),
+            generic_functions: Vec::new(),
+            emitted_functions: 0,
             constants: Vec::new(),
             functions: Vec::new(),
             events: Vec::new(),

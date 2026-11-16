@@ -206,11 +206,25 @@ impl<'a> Parser<'a> {
                     continue;
                 }
             }
+            // `enum E { … }` / `const enum E { … }`: a type and its members
+            let const_enum = !default && self.is_kw("const") && {
+                let state = self.save();
+                self.advance();
+                let is_enum = self.is_kw("enum");
+                self.restore(state);
+                is_enum
+            };
+            if const_enum {
+                self.advance(); // const
+            }
             if self.is_kw("enum") {
-                return Err(self.fail(
-                    self.cur.start,
-                    "enum declarations are not supported; use a string union type (\"a\" | \"b\") and constants instead",
-                ));
+                if default {
+                    return Err(self.fail(self.cur.start, "an enum cannot be the default export"));
+                }
+                let lowered = crate::enum_parser::parse(self, exported)?;
+                m.types.push(lowered.ty);
+                m.enums.push(lowered.decl);
+                continue;
             }
             if !default && self.is_kw("declare") {
                 // `export declare function copy(row: i64): CopyResult;` (native module specs)
@@ -253,6 +267,7 @@ impl<'a> Parser<'a> {
             types: m.types,
             consts: m.consts,
             declared: m.declared,
+            enums: m.enums,
         };
         react_compat::normalize(&mut module);
         Ok(module)
@@ -295,27 +310,23 @@ impl<'a> Parser<'a> {
                 }
             }
             let loc = self.cur.start;
-            let body = TypeDetail::Object(type_parser::parse_members(self)?);
-            let detail = if bases.is_empty() {
+            // `{ [key: string]: V }` is a Record
+            let body = type_parser::parse_object_type(self, loc)?;
+            let ty = if bases.is_empty() {
                 body
             } else {
-                bases.push(TypeRef {
+                bases.push(body);
+                TypeRef {
                     args: Vec::new(),
                     name: Vec::new(),
                     loc,
-                    detail: Some(Box::new(body)),
-                });
-                TypeDetail::Intersection(bases)
+                    detail: Some(Box::new(TypeDetail::Intersection(bases))),
+                }
             };
             return Ok(TypeDecl {
                 type_params,
                 name,
-                ty: TypeRef {
-                    args: Vec::new(),
-                    name: Vec::new(),
-                    loc,
-                    detail: Some(Box::new(detail)),
-                },
+                ty,
                 exported,
             });
         }
@@ -764,6 +775,7 @@ struct ModuleBuilder {
     types: Vec<TypeDecl>,
     consts: Vec<TopConst>,
     declared: Vec<TopFunction>,
+    enums: Vec<crate::ast::EnumDecl>,
 }
 
 #[cfg(test)]
@@ -796,7 +808,7 @@ pub(crate) fn expect_syntax_error(src: &str, msg: &str, at: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::{Body, Child, Expr, ExprData, Function, Stmt, StmtData};
+    use crate::ast::{self, Body, Child, Expr, ExprData, Function, Stmt, StmtData};
 
     fn block(f: &Function) -> &[Box<Stmt>] {
         match &f.body {
@@ -843,16 +855,46 @@ export default function () { return <View />; }"#;
     }
 
     #[test]
-    fn enums_report_the_supported_alternative_at_the_keyword() {
-        for source in [
-            "enum Kind { A, B }",
-            "export enum Kind { A = 'a', B = 'b' }",
+    fn enums_lower_to_a_type_and_inlined_members() {
+        let m = parse_ok(
+            "export enum Kind { A = 'a', B = 'b' }\nconst enum Level { Low, High = 10, Max }",
+        );
+        assert_eq!(m.types.len(), 2);
+        assert!(
+            m.consts.is_empty(),
+            "members are inlined, not a runtime object"
+        );
+        let values: Vec<_> = m.enums[1]
+            .members
+            .iter()
+            .map(|member| member.value.clone())
+            .collect();
+        assert_eq!(
+            values,
+            [
+                ast::EnumValue::Number("0.0".into()),
+                ast::EnumValue::Number("10.0".into()),
+                ast::EnumValue::Number("11.0".into()),
+            ]
+        );
+        for (source, message, at) in [
+            (
+                "enum Mixed { A = 'a', B = 1 }",
+                "enums mixing string and number members are not supported; use one kind",
+                "Mixed",
+            ),
+            (
+                "enum After { A = 'a', B }",
+                "a member after a string member needs a value (`Member = \"…\"`)",
+                "B",
+            ),
+            (
+                "enum Computed { A = 1 + 2 }",
+                "enum members are string or number literals; computed members are not supported",
+                "1",
+            ),
         ] {
-            expect_syntax_error(
-                source,
-                "enum declarations are not supported; use a string union type (\"a\" | \"b\") and constants instead",
-                "enum",
-            );
+            expect_syntax_error(source, message, at);
         }
     }
 

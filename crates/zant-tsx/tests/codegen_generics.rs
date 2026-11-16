@@ -24,37 +24,54 @@ fn diagnostic(source: &str, native: bool) -> Diag {
 }
 
 #[test]
-fn declarations_and_arrows_parse_but_codegen_rejects_type_parameters() {
-    for (source, at) in [
-        ("function f<T>(x: T): T { return x; }", "function"),
-        ("export function f<T>(x: T): T { return x; }", "function"),
+fn only_top_level_generic_functions_are_compiled() {
+    // top-level `function` declarations are monomorphized
+    for source in [
+        "function f<T>(x: T): T { return x; }",
+        "export function f<T>(x: T): T { return x; }",
+        "const f = <T,>(x: T) => x;",
+    ] {
+        let module = parse(source);
+        let options = generate::Options {
+            require_root: false,
+            ..Default::default()
+        };
+        assert!(
+            generate::generate("test.tsx", &module, &options).is_ok(),
+            "{source}"
+        );
+    }
+    let arrows = "generic functions are supported as top-level `function` declarations";
+    let components = "generic components are not supported yet";
+    for (source, at, message) in [
         (
             "export default function App<T>() { return <Text />; }",
             "function",
+            components,
         ),
         (
             "export default function<T>() { return <Text />; }",
             "function",
+            components,
         ),
-        ("const f = <T,>(x: T) => x;", "<T"),
         (
             "function f() { return <T extends unknown>(x: T) => x; }",
             "<T",
+            arrows,
         ),
         (
             "function f() { const g = <T,>(x: T) => x; return 1; }",
             "<T",
+            arrows,
         ),
         (
             "function f() { function g<T>(x: T) { return x; } return 1; }",
             "function g",
+            arrows,
         ),
     ] {
         let diag = diagnostic(source, false);
-        assert_eq!(
-            diag.msg, "generic functions are not supported yet",
-            "{source}"
-        );
+        assert_eq!(diag.msg, message, "{source}");
         assert_eq!(diag.loc as usize, source.find(at).unwrap(), "{source}");
     }
 }
@@ -93,10 +110,8 @@ fn generic_function_types_are_rejected_in_aliases_props_and_parameters() {
 fn generic_references_are_rejected_after_parsing_including_known_type_names() {
     for ty in [
         "Box<number>",
-        "Record<string, number>",
         "Partial<Todo>",
         "Promise<void>",
-        "Map<string, number[]>",
         "number<string>",
     ] {
         let source = format!("interface Box {{ value: number }} type Value = {ty};");
@@ -171,7 +186,7 @@ fn native_generic_signatures_parse_and_then_report_native_restriction() {
 fn generic_custom_hooks_fail_before_expansion_can_erase_them() {
     let source = "function useIdentity<T>(x: T) { return x; } export default function App() { const value = useIdentity(1); return <Text>{value}</Text>; }";
     let diag = compile::compile(source, "App.tsx").unwrap_err();
-    assert_eq!(diag.msg, "generic functions are not supported yet");
+    assert_eq!(diag.msg, "generic custom hooks are not supported yet");
     assert_eq!(diag.loc, 0);
     let files = [SourceFile::tsx("src/App.tsx", source)];
     let error = compile::compile_project(&files).unwrap_err();
@@ -200,11 +215,13 @@ fn core_type_resolution_and_function_collection_also_reject_generics() {
     let mut g = Generator::new(&mut diag);
     assert!(types::type_ref(&mut g, &m.types[0].ty, false).is_err());
     assert_eq!(diag.unwrap().loc, m.types[0].ty.loc);
+    // a generic plain function registers as a template
     let m = parse("function f<T>() { return 1; }");
     let mut diag = None;
     let mut g = Generator::new(&mut diag);
-    assert!(functions::collect(&mut g, &m).is_err());
-    assert_eq!(diag.unwrap().msg, "generic functions are not supported yet");
+    functions::collect(&mut g, &m).unwrap();
+    assert!(g.functions.is_empty());
+    assert_eq!(g.generic_functions.len(), 1);
 }
 
 #[test]
@@ -244,6 +261,9 @@ fn react_memo_normalization_preserves_generic_factory_arrows() {
         ast::ExprData::Call(_)
     ));
     let diag = compile::compile(source, "App.tsx").unwrap_err();
-    assert_eq!(diag.msg, "generic functions are not supported yet");
+    assert_eq!(
+        diag.msg,
+        "generic functions are supported as top-level `function` declarations"
+    );
     assert_eq!(diag.loc as usize, source.find("<T,").unwrap());
 }

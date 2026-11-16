@@ -34,6 +34,9 @@ pub struct Function {
     pub params: Vec<Type>,
     pub ret: Type,
     pub external: bool,
+    /// The type arguments of a generic function's instance (`T` → `f64`),
+    /// bound while its body is generated (`generic_functions`).
+    pub type_env: Vec<(Vec<u8>, Type)>,
 }
 
 // ── parameter defaults ───────────────────────────────────────────────
@@ -383,6 +386,7 @@ pub fn signature(
         params,
         ret,
         external,
+        type_env: Vec::new(),
     })
 }
 
@@ -390,10 +394,15 @@ pub fn signature(
 /// call each other in any order).
 pub fn collect(g: &mut Generator<'_>, module: &ast::Module) -> Result<()> {
     for top in &module.functions {
-        if !top.func.type_params.is_empty() {
-            return fail(g, top.func.loc, "generic functions are not supported yet");
-        }
         if !is_function(&top.func) {
+            if !top.func.type_params.is_empty() {
+                return fail(g, top.func.loc, "generic components are not supported yet");
+            }
+            continue;
+        }
+        if !top.func.type_params.is_empty() {
+            // a template: each call site's type arguments get an instance
+            super::generic_functions::register(g, &top.func)?;
             continue;
         }
         if top.default {
@@ -442,6 +451,9 @@ pub fn try_call(
     if scope::local(c, name).is_some() {
         return Ok(None);
     }
+    if let Some(template) = super::generic_functions::find(g, name) {
+        return super::generic_functions::call(g, c, loc, call, template).map(Some);
+    }
     let Some(index) = find_index(g, name) else {
         return Ok(None);
     };
@@ -450,6 +462,23 @@ pub fn try_call(
     if !call.type_args.is_empty() {
         return fail(g, loc, format!("`{name}` takes no type arguments"));
     }
+    call_with(g, c, loc, call, &function, Vec::new()).map(Some)
+}
+
+/// A call of `function` (its arguments checked against its parameters).
+/// `emitted` holds argument values already generated (a generic call infers
+/// its type arguments from them); the others are generated here.
+pub fn call_with(
+    g: &mut Generator<'_>,
+    c: &mut scope::Context,
+    loc: ast::Loc,
+    call: &ast::Call,
+    function: &Function,
+    mut emitted: Vec<Option<Value>>,
+) -> Result<Value> {
+    emitted.resize(call.args.len(), None);
+    let name = function.func.name.clone();
+    let name = String::from_utf8_lossy(&name).into_owned();
     let required = required(&function.func.params);
     let rest = function.func.params.last().is_some_and(|param| param.rest);
     let fixed = function.params.len() - usize::from(rest);
@@ -498,30 +527,41 @@ pub fn try_call(
             arguments.push(missing(g, &function.func.params[index], *ty)?);
             continue;
         }
-        let value = expr::emit(g, c, &call.args[index], Some(*ty), false)?;
+        let value = match emitted[index].take() {
+            Some(value) => value,
+            None => expr::emit(g, c, &call.args[index], Some(*ty), false)?,
+        };
         arguments.push(types::coerce(g, value, *ty, call.args[index].loc)?.code);
     }
-    Ok(Some(Value {
+    Ok(Value {
         ty: function.ret,
         code: format!("{}({})", function.rust, arguments.join(", ")),
         ..Value::default()
-    }))
+    })
 }
 
 /// The Rust declarations of this file's functions.
 pub fn emit_all(g: &mut Generator<'_>) -> Result<String> {
     let mut out = String::new();
-    for index in 0..g.functions.len() {
-        if g.functions[index].external {
-            continue;
+    // generic instances may be added while bodies are generated
+    let mut index = g.emitted_functions;
+    while index < g.functions.len() {
+        if !g.functions[index].external {
+            out.push_str(&emit(g, index)?);
+            out.push('\n');
         }
-        out.push_str(&emit(g, index)?);
-        out.push('\n');
+        index += 1;
     }
+    g.emitted_functions = index;
     Ok(out)
 }
 
 fn emit(g: &mut Generator<'_>, index: usize) -> Result<String> {
+    let env = g.functions[index].type_env.clone();
+    super::generic_types::with_env(g, env, |g| emit_function(g, index))
+}
+
+fn emit_function(g: &mut Generator<'_>, index: usize) -> Result<String> {
     let function = g.functions[index].clone();
     let mut c = scope::Context {
         render: false,
@@ -537,6 +577,8 @@ fn emit(g: &mut Generator<'_>, index: usize) -> Result<String> {
     }
     let body = match &function.func.body {
         ast::Body::Block(ss) => {
+            // checked after generating: an exhaustive switch is known then
+            let body = stmt::statements(g, &mut c, ss, false)?;
             if function.ret != Type::Void && !stmt::returns_all(ss) {
                 return fail(
                     g,
@@ -544,7 +586,7 @@ fn emit(g: &mut Generator<'_>, index: usize) -> Result<String> {
                     format!("`{}` must return a value on every path", function.name),
                 );
             }
-            stmt::statements(g, &mut c, ss, false)?
+            body
         }
         ast::Body::Expr(e) => {
             if function.ret == Type::Void {

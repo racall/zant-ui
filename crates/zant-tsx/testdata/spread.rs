@@ -34,11 +34,17 @@ impl tsx::hot::Hot for ButtonLook {
         Some(instance)
     }
 }
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum _Enum1 {
     #[default]
     Primary,
     Default,
+}
+impl tsx::DictKey for _Enum1 {
+    type Stored = Self;
+    fn stored(&self) -> Self {
+        *self
+    }
 }
 impl _Enum1 {
     pub fn as_str(self) -> &'static str {
@@ -60,11 +66,17 @@ impl tsx::hot::Hot for _Enum1 {
         }
     }
 }
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum _Enum2 {
     #[default]
     Small,
     Middle,
+}
+impl tsx::DictKey for _Enum2 {
+    type Stored = Self;
+    fn stored(&self) -> Self {
+        *self
+    }
 }
 impl _Enum2 {
     pub fn as_str(self) -> &'static str {

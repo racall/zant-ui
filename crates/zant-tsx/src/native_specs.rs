@@ -312,6 +312,19 @@ fn require_named(g: &mut Generator<'_>, ty: &ast::TypeRef) -> Result<()> {
         ast::TypeDetail::StringLit(_) => unnamed(g, ty, "a union"),
         ast::TypeDetail::Object(_) => unnamed(g, ty, "an object type"),
         ast::TypeDetail::Intersection(_) => unnamed(g, ty, "an intersection"),
+        ast::TypeDetail::Keyof(_)
+        | ast::TypeDetail::Typeof(_)
+        | ast::TypeDetail::Indexed(..)
+        | ast::TypeDetail::NumberLit(_) => fail(
+            g,
+            ty.loc,
+            "native specs use named types; declare this type with a name",
+        ),
+        ast::TypeDetail::Tuple(_) => fail(
+            g,
+            ty.loc,
+            "native functions take named types; use an interface instead of a tuple",
+        ),
         ast::TypeDetail::Func(_) => fail(
             g,
             ty.loc,

@@ -63,6 +63,22 @@ impl<T: Hot> Hot for Option<T> {
         }
     }
 }
+/// TSX tuples (`[string, number]`) are saved as JSON arrays.
+macro_rules! tuple_hot {
+    ($(($($name:ident $index:tt),+)),*) => {$(
+        impl<$($name: Hot),+> Hot for ($($name,)+) {
+            fn save(&self) -> Value {
+                Value::Array(vec![$(self.$index.save()),+])
+            }
+            fn load(value: &Value) -> Option<Self> {
+                let items = value.as_array()?;
+                Some(($($name::load(items.get($index)?)?,)+))
+            }
+        }
+    )*};
+}
+tuple_hot!((A 0), (A 0, B 1), (A 0, B 1, C 2), (A 0, B 1, C 2, D 3), (A 0, B 1, C 2, D 3, E 4));
+
 impl<T: Hot> Hot for Vec<T> {
     fn save(&self) -> Value {
         Value::Array(self.iter().map(Hot::save).collect())
