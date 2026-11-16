@@ -53,6 +53,12 @@ fn statement(s: &ast::Stmt, names: &[&str]) -> bool {
         ast::StmtData::Break | ast::StmtData::Continue => false,
         ast::StmtData::Expr(e) => expr(e, names),
         ast::StmtData::Block(ss) => statements(ss, names),
+        ast::StmtData::Throw(e) => expr(e, names),
+        ast::StmtData::Try(t) => {
+            statements(&t.body, names)
+                || t.catch.as_ref().is_some_and(|c| statements(&c.body, names))
+                || t.finally.as_deref().is_some_and(|f| statements(f, names))
+        }
     }
 }
 

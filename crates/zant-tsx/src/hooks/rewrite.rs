@@ -310,6 +310,41 @@ impl Rewriter<'_> {
                 let ss = self.statements(ss)?;
                 Ok(self.new_stmt(s.loc, ast::StmtData::Block(ss)))
             }
+            ast::StmtData::Throw(e) => {
+                let e = self.expr(e)?;
+                Ok(self.new_stmt(s.loc, ast::StmtData::Throw(e)))
+            }
+            ast::StmtData::Try(t) => {
+                let body = self.statements(&t.body)?;
+                let catch = match &t.catch {
+                    Some(c) => {
+                        let mark = self.env.len();
+                        let result = (|| {
+                            let name = c.name.as_ref().map(|name| ast::Name {
+                                name: self.bind(&name.name),
+                                loc: self.loc(name.loc),
+                            });
+                            let body = self.statements(&c.body)?;
+                            Ok(ast::Catch { name, body })
+                        })();
+                        self.env.truncate(mark);
+                        Some(result?)
+                    }
+                    None => None,
+                };
+                let finally = match &t.finally {
+                    Some(f) => Some(self.statements(f)?),
+                    None => None,
+                };
+                Ok(self.new_stmt(
+                    s.loc,
+                    ast::StmtData::Try(ast::Try {
+                        body,
+                        catch,
+                        finally,
+                    }),
+                ))
+            }
         }
     }
 

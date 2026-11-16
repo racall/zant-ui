@@ -233,6 +233,24 @@ impl Walker<'_, '_> {
             ast::StmtData::Break | ast::StmtData::Continue => false,
             ast::StmtData::Expr(e) => self.expr(e),
             ast::StmtData::Block(statements) => self.statements(statements, true),
+            ast::StmtData::Throw(e) => self.expr(e),
+            ast::StmtData::Try(t) => {
+                if self.statements(&t.body, true) {
+                    return true;
+                }
+                if let Some(c) = &t.catch {
+                    self.scopes
+                        .push(c.name.iter().map(|name| name.name.clone()).collect());
+                    let found = self.statements(&c.body, true);
+                    self.scopes.pop();
+                    if found {
+                        return true;
+                    }
+                }
+                t.finally
+                    .as_deref()
+                    .is_some_and(|f| self.statements(f, true))
+            }
         }
     }
 

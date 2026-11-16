@@ -34,7 +34,8 @@ TSX 是推荐的应用写法，编译期生成 Rust，无 JS 运行时。此表�
 | ✅ | 数组 / 对象原地修改（可变值语义：push/splice/sort/字段赋值，共享时报错） |
 | ✅ | 函数作为值（`Rc<dyn Fn>`，闭包按创建时复制捕获） |
 | ⬜ | 泛型组件、跨文件泛型函数 |
-| ⬜ | `class`（引用语义）、`try` / `catch` / `throw` |
+| ✅ | `throw` / `try` / `catch` / `finally`、`Error` 及其子类、`instanceof` 收窄（Swift 式 `Result`，推断会抛出的函数） |
+| ⬜ | `class`（引用语义） |
 | ⬜ | `JSON.parse` / `JSON.stringify`、`RegExp`、`Date` |
 | ⬜ | `async` / `await` / `Promise`（需 UI 线程任务队列） |
 

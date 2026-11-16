@@ -249,6 +249,16 @@ pub fn named(g: &mut Generator<'_>, name: &[u8], ty: Type, loc: ast::Loc) -> Res
     let Some((params, ret)) = signature(g, ty) else {
         return Ok(None);
     };
+    if function.throws {
+        return fail(
+            g,
+            loc,
+            format!(
+                "`{}` can throw; a function passed as a value cannot throw yet, so catch inside it",
+                String::from_utf8_lossy(name)
+            ),
+        );
+    }
     if function.params != params || function.ret != ret {
         return fail(
             g,

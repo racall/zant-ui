@@ -373,6 +373,18 @@ pub fn scan_stmt(g: &mut Generator<'_>, s: &ast::Stmt) -> Result<()> {
             None => Ok(()),
         },
         ast::StmtData::Expr(e) => scan_expr(g, e),
+        ast::StmtData::Throw(e) => scan_expr(g, e),
+        ast::StmtData::Try(t) => {
+            for s in t
+                .body
+                .iter()
+                .chain(t.catch.iter().flat_map(|c| c.body.iter()))
+                .chain(t.finally.iter().flatten())
+            {
+                scan_stmt(g, s)?;
+            }
+            Ok(())
+        }
         ast::StmtData::Block(ss) => {
             for s in ss {
                 scan_stmt(g, s)?;

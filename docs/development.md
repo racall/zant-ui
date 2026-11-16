@@ -309,5 +309,6 @@ cargo build -p zant-cli
 - `crates/zant/src/core/keys.rs`、`crates/zant/src/core/paths.rs`：平台快捷键与应用数据目录。
 - `crates/zant/src/db/`：SQLite 封装（rusqlite；`#[derive(Table)]` 对象集合）。
 - `scripts/win/`：Windows 测试机同步、远程执行与桌面冒烟测试。
+- `scripts/tsx/node-parity.sh`：TSX 编译后的运行输出与 Node 逐行对照（探针在 `crates/zant-tsx/tests/node_parity/*.ts`，各导出 `run()`）；新增或修改语言特性时补探针并运行。
 - `scripts/bench.sh`：帧基准闸门（内置记录基线）；`scripts/tsx/`：TSX 构建、示例与基准检查；
   `scripts/lib/imgdiff.py`：PNG 解码与像素对比。

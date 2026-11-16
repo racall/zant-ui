@@ -311,6 +311,7 @@ fn instance(
         functions::signature(g, &func, rust, false)
     })?;
     function.type_env = bindings;
+    function.throws = g.throwing.throws(&g.module_stem, &template.name);
     // instances are not callable by name; the template is
     function.name = format!("{name}<{}>", suffix.join(", "));
     let position = g.functions.len();

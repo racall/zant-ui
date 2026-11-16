@@ -350,6 +350,13 @@ pub fn type_ref(g: &mut Generator<'_>, reference: &ast::TypeRef, allow_void: boo
             ),
         };
     }
+    if let Some(ty) = super::exceptions::named_type(g, &reference.name)? {
+        return Ok(ty);
+    }
+    if reference.name == b"unknown" {
+        // what a `catch` binding holds (`catch (e: unknown)`)
+        return super::exceptions::thrown_type(g);
+    }
     if reference.name == b"Image" {
         return match g.extensions.hooks.image_type {
             Some(hook) => hook(g),

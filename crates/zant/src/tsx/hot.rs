@@ -103,6 +103,40 @@ impl<T: Hot> Hot for Rc<RefCell<T>> {
         Some(Rc::new(RefCell::new(T::load(value)?)))
     }
 }
+/// `{ "name": …, "message": … }`.
+impl Hot for super::Error {
+    fn save(&self) -> Value {
+        serde_json::json!({ "name": self.name.as_str(), "message": self.message.as_str() })
+    }
+    fn load(value: &Value) -> Option<Self> {
+        Some(Self {
+            name: crate::Str::copy(value.get("name")?.as_str()?),
+            message: crate::Str::copy(value.get("message")?.as_str()?),
+        })
+    }
+}
+/// Primitives as themselves, an error as `{ "error": { … } }`.
+impl Hot for super::Thrown {
+    fn save(&self) -> Value {
+        match self {
+            Self::Error(error) => serde_json::json!({ "error": error.save() }),
+            Self::String(text) => text.save(),
+            Self::Number(number) => number.save(),
+            Self::Boolean(flag) => Value::Bool(*flag),
+            Self::Null => Value::Null,
+        }
+    }
+    fn load(value: &Value) -> Option<Self> {
+        Some(match value {
+            Value::Null => Self::Null,
+            Value::Bool(flag) => Self::Boolean(*flag),
+            Value::String(text) => Self::String(crate::Str::copy(text)),
+            Value::Number(_) => Self::Number(f64::load(value)?),
+            Value::Object(map) => Self::error(super::Error::load(map.get("error")?)?),
+            Value::Array(_) => return None,
+        })
+    }
+}
 impl Hot for super::Bytes {
     fn save(&self) -> Value {
         self.to_vec().save()

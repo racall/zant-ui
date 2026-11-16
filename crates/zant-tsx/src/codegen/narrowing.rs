@@ -105,6 +105,10 @@ fn facts(
             if super::unions::fact(g, c, b, positive)? {
                 return Ok(());
             }
+            // `e instanceof Error` / `typeof e === "string"` on a caught value
+            if super::exceptions::fact(g, c, b, positive)? {
+                return Ok(());
+            }
             let not_equal = b.op == b"!=" || b.op == b"!==";
             let equal = b.op == b"==" || b.op == b"===";
             let proves = (not_equal && positive) || (equal && !positive);

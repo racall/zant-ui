@@ -1,7 +1,7 @@
 //! `zant-tsx`: compiles a `.tsx` component file into Rust (docs/tsx.md).
 //!
 //! ```text
-//! 用法: zant-tsx <in.tsx> <out.rs>
+//! Usage: zant-tsx <in.tsx> <out.rs>
 //!       zant-tsx --out <dir> [--main <App>] [--src <dir>] [--native <dir>]
 //!               [--dep <file>] [--app-config <file>] [<a.tsx> <b.rs>...]
 //! ```
@@ -19,7 +19,7 @@ use std::process::ExitCode;
 use zant_tsx::compile::{self, ConfigSpec, GeneratedProject, SourceFile};
 use zant_tsx::entry;
 
-const USAGE: &str = "用法: zant-tsx <in.tsx> <out.rs>\n      zant-tsx --out <dir> [--main <App>] [--src <dir>] [--native <dir>] [--dep <file>] [--app-config <file>] [<a.tsx> <b.rs>...]\n";
+const USAGE: &str = "Usage: zant-tsx <in.tsx> <out.rs>\n      zant-tsx --out <dir> [--main <App>] [--src <dir>] [--native <dir>] [--dep <file>] [--app-config <file>] [<a.tsx> <b.rs>...]\n";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -54,7 +54,7 @@ fn single_file(input: &str, output: &str) -> ExitCode {
         Ok(rust) => match std::fs::write(output, rust) {
             Ok(()) => ExitCode::SUCCESS,
             Err(error) => {
-                eprintln!("zant-tsx: 不能写入 {output}（{error}）");
+                eprintln!("zant-tsx: cannot write {output} ({error})");
                 ExitCode::FAILURE
             }
         },
@@ -101,7 +101,7 @@ fn project(out_dir: &str, rest: &[String]) -> ExitCode {
                 match entry::collect(&rest[index]) {
                     Ok(files) => paths.extend(files),
                     Err(error) => {
-                        eprintln!("zant-tsx: 不能读取 {}（{error}）", rest[index]);
+                        eprintln!("zant-tsx: cannot read {} ({error})", rest[index]);
                         return ExitCode::FAILURE;
                     }
                 }
@@ -114,7 +114,7 @@ fn project(out_dir: &str, rest: &[String]) -> ExitCode {
         match entry::collect_specs(native) {
             Ok(specs) => paths.extend(specs),
             Err(error) => {
-                eprintln!("zant-tsx: 不能读取 {native}（{error}）");
+                eprintln!("zant-tsx: cannot read {native} ({error})");
                 return ExitCode::FAILURE;
             }
         }
@@ -195,7 +195,7 @@ fn project(out_dir: &str, rest: &[String]) -> ExitCode {
     match output.write(out_dir, dep_file.as_deref()) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
-            eprintln!("zant-tsx: 不能写入 {out_dir}（{error}）");
+            eprintln!("zant-tsx: cannot write {out_dir} ({error})");
             ExitCode::FAILURE
         }
     }
@@ -205,7 +205,7 @@ fn read(path: &str) -> Option<String> {
     match std::fs::read_to_string(path) {
         Ok(source) => Some(source),
         Err(error) => {
-            eprintln!("zant-tsx: 不能读取 {path}（{error}）");
+            eprintln!("zant-tsx: cannot read {path} ({error})");
             None
         }
     }

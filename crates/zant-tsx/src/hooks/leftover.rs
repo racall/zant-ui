@@ -92,6 +92,16 @@ impl Walker<'_> {
             ast::StmtData::Break | ast::StmtData::Continue => {}
             ast::StmtData::Expr(e) => self.expr(e),
             ast::StmtData::Block(ss) => self.stmts(ss),
+            ast::StmtData::Throw(e) => self.expr(e),
+            ast::StmtData::Try(t) => {
+                self.stmts(&t.body);
+                if let Some(c) = &t.catch {
+                    self.stmts(&c.body);
+                }
+                if let Some(f) = &t.finally {
+                    self.stmts(f);
+                }
+            }
         }
     }
 

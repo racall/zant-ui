@@ -253,6 +253,14 @@ fn stmt(s: &Stmt) -> Result {
         StmtData::Ret(e) => optional_expr(e.as_deref()),
         StmtData::Expr(e) => expr(e),
         StmtData::Block(ss) => statements(ss),
+        StmtData::Throw(e) => expr(e),
+        StmtData::Try(t) => {
+            statements(&t.body)?;
+            if let Some(c) = &t.catch {
+                statements(&c.body)?;
+            }
+            t.finally.as_deref().map_or(Ok(()), statements)
+        }
         StmtData::If(i) => {
             expr(&i.cond)?;
             stmt(&i.then)?;

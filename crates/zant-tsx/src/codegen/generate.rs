@@ -51,7 +51,7 @@ use super::{Diag, Generator, Result, fail, parse_and_format};
 pub const HEADER_ALLOWS: &str = "#![allow(clippy::redundant_clone)]\n\
      #![allow(clippy::too_many_arguments)]\n\
      #![allow(non_snake_case)]\n\
-     #![allow(unused_parens, break_with_label_and_loop, dead_code)]\n";
+     #![allow(unused_parens, break_with_label_and_loop, dead_code, unreachable_code)]\n";
 pub const PREAMBLE: &str = "#[allow(unused_imports)]\nuse zant::nodes;\n#[allow(unused_imports)]\nuse zant::tsx;\n#[allow(unused_imports)]\nuse zant::ui;\n\n";
 
 /// The input of one module compilation.
@@ -245,6 +245,19 @@ fn generate_inner(
     if let Some(extra) = install_extra {
         extra(&mut g);
     }
+    // which functions can throw, across the project's files (before any
+    // signature is registered: imports and this file's functions use it)
+    g.module_stem = super::imports::stem(source_name)
+        .trim_end_matches(".tsx")
+        .trim_end_matches(".ts")
+        .to_owned();
+    g.throwing = super::throws::analyze(
+        options.project,
+        stateful::ModuleSource {
+            name: &g.module_stem.clone(),
+            module,
+        },
+    );
     validate_imports(&mut g, module)?;
     if let Some(hook) = g.extensions.process_imports {
         hook(&mut g, module)?;
@@ -885,6 +898,13 @@ pub fn method(
         effect_field: m.effect_field.clone(),
         cleanup: m.cleanup,
         cx_var: needs_cx.then(|| super::action_cx::CX.to_owned()),
+        // a throw nobody catches is reported; the handler returns (like a
+        // browser's uncaught error, the app keeps running)
+        throw_mode: if m.ret == Type::Void {
+            super::exceptions::ThrowMode::Report
+        } else {
+            super::exceptions::ThrowMode::Forbid
+        },
         ..scope::Context::default()
     };
     let mut params: Vec<String> = Vec::new();
