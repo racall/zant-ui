@@ -174,6 +174,7 @@ fn declaration(
     }
     let binding = scope::bind(g, c, &pattern.name, v.ty, !d.is_const)?;
     c.bindings[binding].init = Some(v.code);
+    c.bindings[binding].fresh = super::place::fresh(e);
     Ok(format!(
         "{}{}{}",
         scope::PLACEHOLDER_START,
@@ -347,7 +348,7 @@ pub fn expression_statement(
             _ => unreachable!("assignment"),
         };
         let ast::ExprData::Ident(name) = &target.data else {
-            return fail(g, target.loc, "only let locals can be assigned");
+            return super::place::assign(g, c, e, target);
         };
         let Some(binding) = scope::local(c, name) else {
             if let Some(index) = scope::state_index(g, name) {
@@ -393,6 +394,9 @@ pub fn expression_statement(
         };
         if assign.op == b"=" {
             let v = expr::emit(g, c, &assign.value, Some(ty), false)?;
+            // a new value: earlier uses saw the old one
+            c.bindings[binding_index].fresh = super::place::fresh(&assign.value);
+            c.bindings[binding_index].escaped = false;
             return Ok(format!("{rust} = {};\n", v.code));
         }
         // Reuse the arithmetic checker so integer `/=` and `%=` keep Rust's

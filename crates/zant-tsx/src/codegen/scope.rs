@@ -7,6 +7,7 @@
 
 use crate::ast;
 
+use super::model;
 use super::narrowing;
 use super::rust_text;
 use super::types::{Type, Value};
@@ -28,6 +29,11 @@ pub struct Binding {
     /// The initializer, materialized by [`finish`].
     pub init: Option<String>,
     pub serial: usize,
+    /// Holds a value no other variable shares, so it may change in place
+    /// (`place`): set from the initializer or the last assignment.
+    pub fresh: bool,
+    /// Used as a whole value (passed, stored, copied) since it became fresh.
+    pub escaped: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -71,6 +77,8 @@ pub struct Context {
     /// The runtime context parameter available in this handler (see
     /// [`super::action_cx`]): a local must not shadow it.
     pub cx_var: Option<String>,
+    /// The next local read only looks into the value (`place::project`).
+    pub projection: bool,
 }
 
 impl Default for Context {
@@ -94,6 +102,7 @@ impl Default for Context {
             no_self: false,
             narrowed: Vec::new(),
             cx_var: None,
+            projection: false,
         }
     }
 }
@@ -161,6 +170,8 @@ pub fn bind(
         assigned: false,
         init: None,
         serial,
+        fresh: false,
+        escaped: false,
     });
     c.active.push(serial);
     Ok(serial)
@@ -367,12 +378,16 @@ pub fn state_field(g: &mut Generator<'_>, name: &[u8]) -> Result<String> {
 
 /// Handlers read method-entry snapshots.
 pub fn read(g: &mut Generator<'_>, c: &mut Context, n: &[u8], loc: ast::Loc) -> Result<Value> {
+    let projection = std::mem::take(&mut c.projection);
     if let Some(value) = narrowing::find(c, n) {
         return Ok(value);
     }
-    if let Some(binding) = local(c, n) {
-        let ty = binding.ty;
-        let code = binding.rust.clone();
+    if let Some(index) = local_index(c, n) {
+        let ty = c.bindings[index].ty;
+        let code = c.bindings[index].rust.clone();
+        if !projection && model::owned(g, ty) {
+            c.bindings[index].escaped = true;
+        }
         return Ok(owned_read(g, ty, code));
     }
     let name = lossy(n);

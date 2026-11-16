@@ -61,6 +61,9 @@ pub mod hot;
 pub mod ids;
 #[forbid(unsafe_code)]
 pub mod list;
+/// In-place array methods (`fill`, `sort`, index assignment).
+#[forbid(unsafe_code)]
+pub mod list_ops;
 #[forbid(unsafe_code)]
 pub mod native;
 #[forbid(unsafe_code)]

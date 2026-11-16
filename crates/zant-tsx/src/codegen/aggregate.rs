@@ -317,6 +317,7 @@ pub fn member(g: &mut Generator<'_>, c: &mut scope::Context, m: &ast::Member) ->
     {
         return Ok(value);
     }
+    super::place::project(c, &m.object);
     let value = expr::emit(g, c, &m.object, None, false)?;
     if m.optional
         && let Some(child) = model::optional_child(g, value.ty)
@@ -399,6 +400,7 @@ pub fn index(
     loc: ast::Loc,
     ix: &ast::Index,
 ) -> Result<Value> {
+    super::place::project(c, &ix.object);
     let value = expr::emit(g, c, &ix.object, None, false)?;
     let ty = unwrap(g, value.ty);
     if !ix.optional && ty != value.ty {
