@@ -971,6 +971,7 @@ fn function_arrow(e: &ast::Expr, kind: Kind, pass_value: bool) -> ast::Expr {
             optional: false,
             destructure: Vec::new(),
             destructure_defaults: Vec::new(),
+            rest: false,
             default: None,
         });
     }
@@ -1014,6 +1015,7 @@ pub fn forward_arrow(e: &ast::Expr, count: usize) -> ast::Expr {
             optional: false,
             destructure: Vec::new(),
             destructure_defaults: Vec::new(),
+            rest: false,
             default: None,
         });
     }

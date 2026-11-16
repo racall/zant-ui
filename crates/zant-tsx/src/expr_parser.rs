@@ -64,6 +64,7 @@ pub fn try_arrow(p: &mut Parser) -> Result<Option<Box<Expr>>, Error> {
             optional: false,
             destructure: Vec::new(),
             destructure_defaults: Vec::new(),
+            rest: false,
             default: None,
         }];
         let func = arrow_body(p, loc, params, None)?;
@@ -440,7 +441,15 @@ pub fn parse_args(p: &mut Parser, callee: &Expr) -> Result<Vec<Box<Expr>>, Error
     let mut args: Vec<Box<Expr>> = Vec::new();
     while !p.is_p(")") {
         if p.is_p("...") {
-            return Err(p.fail(p.cur.start, "spread arguments are not supported"));
+            // `f(...items)`: only a rest parameter accepts it (codegen checks)
+            let loc = p.cur.start;
+            p.advance();
+            let inner = parse_assign(p)?;
+            args.push(p.expr(loc, ExprData::Spread(inner)));
+            if !p.eat_p(",") {
+                break;
+            }
+            continue;
         }
         let arg = match parse_assign(p) {
             Ok(arg) => arg,

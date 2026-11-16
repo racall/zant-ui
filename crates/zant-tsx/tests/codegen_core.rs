@@ -734,3 +734,55 @@ function f(b: B): number { return 1; }"#,
     );
     assert!(message.contains("combine object types"), "{message}");
 }
+
+// ── rest parameters ──────────────────────────────────────────────────
+
+#[test]
+fn rest_parameters_collect_the_remaining_arguments_into_a_list() {
+    let compiled = generated(
+        r#"function sum(base: number, ...xs: number[]): number { let t = base; for (const x of xs) t += x; return t; }
+function calls(more: number[]): number { return sum(0) + sum(1, 2, 3) + sum(1, ...more) + sum(0, 1, ...more, 4); }"#,
+    );
+    let f = &compiled.functions;
+    assert_contains(f, "pub fn sum(base: f64, xs: tsx::List<f64>) -> f64 {");
+    assert_contains(f, "sum(0.0f64, tsx::List::from_vec(Vec::<f64>::new()))");
+    assert_contains(f, "sum(1.0f64, tsx::List::from_vec(vec![2.0f64, 3.0f64]))");
+    // a lone spread passes the list through instead of copying it
+    assert_contains(f, "sum(1.0f64, more.clone())");
+    assert_contains(f, "_items.extend(more.clone().iter().cloned());");
+}
+
+#[test]
+fn rest_parameters_and_spread_arguments_report_misuse() {
+    for (src, expected) in [
+        (
+            "function f(...xs: number[], y: number): number { return y; }",
+            "must be the last",
+        ),
+        (
+            "function g(): number { const h = (...xs: number[]) => 1; return 0; }",
+            "supported in `function` declarations",
+        ),
+    ] {
+        let mut parser = Parser::init(src);
+        assert!(parser.parse_module().is_err(), "{src}");
+        let message = parser.diag.expect("diagnostic").msg;
+        assert!(message.contains(expected), "{src}: {message}");
+    }
+    for (src, expected) in [
+        (
+            "function f(...xs: number): number { return 1; }",
+            "needs an array type",
+        ),
+        (
+            "function f(a: number): number { return a; }\nfunction g(xs: number[]): number { return f(...xs); }",
+            "can only fill a rest parameter",
+        ),
+    ] {
+        let message = match compile(src) {
+            Ok(compiled) => panic!("expected an error for {src}:\n{}", compiled.functions),
+            Err(message) => message,
+        };
+        assert!(message.contains(expected), "{src}: {message}");
+    }
+}

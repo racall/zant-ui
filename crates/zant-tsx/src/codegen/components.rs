@@ -190,6 +190,13 @@ pub fn collect(
             continue;
         }
         let f = &top.func;
+        if let Some(rest) = f.params.iter().find(|param| param.rest) {
+            return fail(
+                g,
+                rest.name.loc,
+                "components take one props object, not rest parameters",
+            );
+        }
         if f.params.len() > 1 {
             return fail(g, f.params[1].name.loc, "components take one props object");
         }
@@ -714,6 +721,7 @@ fn forward_arrow(g: &mut Generator<'_>, e: &ast::Expr, count: usize) -> Result<a
             optional: false,
             destructure: Vec::new(),
             destructure_defaults: Vec::new(),
+            rest: false,
             default: None,
         });
         args.push(Box::new(ast::Expr {

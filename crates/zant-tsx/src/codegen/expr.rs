@@ -84,7 +84,11 @@ pub fn emit(
         },
         ast::ExprData::Index(ix) => aggregate::index(g, c, e.loc, ix)?,
         ast::ExprData::Spread(_) => {
-            return fail(g, e.loc, "this expression is not supported yet");
+            return fail(
+                g,
+                e.loc,
+                "`...` spreads into array literals, object literals and a function's rest parameter (`...items: T[]`)",
+            );
         }
     };
     match expected {

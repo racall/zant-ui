@@ -403,7 +403,7 @@ impl<'a> Parser<'a> {
         if self.is_p("<") {
             return Err(self.fail(self.cur.start, "generic functions are not supported"));
         }
-        let params = self.parse_params()?;
+        let params = self.parse_params_with(true)?;
         let ret = self.parse_return_type()?;
         if !self.is_p("{") {
             return Err(self.unexpected("{"));
@@ -441,7 +441,9 @@ impl<'a> Parser<'a> {
         }))
     }
 
-    pub fn parse_params(&mut self) -> Result<Vec<Param>, Error> {
+    /// `(a: T, b = 1, ...rest: U[])`. Rest parameters are accepted where
+    /// `rest` allows them (`function` declarations).
+    pub fn parse_params_with(&mut self, rest: bool) -> Result<Vec<Param>, Error> {
         self.expect_p("(")?;
         let mut params: Vec<Param> = Vec::new();
         while !self.is_p(")") {
@@ -452,7 +454,39 @@ impl<'a> Parser<'a> {
                 ));
             }
             if self.is_p("...") {
-                return Err(self.fail(self.cur.start, "rest parameters are not supported"));
+                if !rest {
+                    return Err(self.fail(
+                        self.cur.start,
+                        "rest parameters are supported in `function` declarations",
+                    ));
+                }
+                let loc = self.cur.start;
+                self.advance();
+                let name = self.expect_ident("a parameter name")?;
+                if !self.eat_p(":") {
+                    return Err(
+                        self.fail(loc, "a rest parameter needs an array type: `...items: T[]`")
+                    );
+                }
+                let ty = self.parse_type()?;
+                if self.is_p("=") || self.is_p("?") {
+                    return Err(self.fail(self.cur.start, "a rest parameter has no default"));
+                }
+                params.push(Param {
+                    name,
+                    ty: Some(ty),
+                    optional: false,
+                    destructure: Vec::new(),
+                    destructure_defaults: Vec::new(),
+                    rest: true,
+                    default: None,
+                });
+                if self.eat_p(",") && !self.is_p(")") {
+                    return Err(
+                        self.fail(self.cur.start, "the rest parameter must be the last one")
+                    );
+                }
+                break;
             }
             let mut param;
             if self.is_p("{") {
@@ -467,6 +501,7 @@ impl<'a> Parser<'a> {
                     optional: false,
                     destructure: Vec::new(),
                     destructure_defaults: Vec::new(),
+                    rest: false,
                     default: None,
                 };
                 self.parse_destructure(&mut param)?;
@@ -477,6 +512,7 @@ impl<'a> Parser<'a> {
                     optional: false,
                     destructure: Vec::new(),
                     destructure_defaults: Vec::new(),
+                    rest: false,
                     default: None,
                 };
                 param.optional = self.eat_p("?");
@@ -506,6 +542,11 @@ impl<'a> Parser<'a> {
         }
         self.expect_p(")")?;
         Ok(params)
+    }
+
+    /// `(a: T, b = 1)`: parameters without a rest parameter.
+    pub fn parse_params(&mut self) -> Result<Vec<Param>, Error> {
+        self.parse_params_with(false)
     }
 
     /// `{ a, b: local = 1 }` in a parameter: properties, bindings and defaults.

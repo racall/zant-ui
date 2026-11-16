@@ -320,6 +320,7 @@ fn forwarding_arrow(callee: &ast::Expr, takes_argument: bool) -> Box<ast::Functi
             optional: false,
             destructure: Vec::new(),
             destructure_defaults: Vec::new(),
+            rest: false,
             default: None,
         });
         args.push(Box::new(ast::Expr {

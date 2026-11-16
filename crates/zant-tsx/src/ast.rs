@@ -228,6 +228,8 @@ pub struct Param {
     pub destructure_defaults: Vec<Option<Box<Expr>>>,
     /// `unit = "item"`: the argument callers may leave out.
     pub default: Option<Box<Expr>>,
+    /// `...items: T[]`: the last parameter collects the remaining arguments.
+    pub rest: bool,
 }
 
 /// A parameter property: `name` is the field, `local` is its binding.
