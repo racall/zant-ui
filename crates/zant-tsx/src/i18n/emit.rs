@@ -4,7 +4,6 @@ use super::{catalog, contract, json, message, names};
 use crate::error::Diag;
 use std::collections::BTreeMap;
 use std::fmt::Write;
-use std::path::Path;
 
 #[derive(Debug)]
 pub struct Compiled {
@@ -40,12 +39,13 @@ pub fn compile(
     catalogs.sort_by(|a, b| a.0.locale.cmp(&b.0.locale));
     let locales: Vec<_> = catalogs.iter().map(|c| c.0.locale.clone()).collect();
     let Some(default_index) = locales.iter().position(|tag| tag == default) else {
+        // catalog paths use `/` on every platform (`locales/en.json`)
         let dir = catalogs
             .first()
-            .and_then(|c| Path::new(&c.0.path).parent())
-            .unwrap_or_else(|| Path::new("locales"));
+            .and_then(|c| c.0.path.rsplit_once(['/', '\\']).map(|(dir, _)| dir))
+            .unwrap_or("locales");
         return Err(error(
-            &dir.join(format!("{default}.json")).to_string_lossy(),
+            &format!("{dir}/{default}.json"),
             0,
             format!(
                 "default language `{default}` has no catalog; available languages: {}",
