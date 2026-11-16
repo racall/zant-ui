@@ -2,6 +2,7 @@
 
 pub mod capture;
 pub mod dialog;
+pub mod languages;
 pub mod memory;
 pub mod pdf;
 // The module keeps the name of its directory (`platform::platform`).
