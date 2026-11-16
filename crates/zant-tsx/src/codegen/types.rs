@@ -95,6 +95,11 @@ struct IntInfo {
 }
 
 impl Type {
+    /// An unsigned Rust integer (`.length` is `usize`).
+    pub fn unsigned(self) -> bool {
+        self.int_info().is_some_and(|info| !info.signed)
+    }
+
     pub fn integer(self) -> bool {
         matches!(
             self,

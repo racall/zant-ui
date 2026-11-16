@@ -68,7 +68,7 @@ pub fn emit(
     let value = expr::emit(g, c, &member.object, None, false)?;
     // `title?.trim()` / `items?.map(…)`: absent stays absent, like
     // TypeScript's optional chaining (the result is optional; use `??`)
-    if member.optional
+    if (member.optional || super::aggregate::in_optional_chain(&member.object))
         && let Some(child) = model::optional_child(g, value.ty)
     {
         let inner = emit_on(g, c, loc, call, expected, Value::new(child, "_some"))?;

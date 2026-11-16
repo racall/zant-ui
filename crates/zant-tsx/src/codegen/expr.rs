@@ -466,7 +466,17 @@ pub fn binary(
             ),
         );
     }
-    let t = types::unify(g, a.ty, z.ty, loc)?.concrete();
+    let mut t = types::unify(g, a.ty, z.ty, loc)?.concrete();
+    // `items.length - 1` is -1 for an empty list, as JavaScript numbers are
+    // signed: unsigned operands subtract as numbers (an unsigned Rust `-`
+    // would underflow), unless an integer result is asked for (`let n: u32`)
+    if b.op == b"-"
+        && t.unsigned()
+        && !expected.is_some_and(|e| e.integer())
+        && !(a.inference == Inference::Literal && z.inference == Inference::Literal)
+    {
+        t = Type::F64;
+    }
     if let Some(value) = bitwise(g, &b.op, &a, &z, t, b)? {
         return Ok(value);
     }
@@ -921,6 +931,25 @@ fn explicit_cast(
         cast.expr.data,
         ast::ExprData::Array(_) | ast::ExprData::Object(_)
     ) || super::json::takes_context(&cast.expr);
+    // `{ red: 1 } satisfies Record<string, number>`: the object keeps its
+    // own type (`PALETTE.red` is a number), each field checked against the
+    // record's value type
+    if cast.satisfies
+        && matches!(cast.expr.data, ast::ExprData::Object(_))
+        && super::dicts::kind(g, target) == Some(model::InfoKind::Record)
+    {
+        let value = emit(g, c, &cast.expr, None, child)?;
+        let value_type = model::info(g, target).map(|info| info.child);
+        let fields = model::info(g, value.ty)
+            .map(|info| info.fields.clone())
+            .unwrap_or_default();
+        if let Some(value_type) = value_type {
+            for field in fields {
+                types::coerce(g, Value::new(field.ty, "_field"), value_type, loc)?;
+            }
+        }
+        return Ok(value);
+    }
     if cast.satisfies || literal {
         return emit(g, c, &cast.expr, Some(target), child);
     }
