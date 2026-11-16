@@ -288,7 +288,16 @@ mod tests {
         assert_eq!(overlay.layout.width_percent, Some(100.0));
         assert_eq!(overlay.layout.height_percent, Some(100.0));
         assert_eq!(overlay.motion.presence, motion::Presence::Fade);
-        assert_eq!(overlay.children.len(), 2, "mask then centre layer");
+        assert_eq!(
+            overlay.children.len(),
+            3,
+            "mask, centre layer, then the Esc layer (keyboard)"
+        );
+        let escape = overlay.children[2].element();
+        assert_eq!(escape.key.as_deref(), Some("modal-escape"));
+        assert!(escape.visual.escape_dismiss, "Esc closes the dialog");
+        assert_eq!(escape.layout.width_percent, Some(0.0), "it takes no clicks");
+        assert!(!overlay.children[0].element().visual.escape_dismiss);
 
         let mask = overlay.children[0].element();
         assert_eq!(mask.key.as_deref(), Some("modal-mask"));
