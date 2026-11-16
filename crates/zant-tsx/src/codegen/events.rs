@@ -376,10 +376,22 @@ pub fn scan_stmt(g: &mut Generator<'_>, s: &ast::Stmt) -> Result<()> {
         }
         ast::StmtData::Break | ast::StmtData::Continue => Ok(()),
         ast::StmtData::Decl(decl) => match decl.init.as_deref() {
-            Some(init) => scan_expr(g, init),
+            Some(init) => {
+                // `const load = async () => { … }` in a handler
+                if let (crate::ast::Pattern::Ident(name), ast::ExprData::Arrow(function)) =
+                    (&decl.pattern, &init.data)
+                    && function.ret.is_none()
+                {
+                    super::local_functions::scan(g, &name.name, function)?;
+                }
+                scan_expr(g, init)
+            }
             None => Ok(()),
         },
-        ast::StmtData::Func(function) => scan_body(g, &function.body),
+        ast::StmtData::Func(function) => {
+            super::local_functions::scan(g, &function.name, function)?;
+            scan_body(g, &function.body)
+        }
         ast::StmtData::Ret(e) => match e.as_deref() {
             Some(value) => scan_expr(g, value),
             None => Ok(()),

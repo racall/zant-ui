@@ -749,6 +749,9 @@ pub fn call_value(
             "hooks must be called at the top level of the component",
         );
     }
+    if let Some(value) = super::local_functions::call(g, c, loc, name.as_bytes(), call)? {
+        return Ok(value);
+    }
     if scope::setter_index(g, name.as_bytes()).is_some() {
         return fail(
             g,

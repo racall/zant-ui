@@ -256,24 +256,11 @@ fn closure(
     value: Option<(Type, bool)>,
     ret: Type,
 ) -> Result<String> {
-    let mut method = g.methods[index].clone();
-    // each captured name is read where the chain is built: a local there,
-    // or (a reaction made inside another reaction, as `await` lowers) the
-    // enclosing method's own capture `cap.x`
-    for capture in &mut method.captures {
-        if capture.name == "self" {
-            continue;
-        }
-        let read = ast::Expr {
-            loc: 0,
-            data: ast::ExprData::Ident(capture.name.as_bytes().to_vec()),
-        };
-        capture.source = expr::emit(g, c, &read, None, false)?.code;
-    }
+    let method = g.methods[index].clone();
     let capture = if method.captures.is_empty() {
         None
     } else {
-        Some(super::super::captures::value(g, &method)?)
+        Some(super::super::captures::value_in(g, c, &method)?)
     };
     let needs_cx = method
         .func

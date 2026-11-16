@@ -99,6 +99,7 @@ pub mod jsx;
 pub mod jsx_children;
 pub mod jsx_values;
 pub mod list;
+pub mod local_functions;
 pub mod loops;
 pub mod model;
 pub mod narrowing;
@@ -252,6 +253,10 @@ pub struct Method {
     /// (a throw rejects the next promise); an expression body's type is
     /// inferred into `ret` (`promises`).
     pub promise_callback: bool,
+    /// A function declared inside a handler or effect (`async function
+    /// load() { … }` in `useEffect`): a method with captures, called in
+    /// place (`local_functions`).
+    pub local_function: bool,
 }
 
 impl Default for Method {
@@ -271,6 +276,7 @@ impl Default for Method {
             cleanup: false,
             inline_only: false,
             promise_callback: false,
+            local_function: false,
         }
     }
 }

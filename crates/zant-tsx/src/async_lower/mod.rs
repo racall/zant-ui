@@ -41,12 +41,19 @@
 //! of `&&` / `||` / `??` / `?:`, or in `catch` / `finally` blocks; those
 //! report an error with the place.
 
-use crate::ast::{
-    Body, Call, Decl, Expr, ExprData, Function, Member, Name, Param, Pattern, Stmt, StmtData, Try,
-};
-use crate::ast_walk::{self, StmtChild};
+// AST statement lists hold boxed statements (`ast::Body::Block`)
+#![allow(clippy::vec_box)]
+
+mod analysis;
+mod build;
+
+use crate::ast::{Body, Decl, Expr, ExprData, Function, Name, Pattern, Stmt, StmtData, Try};
 use crate::error::ParseError as Error;
 use crate::parser::Parser;
+use analysis::{
+    contains_return, declares, is_await, names, operand, stmt_awaits, take_await, wrap_returns,
+};
+use build::{call, ident, member, param, reaction, then};
 
 /// Lowers the body of async function `f` in place.
 pub fn lower(p: &mut Parser, f: &mut Function) -> Result<(), Error> {
@@ -65,7 +72,8 @@ pub fn lower(p: &mut Parser, f: &mut Function) -> Result<(), Error> {
         }
     };
     let mut lowering = Lowering { p, counter: 0 };
-    f.body = Body::Block(lowering.segment(statements, if keep { Tail::Return } else { Tail::Run })?);
+    f.body =
+        Body::Block(lowering.segment(statements, if keep { Tail::Return } else { Tail::Run })?);
     Ok(())
 }
 
@@ -91,6 +99,38 @@ impl Lowering<'_, '_> {
 
     fn fail(&mut self, loc: u32, msg: &str) -> Error {
         self.p.fail(loc, msg)
+    }
+
+    /// A continuation's body: `rest` lowered, after `let x = x;` for each
+    /// outer local it assigns (the continuation captured a copy; the
+    /// rebinding is the variable from here on, and later continuations
+    /// capture its current value).
+    fn continuation(&mut self, rest: Vec<Box<Stmt>>, loc: u32) -> Result<Vec<Box<Stmt>>, Error> {
+        let mut assigned: Vec<Vec<u8>> = Vec::new();
+        let mut declared: Vec<Vec<u8>> = Vec::new();
+        for s in &rest {
+            names(s, &mut assigned, &mut declared);
+        }
+        let mut body: Vec<Box<Stmt>> = Vec::new();
+        for name in assigned {
+            if declared.contains(&name) || body.iter().any(|s| declares(s, &name)) {
+                continue;
+            }
+            body.push(Box::new(Stmt {
+                loc,
+                data: StmtData::Decl(Decl {
+                    is_const: false,
+                    pattern: Pattern::Ident(Name {
+                        name: name.clone(),
+                        loc,
+                    }),
+                    ty: None,
+                    init: Some(ident(loc, &name)),
+                }),
+            }));
+        }
+        body.extend(self.segment(rest, Tail::Return)?);
+        Ok(body)
     }
 
     /// Lowers `statements`: unchanged up to the first `await`, which turns
@@ -148,12 +188,12 @@ impl Lowering<'_, '_> {
                         (param(Name { name, loc }, ty), vec![unpack])
                     }
                 };
-                body.extend(self.segment(rest, Tail::Return)?);
+                body.extend(self.continuation(rest, loc)?);
                 Ok(then(promise, Some(param), body, loc))
             }
             // `await save();`
             StmtData::Expr(e) if is_await(&e) => {
-                let body = self.segment(rest, Tail::Return)?;
+                let body = self.continuation(rest, loc)?;
                 Ok(then(operand(*e), None, body, loc))
             }
             // `text = await res.text();`: the continuation's own `text`
@@ -177,7 +217,7 @@ impl Lowering<'_, '_> {
                         init: Some(ident(loc, &name)),
                     }),
                 })];
-                body.extend(self.segment(rest, Tail::Return)?);
+                body.extend(self.continuation(rest, loc)?);
                 Ok(then(
                     operand(*assign.value),
                     Some(param(Name { name, loc }, None)),
@@ -199,7 +239,10 @@ impl Lowering<'_, '_> {
     fn try_chain(&mut self, loc: u32, t: Try, rest: Vec<Box<Stmt>>) -> Result<Box<Expr>, Error> {
         for block in t.catch.iter().map(|c| &c.body).chain(t.finally.iter()) {
             if let Some(at) = block.iter().find(|s| stmt_awaits(s)) {
-                return Err(self.fail(at.loc, "`await` inside `catch` / `finally` is not supported yet"));
+                return Err(self.fail(
+                    at.loc,
+                    "`await` inside `catch` / `finally` is not supported yet",
+                ));
             }
         }
         if !rest.is_empty() && t.body.iter().any(|s| contains_return(s)) {
@@ -215,7 +258,7 @@ impl Lowering<'_, '_> {
             Vec::new(),
             loc,
         );
-        let body = self.segment(t.body, Tail::Return)?;
+        let body = self.continuation(t.body, loc)?;
         let mut chain = then(start, None, body, loc);
         if let Some(catch) = t.catch {
             let name = match catch.name {
@@ -231,7 +274,7 @@ impl Lowering<'_, '_> {
             chain = reaction(chain, b"finally", None, finally, loc);
         }
         if !rest.is_empty() {
-            let body = self.segment(rest, Tail::Return)?;
+            let body = self.continuation(rest, loc)?;
             chain = then(chain, None, body, loc);
         }
         Ok(chain)
@@ -283,220 +326,4 @@ impl Lowering<'_, '_> {
         }
         Ok(out)
     }
-}
-
-fn is_await(e: &Expr) -> bool {
-    matches!(&e.data, ExprData::Unary(u) if u.op == b"await")
-}
-
-/// The promise of `await promise`.
-fn operand(e: Expr) -> Box<Expr> {
-    match e.data {
-        ExprData::Unary(u) => u.operand,
-        _ => unreachable!("an await"),
-    }
-}
-
-/// An `await` in `e`, outside nested functions.
-fn expr_awaits(e: &Expr) -> bool {
-    if is_await(e) {
-        return true;
-    }
-    let mut found = false;
-    ast_walk::expr_children(e, &mut |child| found = found || expr_awaits(child));
-    found
-}
-
-/// An `await` in `s`, outside nested functions.
-fn stmt_awaits(s: &Stmt) -> bool {
-    let mut found = false;
-    ast_walk::stmt_children(s, &mut |child| {
-        found = found
-            || match child {
-                StmtChild::Expr(e) => expr_awaits(e),
-                StmtChild::Stmt(s) => stmt_awaits(s),
-            }
-    });
-    found
-}
-
-/// A `return` in `s`, outside nested functions.
-fn contains_return(s: &Stmt) -> bool {
-    if matches!(s.data, StmtData::Ret(_)) {
-        return true;
-    }
-    let mut found = false;
-    ast_walk::stmt_children(s, &mut |child| {
-        if let StmtChild::Stmt(s) = child {
-            found = found || contains_return(s);
-        }
-    });
-    found
-}
-
-/// `return;` / `return v;` before the first `await` of a segment whose value
-/// is a promise: `return Promise.resolve(v)`.
-fn wrap_returns(s: &mut Stmt) {
-    let loc = s.loc;
-    match &mut s.data {
-        StmtData::Ret(value) => {
-            let args = value.take().into_iter().collect();
-            *value = Some(call(
-                member(ident(loc, b"Promise"), b"resolve", loc),
-                args,
-                loc,
-            ));
-        }
-        StmtData::If(i) => {
-            wrap_returns(&mut i.then);
-            if let Some(e) = &mut i.else_ {
-                wrap_returns(e);
-            }
-        }
-        StmtData::Block(statements) => statements.iter_mut().for_each(|s| wrap_returns(s)),
-        StmtData::For(f) => wrap_returns(&mut f.body),
-        StmtData::ForOf(f) => wrap_returns(&mut f.body),
-        StmtData::While(w) => wrap_returns(&mut w.body),
-        StmtData::Switch(sw) => sw
-            .cases
-            .iter_mut()
-            .flat_map(|c| c.body.iter_mut())
-            .for_each(|s| wrap_returns(s)),
-        StmtData::Try(t) => {
-            t.body.iter_mut().for_each(|s| wrap_returns(s));
-            if let Some(c) = &mut t.catch {
-                c.body.iter_mut().for_each(|s| wrap_returns(s));
-            }
-            if let Some(f) = &mut t.finally {
-                f.iter_mut().for_each(|s| wrap_returns(s));
-            }
-        }
-        _ => {}
-    }
-}
-
-/// Replaces the first `await` evaluated in `e` (outside nested functions)
-/// with `name` and returns it. `Err(loc)` for an `await` that runs only
-/// conditionally (`a && await b`).
-fn take_await(e: &mut Expr, name: &[u8]) -> Result<Option<Box<Expr>>, u32> {
-    if is_await(e) {
-        let loc = e.loc;
-        let awaited = std::mem::replace(e, *ident(loc, name));
-        return Ok(Some(Box::new(awaited)));
-    }
-    let conditional = |e: &Expr| if expr_awaits(e) { Err(e.loc) } else { Ok(None) };
-    match &mut e.data {
-        ExprData::Binary(b) if matches!(b.op.as_slice(), b"&&" | b"||" | b"??") => {
-            match take_await(&mut b.lhs, name)? {
-                Some(found) => Ok(Some(found)),
-                None => conditional(&b.rhs),
-            }
-        }
-        ExprData::Cond(c) => match take_await(&mut c.cond, name)? {
-            Some(found) => Ok(Some(found)),
-            None => conditional(&c.then).and_then(|_| conditional(&c.else_)),
-        },
-        ExprData::Binary(b) => first(&mut [&mut b.lhs, &mut b.rhs], name),
-        ExprData::Unary(u) => take_await(&mut u.operand, name),
-        ExprData::Template(t) => first(&mut t.exprs.iter_mut().collect::<Vec<_>>(), name),
-        ExprData::Call(c) => {
-            let mut slots: Vec<&mut Box<Expr>> = vec![&mut c.callee];
-            slots.extend(c.args.iter_mut());
-            first(&mut slots, name)
-        }
-        ExprData::Member(m) => take_await(&mut m.object, name),
-        ExprData::Object(properties) => {
-            first(&mut properties.iter_mut().map(|p| &mut p.value).collect::<Vec<_>>(), name)
-        }
-        ExprData::Array(items) => first(&mut items.iter_mut().collect::<Vec<_>>(), name),
-        ExprData::Spread(x) | ExprData::NonNull(x) => take_await(x, name),
-        ExprData::Index(i) => first(&mut [&mut i.object, &mut i.index], name),
-        ExprData::As(a) => take_await(&mut a.expr, name),
-        ExprData::Assign(a) => first(&mut [&mut a.target, &mut a.value], name),
-        ExprData::Update(u) => take_await(&mut u.target, name),
-        _ => Ok(None),
-    }
-}
-
-fn first(slots: &mut [&mut Box<Expr>], name: &[u8]) -> Result<Option<Box<Expr>>, u32> {
-    for slot in slots.iter_mut() {
-        if let Some(found) = take_await(slot, name)? {
-            return Ok(Some(found));
-        }
-    }
-    Ok(None)
-}
-
-// ── building the chain ───────────────────────────────────────────────
-
-fn ident(loc: u32, name: &[u8]) -> Box<Expr> {
-    Box::new(Expr {
-        loc,
-        data: ExprData::Ident(name.to_vec()),
-    })
-}
-
-fn member(object: Box<Expr>, name: &[u8], loc: u32) -> Box<Expr> {
-    Box::new(Expr {
-        loc,
-        data: ExprData::Member(Member {
-            object,
-            name: Name {
-                name: name.to_vec(),
-                loc,
-            },
-            optional: false,
-        }),
-    })
-}
-
-fn call(callee: Box<Expr>, args: Vec<Box<Expr>>, loc: u32) -> Box<Expr> {
-    Box::new(Expr {
-        loc,
-        data: ExprData::Call(Call {
-            callee,
-            type_args: Vec::new(),
-            args,
-            optional: false,
-            is_new: false,
-        }),
-    })
-}
-
-fn param(name: Name, ty: Option<crate::ast::TypeRef>) -> Param {
-    Param {
-        name,
-        ty,
-        optional: false,
-        destructure: Vec::new(),
-        destructure_defaults: Vec::new(),
-        rest: false,
-        default: None,
-    }
-}
-
-/// `promise.then((param) => { body })`.
-fn then(promise: Box<Expr>, param: Option<Param>, body: Vec<Box<Stmt>>, loc: u32) -> Box<Expr> {
-    reaction(promise, b"then", param, body, loc)
-}
-
-fn reaction(
-    promise: Box<Expr>,
-    method: &[u8],
-    param: Option<Param>,
-    body: Vec<Box<Stmt>>,
-    loc: u32,
-) -> Box<Expr> {
-    let arrow = Box::new(Expr {
-        loc,
-        data: ExprData::Arrow(Box::new(Function {
-            type_params: Vec::new(),
-            loc,
-            name: Vec::new(),
-            params: param.into_iter().collect(),
-            ret: None,
-            body: Body::Block(body),
-        })),
-    });
-    call(member(promise, method, loc), vec![arrow], loc)
 }

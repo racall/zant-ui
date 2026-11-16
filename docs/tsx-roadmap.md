@@ -41,7 +41,7 @@ TSX 是推荐的应用写法，编译期生成 Rust，无 JS 运行时。此表�
 | ✅ | `let` 的控制流收窄（到下一次赋值为止，含 `while` / `for` 条件） |
 | ⬜ | `Date` |
 | ✅ | `Promise` 与 `.then` / `.catch` / `.finally`、`fetch`（UI 线程任务队列） |
-| ⬜ | `async` / `await` |
+| ✅ | `async` / `await`（改写为 `.then` 链；`if` / 循环里的 `await` 待做） |
 
 ## 运行时与工具链
 
