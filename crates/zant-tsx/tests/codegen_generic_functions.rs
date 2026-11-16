@@ -42,7 +42,7 @@ function uses(todos: Todo[], b: Box<string>): string {
     for needle in [
         "pub fn first__f64(xs: tsx::List<f64>) -> Option<f64>",
         "pub fn first__Todo(xs: tsx::List<Todo>) -> Option<Todo>",
-        "pub fn unwrap__Str(box_: Box<zant::Str>) -> zant::Str",
+        "pub fn unwrap__Str(box_: Box_<zant::Str>) -> zant::Str",
         "pub fn pair__f64__Str(a: f64, b: zant::Str)",
         "pub fn pair__Str__Str(a: zant::Str, b: zant::Str)",
         "pub fn byId__Todo(",

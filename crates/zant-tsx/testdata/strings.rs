@@ -170,10 +170,10 @@ impl ui::App for App {
                 format!("{} / {} / {}", '_string_19 : { let _text_19 : zant::Str =
                 zant::Str::from("A中"); let _arg_21 : f64 = 1.0f64; break '_string_19
                 tsx::strings::char_at(& _text_19, _arg_21); }, optional.clone()
-                .unwrap_or_else(|| zant::Str::from("none")), '_string_20 : { let _text_20
-                : zant::Str = zant::Str::from(""); let _arg_22 : f64 = 0.0f64; break
-                '_string_20 tsx::strings::at(& _text_20, _arg_22); } .unwrap_or_else(||
-                zant::Str::from("none")))), ui::TextOptions { key :
+                .unwrap_or_else(|| zant::Str::from("none")), ('_string_20 : { let
+                _text_20 : zant::Str = zant::Str::from(""); let _arg_22 : f64 = 0.0f64;
+                break '_string_20 tsx::strings::at(& _text_20, _arg_22); })
+                .unwrap_or_else(|| zant::Str::from("none")))), ui::TextOptions { key :
                 Some(zant::Str::from("char")), ..Default::default() })
             ],
             ..Default::default()

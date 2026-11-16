@@ -34,18 +34,18 @@ function make(): Pair<number> { return { first: 1, second: 2 }; }"#,
     .unwrap();
     assert_contains(
         &rust,
-        "pub struct Box<T> { pub value: T, pub label: Option<zant::Str>, }",
+        "pub struct Box_<T> { pub value: T, pub label: Option<zant::Str>, }",
     );
     assert_contains(
         &rust,
-        "impl<T: tsx::hot::Hot + Clone + Default> tsx::hot::Hot for Box<T>",
+        "impl<T: tsx::hot::Hot + Clone + Default> tsx::hot::Hot for Box_<T>",
     );
-    assert_contains(&rust, "pub fn unbox(b: Box<f64>) -> f64");
-    assert_contains(&rust, "pub fn name(b: Box<zant::Str>) -> zant::Str");
+    assert_contains(&rust, "pub fn unbox(b: Box_<f64>) -> f64");
+    assert_contains(&rust, "pub fn name(b: Box_<zant::Str>) -> zant::Str");
     // the default `B = A`, and the turbofish in a struct literal
     assert_contains(&rust, "pub fn make() -> Pair<f64, f64>");
     assert_contains(&rust, "Pair::<f64, f64> {");
-    assert_eq!(rust.matches("pub struct Box<T>").count(), 1);
+    assert_eq!(rust.matches("pub struct Box_<T>").count(), 1);
 }
 
 #[test]

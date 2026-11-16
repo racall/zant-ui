@@ -615,8 +615,12 @@ console.log(total, i);
 
 #[test]
 fn loop_diagnostics_point_at_the_loop() {
-    let message = diagnostic(r#"function loops(): void { while (1) {} }"#);
-    assert!(message.contains("conditions must be boolean"), "{message}");
+    // numbers / strings are tested by JavaScript truthiness; a union is not
+    let message = diagnostic(r#"function loops(v: string | number): void { while (v) {} }"#);
+    assert!(
+        message.contains("compare this value explicitly"),
+        "{message}"
+    );
     let message = diagnostic(r#"function breaks(): void { break; }"#);
     assert!(
         message.contains("break is only allowed inside a loop or switch"),

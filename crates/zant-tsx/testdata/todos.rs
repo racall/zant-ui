@@ -307,7 +307,7 @@ impl ui::App for Todos {
                     .collect::<Vec<_>>(),
             )
         };
-        let remaining: usize = {
+        let remaining: usize = ({
             let _items_2: tsx::List<Todo> = self.todos.clone();
             tsx::List::from_vec(
                 _items_2
@@ -320,7 +320,7 @@ impl ui::App for Todos {
                     })
                     .collect::<Vec<_>>(),
             )
-        }
+        })
             .len();
         return ui::view(ui::ViewOptions {
             padding: ui::inset(16.0f32),

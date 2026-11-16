@@ -21,13 +21,8 @@ const BOOLEAN_CONDITION_MESSAGE: &str =
 
 pub fn condition(g: &mut Generator<'_>, c: &mut scope::Context, e: &ast::Expr) -> Result<Value> {
     let v = emit(g, c, e, None, false)?;
-    if model::optional_child(g, v.ty).is_some() {
-        return narrowing::truthy(g, v);
-    }
-    if v.ty != Type::Boolean {
-        return fail(g, e.loc, BOOLEAN_CONDITION_MESSAGE);
-    }
-    Ok(v)
+    // JavaScript truthiness (`if (name)`, `!count`)
+    super::truthy::test(g, v, e.loc)
 }
 
 pub fn emit(
@@ -290,7 +285,12 @@ pub fn binary(
         return fail(g, loc, "** is not supported yet");
     }
     if b.op == b"&&" || b.op == b"||" {
-        let a = condition(g, c, &b.lhs)?;
+        let lhs = emit(g, c, &b.lhs, None, false)?;
+        // `name || "Untitled"`: a value, not a boolean
+        if b.op == b"||" && lhs.ty != Type::Boolean {
+            return super::truthy::or_value(g, c, b, lhs, expected);
+        }
+        let a = super::truthy::test(g, lhs.clone(), b.lhs.loc)?;
         // `peer && peer.online`: the right side runs only when the left is
         // true (|| false)
         let mark = narrowing::push(g, c, &b.lhs, b.op == b"&&")?;
@@ -315,7 +315,26 @@ pub fn binary(
                 ..Value::default()
             });
         }
+        // `{open && node.children?.map(…)}`: an optional list of elements
+        if child
+            && b.op == b"&&"
+            && model::optional_child(g, rhs.ty)
+                .is_some_and(|inner| model::element(g, inner).is_some())
+        {
+            return Ok(Value {
+                ty: rhs.ty,
+                code: format!("if {} {{ {} }} else {{ None }}", a.code, rhs.code),
+                precedence: Precedence::Conditional,
+                ..Value::default()
+            });
+        }
         if rhs.ty != Type::Boolean {
+            // `user && user.name`
+            if b.op == b"&&"
+                && let Some(value) = super::truthy::and_value(g, &lhs, &a, rhs)?
+            {
+                return Ok(value);
+            }
             return fail(g, b.rhs.loc, BOOLEAN_CONDITION_MESSAGE);
         }
         let op = if b.op == b"&&" { "&&" } else { "||" };
