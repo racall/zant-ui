@@ -316,7 +316,7 @@ fn generate_inner(
         Some(hook) => hook(&mut g, module)?,
         None => String::new(),
     };
-    let function_code = functions::emit_all(&mut g)?;
+    let mut function_code = functions::emit_all(&mut g)?;
     // children first, then the root; the header needs every compound type
     let mut bodies = String::new();
     for index in 0..g.components.len() {
@@ -330,6 +330,8 @@ fn generate_inner(
     if let Some(function) = &root {
         bodies.push_str(&emit_component(&mut g, function, None)?);
     }
+    // generic function instances the components asked for
+    function_code.push_str(&functions::emit_all(&mut g)?);
     let source_name = source_name.replace('\n', " ");
     let declarations = globals::declarations(&g);
     let mut out = String::new();

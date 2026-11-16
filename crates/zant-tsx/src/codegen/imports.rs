@@ -359,6 +359,15 @@ fn import_function(
     function: &ast::Function,
     scope: usize,
 ) -> Result<()> {
+    if !function.type_params.is_empty() {
+        return fail(
+            g,
+            function.loc,
+            format!(
+                "`{imported}` is generic: generic functions are called in the file that declares them for now; move the call there or give `{imported}` concrete types"
+            ),
+        );
+    }
     let rust = format!(
         "{}::{}",
         scope_alias(scope),

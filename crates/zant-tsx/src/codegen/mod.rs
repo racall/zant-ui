@@ -83,6 +83,7 @@ pub mod expr;
 pub mod free_names;
 pub mod functions;
 pub mod generate;
+pub mod generic_functions;
 pub mod generic_types;
 pub(crate) mod generics;
 pub mod globals;
@@ -469,6 +470,10 @@ pub struct Generator<'a> {
     pub type_env: Vec<(Vec<u8>, types::Type)>,
     /// Instantiated generic types (`Box<number>`), by declaration and arguments.
     pub generic_instances: Vec<generic_types::Instance>,
+    /// Generic function templates of this file (`generic_functions`).
+    pub generic_functions: Vec<generic_functions::Template>,
+    /// How many of `functions` were emitted (`functions::emit_all`).
+    pub emitted_functions: usize,
     pub constants: Vec<Constant>,
     /// Plain functions of this file and imported ones (`functions`).
     pub functions: Vec<functions::Function>,
@@ -542,6 +547,8 @@ impl<'a> Generator<'a> {
             resolved_types: Vec::new(),
             type_env: Vec::new(),
             generic_instances: Vec::new(),
+            generic_functions: Vec::new(),
+            emitted_functions: 0,
             constants: Vec::new(),
             functions: Vec::new(),
             events: Vec::new(),

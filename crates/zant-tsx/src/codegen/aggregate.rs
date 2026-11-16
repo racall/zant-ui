@@ -285,6 +285,26 @@ pub fn coalesce(
     let Some(child) = model::optional_child(g, value.ty) else {
         return fail(g, loc, "?? needs an optional value");
     };
+    // `find(…) ?? null`: still `T | null`
+    if matches!(binary.rhs.data, ast::ExprData::NullLit) {
+        return Ok(value);
+    }
+    // an optional fallback where an optional is expected: `a ?? b` is
+    // `T | null` again
+    if expected.is_some_and(|ty| model::optional_child(g, ty).is_some()) {
+        let fallback = expr::emit(g, c, &binary.rhs, Some(value.ty), false)?;
+        let fallback = types::coerce(g, fallback, value.ty, binary.rhs.loc)?;
+        return Ok(Value {
+            ty: value.ty,
+            code: format!(
+                "{}.or_else(|| {})",
+                rust_text::operand(&value, Precedence::Suffix, false),
+                fallback.code
+            ),
+            precedence: Precedence::Suffix,
+            ..Value::default()
+        });
+    }
     let fallback = expr::emit(g, c, &binary.rhs, Some(child), false)?;
     Ok(Value {
         ty: child,
