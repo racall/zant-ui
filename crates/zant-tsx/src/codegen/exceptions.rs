@@ -303,6 +303,7 @@ pub fn fact(
     c.narrowed.push(Narrow {
         name: String::from_utf8_lossy(&path).into_owned(),
         binding,
+        generation: narrowing::generation(c, binding),
         ty,
         code: format!("{rust}.{method}()"),
     });

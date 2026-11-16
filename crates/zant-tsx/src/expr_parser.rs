@@ -560,6 +560,62 @@ pub fn parse_args(p: &mut Parser, callee: &Expr) -> Result<Vec<Box<Expr>>, Error
     Ok(args)
 }
 
+/// A regular expression literal `/body/flags` where an expression starts
+/// (TypeScript's scanner rescans the `/` token the same way). It is
+/// `new RegExp("body", "flags")`: a literal makes a new object each time it
+/// is evaluated, and the body keeps its escapes as written.
+fn parse_regex(p: &mut Parser, loc: u32) -> Result<Box<Expr>, Error> {
+    let bytes = p.src.as_bytes();
+    let start = p.cur.start as usize + 1;
+    let mut index = start;
+    let mut in_class = false;
+    loop {
+        match bytes.get(index) {
+            None | Some(b'\n') | Some(b'\r') => {
+                return Err(p.fail(loc, "unterminated regular expression literal"));
+            }
+            Some(b'\\') => index += 2,
+            Some(b'[') => {
+                in_class = true;
+                index += 1;
+            }
+            Some(b']') => {
+                in_class = false;
+                index += 1;
+            }
+            Some(b'/') if !in_class => break,
+            Some(_) => index += 1,
+        }
+    }
+    let pattern = bytes[start..index].to_vec();
+    let mut end = index + 1;
+    while bytes
+        .get(end)
+        .is_some_and(|b| b.is_ascii_alphanumeric() || *b == b'_' || *b == b'$')
+    {
+        end += 1;
+    }
+    let flags = bytes[index + 1..end].to_vec();
+    p.lx.pos = end as u32;
+    p.advance();
+    let string = |value: Vec<u8>| {
+        Box::new(Expr {
+            loc,
+            data: ExprData::String(value),
+        })
+    };
+    Ok(p.expr(
+        loc,
+        ExprData::Call(crate::ast::Call {
+            callee: p.expr(loc, ExprData::Ident(b"RegExp".to_vec())),
+            type_args: Vec::new(),
+            args: vec![string(pattern), string(flags)],
+            optional: false,
+            is_new: true,
+        }),
+    ))
+}
+
 pub fn parse_primary(p: &mut Parser) -> Result<Box<Expr>, Error> {
     let loc = p.cur.start;
     match p.cur.kind {
@@ -600,6 +656,7 @@ pub fn parse_primary(p: &mut Parser) -> Result<Box<Expr>, Error> {
             p.advance();
             Ok(p.expr(loc, ExprData::Ident(name)))
         }
+        Kind::Punct if p.is_p("/") || p.is_p("/=") => parse_regex(p, loc),
         Kind::Punct => {
             if p.is_p("(") {
                 p.advance();
@@ -768,6 +825,37 @@ mod tests {
             StmtData::Ret(Some(e)) => e,
             _ => panic!("expected a return with a value"),
         }
+    }
+
+    #[test]
+    fn regex_literals_become_regexp_constructions_and_division_stays() {
+        let module = parse_ok(
+            r#"function f(s: string, a: number, b: number): number {
+  const re = /a[/\]]b\/c/gi;
+  const total = a / b / 2;
+  return re.test(s) ? total : 0;
+}"#,
+        );
+        let ss = block(&module.functions[0].func);
+        let StmtData::Decl(decl) = &ss[0].data else {
+            panic!("a declaration")
+        };
+        let ExprData::Call(call) = &decl.init.as_ref().unwrap().data else {
+            panic!("a call")
+        };
+        assert!(call.is_new);
+        assert!(matches!(&call.callee.data, ExprData::Ident(n) if n == b"RegExp"));
+        assert!(matches!(&call.args[0].data, ExprData::String(v) if v == br"a[/\]]b\/c"));
+        assert!(matches!(&call.args[1].data, ExprData::String(v) if v == b"gi"));
+        let StmtData::Decl(decl) = &ss[1].data else {
+            panic!("a declaration")
+        };
+        assert!(matches!(&decl.init.as_ref().unwrap().data, ExprData::Binary(b) if b.op == b"/"));
+        expect_syntax_error(
+            "function f(): number { const re = /abc; return 1; }",
+            "unterminated regular expression literal",
+            "/abc",
+        );
     }
 
     fn expect_codegen_error(source: &str, message: &str, at: &str) {

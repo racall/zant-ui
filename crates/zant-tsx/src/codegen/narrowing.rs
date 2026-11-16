@@ -31,6 +31,13 @@ pub struct Narrow {
     pub binding: Option<usize>,
     pub ty: Type,
     pub code: String,
+    /// The local's assignment count when the condition was checked.
+    pub generation: u32,
+}
+
+/// The assignment count of `binding` (0 for props, state, constants).
+pub fn generation(c: &scope::Context, binding: Option<usize>) -> u32 {
+    binding.map_or(0, |index| c.bindings[index].assignments)
 }
 
 /// The narrowed value of `n`, if a condition around this point narrowed it.
@@ -46,7 +53,10 @@ pub fn find_path(c: &scope::Context, member_path: &[u8], base_name: &[u8]) -> Op
     }
     let binding = scope::local_index(c, base_name);
     for item in c.narrowed.iter().rev() {
-        if item.name.as_bytes() == member_path && item.binding == binding {
+        if item.name.as_bytes() == member_path
+            && item.binding == binding
+            && item.generation == generation(c, binding)
+        {
             return Some(Value {
                 ty: item.ty,
                 code: item.code.clone(),
@@ -167,11 +177,6 @@ fn candidate(g: &mut Generator<'_>, c: &mut scope::Context, e: &ast::Expr) -> Re
     };
     let base_name = base(e);
     let binding = scope::local_index(c, &base_name);
-    if let Some(index) = binding
-        && c.bindings[index].mutable
-    {
-        return Ok(());
-    }
     let value = match expr::emit(g, c, e, None, false) {
         Ok(value) => value,
         // not a name this condition can narrow (an error is reported where it
@@ -187,6 +192,7 @@ fn candidate(g: &mut Generator<'_>, c: &mut scope::Context, e: &ast::Expr) -> Re
     c.narrowed.push(Narrow {
         name: String::from_utf8_lossy(&name).into_owned(),
         binding,
+        generation: generation(c, binding),
         ty: child,
         code: format!(
             "{}.unwrap()",
@@ -242,6 +248,44 @@ pub fn truthy(g: &mut Generator<'_>, v: Value) -> Result<Value> {
     })
 }
 
+/// Before a loop: the locals it assigns lose the narrowings made outside it
+/// (the next iteration reads what the last one assigned — TypeScript's
+/// flow analysis widens them the same way). The loop's own condition
+/// narrows again afterwards.
+pub fn enter_loop(c: &mut scope::Context, s: &ast::Stmt) {
+    let mut names: Vec<Vec<u8>> = Vec::new();
+    assigned_names(crate::ast_walk::StmtChild::Stmt(s), &mut names);
+    for name in names {
+        if let Some(index) = scope::local_index(c, &name) {
+            c.bindings[index].assignments += 1;
+        }
+    }
+}
+
+fn assigned_names(child: crate::ast_walk::StmtChild<'_>, names: &mut Vec<Vec<u8>>) {
+    use crate::ast_walk::{self, StmtChild};
+    match child {
+        StmtChild::Stmt(s) => {
+            ast_walk::stmt_children(s, &mut |inner| assigned_names(inner, names));
+        }
+        StmtChild::Expr(e) => {
+            let target = match &e.data {
+                ast::ExprData::Assign(assign) => Some(&assign.target),
+                ast::ExprData::Update(update) => Some(&update.target),
+                _ => None,
+            };
+            if let Some(target) = target
+                && let ast::ExprData::Ident(name) = &target.data
+            {
+                names.push(name.clone());
+            }
+            ast_walk::expr_children(e, &mut |inner| {
+                assigned_names(StmtChild::Expr(inner), names)
+            });
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -290,6 +334,7 @@ mod tests {
         c.narrowed.push(Narrow {
             name: "s.prompt".to_owned(),
             binding: None,
+            generation: 0,
             ty: Type::Boolean,
             code: "s.prompt.clone().unwrap()".to_owned(),
         });
@@ -305,12 +350,14 @@ mod tests {
         c.narrowed.push(Narrow {
             name: "a".to_owned(),
             binding: None,
+            generation: 0,
             ty: Type::Boolean,
             code: "a".to_owned(),
         });
         c.narrowed.push(Narrow {
             name: "b".to_owned(),
             binding: None,
+            generation: 0,
             ty: Type::Boolean,
             code: "b".to_owned(),
         });

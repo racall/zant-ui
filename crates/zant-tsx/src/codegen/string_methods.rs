@@ -152,6 +152,35 @@ pub fn emit(
         unreachable!("string method call")
     };
     let name = String::from_utf8_lossy(&member.name.name).into_owned();
+    // `match` / `replace` / `split` / … with a pattern: the first argument
+    // decides (generated once, so it is evaluated once and in order)
+    let mut first: Option<Value> = None;
+    if super::regexps::takes_pattern(&name) && !call.args.is_empty() && !c.constant {
+        let value = expr::emit(g, c, &call.args[0], None, false)?;
+        if super::regexps::is_regexp(g, value.ty) {
+            return super::regexps::string_method(g, c, loc, call, &name, receiver, value);
+        }
+        if matches!(name.as_str(), "match" | "matchAll" | "search") {
+            let ast::ExprData::String(text) = &call.args[0].data else {
+                return fail(
+                    g,
+                    call.args[0].loc,
+                    format!(
+                        "`{name}` takes a pattern: `s.{name}(/…/)` or `s.{name}(new RegExp(text))`"
+                    ),
+                );
+            };
+            let flags = if name == "matchAll" { "g" } else { "" };
+            let pattern = super::regexps::from_text(
+                g,
+                call.args[0].loc,
+                &String::from_utf8_lossy(text),
+                flags,
+            )?;
+            return super::regexps::string_method(g, c, loc, call, &name, receiver, pattern);
+        }
+        first = Some(value);
+    }
     let Some(method) = lookup(&name) else {
         return fail(
             g,
@@ -188,7 +217,10 @@ pub fn emit(
     for (index, arg) in call.args.iter().enumerate() {
         let numeric = method.numeric && (index == 0 || endpoints);
         let ty = if numeric { Type::F64 } else { Type::String };
-        let value = expr::emit(g, c, arg, Some(ty), false)?;
+        let value = match (index, first.take()) {
+            (0, Some(value)) => value,
+            _ => expr::emit(g, c, arg, Some(ty), false)?,
+        };
         let value = types::coerce(g, value, ty, arg.loc)?;
         let temp = aggregate::temporary(g, c, b"_arg")?;
         setup.push(format!("let {temp}: {} = {};", ty.rust(g), value.code));

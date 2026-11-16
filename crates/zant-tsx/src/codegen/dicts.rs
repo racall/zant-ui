@@ -23,6 +23,11 @@ use super::scope;
 use super::types::{self, Type, Value};
 use super::{Generator, Result, fail};
 
+/// `Record<K, V>`.
+pub fn record_of(g: &mut Generator<'_>, key: Type, value: Type) -> Result<Type> {
+    intern(g, InfoKind::Record, Some(key), value)
+}
+
 fn intern(g: &mut Generator<'_>, kind: InfoKind, key: Option<Type>, value: Type) -> Result<Type> {
     let params: Vec<Type> = key.into_iter().collect();
     for (index, entry) in g.compounds.iter().enumerate() {

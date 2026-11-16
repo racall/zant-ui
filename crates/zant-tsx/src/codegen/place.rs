@@ -217,6 +217,7 @@ fn root(
     }
     let rust = c.bindings[index].rust.clone();
     c.bindings[index].assigned = true;
+    c.bindings[index].assignments += 1;
     Ok(Place { code: rust, ty })
 }
 
@@ -228,6 +229,13 @@ pub fn assign(
     e: &ast::Expr,
     target: &ast::Expr,
 ) -> Result<String> {
+    // `re.lastIndex = n`
+    if let ast::ExprData::Assign(assignment) = &e.data
+        && assignment.op == b"="
+        && let Some(value) = super::regexps::assign(g, c, target, &assignment.value)?
+    {
+        return Ok(format!("{};\n", value.code));
+    }
     // `record[key] = v` / `record.key = v`
     if let ast::ExprData::Assign(assignment) = &e.data
         && assignment.op == b"="

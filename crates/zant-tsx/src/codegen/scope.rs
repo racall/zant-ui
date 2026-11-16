@@ -34,6 +34,9 @@ pub struct Binding {
     pub fresh: bool,
     /// Used as a whole value (passed, stored, copied) since it became fresh.
     pub escaped: bool,
+    /// Assignments emitted so far: a narrowing made before the latest one no
+    /// longer holds (`narrowing`, TypeScript's flow analysis).
+    pub assignments: u32,
 }
 
 #[derive(Clone, Debug)]
@@ -182,6 +185,7 @@ pub fn bind(
         serial,
         fresh: false,
         escaped: false,
+        assignments: 0,
     });
     c.active.push(serial);
     Ok(serial)
