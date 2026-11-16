@@ -1,0 +1,31 @@
+{
+  "app": {
+    "intro": "The profile is shared through a store; the count moves through props and events.",
+    "clicks": "Clicks seen by the parent: {count}",
+    "openSettings": "Open settings"
+  },
+  "profile": {
+    "name": "Display name",
+    "accent": "Highlight profile",
+    "shared": "Shared profile: {name}"
+  },
+  "dashboard": {
+    "platform": "Platform",
+    "platformHint": "From native/system.rs",
+    "other": "Other",
+    "cores": "CPU cores"
+  },
+  "counter": {
+    "title": "Shared state",
+    "count": "{count, plural, =0 {No clicks yet} one {# click} other {# clicks}}",
+    "note": "The state lives in App; child components only send events.",
+    "reset": "Reset"
+  },
+  "settings": {
+    "title": "Settings",
+    "intro": "Change the display name; the main window updates with it.",
+    "language": "Language",
+    "system": "Follow system",
+    "close": "Close"
+  }
+}

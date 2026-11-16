@@ -2,7 +2,7 @@
   "title": "__APP_TITLE__",
   "bundle_id": "__BUNDLE_ID__",
   "version": "0.1.0",
-  "description": "__APP_TITLE__ 桌面应用",
+  "description": "__APP_TITLE__ desktop app",
   "company": "__COMPANY__",
   "copyright": "© __COPYRIGHT_YEAR__ __COMPANY__",
   "window": {
@@ -16,6 +16,10 @@
     "always_on_top": false,
     "movable_by_background": false,
     "center": true,
+    "remember": true
+  },
+  "i18n": {
+    "default_locale": "en",
     "remember": true
   },
   "macos": {

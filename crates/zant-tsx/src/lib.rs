@@ -13,6 +13,7 @@ pub mod entry;
 pub mod error;
 pub mod expr_parser;
 pub mod hooks;
+pub mod i18n;
 pub mod import_parser;
 pub mod jsx_entities;
 pub mod jsx_parser;

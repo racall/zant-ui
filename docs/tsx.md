@@ -31,6 +31,7 @@ cargo run -p zant-tsx --bin zant-tsx -- --out out --src src
 |---|---|
 | `src/App.tsx` | 入口；存在即识别为 TSX 项目，`src/` 只放 `.ts` / `.tsx` |
 | `src/components/`、`src/stores/`、`src/windows/` | 模板演示父子 props、共享状态、多窗口 |
+| `locales/*.json`、`zant.i18n.d.ts` | 界面文字（默认英文）与生成的编辑器类型，见 [i18n](i18n.md) |
 | `native/main.rs` | `zant::app!();` |
 | `native/build.rs` | `fn main() { zant_build::tsx_app(); }` |
 | `Cargo.toml` | `build = "native/build.rs"`，`[[bin]] path = "native/main.rs"` |
@@ -396,6 +397,7 @@ return <View paddingLeft={insets.left} paddingRight={insets.right}>
 | app.quit | 直接退出，不再询问关闭 / 退出 hook |
 | mainWindow.show/hide/activate/focus(key) | 显示 / 隐藏 / 激活 / 聚焦带 key 控件 |
 | mainWindow.visible/active/minimized | boolean |
+| t / useLocale / setLocale / locales / localeName | 多语言：`t("键", { 参数 })` 按 `locales/*.json` 在编译期检查，见 [i18n](i18n.md) |
 | keyLabel/shortcutLabel | 平台快捷键文字；keyLabel 参数须字面量（mod+f → ⌘F / Ctrl+F），shortcutLabel 无效时为 "" |
 | titlebarInsets / isMacos / isWindows | 渲染时读 `{ left, right }` / 平台布尔常量 |
 | wakeAfter(ms) | 渲染时安排一次重建，如提示到期；可配 performance.now() |

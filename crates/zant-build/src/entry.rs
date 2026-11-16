@@ -9,6 +9,7 @@ pub(crate) fn write(
     out: &Path,
     project: &GeneratedProject,
     declarations: &str,
+    translations: Option<&crate::i18n::AppI18n>,
 ) -> Result<Vec<std::path::PathBuf>, Error> {
     let path = root.join("app.config.json");
     let cfg = if path.is_file() {
@@ -73,7 +74,21 @@ pub(crate) fn write(
                 &project_modules(&root.join("src")),
             )
     });
-    let config = "zant::tsx::app::Config { title: app_config::title.to_string(), window: app_config::window, bundle_id: app_config::bundle_id.to_string(), single_instance: app_config::single_instance, remember: app_config::remember, watch_clipboard: WATCH_CLIPBOARD }".replace("WATCH_CLIPBOARD", if watch_clipboard { "true" } else { "false" });
+    // the compiled `locales/*.json`, owned by the app library
+    let i18n = match translations {
+        Some(translations) => {
+            app.push_str(&format!(
+                "#[allow(clippy::all)]\npub mod zant_i18n {{\n{}\n}}\n",
+                translations.compiled.rust
+            ));
+            format!(
+                "Some(zant::tsx::app::I18n {{ description: &crate::zant_i18n::DESCRIPTION, remember: {} }})",
+                translations.remember
+            )
+        }
+        None => "None".to_owned(),
+    };
+    let config = "zant::tsx::app::Config { title: app_config::title.to_string(), window: app_config::window, bundle_id: app_config::bundle_id.to_string(), single_instance: app_config::single_instance, remember: app_config::remember, watch_clipboard: WATCH_CLIPBOARD, i18n: I18N }".replace("WATCH_CLIPBOARD", if watch_clipboard { "true" } else { "false" }).replace("I18N", &i18n);
     let main = format!(
         "fn main() -> zant::Result<()> {{ native::register(); zant::tsx::app::run::<crate::app::App>({config}) }}\n"
     );

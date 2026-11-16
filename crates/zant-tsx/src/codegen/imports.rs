@@ -689,6 +689,7 @@ mod tests {
             root: String::new(),
             config: None,
             window_components: Vec::new(),
+            i18n: None,
         })
     }
 

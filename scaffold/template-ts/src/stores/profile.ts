@@ -5,5 +5,5 @@ interface Profile {
   accent: boolean;
 }
 
-// 跨组件共享状态：各组件直接读取或更新 store，无需通过 props 传递。
-export const profile = createStore<Profile>({ displayName: "开发者", accent: false });
+// State shared across components: each reads or updates the store directly, no props needed.
+export const profile = createStore<Profile>({ displayName: "Developer", accent: false });

@@ -41,7 +41,7 @@ pub fn generate_info_plist_for(cfg: &AppConfig, extras: &PlistExtras) -> String 
     out.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
     out.push_str("<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n");
     out.push_str("<plist version=\"1.0\"><dict>\n");
-    out.push_str("<key>CFBundleDevelopmentRegion</key><string>zh_CN</string>\n");
+    out.push_str("<key>CFBundleDevelopmentRegion</key><string>en</string>\n");
     out.push_str(&format!(
         "<key>CFBundleDisplayName</key><string>{title}</string>\n"
     ));
@@ -163,6 +163,7 @@ pub fn write_generated(path: &Path, data: &[u8]) -> std::io::Result<()> {
 /// Generate Info.plist and app.entitlements on macOS.
 pub fn sync_project(root: &str, cfg: &AppConfig) -> std::io::Result<()> {
     crate::framework::warn_if_stale(root);
+    crate::declarations::sync(root);
     if crate::IS_WINDOWS {
         crate::dim_line("本平台无需重新生成打包文件；Rust 配置由 Cargo 构建时生成到 OUT_DIR");
         return Ok(()); // Info.plist and entitlements are macOS bundle files

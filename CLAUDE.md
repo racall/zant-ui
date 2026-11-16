@@ -30,6 +30,8 @@
 - 发布构建：`zant build [配置文件]`（`build.config.json`，`docs/build.md`）：zant 读配置、提问、编译签名，
   平台步骤在 `crates/zant-cli/src/distribute.rs` 与 `scripts/` 下的打包脚本
   （macOS DMG / 公证 / App Store，Windows Inno Setup 安装包 / MSIX）。
+- 多语言：应用的 `locales/<tag>.json` + TSX `t()`（编译期检查键与参数，ICU 子集，CLDR 复数），见 `docs/i18n.md`；
+  编译器 `crates/zant-tsx/src/i18n/`，运行时 `crates/zant/src/i18n/`；模板与框架默认英文。
 - 热更新：`zant run` 按改动文件原地热刷新、重启自身或忽略，规则见 [热更新](docs/scaffold.md#热更新)。
   原地热刷新保留窗口、兼容状态及稳定 key 的滚动 / 焦点 / 光标 / 选区；重启时状态尽量保留。
   不兼容字段单独重置，全局 store / Rust 资源不自动恢复；框架只加载一次，旧版本应用库刷新后卸载。

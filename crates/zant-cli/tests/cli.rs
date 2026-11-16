@@ -145,7 +145,10 @@ fn create_then_sync_writes_the_ts_template_and_generated_config() {
     };
     assert_eq!(keys(&config), keys(&template));
     let metadata: serde_json::Value = serde_json::from_str(&config).expect("valid JSON");
-    assert_eq!(metadata["description"], "Demo App 桌面应用");
+    assert_eq!(metadata["description"], "Demo App desktop app");
+    // the template's catalogs as editor types
+    let types = std::fs::read_to_string(project.join("zant.i18n.d.ts")).expect("zant.i18n.d.ts");
+    assert!(types.contains("\"zh-CN\": true;"), "{types}");
     assert_eq!(metadata["company"], "Acme");
     let copyright = metadata["copyright"].as_str().expect("copyright");
     let year = copyright

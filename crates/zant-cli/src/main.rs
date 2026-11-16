@@ -10,6 +10,7 @@
 mod app_config;
 mod bundle;
 mod create;
+mod declarations;
 mod distribute;
 mod framework;
 mod generate;

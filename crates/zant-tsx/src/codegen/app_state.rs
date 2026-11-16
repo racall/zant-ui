@@ -65,6 +65,8 @@ pub struct ProjectData {
     /// project: their own module emits the `Window` wrapper (the window handle
     /// may live in another file, so this cannot be decided per module).
     pub window_components: Vec<String>,
+    /// The message keys of `locales/*.json` (`t` checks calls against them).
+    pub i18n: Option<Rc<super::i18n_calls::Index>>,
 }
 
 impl ProjectData {

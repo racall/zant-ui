@@ -101,6 +101,10 @@ pub fn cmd_hot(release: bool) -> std::io::Result<()> {
         if action == Change::Ignore {
             continue;
         }
+        if changes.iter().any(|(path, _)| path.starts_with("locales")) {
+            // the editor's key types follow the catalogs
+            crate::declarations::sync(&root);
+        }
         let begin = Instant::now();
         if std::env::var_os("ZANT_HOT_TRACE").is_some() {
             eprintln!(

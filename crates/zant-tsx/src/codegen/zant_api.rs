@@ -269,6 +269,7 @@ pub fn exports(name: &str) -> bool {
         || CONSTANTS.iter().any(|(constant, _)| *constant == name)
         || name == "keyLabel"
         || name == "titlebarInsets"
+        || super::i18n_calls::NAMES.contains(&name)
 }
 
 /// `name` is imported from `"zant"` in this file and not shadowed.
@@ -327,6 +328,9 @@ pub fn try_call(
             }
             if name == "keyLabel" {
                 return key_label(g, loc, call).map(Some);
+            }
+            if super::i18n_calls::NAMES.contains(&name.as_str()) {
+                return super::i18n_calls::call(g, c, loc, &name, call).map(Some);
             }
             if name == "titlebarInsets" {
                 return titlebar_insets(g, c, loc, call).map(Some);
