@@ -7,6 +7,7 @@ pub mod catalog;
 pub mod contract;
 pub mod json;
 pub mod message;
+pub mod types;
 
 pub use catalog::{Catalog, CatalogError, Entry, canonical_tag, discover, parse};
 pub use contract::{Contract, Param, ParamKind, check_translation, contract};
