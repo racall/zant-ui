@@ -959,54 +959,19 @@ pub fn method(
         params.push(format!(", _: {ty}"));
     }
     let mut ret = m.ret;
-    let body = match &f.body {
-        // `.then(todo => setTitle(todo.title))`, `console.log(…)`: a statement
-        ast::Body::Expr(e)
-            if m.promise_callback
-                && ret == Type::Void
-                && matches!(&e.data, ast::ExprData::Call(call)
-                    if matches!(&call.callee.data, ast::ExprData::Ident(name) if scope::setter_index(g, name).is_some())
-                        || matches!(&call.callee.data, ast::ExprData::Member(member)
-                            if matches!(&member.object.data, ast::ExprData::Ident(name) if name == b"console"))) =>
-        {
-            stmt::expression_statement(g, &mut c, e)?
+    let body = if m.promise_callback {
+        let (body, ty) = super::promises::reaction::body(g, &mut c, &f, m.ret)?;
+        ret = ty;
+        if let Some(index) = index {
+            g.methods[index].ret = ret;
         }
-        // `.then(r => r.json())`: the value's own type
-        ast::Body::Expr(e) if m.promise_callback && ret == Type::Void => {
-            let value = expr::emit(g, &mut c, e, None, false)?;
-            if value.ty == Type::Void {
-                format!("{};\n", value.code)
-            } else {
-                let value = types::concrete(g, value)?;
-                ret = value.ty;
-                format!("return Ok({});\n", value.code)
-            }
-        }
-        // `.then(r => { …; return r.text(); })`: the returns' common type
-        ast::Body::Block(statements)
-            if m.promise_callback && ret == Type::Void && returns_value(statements) =>
-        {
-            let (body, ty) = reaction_block(g, &mut c, f.loc, statements)?;
-            ret = ty;
-            body
-        }
-        ast::Body::Block(statements) => method_block(g, &mut c, f.loc, statements)?,
-        ast::Body::Expr(e) => method_expression(g, &mut c, e)?,
-    };
-    let body = if m.promise_callback
-        && ret == Type::Void
-        && !matches!(&f.body, ast::Body::Block(statements) if stmt::returns_all(statements))
-    {
-        // falling off the end of a void reaction
-        format!("{body}Ok(())\n")
-    } else {
         body
+    } else {
+        match &f.body {
+            ast::Body::Block(statements) => method_block(g, &mut c, f.loc, statements)?,
+            ast::Body::Expr(e) => method_expression(g, &mut c, e)?,
+        }
     };
-    if m.promise_callback
-        && let Some(index) = index
-    {
-        g.methods[index].ret = ret;
-    }
     let body = match &text_parameter {
         Some(id) => format!("let {id}: zant::Str = zant::Str::copy({id});\n{body}"),
         None => body,
@@ -1522,7 +1487,7 @@ fn reserved_component_name(name: &str) -> bool {
 }
 
 /// Check complete returns before emitting a component method's statements.
-fn method_block(
+pub(super) fn method_block(
     g: &mut Generator<'_>,
     c: &mut scope::Context,
     loc: ast::Loc,
@@ -1534,64 +1499,9 @@ fn method_block(
     stmt::statements(g, c, statements, false)
 }
 
-/// A `return value` in `statements`, outside nested functions.
-fn returns_value(statements: &[Box<ast::Stmt>]) -> bool {
-    use crate::ast_walk::{self, StmtChild};
-    fn child(item: StmtChild<'_>) -> bool {
-        match item {
-            StmtChild::Stmt(s) => {
-                if matches!(&s.data, ast::StmtData::Ret(Some(_))) {
-                    return true;
-                }
-                let mut found = false;
-                ast_walk::stmt_children(s, &mut |inner| found = found || child(inner));
-                found
-            }
-            // arrows are not children: their returns are their own
-            StmtChild::Expr(_) => false,
-        }
-    }
-    statements.iter().any(|s| child(StmtChild::Stmt(s)))
-}
-
-/// A promise reaction's block whose returns give its value: a labeled
-/// block collects them (as array callbacks do), then `Ok(value)`.
-fn reaction_block(
-    g: &mut Generator<'_>,
-    c: &mut scope::Context,
-    loc: ast::Loc,
-    statements: &[Box<ast::Stmt>],
-) -> Result<(String, Type)> {
-    if !stmt::returns_all(statements) {
-        return fail(g, loc, "this callback must return a value on every path");
-    }
-    let label = super::aggregate::temporary(g, c, b"_reaction")?;
-    c.return_label = Some(label.clone());
-    c.return_values = Some(Vec::new());
-    let mut body = stmt::statements(g, c, statements, false)?;
-    let returned = c.return_values.take().unwrap_or_default();
-    c.return_label = None;
-    let mut ty = returned[0].value.ty;
-    for value in &returned[1..] {
-        ty = types::unify(g, ty, value.value.ty, value.loc)?;
-    }
-    let ty = ty.concrete();
-    for (index, value) in returned.into_iter().enumerate() {
-        let value = types::coerce(g, value.value, ty, value.loc)?;
-        body = body.replace(&format!("\u{5}{index}\u{6}"), &value.code);
-    }
-    Ok((
-        format!(
-            "let _returned: {} = '{label}: {{\n{body}}};\nreturn Ok(_returned);\n",
-            ty.rust(g)
-        ),
-        ty,
-    ))
-}
-
 /// Treat a concise arrow as a statement or return according to its declared
 /// type.
-fn method_expression(
+pub(super) fn method_expression(
     g: &mut Generator<'_>,
     c: &mut scope::Context,
     e: &ast::Expr,

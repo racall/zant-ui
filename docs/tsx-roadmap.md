@@ -40,7 +40,8 @@ TSX 是推荐的应用写法，编译期生成 Rust，无 JS 运行时。此表�
 | ✅ | `RegExp`：字面量与构造、`test` / `exec`、`match` / `matchAll` / `replace` / `split` / `search`（`regress` 引擎，ECMAScript 语义） |
 | ✅ | `let` 的控制流收窄（到下一次赋值为止，含 `while` / `for` 条件） |
 | ⬜ | `Date` |
-| ⬜ | `async` / `await` / `Promise`（需 UI 线程任务队列） |
+| ✅ | `Promise` 与 `.then` / `.catch` / `.finally`、`fetch`（UI 线程任务队列） |
+| ⬜ | `async` / `await` |
 
 ## 运行时与工具链
 

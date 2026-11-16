@@ -432,6 +432,32 @@ return <Text>{ready ? "就绪" : "等待"}</Text>;
 - 全局函数，无需 import；返回 number 编号，用 clearTimeout / clearInterval 取消（`setInterval` 按间隔重复）。effect 返回的清理函数在依赖变化和组件卸载时都会执行（同 React），卸载的组件里用它清掉定时器。仅根 / 无 props 窗口组件的事件或 effect 可设置，子组件用回调交给上层；render 用 wakeAfter。
 - UI 线程执行，随后重建所有窗口；回调只能捕获数字 / 布尔 / 枚举，字符串 / 数组 / 对象放 state 后运行时读。state 读的是执行时当前值。
 
+### 网络请求：`fetch`
+
+```tsx
+// interface Todo { id: number; title: string }，useState/useEffect/Text 从 zant 导入：
+const [todos, setTodos] = useState<Todo[]>([]);
+const [error, setError] = useState("");
+useEffect(() => {
+  const controller = new AbortController();
+  fetch(url, { signal: controller.signal })
+    .then((res) => {
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      return res.json();
+    })
+    .then(setTodos)
+    .catch((e) => setError(e instanceof Error ? e.message : String(e)));
+  return () => controller.abort();
+}, [url]);
+```
+
+- 同浏览器的 `fetch`，全局函数，无需 import：`fetch(url, { method, headers, body, signal })`，`headers` 写对象字面量或 `Headers`，`body` 是字符串（JSON 用 `JSON.stringify`）。请求在后台线程跑，不阻塞界面；系统代理自动生效（本机地址直连）。
+- `Response`：`ok`、`status`、`statusText`、`url`、`redirected`、`headers.get(name)` / `has(name)`、`bodyUsed`、`text()`、`json()`。HTTP 错误状态（404、500）不算失败，看 `res.ok`；网络错误、超时、取消才进 `catch`（`TypeError` / `AbortError` / `TimeoutError`，同浏览器）。
+- 取消：`new AbortController()` + `controller.abort()`，或 `AbortSignal.timeout(ms)`；effect 的清理函数里 `abort()` 就是 React 文档的写法，依赖变化或组件卸载时取消旧请求。
+- `res.json()` 同 TS 是 `any`，在第一次有类型的地方解码：带类型的回调参数 `(items: Todo[]) => …`、直接交给 setter `.then(setTodos)`，或 `res.json() as Promise<Todo[]>`。形状不对时以 `TypeError` 进 `catch`，写明哪个字段不对。都没有类型时编译报错并给出这三种写法。
+- `.then` / `.catch` / `.finally` 的回调在 UI 线程执行，执行完重建所有窗口；回调里可直接调 setter，读到的 state / props 是发起请求时的值（同 React 闭包）。回调返回 Promise（如 `res.json()`）时自动展开；回调里 `throw` 让后面的 `.catch` 收到。子组件也能用；组件卸载后才到达的结果被丢弃，不会出错。
+- `fetch` 只能在事件处理和 effect 里调用，render 里调用编译报错。`async` / `await` 尚未支持，用 `.then` 链。
+
 ### 多窗口：`createWindow`
 
 ```tsx
