@@ -57,6 +57,7 @@ pub fn emit(g: &mut Generator<'_>, c: &mut scope::Context, s: &ast::Stmt) -> Res
             "loops run in handlers and functions; use `.map` / `.filter` to render lists",
         );
     }
+    super::narrowing::enter_loop(c, s);
     let depth = c.active.len();
     let previous_break = c.break_label.clone();
     let previous_continue = c.continue_label.clone();
@@ -103,7 +104,13 @@ fn for_statement(
         Some(update) => Some(stmt::expression_statement(g, c, update)?),
         None => None,
     };
-    let body = stmt::scoped(g, c, &v.body)?;
+    let mark = match v.cond.as_deref() {
+        Some(condition) => super::narrowing::push(g, c, condition, true)?,
+        None => c.narrowed.len(),
+    };
+    let body = stmt::scoped(g, c, &v.body);
+    super::narrowing::restore(c, mark);
+    let body = body?;
     let first = if update.is_some() {
         Some(aggregate::temporary(g, c, b"_first")?)
     } else {
@@ -218,7 +225,16 @@ fn while_statement(
     label: &str,
 ) -> Result<String> {
     let cond = expr::condition(g, c, &v.cond)?;
-    let body = stmt::scoped(g, c, &v.body)?;
+    // `while (m !== null) { m.… }`: the body sees what the condition
+    // proves (a do-while body runs before its first check)
+    let mark = if v.do_first {
+        c.narrowed.len()
+    } else {
+        super::narrowing::push(g, c, &v.cond, true)?
+    };
+    let body = stmt::scoped(g, c, &v.body);
+    super::narrowing::restore(c, mark);
+    let body = body?;
     let prefix = if rust_text::uses_label(&body, label) {
         format!("'{label}: ")
     } else {

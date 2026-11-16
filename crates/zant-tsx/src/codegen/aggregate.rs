@@ -482,12 +482,21 @@ pub fn member(g: &mut Generator<'_>, c: &mut scope::Context, m: &ast::Member) ->
         && let Some(child) = model::optional_child(g, value.ty)
     {
         let name = temporary(g, c, b"_value")?;
-        let result = member_read(g, child, &name, &m.name)?;
-        let ty = model::optional(g, result.ty)?;
+        // `groups?.year`: a record read inside the chain
+        let result = match super::dicts::member(g, &Value::new(child, name.clone()), &m.name)? {
+            Some(read) => read,
+            None => member_read(g, child, &name, &m.name)?,
+        };
+        // an optional result flattens (`a?.b` where `b` may be absent)
+        let (ty, adapter) = if model::optional_child(g, result.ty).is_some() {
+            (result.ty, "and_then")
+        } else {
+            (model::optional(g, result.ty)?, "map")
+        };
         return Ok(Value {
             ty,
             code: format!(
-                "{}.map(|{name}| {})",
+                "{}.{adapter}(|{name}| {})",
                 rust_text::operand(&value, Precedence::Suffix, false),
                 result.code
             ),
@@ -520,6 +529,9 @@ fn member_read(
     operand: &str,
     name: &ast::Name,
 ) -> Result<Value> {
+    if let Some(read) = super::regexps::member_read(g, object_ty, operand, name)? {
+        return Ok(read);
+    }
     let length = name.name == b"length"
         && (object_ty == Type::String || model::element(g, object_ty).is_some());
     if length && object_ty == Type::String {
@@ -572,6 +584,9 @@ pub fn index(
 ) -> Result<Value> {
     super::place::project(c, &ix.object);
     let value = expr::emit(g, c, &ix.object, None, false)?;
+    if let Some(read) = super::regexps::index(g, c, &value, &ix.index)? {
+        return Ok(read);
+    }
     if super::dicts::kind(g, value.ty).is_some() {
         return super::dicts::index(g, c, value, &ix.index);
     }

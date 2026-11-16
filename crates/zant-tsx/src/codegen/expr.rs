@@ -557,6 +557,9 @@ pub fn call_value(
     if let Some(error) = super::exceptions::construct(g, c, loc, call)? {
         return Ok(error);
     }
+    if let Some(regexp) = super::regexps::construct(g, c, loc, call)? {
+        return Ok(regexp);
+    }
     if call.is_new {
         return super::dicts::construct(g, c, loc, call, expected);
     }

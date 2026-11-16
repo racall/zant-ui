@@ -104,6 +104,7 @@ pub mod model;
 pub mod narrowing;
 pub mod nesting;
 pub mod place;
+pub mod regexps;
 pub mod rich_text;
 pub mod rust_imports;
 pub mod rust_text;

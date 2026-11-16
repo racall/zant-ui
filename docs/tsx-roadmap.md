@@ -37,7 +37,9 @@ TSX 是推荐的应用写法，编译期生成 Rust，无 JS 运行时。此表�
 | ✅ | `throw` / `try` / `catch` / `finally`、`Error` 及其子类、`instanceof` 收窄（Swift 式 `Result`，推断会抛出的函数） |
 | ⬜ | `class`（引用语义） |
 | ✅ | `JSON.parse` / `JSON.stringify`（按类型编解码，输出与 Node 一致，`SyntaxError` / `TypeError`） |
-| ⬜ | `RegExp`、`Date` |
+| ✅ | `RegExp`：字面量与构造、`test` / `exec`、`match` / `matchAll` / `replace` / `split` / `search`（`regress` 引擎，ECMAScript 语义） |
+| ✅ | `let` 的控制流收窄（到下一次赋值为止，含 `while` / `for` 条件） |
+| ⬜ | `Date` |
 | ⬜ | `async` / `await` / `Promise`（需 UI 线程任务队列） |
 
 ## 运行时与工具链

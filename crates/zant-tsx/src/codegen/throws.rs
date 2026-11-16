@@ -116,6 +116,10 @@ fn resolve(unit: &ModuleSource<'_>, name: &[u8]) -> Option<Key> {
 
 /// A builtin that throws on bad input.
 pub fn builtin_throws(call: &ast::Call) -> bool {
+    // `new RegExp(text)`: a computed pattern may be invalid (SyntaxError)
+    if super::regexps::computed_construction(call) {
+        return true;
+    }
     let ast::ExprData::Member(member) = &call.callee.data else {
         return false;
     };

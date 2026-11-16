@@ -485,6 +485,7 @@ pub fn expression_statement(
         }
         let binding_index = scope::local_index(c, name).expect("local binding");
         c.bindings[binding_index].assigned = true;
+        c.bindings[binding_index].assignments += 1;
         let rust = c.bindings[binding_index].rust.clone();
         let ty = c.bindings[binding_index].ty;
         if let ast::ExprData::Update(update) = &e.data {

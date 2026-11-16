@@ -153,6 +153,9 @@ fn check_in(g: &Generator<'_>, ty: Type, seen: &mut Vec<Type>) -> std::result::R
             if info.rust == "zant::theme::tokens::Theme" {
                 return Err("the theme cannot be written as JSON".to_owned());
             }
+            if info.rust.starts_with("zant::tsx::RegExp") || info.rust.contains("regexp::MatchArray") {
+                return Err("JavaScript writes a RegExp as `{}`; store its `source` and `flags`".to_owned());
+            }
             info.fields.iter().try_for_each(|field| {
                 check_in(g, field.ty, seen).map_err(|why| {
                     format!("field `{}`: {why}", String::from_utf8_lossy(&field.name))

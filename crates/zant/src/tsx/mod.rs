@@ -77,6 +77,8 @@ pub mod list_ops;
 pub mod native;
 #[forbid(unsafe_code)]
 pub mod platform;
+/// JavaScript regular expressions and RegExp string methods.
+pub mod regexp;
 #[forbid(unsafe_code)]
 pub mod strings;
 #[forbid(unsafe_code)]
@@ -97,6 +99,7 @@ pub use hooks::{Callback, Deps, Effect, Memo, Ref, callback, local_state, new_re
 pub use ids::{ChildKey, child_id, site_id};
 pub use json::Json;
 pub use list::List;
+pub use regexp::{RegExp, RegExpMatch};
 pub use window::{Component as WindowComponent, Window};
 
 /// TSX stores (`createStore<T>(initial)`): the framework's Zustand-style

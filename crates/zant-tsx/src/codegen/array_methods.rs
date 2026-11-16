@@ -95,7 +95,7 @@ pub fn emit(
 }
 
 /// A string or array method on the evaluated receiver `value`.
-fn emit_on(
+pub(super) fn emit_on(
     g: &mut Generator<'_>,
     c: &mut scope::Context,
     loc: ast::Loc,
@@ -108,6 +108,9 @@ fn emit_on(
     };
     if value.ty == Type::String {
         return string_methods::emit(g, c, loc, call, value);
+    }
+    if let Some(result) = super::regexps::method(g, c, loc, call, &value)? {
+        return Ok(result);
     }
     if let Some(result) = super::dicts::read_method(g, c, loc, call, member, &value)? {
         return Ok(result);

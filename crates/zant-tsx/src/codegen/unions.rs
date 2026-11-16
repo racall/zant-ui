@@ -430,6 +430,15 @@ pub fn text(g: &mut Generator<'_>, value: &Value, loc: ast::Loc) -> Result<Optio
     if let Some(text) = super::exceptions::text(g, value) {
         return Ok(Some(text));
     }
+    if super::regexps::is_regexp(g, value.ty) {
+        return Ok(Some(Value::new(
+            Type::String,
+            format!(
+                "{}.to_str()",
+                rust_text::operand(value, rust_text::Precedence::Suffix, false)
+            ),
+        )));
+    }
     let Some(variants) = variants(g, value.ty) else {
         return Ok(None);
     };
@@ -534,9 +543,6 @@ pub fn fact(
         return Ok(false);
     };
     let binding = scope::local_index(c, &narrowing::base(subject));
-    if binding.is_some_and(|index| c.bindings[index].mutable) {
-        return Ok(false);
-    }
     let value = expr::emit(g, c, subject, None, false)?;
     let Some(variants) = variants(g, value.ty) else {
         return Ok(false);
@@ -565,6 +571,7 @@ pub fn fact(
     c.narrowed.push(Narrow {
         name: String::from_utf8_lossy(&path).into_owned(),
         binding,
+        generation: narrowing::generation(c, binding),
         ty: variant.ty,
         code: format!(
             "(match {} {{ {rust}::{}(_member) => _member, _ => unreachable!(\"narrowed by the condition\") }})",
