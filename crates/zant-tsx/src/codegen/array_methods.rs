@@ -450,13 +450,11 @@ fn search(
         Some(start) => format!("{source}.as_slice().iter().cloned().skip({start})"),
         None => format!("{source}.as_slice().iter().cloned()"),
     };
-    let offset = start.map_or(String::new(), |start| format!(" + {start}"));
+    let index = start.map_or("index".to_owned(), |start| format!("(index + {start})"));
     let code = if kind == Kind::Includes {
         format!("{iterator}.any(|item| {comparison})")
     } else {
-        format!(
-            "{iterator}.position(|item| {comparison}).map_or(-1, |index| (index{offset}) as isize)"
-        )
+        format!("{iterator}.position(|item| {comparison}).map_or(-1, |index| {index} as isize)")
     };
     Ok((
         if kind == Kind::Includes {
