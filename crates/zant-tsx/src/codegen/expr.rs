@@ -951,6 +951,13 @@ fn explicit_cast(
         }
         return Ok(value);
     }
+    // `source satisfies Base`: checked against Base, the value keeps its own
+    // type (and its extra fields)
+    if cast.satisfies && !literal {
+        let value = emit(g, c, &cast.expr, None, child)?;
+        types::coerce(g, value.clone(), target, loc)?;
+        return Ok(value);
+    }
     if cast.satisfies || literal {
         return emit(g, c, &cast.expr, Some(target), child);
     }

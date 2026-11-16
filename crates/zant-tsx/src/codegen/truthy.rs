@@ -111,6 +111,16 @@ pub fn and_value(
     rhs: Value,
 ) -> Result<Option<Value>> {
     if model::optional_child(g, lhs.ty).is_none() {
+        // `p && p.name` where `p` is an object, array, record or function:
+        // always truthy, so the value is the right side
+        if always_truthy(g, lhs.ty) {
+            return Ok(Some(Value {
+                ty: rhs.ty,
+                code: format!("{{ let _ = &{}; {} }}", lhs.code, rhs.code),
+                precedence: Precedence::Primary,
+                ..Value::default()
+            }));
+        }
         return Ok(None);
     }
     let (ty, some) = match model::optional_child(g, rhs.ty) {
@@ -126,4 +136,22 @@ pub fn and_value(
         precedence: Precedence::Conditional,
         ..Value::default()
     }))
+}
+
+/// A value that is never falsy: objects, arrays, records, maps, sets,
+/// tuples and functions (not optional).
+fn always_truthy(g: &Generator<'_>, ty: Type) -> bool {
+    model::info(g, ty).is_some_and(|info| {
+        matches!(
+            info.kind,
+            InfoKind::Object
+                | InfoKind::Array
+                | InfoKind::Record
+                | InfoKind::Map
+                | InfoKind::Set
+                | InfoKind::Tuple
+                | InfoKind::Function
+                | InfoKind::Callback
+        )
+    }) && !super::exceptions::is_thrown(g, ty)
 }
