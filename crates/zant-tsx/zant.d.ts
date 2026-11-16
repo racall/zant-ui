@@ -102,7 +102,7 @@ declare module "zant" {
     resizable?: boolean; alwaysOnTop?: boolean; movableByBackground?: boolean; center?: boolean;
     titlebarHeight?: number;
   }
-  export type WindowPlace = "center" | "topLeft" | "topRight" | "bottomLeft" | "bottomRight" | "trayCorner";
+  export type WindowPlace = "center" | "topLeft" | "topRight" | "bottomLeft" | "bottomRight" | "trayCorner" | "pointer";
   export interface WindowHandle {
     show(): void;
     hide(): void;

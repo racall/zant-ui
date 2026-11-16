@@ -118,6 +118,16 @@ pub fn open_url(url: &str) -> bool {
     unsafe { ffi::zant_open_url(url.as_ptr()) != 0 }
 }
 
+/// Shows a file or folder selected in Finder / Explorer ("Show in Finder",
+/// "Show in folder"). False when it does not exist.
+pub fn reveal(path: &str) -> bool {
+    let Some(path) = to_cstring(path) else {
+        return false;
+    };
+    // SAFETY: NUL-terminated path.
+    unsafe { ffi::zant_reveal_path(path.as_ptr()) != 0 }
+}
+
 /// Writes `data` to a UTF-8 path. Rust's `std::fs` uses the wide-character APIs
 /// on Windows, so the native `zant_write_file` helper is not needed here.
 pub fn write_file(path: &str, data: &[u8]) -> Result<(), DialogError> {

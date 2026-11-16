@@ -121,13 +121,14 @@ const STYLES: [(&str, &str); 5] = [
     ("panel", "Panel"),
 ];
 
-const PLACES: [(&str, &str); 6] = [
+const PLACES: [(&str, &str); 7] = [
     ("center", "Center"),
     ("topLeft", "TopLeft"),
     ("topRight", "TopRight"),
     ("bottomLeft", "BottomLeft"),
     ("bottomRight", "BottomRight"),
     ("trayCorner", "TrayCorner"),
+    ("pointer", "Pointer"),
 ];
 
 /// `createWindow(Component, { … })` constants → `thread_local!` slot and

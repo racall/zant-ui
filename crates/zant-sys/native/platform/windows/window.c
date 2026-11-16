@@ -1574,6 +1574,28 @@ int zant_open_url(const char *url) {
     return (INT_PTR)r > 32 ? 1 : 0;
 }
 
+int zant_reveal_path(const char *path) {
+    if (!path || !path[0]) return 0;
+    zant_process_setup();
+    wchar_t *wide = zant_widen(path);
+    if (!wide) return 0;
+    for (wchar_t *c = wide; *c; c++) {
+        if (*c == L'/') *c = L'\\';
+    }
+    /* the shell's own "show in folder": opens (or reuses) an Explorer window
+       with the item selected */
+    int ok = 0;
+    PIDLIST_ABSOLUTE item = ILCreateFromPathW(wide);
+    if (item) {
+        const HRESULT init = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+        ok = SUCCEEDED(SHOpenFolderAndSelectItems(item, 0, NULL, 0)) ? 1 : 0;
+        if (SUCCEEDED(init)) CoUninitialize();
+        ILFree(item);
+    }
+    free(wide);
+    return ok;
+}
+
 /* ---------- showing, hiding and placing windows ---------- */
 
 void zant_window_set_visible(ZantWindow *window, int visible) {
@@ -1625,6 +1647,21 @@ void zant_window_place(ZantWindow *window, int place, float margin) {
     MONITORINFO mi = {sizeof(mi)};
     if (!GetMonitorInfoW(monitor, &mi)) return;
     const RECT area = mi.rcWork;
+    if (place == ZANT_PLACE_POINTER) {
+        RECT pr;
+        GetWindowRect(window->hwnd, &pr);
+        const int w = pr.right - pr.left, h = pr.bottom - pr.top;
+        const int gap = (int)lroundf(margin * window->scale);
+        int x = cursor.x + gap, y = cursor.y + gap;
+        if (x + w > area.right) x = cursor.x - gap - w;
+        if (y + h > area.bottom) y = cursor.y - gap - h;
+        if (x > area.right - w) x = area.right - w;
+        if (x < area.left) x = area.left;
+        if (y > area.bottom - h) y = area.bottom - h;
+        if (y < area.top) y = area.top;
+        SetWindowPos(window->hwnd, NULL, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+        return;
+    }
     if (place == ZANT_PLACE_TRAY_CORNER) {
         /* the notification area sits at the end of the taskbar */
         if (area.top > mi.rcMonitor.top) place = ZANT_PLACE_TOP_RIGHT;
@@ -2176,6 +2213,35 @@ void zant_clipboard_free(void *bytes) {
 
 uint64_t zant_clipboard_change_count(void) {
     return (uint64_t)GetClipboardSequenceNumber();
+}
+
+/* A DWORD clipboard format set to 0 (CanIncludeInClipboardHistory and
+   friends); the clipboard is open. */
+static bool zant_clipboard_dword_zero(const wchar_t *name) {
+    const UINT format = RegisterClipboardFormatW(name);
+    if (!format || !IsClipboardFormatAvailable(format)) return false;
+    HANDLE data = GetClipboardData(format);
+    if (!data || GlobalSize(data) < sizeof(DWORD)) return false;
+    const DWORD *value = (const DWORD *)GlobalLock(data);
+    if (!value) return false;
+    const bool zero = *value == 0;
+    GlobalUnlock(data);
+    return zero;
+}
+
+int zant_clipboard_privacy(void) {
+    /* https://learn.microsoft.com/windows/win32/dataxchg/clipboard-formats
+       (cloud clipboard and clipboard history formats) */
+    const UINT exclude = RegisterClipboardFormatW(L"ExcludeClipboardContentFromMonitorProcessing");
+    const UINT ignore = RegisterClipboardFormatW(L"Clipboard Viewer Ignore");
+    if ((exclude && IsClipboardFormatAvailable(exclude)) || (ignore && IsClipboardFormatAvailable(ignore)))
+        return ZANT_CLIPBOARD_NO_HISTORY | ZANT_CLIPBOARD_NO_SYNC;
+    if (!zant_open_clipboard(NULL)) return 0;
+    int flags = 0;
+    if (zant_clipboard_dword_zero(L"CanIncludeInClipboardHistory")) flags |= ZANT_CLIPBOARD_NO_HISTORY | ZANT_CLIPBOARD_NO_SYNC;
+    if (zant_clipboard_dword_zero(L"CanUploadToCloudClipboard")) flags |= ZANT_CLIPBOARD_NO_SYNC;
+    CloseClipboard();
+    return flags;
 }
 
 /* ---------- tray icon and hotkeys: a hidden message window ---------- */

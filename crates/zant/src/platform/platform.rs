@@ -169,6 +169,9 @@ pub enum Place {
     /// By the status bar / tray icons: top right on macOS (under the menu
     /// bar), bottom right on Windows (above the taskbar, wherever it is).
     TrayCorner = 5,
+    /// By the pointer (top left just right of / below it, flipped where it
+    /// does not fit, kept in the work area): popups opened by a hotkey.
+    Pointer = 6,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1049,6 +1052,16 @@ pub fn clipboard_change_count() -> u64 {
     }
     // SAFETY: no arguments.
     unsafe { ffi::zant_clipboard_change_count() }
+}
+
+/// `ZANT_CLIPBOARD_NO_HISTORY` / `ZANT_CLIPBOARD_NO_SYNC` bits the writer of
+/// the clipboard set (password managers), 0 for ordinary content.
+pub fn clipboard_privacy() -> i32 {
+    if !SUPPORTED {
+        return 0;
+    }
+    // SAFETY: no arguments.
+    unsafe { ffi::zant_clipboard_privacy() }
 }
 
 /// Monotonic clock in microseconds.

@@ -68,6 +68,7 @@ pub const ZANT_PLACE_TOP_RIGHT: _bindgen_ty_6 = 2;
 pub const ZANT_PLACE_BOTTOM_LEFT: _bindgen_ty_6 = 3;
 pub const ZANT_PLACE_BOTTOM_RIGHT: _bindgen_ty_6 = 4;
 pub const ZANT_PLACE_TRAY_CORNER: _bindgen_ty_6 = 5;
+pub const ZANT_PLACE_POINTER: _bindgen_ty_6 = 6;
 pub type _bindgen_ty_6 = ::std::os::raw::c_uint;
 pub const ZANT_CURSOR_ARROW: _bindgen_ty_7 = 0;
 pub const ZANT_CURSOR_POINTING_HAND: _bindgen_ty_7 = 1;
@@ -486,6 +487,12 @@ unsafe extern "C" {
 unsafe extern "C" {
     pub fn zant_clipboard_change_count() -> u64;
 }
+pub const ZANT_CLIPBOARD_NO_HISTORY: _bindgen_ty_10 = 1;
+pub const ZANT_CLIPBOARD_NO_SYNC: _bindgen_ty_10 = 2;
+pub type _bindgen_ty_10 = ::std::os::raw::c_uint;
+unsafe extern "C" {
+    pub fn zant_clipboard_privacy() -> ::std::os::raw::c_int;
+}
 unsafe extern "C" {
     pub fn zant_clipboard_watch(enable: ::std::os::raw::c_int);
 }
@@ -517,4 +524,7 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     pub fn zant_open_url(url: *const ::std::os::raw::c_char) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn zant_reveal_path(path: *const ::std::os::raw::c_char) -> ::std::os::raw::c_int;
 }

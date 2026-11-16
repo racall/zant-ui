@@ -72,8 +72,8 @@ pub use app::{
 };
 pub use app_event::AppEvent;
 pub use clipboard::{
-    clipboard_change_count, clipboard_files, clipboard_image, clipboard_text, set_clipboard_files,
-    set_clipboard_image, set_clipboard_text, watch_clipboard,
+    ClipboardPrivacy, clipboard_change_count, clipboard_files, clipboard_image, clipboard_privacy,
+    clipboard_text, set_clipboard_files, set_clipboard_image, set_clipboard_text, watch_clipboard,
 };
 pub use hotkey::{Shortcut, register_hotkey, unregister_hotkey};
 pub use screen::{
@@ -118,6 +118,7 @@ mod tests {
         let _: fn(&str) -> bool = set_clipboard_files;
         let _: fn(&[u8]) -> bool = set_clipboard_image;
         let _: fn() -> u64 = clipboard_change_count;
+        let _: fn() -> ClipboardPrivacy = clipboard_privacy;
         let _: fn(u32, Shortcut) -> bool = register_hotkey;
         let _: fn(u32) = unregister_hotkey;
         let _: fn(TrayOptions<'_>) -> Result<(), TrayError> = set_tray;
@@ -143,6 +144,7 @@ mod tests {
         let _: fn() -> bool = system_dark_mode;
         let _ = AppEvent::TrayClick;
         let _ = Place::TrayCorner;
+        let _ = Place::Pointer;
         let _ = IS_MACOS;
     }
 }

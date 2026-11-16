@@ -430,7 +430,7 @@ export default function App() { return <View><Button onClick={() => panel.toggle
 
 - 首次使用时创建，初始隐藏，之后窗口与状态保留；任一窗口动作重建所有窗口，共享数据用 store。窗口组件的关闭 / 按键 / 焦点 hook 作用于该窗口。
 - createWindow 接受无 props 的窗口组件；选项：title、style（native/hidden-titlebar/borderless/panel）、width/height/minWidth/minHeight、background、resizable、alwaysOnTop、movableByBackground、center、titlebarHeight。
-- 句柄：show/hide/toggle/activate/visible/active/minimized/focus；`place("center"|"topLeft"|"topRight"|"bottomLeft"|"bottomRight"|"trayCorner", margin?)` 定位，trayCorner 靠托盘。详见[桌面集成](desktop.md)。
+- 句柄：show/hide/toggle/activate/visible/active/minimized/focus；`place("center"|"topLeft"|"topRight"|"bottomLeft"|"bottomRight"|"trayCorner"|"pointer", margin?)` 定位，trayCorner 靠托盘，pointer 在鼠标旁（放不下时翻到另一侧，不出工作区；快捷键打开的浮窗）。详见[桌面集成](desktop.md)。
 
 ### 资源文件
 

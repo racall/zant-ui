@@ -102,6 +102,10 @@ enum {
        the menu bar), bottom right on Windows (above the taskbar; follows a
        taskbar moved to another edge) */
     ZANT_PLACE_TRAY_CORNER = 5,
+    /* by the pointer: the window's top left `margin` right of / below it,
+       flipped to the other side where it would not fit, kept in the work
+       area (popups opened by a hotkey, like clipboard managers do) */
+    ZANT_PLACE_POINTER = 6,
 };
 
 enum {
@@ -418,6 +422,18 @@ void zant_clipboard_free(void *bytes);
 
 /* Changes each time anything (any app) writes to the clipboard. */
 uint64_t zant_clipboard_change_count(void);
+/* What the app that wrote the clipboard asks clipboard managers to do with
+   it (password managers mark passwords this way): ZANT_CLIPBOARD_NO_HISTORY |
+   ZANT_CLIPBOARD_NO_SYNC bits, 0 for ordinary content. macOS: the
+   nspasteboard.org concealed / transient / auto-generated types (both bits).
+   Windows: ExcludeClipboardContentFromMonitorProcessing or Clipboard Viewer
+   Ignore (both), CanIncludeInClipboardHistory = 0 (both),
+   CanUploadToCloudClipboard = 0 (no sync). */
+enum {
+    ZANT_CLIPBOARD_NO_HISTORY = 1,
+    ZANT_CLIPBOARD_NO_SYNC = 2,
+};
+int zant_clipboard_privacy(void);
 /* Sends ZANT_APP_EVENT_CLIPBOARD after each clipboard change, including
    this app's own writes (Windows: clipboard listener; macOS: the change
    count checked on the UI thread every 0.3 s). */
@@ -435,6 +451,8 @@ void zant_dialog_free(char *value);
 int zant_confirm_dialog(const char *title, const char *message, const char *first,
                         const char *second, const char *third);
 int zant_open_url(const char *url);
+/* Shows a file or folder (UTF-8 path) selected in Finder / Explorer. */
+int zant_reveal_path(const char *path);
 
 #ifdef __cplusplus
 }
