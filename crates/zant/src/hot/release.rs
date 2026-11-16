@@ -31,6 +31,7 @@ pub fn release_app() {
     crate::tsx::desktop::release_app();
     crate::platform::platform::release_app();
     crate::tsx::timers::release_app();
+    crate::tsx::task::release_app();
     crate::runtime::view_state::release_app();
     crate::ui::commands::release_app();
     crate::tsx::platform::release_app();

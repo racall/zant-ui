@@ -60,6 +60,10 @@ pub mod dict;
 /// `throw` / `try` / `catch` values (`Thrown`, `Completion`).
 #[forbid(unsafe_code)]
 pub mod error;
+/// `fetch` (WHATWG Fetch) on reqwest.
+#[cfg(feature = "fetch")]
+#[forbid(unsafe_code)]
+pub mod fetch;
 #[forbid(unsafe_code)]
 pub mod hooks;
 pub mod hot;
@@ -77,10 +81,16 @@ pub mod list_ops;
 pub mod native;
 #[forbid(unsafe_code)]
 pub mod platform;
+/// JavaScript promises (`Promise<T>`), on [`task`].
+#[forbid(unsafe_code)]
+pub mod promise;
 /// JavaScript regular expressions and RegExp string methods.
 pub mod regexp;
 #[forbid(unsafe_code)]
 pub mod strings;
+/// The UI thread's async executor and microtask queue.
+#[forbid(unsafe_code)]
+pub mod task;
 #[forbid(unsafe_code)]
 pub mod text;
 #[forbid(unsafe_code)]
@@ -99,6 +109,7 @@ pub use hooks::{Callback, Cleanup, Deps, Effect, Memo, Ref, callback, local_stat
 pub use ids::{ChildKey, child_id, site_id};
 pub use json::Json;
 pub use list::List;
+pub use promise::Promise;
 pub use regexp::{RegExp, RegExpMatch};
 pub use window::{Component as WindowComponent, Window};
 

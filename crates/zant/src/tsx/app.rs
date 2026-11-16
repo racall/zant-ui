@@ -246,11 +246,13 @@ impl<A: crate::ui::App> crate::ui::App for Shell<A> {
         self.root.on_start();
     }
 
-    /// Runs the due timers with the root state as the callback context, then
-    /// the app's `useWake` hook.
+    /// Runs the due timers and the async work (promise reactions, `fetch`
+    /// results, async handlers) with the root state as the callback
+    /// context, then the app's `useWake` hook.
     fn on_wake(&mut self) {
         self.with_action_cx(|cx| {
             timers::fire_due(cx);
+            super::task::run(cx);
         });
         self.root.on_wake();
     }
