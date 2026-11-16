@@ -278,6 +278,12 @@ unsafe extern "C" {
 unsafe extern "C" {
     pub fn zant_screen_capture_request() -> ::std::os::raw::c_int;
 }
+unsafe extern "C" {
+    pub fn zant_screen_capture_requested() -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn zant_open_screen_capture_settings();
+}
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct ZantCapture {
@@ -364,6 +370,12 @@ unsafe extern "C" {
         app_id: *const ::std::os::raw::c_char,
         on: ::std::os::raw::c_int,
     ) -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn zant_launch_at_login_supported() -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
+    pub fn zant_open_login_item_settings();
 }
 unsafe extern "C" {
     pub fn zant_app_launched_at_login() -> ::std::os::raw::c_int;

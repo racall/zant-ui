@@ -37,12 +37,26 @@ pub fn screen_capture_access() -> bool {
 }
 
 /// macOS: the system prompt the first time; afterwards the user enables it
-/// in System Settings. Once requested, [`screen_capture_access`] notices the
-/// grant without a restart (it re-checks in the background, so the next call
-/// after the switch reports it); [`crate::desktop::relaunch`] remains the
-/// fallback. Returns [`screen_capture_access`].
+/// in System Settings ([`open_screen_capture_settings`]). Once requested
+/// (remembered across launches), [`screen_capture_access`] notices the grant
+/// without a restart (it re-checks in the background, so a later call
+/// reports it); [`crate::desktop::relaunch`] remains the fallback when the
+/// system asks to quit and reopen. Returns [`screen_capture_access`].
 pub fn request_screen_capture_access() -> bool {
     capture::request_capture_access()
+}
+
+/// The app has requested screen recording before (this launch or an earlier
+/// one), so the system prompt will not show again: send the user to
+/// [`open_screen_capture_settings`] instead. Always true on Windows.
+pub fn screen_capture_requested() -> bool {
+    capture::capture_access_requested()
+}
+
+/// macOS: opens System Settings > Privacy & Security > Screen Recording
+/// (nothing on Windows).
+pub fn open_screen_capture_settings() {
+    capture::open_capture_settings();
 }
 
 /// Every screen at native resolution without the cursor, in [`screens`]

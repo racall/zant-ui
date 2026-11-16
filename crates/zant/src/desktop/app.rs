@@ -9,15 +9,18 @@ use crate::platform::platform;
 pub enum LoginItem {
     Off,
     On,
-    /// macOS: registered, waiting for the user to allow it in System
-    /// Settings > General > Login Items
+    /// Registered, but the system does not start it until the user allows it
+    /// in its settings ([`open_login_item_settings`]): macOS Login Items
+    /// (new, or turned off there), Windows Task Manager / Settings > Apps >
+    /// Startup (turned off there).
     NeedsApproval,
 }
 
 /// Errors of [`set_launch_at_login`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum LaunchAtLoginError {
-    /// macOS: an unpackaged `zant run` build, or macOS before 13.
+    /// An unpackaged / debug `zant run` build, or macOS before 13
+    /// ([`launch_at_login_supported`]).
     #[error("launch at login is not possible here")]
     Unsupported,
     #[error("launch at login failed")]
@@ -60,10 +63,26 @@ pub fn launch_at_login(app_id: &str) -> LoginItem {
 /// Turns launch at login on or off, the system's own way: macOS SMAppService
 /// (the app's entry under Login Items; the app must be packaged, `zant
 /// package`, and macOS 13 or newer), Windows the user's Run key (the app gets
-/// `--zant-login`). [`LaunchAtLoginError::Unsupported`] from a `zant run` build
-/// on macOS.
+/// `--zant-login`; turning it on also clears a "Disabled" set in Task
+/// Manager). On macOS the system may still wait for the user's approval: read
+/// [`launch_at_login`] afterwards. [`LaunchAtLoginError::Unsupported`] where
+/// [`launch_at_login_supported`] is false.
 pub fn set_launch_at_login(app_id: &str, on: bool) -> Result<(), LaunchAtLoginError> {
     launch_at_login_result(platform::launch_at_login_set(app_id, on))
+}
+
+/// Launch at login can be set by this build: a packaged app (macOS 13+), a
+/// release build on Windows. False for `zant run`, so an app can say why the
+/// switch is off instead of offering it.
+pub fn launch_at_login_supported() -> bool {
+    platform::launch_at_login_supported()
+}
+
+/// Opens the system's list of apps that start at login (macOS System
+/// Settings > General > Login Items, Windows Settings > Apps > Startup),
+/// where the user allows a [`LoginItem::NeedsApproval`] entry.
+pub fn open_login_item_settings() {
+    platform::open_login_item_settings();
 }
 
 /// The system opened the app at login. Windows created with

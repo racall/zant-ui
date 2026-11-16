@@ -129,9 +129,16 @@ declare module "zant" {
   };
   export const app: {
     quit(): void;
+    /** "needsApproval": registered, but the user has to allow it in the system's settings
+     * (macOS Login Items; Windows Task Manager / Settings > Apps > Startup turned it off). */
     launchAtLogin(): "off" | "on" | "needsApproval";
+    /** false when the system refused; read launchAtLogin() afterwards (macOS may wait for approval). */
     setLaunchAtLogin(on: boolean): boolean;
     launchedAtLogin(): boolean;
+    /** false for `zant run` builds (only packaged / release builds can start at login). */
+    canLaunchAtLogin(): boolean;
+    /** The system's list of apps that start at login (macOS Login Items, Windows Settings > Apps > Startup). */
+    openLoginItemSettings(): void;
     deviceName(): string;
     downloadsDir(): string | null;
     dataDir(): string | null;

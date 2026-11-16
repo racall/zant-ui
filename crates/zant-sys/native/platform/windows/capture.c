@@ -149,6 +149,14 @@ int zant_screen_capture_request(void) {
     return 1;
 }
 
+int zant_screen_capture_requested(void) {
+    return 1;
+}
+
+/* no screen recording permission on Windows */
+void zant_open_screen_capture_settings(void) {
+}
+
 void zant_capture_free(uint8_t *pixels) {
     free(pixels);
 }

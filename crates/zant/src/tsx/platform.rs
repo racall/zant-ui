@@ -74,6 +74,16 @@ pub mod app {
         desktop::launched_at_login()
     }
 
+    /// `app.canLaunchAtLogin()`: false for `zant run` builds.
+    pub fn can_launch_at_login() -> bool {
+        desktop::launch_at_login_supported()
+    }
+
+    /// `app.openLoginItemSettings()`.
+    pub fn open_login_item_settings() {
+        desktop::open_login_item_settings();
+    }
+
     /// `app.deviceName()`.
     pub fn device_name() -> Str {
         Str::from(desktop::device_name())

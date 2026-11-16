@@ -253,9 +253,15 @@ int zant_window_list(ZantWindowInfo *out, int capacity);
 /* Screen recording permission: 1 granted (always on Windows), 0 not. */
 int zant_screen_capture_access(void);
 /* macOS: shows the system prompt the first time (later: nothing; the user
-   enables it in System Settings and the app usually has to restart).
+   enables it in System Settings). Once requested (remembered across
+   launches), zant_screen_capture_access notices a grant without a restart.
    Returns zant_screen_capture_access(). */
 int zant_screen_capture_request(void);
+/* 1 once the app has requested access (the one-time system prompt is used
+   up; always 1 on Windows). */
+int zant_screen_capture_requested(void);
+/* macOS: System Settings > Privacy & Security > Screen Recording. */
+void zant_open_screen_capture_settings(void);
 
 typedef struct ZantCapture {
     uint32_t screen_id;
@@ -314,10 +320,18 @@ int zant_app_single_instance(const char *app_id);
    entry in System Settings > General > Login Items; packaged apps only),
    Windows the user's Run key (name: the app id; the app starts with
    --zant-login). get: 0 off, 1 on, 2 waiting for the user's approval
-   (macOS). set: 1 done, 0 failed, -1 not possible here (an unpackaged
-   macOS build, macOS before 13). */
+   (macOS; Windows: turned off in Task Manager / Settings > Startup). An
+   entry that starts another copy of the app reads 0 on Windows. set: 1 done
+   (macOS: maybe waiting for approval, read get), 0 failed, -1 not possible
+   here (an unpackaged macOS build, macOS before 13). Windows: on also undoes
+   a Task Manager "Disabled", off removes that record too. */
 int zant_launch_at_login_get(const char *app_id);
 int zant_launch_at_login_set(const char *app_id, int on);
+/* 1 when set can work here (macOS: a packaged app on macOS 13+). */
+int zant_launch_at_login_supported(void);
+/* The system's list of apps that start at login: macOS Login Items,
+   Windows Settings > Apps > Startup. */
+void zant_open_login_item_settings(void);
 /* 1 when the system opened this process at login. macOS knows it once
    the event loop runs (windows with hidden_at_login wait for it). */
 int zant_app_launched_at_login(void);

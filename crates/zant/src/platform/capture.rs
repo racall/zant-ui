@@ -122,6 +122,18 @@ pub fn request_capture_access() -> bool {
     SUPPORTED && unsafe { ffi::zant_screen_capture_request() != 0 }
 }
 
+pub fn capture_access_requested() -> bool {
+    // SAFETY: no arguments.
+    !SUPPORTED || unsafe { ffi::zant_screen_capture_requested() != 0 }
+}
+
+pub fn open_capture_settings() {
+    if SUPPORTED {
+        // SAFETY: no arguments.
+        unsafe { ffi::zant_open_screen_capture_settings() }
+    }
+}
+
 /// Every screen, in `screens()` order; empty on failure. Blocks.
 pub fn capture_all() -> Vec<ScreenCapture> {
     if !SUPPORTED {

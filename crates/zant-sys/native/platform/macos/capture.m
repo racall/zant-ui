@@ -108,12 +108,14 @@ int zant_window_list(ZantWindowInfo *out, int capacity) {
 
 /* CGPreflightScreenCaptureAccess keeps the answer the process started with:
  * after the user switches the app on in System Settings it stays false until
- * a restart. ScreenCaptureKit asks the system on every call, so once this
- * process has requested access a background SCShareableContent query notices
- * the grant; access() reports the last answer and starts the next query.
- * Before a request nothing is queried: that query would show the system
- * prompt itself. */
-static atomic_int zant_capture_requested = 0;
+ * a restart. ScreenCaptureKit asks the system on every call, so once the app
+ * has requested access a background SCShareableContent query notices the
+ * grant; access() reports the last answer and starts the next query.
+ * Before the first request nothing is queried: that query would show the
+ * system prompt itself. The request is remembered across launches (the
+ * prompt shows only once per app), so a relaunched app keeps noticing. */
+static NSString *const zant_capture_requested_key = @"ZantScreenCaptureRequested";
+static atomic_int zant_capture_requested = -1; /* -1: not read yet */
 static atomic_int zant_capture_granted_live = 0;
 static atomic_int zant_capture_probing = 0;
 
@@ -129,18 +131,40 @@ static void zant_capture_probe(void) {
     }
 }
 
+int zant_screen_capture_requested(void) {
+    int requested = atomic_load(&zant_capture_requested);
+    if (requested < 0) {
+        requested = [[NSUserDefaults standardUserDefaults] boolForKey:zant_capture_requested_key] ? 1 : 0;
+        atomic_store(&zant_capture_requested, requested);
+    }
+    return requested;
+}
+
 int zant_screen_capture_access(void) {
     if (CGPreflightScreenCaptureAccess() || atomic_load(&zant_capture_granted_live)) return 1;
-    if (atomic_load(&zant_capture_requested)) zant_capture_probe();
+    if (zant_screen_capture_requested()) zant_capture_probe();
     return 0;
 }
 
 int zant_screen_capture_request(void) {
     if (zant_screen_capture_access()) return 1;
-    atomic_store(&zant_capture_requested, 1);
+    if (!zant_screen_capture_requested()) {
+        atomic_store(&zant_capture_requested, 1);
+        [[NSUserDefaults standardUserDefaults] setBool:YES forKey:zant_capture_requested_key];
+    }
     if (CGRequestScreenCaptureAccess()) return 1;
     zant_capture_probe();
     return 0;
+}
+
+void zant_open_screen_capture_settings(void) {
+    /* System Settings (macOS 13+) names the pane differently from System
+       Preferences; both answer the Privacy_ScreenCapture anchor */
+    NSString *url = @"x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture";
+    if (@available(macOS 13.0, *)) {
+        url = @"x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_ScreenCapture";
+    }
+    [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:url]];
 }
 
 void zant_capture_free(uint8_t *pixels) {

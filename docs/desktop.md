@@ -120,12 +120,20 @@ if desktop::launched_at_login() { /* 这次是登录时自动打开的 */ }
   `Unsupported`）；Windows 是当前用户的 `Run` 注册表项（名字为应用标识，启动参数 `--zant-login`），
   `zant build` 生成的安装包卸载时会删除它。
 - 状态每次从系统读取（用户也可以在系统设置 / 任务管理器里关掉）；默认关闭，由用户在设置里打开。
-- `NeedsApproval`：macOS 需要用户在“登录项”里允许。
+  Windows 上 `Run` 项指向的不是当前程序（移动过、旧安装位置）时读作 `Off`。
+- `NeedsApproval`：已登记，但系统不会启动它，要用户在系统设置里允许：macOS“登录项”（新登记，或用户在那里
+  关掉了），Windows 任务管理器 / 设置 › 应用 › 启动 里被关掉。`desktop::open_login_item_settings()` 打开
+  对应的系统页面。Windows 上应用里重新打开开关会清除任务管理器的“已禁用”（与其他应用一致）；macOS 上
+  用户关掉的只能由用户在系统设置里打开，`set_launch_at_login` 之后请重新读取状态。
+- `desktop::launch_at_login_supported()`：这个构建能否设置——打包的 .app（macOS 13+）、Windows 的 release
+  构建；`zant run` 时为 false（否则会把开发程序或热刷新宿主登记成开机启动），界面可据此说明原因。
 - 登录时打开：主窗口设 `app.config.json` 的 `window.hidden_at_login: true`，应用只出现在托盘 / 菜单栏。macOS 通过启动时的
   Apple 事件（`keyAELaunchedAsLogInItem`）判断，事件循环开始后才知道，所以带 `hidden_at_login` 的窗口
-  在启动完成时才显示。
+  在启动完成时才显示。隐藏的窗口照常构建（托盘、快捷键、`useEffect` 都会运行）；登录早期任务栏还没准备好时，
+  Windows 托盘图标会自动重试添加。
 - TSX：`app.launchAtLogin()` 返回 `"off"` / `"on"` / `"needsApproval"`；
-  `app.setLaunchAtLogin(on)` 返回成功与否的布尔值，`app.launchedAtLogin()` 查询本次启动来源。
+  `app.setLaunchAtLogin(on)` 返回成功与否的布尔值，`app.launchedAtLogin()` 查询本次启动来源，
+  `app.canLaunchAtLogin()` 对应 `launch_at_login_supported()`，`app.openLoginItemSettings()` 打开系统的启动项设置。
 
 ## 全局快捷键
 
@@ -173,7 +181,11 @@ let lines = zant::desktop::ocr_recognize(&px, w, h, stride); // 系统文字识�
 - 桌面坐标：macOS 为点，Windows 为物理像素；原点在主屏左上角，y 向下。换算到覆盖屏幕 `s`
   的窗口逻辑点：`(x - s.x) / s.units_per_point`。
 - `screen_capture_access()` / `request_screen_capture_access()`：macOS 屏幕录制权限（首次弹系统
-  提示，之后需在系统设置开启，通常要重启应用）；Windows 始终为 true。`capture_screens()` 须在后台线程调用。
+  提示，之后需在系统设置开启）；Windows 始终为 true。请求过一次后（跨启动记住），`screen_capture_access()`
+  在后台用 ScreenCaptureKit 复查，用户在系统设置里打开开关后无需重启即可得知；系统要求“退出并重新打开”时，
+  用 `desktop::relaunch()`。`screen_capture_requested()`：系统提示已用过（之后再请求不会弹窗），
+  此时应引导到 `open_screen_capture_settings()`（系统设置 › 隐私与安全性 › 屏幕录制）。
+  `capture_screens()` 须在后台线程调用。
 - `ocr_available()`：系统内置识别器（macOS）；Windows 返回 false，应用可自带模型。
 - 全屏遮罩窗口：`WindowStyle::Overlay`（无边框、不透明、位于菜单栏 / 任务栏和全屏应用之上、无 Dock /
   任务栏图标，macOS 上取得键盘但不激活应用），`window.cover_screen(index)` 铺满 `screens()[index]`。

@@ -58,12 +58,21 @@
 #define ZANT_WM_TRAY (WM_APP + 8)
 /* zant_window_cover_screen, run on the next loop turn (wParam: screen index) */
 #define ZANT_WM_COVER (WM_APP + 9)
+/* a frame for a hidden window: Windows sends no WM_PAINT to it, yet the app
+   still builds (first build, effects, tray, timers) while it sits in the tray */
+#define ZANT_WM_HIDDEN_FRAME (WM_APP + 10)
+/* animation frames of a hidden window: nothing is on screen, so slowly */
+#define ZANT_HIDDEN_FRAME_MS 250
 struct ZantWindow;
 static void zant_cover_now(struct ZantWindow *window, int index);
 
 struct ZantWindow {
     ZantHost host;
     ZantRenderer *renderer;
+    /* frames of a hidden / minimized window paint into this 1x1 raster:
+       nothing is shown, and the swap chain of a window that is not on screen
+       is never presented */
+    ZantRenderer *background_renderer;
     HWND hwnd;
     int style;
     bool custom_frame; /* hidden_titlebar: no system caption */
@@ -95,6 +104,7 @@ struct ZantWindow {
     char backend_name[64];
     char snapshot_path[1024];
     volatile LONG wake_pending;
+    bool hidden_frame_pending;
     HWND restore_focus; /* overlay: the window that had the keyboard before it */
     ZantWindow *next;
 };
@@ -130,42 +140,71 @@ static char *zant_narrow(const wchar_t *wide, int length, int *out_len) {
 
 /* ---------- persistent window placement ---------- */
 
+/* The DPI of a monitor (shcore, Windows 8.1+); the system DPI before that. */
+static UINT zant_monitor_dpi(HMONITOR monitor) {
+    typedef HRESULT(WINAPI * GetDpiForMonitorFn)(HMONITOR, int, UINT *, UINT *);
+    static GetDpiForMonitorFn get_dpi = NULL;
+    static bool loaded = false;
+    if (!loaded) {
+        loaded = true;
+        HMODULE shcore = LoadLibraryW(L"shcore.dll");
+        get_dpi = shcore ? (GetDpiForMonitorFn)(void *)GetProcAddress(shcore, "GetDpiForMonitor") : NULL;
+    }
+    UINT dpi_x = 96, dpi_y = 96;
+    if (!get_dpi || FAILED(get_dpi(monitor, 0 /* MDT_EFFECTIVE_DPI */, &dpi_x, &dpi_y))) return GetDpiForSystem();
+    return dpi_x;
+}
+
+/* The display a placement was saved on. WINDOWPLACEMENT holds physical
+   pixels of the display configuration at that time: restored after the
+   resolution, the scale or the monitors changed (or from a record written in
+   a remote / virtual session), it lands somewhere unrelated (a corner of a
+   larger screen). The window is put back only on the same display. */
+typedef struct ZantPlacementDisplay {
+    UINT dpi;
+    RECT work; /* screen coordinates */
+} ZantPlacementDisplay;
+
+static bool zant_window_display(HWND hwnd, ZantPlacementDisplay *out) {
+    HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+    MONITORINFO info = {sizeof(info)};
+    if (!monitor || !GetMonitorInfoW(monitor, &info)) return false;
+    out->dpi = zant_monitor_dpi(monitor);
+    out->work = info.rcWork;
+    return true;
+}
+
 static void zant_save_placement(ZantWindow *w) {
     if (!w || !w->autosave_path) return;
     WINDOWPLACEMENT placement = {0};
     placement.length = sizeof(placement);
     if (!GetWindowPlacement(w->hwnd, &placement)) return;
+    ZantPlacementDisplay display = {0};
+    if (!zant_window_display(w->hwnd, &display)) return;
     HKEY key;
     if (RegCreateKeyExW(HKEY_CURRENT_USER, w->autosave_path, 0, NULL, 0,
                         KEY_SET_VALUE, NULL, &key, NULL) == ERROR_SUCCESS) {
         RegSetValueExW(key, L"WindowPlacement", 0, REG_BINARY,
                        (const BYTE *)&placement, sizeof(placement));
+        RegSetValueExW(key, L"WindowDisplay", 0, REG_BINARY,
+                       (const BYTE *)&display, sizeof(display));
         RegCloseKey(key);
     }
 }
 
-typedef struct ZantPlacementMonitor {
-    RECT normal;
-    bool tool_window;
-    bool visible;
-} ZantPlacementMonitor;
+typedef struct ZantPlacementMatch {
+    ZantPlacementDisplay saved;
+    bool found;
+} ZantPlacementMatch;
 
 static BOOL CALLBACK zant_placement_monitor(HMONITOR monitor, HDC dc, LPRECT rect, LPARAM data) {
     (void)dc;
     (void)rect;
-    ZantPlacementMonitor *check = (ZantPlacementMonitor *)data;
+    ZantPlacementMatch *match = (ZantPlacementMatch *)data;
     MONITORINFO info = {sizeof(info)};
     if (!GetMonitorInfoW(monitor, &info)) return TRUE;
-    RECT screen = check->normal;
-    /* WINDOWPLACEMENT uses workspace coordinates except for tool windows.
-       Convert per monitor before testing against the current work areas. */
-    if (!check->tool_window) {
-        OffsetRect(&screen, info.rcWork.left - info.rcMonitor.left,
-                   info.rcWork.top - info.rcMonitor.top);
-    }
-    RECT intersection;
-    if (IntersectRect(&intersection, &screen, &info.rcWork)) {
-        check->visible = true;
+    if (EqualRect(&info.rcWork, &match->saved.work) && zant_monitor_dpi(monitor) == match->saved.dpi) {
+        match->found = true;
         return FALSE;
     }
     return TRUE;
@@ -201,10 +240,15 @@ void zant_window_set_autosave(ZantWindow *window, const char *name) {
         size != sizeof(placement) || placement.length != sizeof(placement) ||
         placement.rcNormalPosition.right <= placement.rcNormalPosition.left ||
         placement.rcNormalPosition.bottom <= placement.rcNormalPosition.top) return;
-    ZantPlacementMonitor check = {placement.rcNormalPosition,
-        (GetWindowLongPtrW(window->hwnd, GWL_EXSTYLE) & WS_EX_TOOLWINDOW) != 0, false};
-    EnumDisplayMonitors(NULL, NULL, zant_placement_monitor, (LPARAM)&check);
-    if (!check.visible) return;
+    /* no display recorded (older releases) or that display is gone / changed:
+       keep the position the window was created with (centered by default) */
+    ZantPlacementMatch match = {0};
+    size = sizeof(match.saved);
+    if (RegGetValueW(HKEY_CURRENT_USER, path, L"WindowDisplay", RRF_RT_REG_BINARY,
+                     NULL, &match.saved, &size) != ERROR_SUCCESS ||
+        size != sizeof(match.saved)) return;
+    EnumDisplayMonitors(NULL, NULL, zant_placement_monitor, (LPARAM)&match);
+    if (!match.found) return;
     /* Reopen minimized windows normally; restoring a hidden createWindow or a
        login window must not show it before the app requests it. */
     if (!IsWindowVisible(window->hwnd)) placement.showCmd = SW_HIDE;
@@ -276,8 +320,19 @@ static ZantEvent zant_event(ZantWindow *w, int type) {
     return e;
 }
 
+/* Hidden or minimized: Windows sends it no WM_PAINT. */
+static bool zant_backgrounded(ZantWindow *w) {
+    return !IsWindowVisible(w->hwnd) || IsIconic(w->hwnd);
+}
+
 static void zant_request(ZantWindow *w) {
-    if (w && w->hwnd && !w->closing) InvalidateRect(w->hwnd, NULL, FALSE);
+    if (!w || !w->hwnd || w->closing) return;
+    if (!zant_backgrounded(w)) {
+        InvalidateRect(w->hwnd, NULL, FALSE);
+    } else if (!w->hidden_frame_pending) {
+        w->hidden_frame_pending = true;
+        if (!PostMessageW(w->hwnd, ZANT_WM_HIDDEN_FRAME, 0, 0)) w->hidden_frame_pending = false;
+    }
 }
 
 static int zant_send(ZantWindow *w, ZantEvent *e) {
@@ -371,7 +426,9 @@ static void zant_schedule_next(ZantWindow *w) {
     const int delay = w->host.next_frame_delay(w->host.userdata);
     w->animating = delay > 0 && delay <= 16;
     KillTimer(w->hwnd, ZANT_TIMER_REDRAW);
-    if (w->animating) {
+    if (w->animating && zant_backgrounded(w)) {
+        SetTimer(w->hwnd, ZANT_TIMER_REDRAW, ZANT_HIDDEN_FRAME_MS, NULL);
+    } else if (w->animating) {
         zant_request(w);
     } else if (delay > 0) {
         SetTimer(w->hwnd, ZANT_TIMER_REDRAW, (UINT)delay, NULL);
@@ -382,16 +439,27 @@ static void zant_schedule_next(ZantWindow *w) {
 
 static void zant_render(ZantWindow *w, HDC dc) {
     if (!w || w->closing || w->in_draw || !w->host.draw || !w->renderer) return;
+    const bool background = zant_backgrounded(w);
+    ZantRenderer *renderer = w->renderer;
+    if (background) {
+        /* one pixel: the frame builds and lays out at the window's size, and
+           its paint is clipped away (a hidden full-screen overlay costs
+           nothing to keep) */
+        if (!w->background_renderer) w->background_renderer = zant_renderer_create_raster(1, 1);
+        if (!w->background_renderer) return;
+        renderer = w->background_renderer;
+    }
     w->in_draw = true;
-    zant_update_client_size(w);
-    zant_renderer_resize(w->renderer, w->width_px, w->height_px);
-    ZantCanvas *canvas = zant_renderer_begin(w->renderer, w->scale);
+    /* a minimized window has no client area: it keeps its restored size */
+    if (!IsIconic(w->hwnd)) zant_update_client_size(w);
+    if (!background) zant_renderer_resize(renderer, w->width_px, w->height_px);
+    ZantCanvas *canvas = zant_renderer_begin(renderer, w->scale);
     if (canvas) {
         w->host.draw(w->host.userdata, canvas, zant_logical_width(w), zant_logical_height(w), w->scale);
     }
-    zant_renderer_end(w->renderer);
+    zant_renderer_end(renderer);
     const bool gpu = zant_renderer_is_gpu(w->renderer);
-    if (!gpu) {
+    if (!gpu && !background) {
         HDC target = dc ? dc : GetDC(w->hwnd);
         zant_present_raster(w, target);
         if (!dc) ReleaseDC(w->hwnd, target);
@@ -399,7 +467,7 @@ static void zant_render(ZantWindow *w, HDC dc) {
     w->in_draw = false;
     zant_schedule_next(w);
     /* raster animation frames wait for the next composition (vsync) */
-    if (w->animating && !gpu && !w->in_size_move) DwmFlush();
+    if (w->animating && !gpu && !w->in_size_move && !background) DwmFlush();
 }
 
 /* ---------- title bar ---------- */
@@ -693,6 +761,11 @@ static LRESULT CALLBACK zant_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) 
             return 0;
         }
 
+        case ZANT_WM_HIDDEN_FRAME:
+            w->hidden_frame_pending = false;
+            if (zant_backgrounded(w)) zant_render(w, NULL);
+            return 0;
+
         case ZANT_WM_WAKE:
             InterlockedExchange(&w->wake_pending, 0);
             if (!w->closing && w->host.wake) w->host.wake(w->host.userdata);
@@ -726,10 +799,15 @@ static LRESULT CALLBACK zant_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) 
         case WM_EXITSIZEMOVE:
             w->in_size_move = false;
             KillTimer(hwnd, ZANT_TIMER_MODAL);
+            /* remembered as soon as the user moved it: a process ended by
+               sign-out or shutdown never reaches WM_CLOSE */
+            zant_save_placement(w);
             zant_request(w);
             return 0;
 
         case WM_SIZE: {
+            /* minimized: the client area is empty, the layout keeps its size */
+            if (wp == SIZE_MINIMIZED) return 0;
             const int previous_w = w->width_px, previous_h = w->height_px;
             zant_update_client_size(w);
             if (wp != SIZE_MINIMIZED && (previous_w != w->width_px || previous_h != w->height_px)) {
@@ -1013,14 +1091,7 @@ ZantWindow *zant_window_create(const char *title, const ZantWindowOptions *optio
     /* size for the monitor the window opens on (the primary one) */
     const POINT origin = {0, 0};
     HMONITOR monitor = MonitorFromPoint(origin, MONITOR_DEFAULTTOPRIMARY);
-    UINT dpi_x = 96, dpi_y = 96;
-    {
-        typedef HRESULT(WINAPI * GetDpiForMonitorFn)(HMONITOR, int, UINT *, UINT *);
-        HMODULE shcore = LoadLibraryW(L"shcore.dll");
-        GetDpiForMonitorFn get_dpi = shcore ? (GetDpiForMonitorFn)(void *)GetProcAddress(shcore, "GetDpiForMonitor") : NULL;
-        if (!get_dpi || FAILED(get_dpi(monitor, 0, &dpi_x, &dpi_y))) dpi_x = GetDpiForSystem();
-    }
-    zant_set_dpi(w, dpi_x);
+    zant_set_dpi(w, zant_monitor_dpi(monitor));
 
     const float width = options->width > 0 ? options->width : 900;
     const float height = options->height > 0 ? options->height : 640;
@@ -1127,6 +1198,10 @@ void zant_window_destroy(ZantWindow *window) {
     if (window->renderer) {
         zant_renderer_destroy(window->renderer);
         window->renderer = NULL;
+    }
+    if (window->background_renderer) {
+        zant_renderer_destroy(window->background_renderer);
+        window->background_renderer = NULL;
     }
     if (window->hwnd && IsWindow(window->hwnd)) {
         SetWindowLongPtrW(window->hwnd, GWLP_USERDATA, 0);
@@ -1679,13 +1754,58 @@ int zant_app_launched_at_login(void) {
     return known;
 }
 
+/* What Settings > Apps > Startup and Task Manager's Startup tab record for a
+   Run entry: 12 bytes, the first one odd when the user turned it off (the Run
+   value stays, Windows skips it at logon). */
+#define ZANT_STARTUP_APPROVED_KEY L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run"
+
+static bool zant_startup_disabled_by_user(const wchar_t *name) {
+    BYTE data[12] = {0};
+    DWORD size = sizeof(data);
+    if (RegGetValueW(HKEY_CURRENT_USER, ZANT_STARTUP_APPROVED_KEY, name, RRF_RT_REG_BINARY, NULL, data, &size) !=
+            ERROR_SUCCESS ||
+        size < 1)
+        return false;
+    return (data[0] & 1) != 0;
+}
+
+/* The executable a Run command starts ("path" args, or path args). */
+static bool zant_run_command_is_self(const wchar_t *command) {
+    wchar_t exe[MAX_PATH * 4];
+    const DWORD n = GetModuleFileNameW(NULL, exe, (DWORD)(sizeof(exe) / sizeof(exe[0])));
+    if (n == 0 || n >= sizeof(exe) / sizeof(exe[0])) return false;
+    const wchar_t *start = command;
+    while (*start == L' ') start++;
+    const wchar_t *end;
+    if (*start == L'"') {
+        start++;
+        end = wcschr(start, L'"');
+    } else {
+        end = wcschr(start, L' ');
+    }
+    const size_t length = end ? (size_t)(end - start) : wcslen(start);
+    return length == wcslen(exe) &&
+           CompareStringOrdinal(start, (int)length, exe, (int)length, TRUE) == CSTR_EQUAL;
+}
+
+int zant_launch_at_login_supported(void) {
+    return 1;
+}
+
 int zant_launch_at_login_get(const char *app_id) {
     wchar_t *name = zant_widen(app_id);
     if (!name) return 0;
-    DWORD type = 0, size = 0;
-    const LSTATUS rc = RegGetValueW(HKEY_CURRENT_USER, ZANT_RUN_KEY, name, RRF_RT_REG_SZ, &type, NULL, &size);
+    wchar_t command[MAX_PATH * 4 + 64];
+    DWORD size = sizeof(command);
+    int state = 0;
+    if (RegGetValueW(HKEY_CURRENT_USER, ZANT_RUN_KEY, name, RRF_RT_REG_SZ, NULL, command, &size) == ERROR_SUCCESS &&
+        zant_run_command_is_self(command)) {
+        /* an entry of another copy of the app (moved, an older install)
+           does not start this one: off */
+        state = zant_startup_disabled_by_user(name) ? 2 : 1;
+    }
     free(name);
-    return rc == ERROR_SUCCESS ? 1 : 0;
+    return state;
 }
 
 int zant_launch_at_login_set(const char *app_id, int on) {
@@ -1709,8 +1829,29 @@ int zant_launch_at_login_set(const char *app_id, int on) {
         }
         RegCloseKey(key);
     }
+    /* The user turned the switch on in the app: an earlier "Disabled" from
+       Task Manager would keep Windows from starting it (the usual way:
+       mark it enabled). Off removes the record with the entry. */
+    HKEY approved = NULL;
+    if (ok && RegOpenKeyExW(HKEY_CURRENT_USER, ZANT_STARTUP_APPROVED_KEY, 0, KEY_SET_VALUE, &approved) ==
+                  ERROR_SUCCESS) {
+        if (!on) {
+            RegDeleteValueW(approved, name);
+        } else if (zant_startup_disabled_by_user(name)) {
+            const BYTE enabled[12] = {0x02};
+            ok = RegSetValueExW(approved, name, 0, REG_BINARY, enabled, sizeof(enabled)) == ERROR_SUCCESS;
+        }
+        RegCloseKey(approved);
+    } else if (ok && on && zant_startup_disabled_by_user(name)) {
+        /* still "Disabled" and that cannot be undone: Windows will not start it */
+        ok = 0;
+    }
     free(name);
     return ok;
+}
+
+void zant_open_login_item_settings(void) {
+    ShellExecuteW(NULL, L"open", L"ms-settings:startupapps", NULL, NULL, SW_SHOWNORMAL);
 }
 
 size_t zant_device_name(char *out, size_t capacity) {
@@ -2044,6 +2185,14 @@ static HWND g_app_hwnd = NULL;
 static UINT g_taskbar_created = 0;
 static NOTIFYICONDATAW g_tray;
 static bool g_tray_added = false;
+/* NIM_ADD failed (right after logon the taskbar may not take icons yet):
+   retried on a timer and when Explorer announces TaskbarCreated */
+static bool g_tray_pending = false;
+static int g_tray_retries = 0;
+#define ZANT_TIMER_TRAY_RETRY 1
+#define ZANT_TRAY_RETRY_MS 2000
+#define ZANT_TRAY_RETRY_FAST 90
+#define ZANT_TRAY_RETRY_SLOW_MS 30000
 /* the icon for a dark and for a light taskbar (NULL: same as dark) */
 static HICON g_tray_icon_dark = NULL;
 static HICON g_tray_icon_light = NULL;
@@ -2079,7 +2228,42 @@ static void zant_tray_show_menu(void) {
     if (cmd > 0) zant_app_emit(ZANT_APP_EVENT_TRAY_MENU, cmd - 1);
 }
 
+/* Adds the icon now, or keeps retrying: true once it is (or will be) shown. */
+static bool zant_tray_add(void) {
+    /* everything the icon needs (an earlier icon-only update left NIF_ICON) */
+    g_tray.uFlags = NIF_MESSAGE | NIF_TIP | (g_tray.hIcon ? NIF_ICON : 0);
+    if (Shell_NotifyIconW(NIM_ADD, &g_tray)) {
+        g_tray_added = true;
+        g_tray_pending = false;
+        KillTimer(g_app_hwnd, ZANT_TIMER_TRAY_RETRY);
+        return true;
+    }
+    /* the shell may still hold an icon of ours (e.g. NIM_ADD timed out but
+       went through): an update then succeeds */
+    if (Shell_NotifyIconW(NIM_MODIFY, &g_tray)) {
+        g_tray_added = true;
+        g_tray_pending = false;
+        KillTimer(g_app_hwnd, ZANT_TIMER_TRAY_RETRY);
+        return true;
+    }
+    if (!g_tray_pending) g_tray_retries = 0;
+    g_tray_pending = true;
+    /* every 2 s for the first minutes after logon, then every 30 s: a tray
+       app started hidden has no other way in */
+    SetTimer(g_app_hwnd, ZANT_TIMER_TRAY_RETRY,
+             g_tray_retries < ZANT_TRAY_RETRY_FAST ? ZANT_TRAY_RETRY_MS : ZANT_TRAY_RETRY_SLOW_MS, NULL);
+    return true;
+}
+
 static LRESULT CALLBACK zant_app_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+    if (msg == WM_TIMER && wp == ZANT_TIMER_TRAY_RETRY) {
+        KillTimer(hwnd, ZANT_TIMER_TRAY_RETRY);
+        if (g_tray_pending) {
+            g_tray_retries++;
+            zant_tray_add();
+        }
+        return 0;
+    }
     if (msg == WM_CLIPBOARDUPDATE) {
         zant_app_emit(ZANT_APP_EVENT_CLIPBOARD, 0);
         return 0;
@@ -2109,9 +2293,11 @@ static LRESULT CALLBACK zant_app_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM 
         Shell_NotifyIconW(NIM_MODIFY, &g_tray);
         return 0;
     }
-    /* Explorer restarted: the notification area forgot our icon */
-    if (g_taskbar_created && msg == g_taskbar_created && g_tray_added) {
-        Shell_NotifyIconW(NIM_ADD, &g_tray);
+    /* Explorer (re)started: the notification area forgot our icon, or is
+       ready for the one that failed at logon */
+    if (g_taskbar_created && msg == g_taskbar_created && (g_tray_added || g_tray_pending)) {
+        g_tray_added = false;
+        zant_tray_add();
         return 0;
     }
     return DefWindowProcW(hwnd, msg, wp, lp);
@@ -2196,7 +2382,7 @@ int zant_tray_set(const uint8_t *rgba, const uint8_t *rgba_light, int width, int
     (void)template_image;
     HWND hwnd = zant_app_window();
     if (!hwnd) return 0;
-    if (!g_tray_added) {
+    if (!g_tray_added && !g_tray_pending) {
         memset(&g_tray, 0, sizeof(g_tray));
         g_tray.cbSize = sizeof(g_tray);
         g_tray.hWnd = hwnd;
@@ -2218,9 +2404,8 @@ int zant_tray_set(const uint8_t *rgba, const uint8_t *rgba_light, int width, int
         AppendMenuW(g_tray_menu, flags, (UINT_PTR)(it->id + 1), text ? text : L"");
         free(text);
     }
-    const BOOL ok = Shell_NotifyIconW(g_tray_added ? NIM_MODIFY : NIM_ADD, &g_tray);
-    if (ok) g_tray_added = true;
-    return ok ? 1 : 0;
+    if (g_tray_added) return Shell_NotifyIconW(NIM_MODIFY, &g_tray) ? 1 : 0;
+    return zant_tray_add() ? 1 : 0;
 }
 
 /* Icon and tooltip only: the menu (possibly open right now) stays. */
@@ -2228,15 +2413,19 @@ int zant_tray_set_icon(const uint8_t *rgba, const uint8_t *rgba_light, int width
                        int template_image, const char *tooltip) {
     (void)scale;
     (void)template_image;
-    if (!g_tray_added) return 0;
+    if (!g_tray_added && !g_tray_pending) return 0;
     g_tray.uFlags = NIF_MESSAGE | NIF_TIP;
     zant_tray_apply_icon(rgba, rgba_light, width, height, tooltip);
+    /* still waiting for the taskbar: the retry adds the new look */
+    if (!g_tray_added) return 1;
     return Shell_NotifyIconW(NIM_MODIFY, &g_tray) ? 1 : 0;
 }
 
 void zant_tray_remove(void) {
     if (g_tray_added) Shell_NotifyIconW(NIM_DELETE, &g_tray);
     g_tray_added = false;
+    g_tray_pending = false;
+    if (g_app_hwnd) KillTimer(g_app_hwnd, ZANT_TIMER_TRAY_RETRY);
     if (g_tray_icon_dark) DestroyIcon(g_tray_icon_dark);
     if (g_tray_icon_light) DestroyIcon(g_tray_icon_light);
     g_tray_icon_dark = g_tray_icon_light = NULL;

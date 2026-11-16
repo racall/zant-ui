@@ -138,6 +138,20 @@ const NAMESPACES: [Namespace; 3] = [
                 effect: false,
             },
             Function {
+                name: "canLaunchAtLogin",
+                rust: "can_launch_at_login",
+                params: &[],
+                ret: Kind::Boolean,
+                effect: false,
+            },
+            Function {
+                name: "openLoginItemSettings",
+                rust: "open_login_item_settings",
+                params: &[],
+                ret: Kind::Void,
+                effect: true,
+            },
+            Function {
                 name: "deviceName",
                 rust: "device_name",
                 params: &[],

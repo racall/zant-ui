@@ -709,9 +709,29 @@ pub fn launch_at_login_get(app_id: &str) -> i32 {
     unsafe { ffi::zant_launch_at_login_get(app_id.as_ptr()) }
 }
 
+/// The process is `zant run`'s hot-reload host (debug or `--release`): its
+/// executable starts nothing without the library path `zant run` passes.
+fn hot_reload_host() -> bool {
+    std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.file_stem().map(|stem| stem == "zant-hot-host"))
+        .unwrap_or(false)
+}
+
+/// Launch at login can be set here: a packaged macOS app (13+); on Windows
+/// a release build. A debug or hot-reload `zant run` build would register a
+/// development executable (or the hot-reload host) to start at every login.
+pub fn launch_at_login_supported() -> bool {
+    if !SUPPORTED || hot_reload_host() || (cfg!(windows) && cfg!(debug_assertions)) {
+        return false;
+    }
+    // SAFETY: no arguments.
+    unsafe { ffi::zant_launch_at_login_supported() != 0 }
+}
+
 /// 1 = done, 0 = failed, -1 = not possible here.
 pub fn launch_at_login_set(app_id: &str, on: bool) -> i32 {
-    if !SUPPORTED {
+    if !launch_at_login_supported() {
         return -1;
     }
     let Ok(app_id) = CString::new(app_id) else {
@@ -724,6 +744,14 @@ pub fn launch_at_login_set(app_id: &str, on: bool) -> i32 {
 pub fn launched_at_login() -> bool {
     // SAFETY: no arguments.
     SUPPORTED && unsafe { ffi::zant_app_launched_at_login() != 0 }
+}
+
+/// Opens the system's list of apps that start at login.
+pub fn open_login_item_settings() {
+    if SUPPORTED {
+        // SAFETY: no arguments.
+        unsafe { ffi::zant_open_login_item_settings() }
+    }
 }
 
 /// Sets the app-level event handler (`ZantAppEvent`: tray menu, hotkey, ...).

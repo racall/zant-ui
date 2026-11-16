@@ -203,14 +203,20 @@ static void zant_link_invalidate(ZantWindow *window) {
     window->link_active = false;
 }
 
+/* Animation frames of a hidden window: nothing is on screen, so slowly. */
+#define ZANT_HIDDEN_FRAME_MS 250
+
 static void zant_schedule_redraw(ZantWindow *window, int delay_ms) {
     if (!window || window->closing || !window->view) return;
+    const bool visible = window->window.isVisible;
     /* the running display link renders on the next vsync anyway */
-    if (delay_ms <= 0 && window->link_active) return;
+    if (delay_ms <= 0 && window->link_active && visible) return;
+    /* a hidden view gets no display link callbacks */
+    if (!visible) zant_link_set_active(window, false);
     [window->redraw_timer invalidate];
     window->redraw_timer = nil;
     window->redraw_generation++;
-    if (delay_ms <= 0) {
+    if (delay_ms <= 0 && visible) {
         if (window->renderer && zant_renderer_is_gpu(window->renderer)) {
             if (!window->gpu_render_pending) {
                 window->gpu_render_pending = true;
@@ -224,6 +230,10 @@ static void zant_schedule_redraw(ZantWindow *window, int delay_ms) {
         }
         return;
     }
+    /* AppKit never asks a hidden view to draw, yet the frame still has to run
+       (first build, effects, tray) while the app sits in the tray: the
+       one-shot timer below renders it (zant_window_destroy cancels it) */
+    if (delay_ms <= 0) delay_ms = 1;
     const unsigned long generation = window->redraw_generation;
     NSTimeInterval interval = (NSTimeInterval)delay_ms / 1000.0;
     if (interval < 0.001) interval = 0.001;
@@ -234,7 +244,7 @@ static void zant_schedule_redraw(ZantWindow *window, int delay_ms) {
         if (generation != window->redraw_generation) return;
         window->redraw_timer = nil;
         if (!window->closing && window->view) {
-            if (window->renderer && zant_renderer_is_gpu(window->renderer)) {
+            if ((window->renderer && zant_renderer_is_gpu(window->renderer)) || !window->window.isVisible) {
                 zant_render_window(window);
             } else {
                 [window->view setNeedsDisplay:YES];
@@ -300,7 +310,11 @@ static void zant_render_window(ZantWindow *window) {
         if (!zant_renderer_is_gpu(window->renderer)) {
             size_t image_width = 0;
             size_t image_height = 0;
-            CGImageRef image = zant_create_cgimage(window, &image_width, &image_height);
+            /* a hidden window's frame builds and paints but shows nothing
+               (a raster window is only presented from drawRect:) */
+            CGImageRef image = window->window.isVisible && NSGraphicsContext.currentContext
+                                   ? zant_create_cgimage(window, &image_width, &image_height)
+                                   : NULL;
             if (image) {
                 NSImage *ns_image = [[NSImage alloc] initWithCGImage:image
                                                                 size:NSMakeSize(logical_width,
@@ -321,11 +335,15 @@ static void zant_render_window(ZantWindow *window) {
         const int delay = window->host.next_frame_delay(window->host.userdata);
         /* animations run on the display link; slower work (caret blink,
            tooltip delay) on a one-shot timer */
-        zant_link_set_active(window, delay > 0 && delay <= 16 && !window->closing);
+        const bool animating = delay > 0 && delay <= 16 && !window->closing;
+        const bool visible = window->window.isVisible;
+        zant_link_set_active(window, animating && visible);
         if (window->link_active) {
             [window->redraw_timer invalidate];
             window->redraw_timer = nil;
             window->redraw_generation++;
+        } else if (animating && !visible) {
+            zant_schedule_redraw(window, ZANT_HIDDEN_FRAME_MS);
         } else if (delay >= 0) {
             zant_schedule_redraw(window, delay);
         }
@@ -1446,6 +1464,11 @@ int zant_launch_at_login_get(const char *app_id) {
     return 0;
 }
 
+int zant_launch_at_login_supported(void) {
+    if (@available(macOS 13.0, *)) return zant_is_app_bundle() ? 1 : 0;
+    return 0;
+}
+
 int zant_launch_at_login_set(const char *app_id, int on) {
     (void)app_id;
     if (@available(macOS 13.0, *)) {
@@ -1454,10 +1477,24 @@ int zant_launch_at_login_set(const char *app_id, int on) {
         SMAppService *service = SMAppService.mainAppService;
         const BOOL ok = on ? [service registerAndReturnError:&error] : [service unregisterAndReturnError:&error];
         if (!ok) NSLog(@"zant: login item: %@", error);
-        /* turning off what is already off is fine */
-        return (ok || (!on && service.status == SMAppServiceStatusNotRegistered)) ? 1 : 0;
+        /* The status is the answer, not the call: registering what is
+           registered (kSMErrorAlreadyRegistered) or unregistering what is not
+           (kSMErrorJobNotFound) is done already, and a registration the user
+           has to allow in System Settings (requiresApproval, also after they
+           turned it off there) is recorded; the app reads it with get. */
+        const SMAppServiceStatus status = service.status;
+        if (on) return (status == SMAppServiceStatusEnabled || status == SMAppServiceStatusRequiresApproval) ? 1 : 0;
+        return (status == SMAppServiceStatusNotRegistered || status == SMAppServiceStatusNotFound) ? 1 : 0;
     }
     return -1;
+}
+
+void zant_open_login_item_settings(void) {
+    if (@available(macOS 13.0, *)) {
+        [SMAppService openSystemSettingsLoginItems];
+        return;
+    }
+    [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:@"x-apple.systempreferences:com.apple.preferences.users"]];
 }
 
 /* ---- status bar item (menu bar extra) ---- */

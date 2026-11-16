@@ -66,8 +66,9 @@ pub mod tray;
 pub mod window;
 
 pub use app::{
-    LaunchAtLoginError, LoginItem, device_name, downloads_dir, launch_at_login, launched_at_login,
-    set_launch_at_login, system_dark_mode,
+    LaunchAtLoginError, LoginItem, device_name, downloads_dir, launch_at_login,
+    launch_at_login_supported, launched_at_login, open_login_item_settings, set_launch_at_login,
+    system_dark_mode,
 };
 pub use app_event::AppEvent;
 pub use clipboard::{
@@ -77,8 +78,8 @@ pub use clipboard::{
 pub use hotkey::{Shortcut, register_hotkey, unregister_hotkey};
 pub use screen::{
     OcrLine, OcrToken, ScreenCapture, ScreenInfo, WindowInfo, capture_screens, local_utc_offset,
-    ocr_available, ocr_recognize, request_screen_capture_access, screen_capture_access, screens,
-    visible_windows,
+    ocr_available, ocr_recognize, open_screen_capture_settings, request_screen_capture_access,
+    screen_capture_access, screen_capture_requested, screens, visible_windows,
 };
 pub use tray::{
     TrayError, TrayIconOptions, TrayItem, TrayOptions, remove_tray, set_tray, set_tray_icon,
@@ -133,6 +134,10 @@ mod tests {
         let _: fn(&str) -> LoginItem = launch_at_login;
         let _: fn(&str, bool) -> Result<(), LaunchAtLoginError> = set_launch_at_login;
         let _: fn() -> bool = launched_at_login;
+        let _: fn() -> bool = launch_at_login_supported;
+        let _: fn() = open_login_item_settings;
+        let _: fn() -> bool = screen_capture_requested;
+        let _: fn() = open_screen_capture_settings;
         let _: fn() -> String = device_name;
         let _: fn() -> Option<String> = downloads_dir;
         let _: fn() -> bool = system_dark_mode;
