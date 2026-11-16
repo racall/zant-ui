@@ -185,6 +185,22 @@ CONTENT_HEIGHT=820 /tmp/ui-scenario zant-components /tmp/layout.txt /tmp/shots s
 悬停 / 按下 / 聚焦 / 禁用、浅色 / 深色（`ZANT_DARK=1`）、最小窗口尺寸。帧率同时开 `ZANT_FRAME_STATS=1`
 （用 Release 构建）。
 
+`scripts/mac/components-check.sh` 使用 `components.steps` 检查组件事件、禁用状态、菜单定位、提示消失、文字复制和虚拟列表，
+将 `report.txt`、`app.log` 与 `shots/` 截图写到 `${OUT:-$TMPDIR/zant-checks/components}`。默认不构建；`--build` 用
+`./scripts/cargo.sh` 构建，`EXE` 可指定已有程序，`ZANT_DARK=1` 从深色开始（沿用 Windows 截图名，主题切换后会恢复）。
+新增步骤 `expect <文字>` 等待至多 1.5 秒，只匹配 `EVENT_LOG` 中上次 `expect` / `noevent` 之后的新完整行；
+`noevent <毫秒>` 检查没有新的 `[event]` 行；`rss <标签>` 读取 `APP_PID` 的 RSS（KiB）；`repeat <次数>` 到 `end`
+重复步骤，不支持嵌套。滚动、布局和剪贴板辅助断言的参数见 Swift 文件头。脚本预热 20 轮后再跑 20 轮，
+RSS 比预热后增长超过 5% 时标记泄漏，并汇总最差的 `[frames] max_frame_ms`；断言失败或泄漏均返回非零，并退出应用。
+Debug 耗时只供排查，性能结论需用 Release。没有桌面权限时，编译驱动后执行
+`DRY_RUN=1 /tmp/ui-scenario zant-components /tmp/layout.txt /tmp/shots scripts/mac/components.steps`
+可解析并打印展开步骤而不访问 GUI，`tsx-counter.steps` 也可同样检查。`STEPS=<文件>` 换用自己的步骤文件（复现单个问题）。
+
+**输入只发给被测应用**：从后台启动的应用在 macOS 14+ 上无法被切到前台（协作式激活），系统事件流里的按键
+会进入当时的前台应用（例如你的编辑器）。所以键盘事件用 `postToPid` 只投递给被测进程；鼠标和滚轮按屏幕位置分发，
+发送前先检查该位置最上层的窗口属于被测进程，被挡住就停止场景；滚轮事件放在场景最后移动到的位置。
+启动时用辅助功能把测试窗口提到最上层。修改 `ui-scenario.swift` 的事件发送时必须保持这一点。
+
 ## Windows 测试机
 
 在 Mac 上开发、到 Windows 测试机构建和验证。主机与目录由 `ZANT_WIN_HOST`（`user@host`）和

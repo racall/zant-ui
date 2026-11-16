@@ -1,0 +1,215 @@
+# macOS port of scripts/win/components-check.ps1; run components-check.sh.
+# Keys are from components_app/view.rs or its framework builders.
+away
+shot 00-initial
+click btn-primary
+expect [event] click primary
+click btn-default
+expect [event] click default
+click btn-text
+expect [event] click text
+click btn-link
+expect [event] click link-button
+click btn-small
+expect [event] click primary
+click btn-large
+expect [event] click default
+click icon-btn
+expect [event] click icon
+click link
+expect [event] click link
+click btn-disabled
+noevent 200
+hover btn-primary
+shot 01-hover-primary
+hover tooltip-btn
+wait 900
+shot 02-tooltip
+hover icon-btn
+wait 900
+shot 03-icon-tooltip
+click input
+type hello 世界
+expect [event] input hello 世界
+key return
+expect [event] submit
+cmdkey a
+key backspace
+expect [event] input
+click input-password
+type secret
+shot 04-inputs
+click checkbox
+expect [event] checkbox false
+click checkbox
+expect [event] checkbox true
+click switch
+expect [event] switch true
+# Radio child keys: ui/builders/choice.rs, base=radio and option indexes 0..2.
+click radio-1
+expect [event] radio 1
+click radio-2
+noevent 200
+click select
+shot 05-select-open
+# Select field is 32pt high; third row centre is at 32+4+4+2*30+15=115pt.
+# Popup is runtime-painted, with no keyed rows (components/select.rs).
+clickfrac select 0.5 3.59375
+expect [event] select 2
+# Segmented hit keys are generated in components/segmented.rs.
+click segmented-2-hit
+expect [event] segmented 2
+click tabs-1
+expect [event] tab 1
+shot 06-nav
+click progress-more
+expect [event] progress 60
+reveal menu-btn
+click menu-btn
+expect [event] menu open
+shot 07-menu
+aligned menu menu-btn
+click menu-new
+expect [event] menu new
+wait 250
+click menu-btn
+expect [event] menu open
+click menu-disabled
+noevent 200
+clickat 40 40
+expect [event] menu dismiss
+wait 250
+click modal-btn
+expect [event] modal open
+shot 08-modal
+click modal-ok
+expect [event] modal close
+wait 250
+click modal-btn
+expect [event] modal open
+wait 250
+key escape
+expect [event] escape
+wait 250
+click message-btn
+expect [event] message show
+shot 09-message
+present message
+wait 3200
+absent message
+# PointerArea is the slider-like interaction in this example.
+reveal track
+dragspan track 0.083333 0.5 0.958333 0.5
+expect [event] pointer up
+wait 600
+doubleclick track
+expect [event] pointer double
+reveal vlist
+scrollpixels vlist 960
+expect [event] list scrolled
+wait 300
+absent vlist-i0
+anykey vlist-i20 vlist-i21 vlist-i22 vlist-i23 vlist-i24 vlist-i25 vlist-i26 vlist-i27 vlist-i28 vlist-i29 vlist-i30 vlist-i31 vlist-i32 vlist-i33 vlist-i34 vlist-i35 vlist-i36 vlist-i37 vlist-i38 vlist-i39 vlist-i40 vlist-i41 vlist-i42 vlist-i43 vlist-i44 vlist-i45 vlist-i46 vlist-i47 vlist-i48 vlist-i49 vlist-i50 vlist-i51 vlist-i52 vlist-i53 vlist-i54 vlist-i55 vlist-i56 vlist-i57 vlist-i58 vlist-i59 vlist-i60
+shot 09c-list
+reveal select-text
+clipboardclear
+dragspan select-text 0.004 0.08 0.992 0.96
+cmdkey c
+wait 250
+clipboard selectable
+clipboard 双击
+shot 09b-selection
+reveal widget-append
+click widget-append
+expect [event] markdown chunk
+# pdf_viewer(0x2002) -> widgets.rs prefix pdf-2002 -> viewer/layout.rs -zin.
+reveal pdf-2002-zin
+click pdf-2002-zin
+expect [event] pdf changed
+shot 09d-widgets
+reveal dark-btn
+# Wrapper swaps the two expected booleans for ZANT_DARK runs, then restores the initial theme.
+click dark-btn
+expect [event] dark true
+shot 10-dark
+click menu-btn
+expect [event] menu open
+shot 11-dark-menu
+key escape
+expect [event] escape
+wait 250
+click dark-btn
+expect [event] dark false
+# Bring both columns back to their initial scroll position.
+scrollat 8 400 -100
+wait 300
+# Reset switch and tab to known values before the repeated memory cycle.
+click switch
+expect [event] switch false
+click tabs-0
+expect [event] tab 0
+away
+wait 500
+rss start
+repeat 20
+click modal-btn
+expect [event] modal open
+wait 250
+click modal-ok
+expect [event] modal close
+wait 250
+click menu-btn
+expect [event] menu open
+wait 250
+click menu-new
+expect [event] menu new
+wait 250
+click input
+type 内存 cycle
+expect [event] input 内存 cycle
+cmdkey a
+key backspace
+expect [event] input
+click switch
+expect [event] switch true
+click switch
+expect [event] switch false
+click tabs-1
+expect [event] tab 1
+click tabs-0
+expect [event] tab 0
+end
+away
+wait 500
+rss after-20
+repeat 20
+click modal-btn
+expect [event] modal open
+wait 250
+click modal-ok
+expect [event] modal close
+wait 250
+click menu-btn
+expect [event] menu open
+wait 250
+click menu-new
+expect [event] menu new
+wait 250
+click input
+type 内存 cycle
+expect [event] input 内存 cycle
+cmdkey a
+key backspace
+expect [event] input
+click switch
+expect [event] switch true
+click switch
+expect [event] switch false
+click tabs-1
+expect [event] tab 1
+click tabs-0
+expect [event] tab 0
+end
+away
+wait 500
+rss after-40
