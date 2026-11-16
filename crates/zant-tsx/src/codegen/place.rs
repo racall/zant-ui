@@ -228,6 +228,13 @@ pub fn assign(
     e: &ast::Expr,
     target: &ast::Expr,
 ) -> Result<String> {
+    // `record[key] = v` / `record.key = v`
+    if let ast::ExprData::Assign(assignment) = &e.data
+        && assignment.op == b"="
+        && let Some(code) = super::dicts::assign(g, c, target, &assignment.value)?
+    {
+        return Ok(code);
+    }
     // `xs.length = 0` empties the array (other lengths would truncate or
     // leave holes)
     if let ast::ExprData::Member(member) = &target.data

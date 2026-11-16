@@ -979,6 +979,7 @@ fn function_arrow(e: &ast::Expr, kind: Kind, pass_value: bool) -> ast::Expr {
     let call = ast::Expr {
         loc: e.loc,
         data: ast::ExprData::Call(ast::Call {
+            is_new: false,
             callee: Box::new(e.clone()),
             type_args: Vec::new(),
             args,
@@ -1024,6 +1025,7 @@ pub fn forward_arrow(e: &ast::Expr, count: usize) -> ast::Expr {
     let call = ast::Expr {
         loc: e.loc,
         data: ast::ExprData::Call(ast::Call {
+            is_new: false,
             callee: Box::new(e.clone()),
             type_args: Vec::new(),
             args,

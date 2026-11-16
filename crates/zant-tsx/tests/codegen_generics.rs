@@ -110,10 +110,8 @@ fn generic_function_types_are_rejected_in_aliases_props_and_parameters() {
 fn generic_references_are_rejected_after_parsing_including_known_type_names() {
     for ty in [
         "Box<number>",
-        "Record<string, number>",
         "Partial<Todo>",
         "Promise<void>",
-        "Map<string, number[]>",
         "number<string>",
     ] {
         let source = format!("interface Box {{ value: number }} type Value = {ty};");

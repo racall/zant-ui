@@ -91,7 +91,7 @@ fn parse_primary(p: &mut Parser) -> Result<TypeRef, Error> {
         Kind::Identifier => {}
         _ => {
             if p.is_p("{") {
-                return Ok(detailed(loc, TypeDetail::Object(parse_members(p)?)));
+                return parse_object_type(p, loc);
             }
             if p.is_p("[") {
                 return parse_tuple(p, loc);
@@ -162,7 +162,7 @@ pub fn parse_members(p: &mut Parser) -> Result<Vec<TypeField>, Error> {
         if p.is_p("[") {
             return Err(p.fail(
                 p.cur.start,
-                "index signatures are not supported; use an array of objects",
+                "an index signature must be the type's only member (`{ [key: string]: V }`); keep the other fields in a separate type",
             ));
         }
         if p.is_kw("readonly") {
@@ -319,6 +319,41 @@ fn parse_tuple(p: &mut Parser, loc: u32) -> Result<TypeRef, Error> {
         return Err(p.fail(loc, "an empty tuple type is not supported"));
     }
     Ok(detailed(loc, TypeDetail::Tuple(items)))
+}
+
+/// `{ … }`: an object type, or `{ [key: string]: V }` — TypeScript's index
+/// signature, which is `Record<string, V>`.
+pub fn parse_object_type(p: &mut Parser, loc: u32) -> Result<TypeRef, Error> {
+    let state = p.save();
+    p.advance(); // {
+    if p.is_kw("readonly") {
+        p.advance();
+    }
+    if p.eat_p("[") && p.cur.kind == Kind::Identifier {
+        p.advance(); // the key's name
+        if p.eat_p(":") {
+            let key = parse_type(p)?;
+            p.expect_p("]")?;
+            p.expect_p(":")?;
+            let value = parse_type(p)?;
+            let _ = p.eat_p(";") || p.eat_p(",");
+            if !p.is_p("}") {
+                return Err(p.fail(
+                    p.cur.start,
+                    "an index signature must be the type's only member (`{ [key: string]: V }`); keep the other fields in a separate type",
+                ));
+            }
+            p.advance();
+            return Ok(TypeRef {
+                name: b"Record".to_vec(),
+                loc,
+                detail: None,
+                args: vec![key, value],
+            });
+        }
+    }
+    p.restore(state);
+    Ok(detailed(loc, TypeDetail::Object(parse_members(p)?)))
 }
 
 #[cfg(test)]

@@ -75,20 +75,52 @@ fn parse_for(p: &mut Parser) -> Result<Box<Stmt>, Error> {
         let decl_loc = p.cur.start;
         let is_const = p.is_kw("const");
         p.advance();
-        let name: Name = p.expect_ident("a loop variable name")?;
+        // `for (const [key, value] of entries)`: a hidden loop variable whose
+        // elements the body destructures first
+        let elements = if p.is_p("[") {
+            Some(parse_elements(p)?)
+        } else {
+            None
+        };
+        let name: Name = match &elements {
+            Some(_) => Name {
+                name: format!("_entry{decl_loc}").into_bytes(),
+                loc: decl_loc,
+            },
+            None => p.expect_ident("a loop variable name")?,
+        };
         if p.is_kw("of") {
             p.advance();
             let iterable = expr_parser::parse_expr(p)?;
             p.expect_p(")")?;
+            let mut body = p.parse_stmt()?;
+            if let Some(elements) = elements {
+                let unpack = Box::new(Stmt {
+                    loc: decl_loc,
+                    data: StmtData::Decl(Decl {
+                        is_const,
+                        pattern: Pattern::Array(elements),
+                        ty: None,
+                        init: Some(p.expr(decl_loc, ExprData::Ident(name.name.clone()))),
+                    }),
+                });
+                body = Box::new(Stmt {
+                    loc: body.loc,
+                    data: StmtData::Block(vec![unpack, body]),
+                });
+            }
             return Ok(Box::new(Stmt {
                 loc,
                 data: StmtData::ForOf(ForOf {
                     name,
                     is_const,
                     iterable,
-                    body: p.parse_stmt()?,
+                    body,
                 }),
             }));
+        }
+        if elements.is_some() {
+            return Err(p.fail(decl_loc, "destructuring loop variables need `of`"));
         }
         if is_const {
             return Err(p.fail(decl_loc, "C-style for initializer must use let"));
@@ -199,6 +231,25 @@ fn parse_switch(p: &mut Parser) -> Result<Box<Stmt>, Error> {
         loc,
         data: StmtData::Switch(Switch { value, cases }),
     }))
+}
+
+/// `[a, , b]` in a loop head.
+fn parse_elements(p: &mut Parser) -> Result<Vec<Option<Name>>, Error> {
+    p.advance(); // [
+    let mut names: Vec<Option<Name>> = Vec::new();
+    while !p.is_p("]") {
+        if p.is_p(",") {
+            p.advance();
+            names.push(None);
+            continue;
+        }
+        names.push(Some(p.expect_ident("a name")?));
+        if !p.eat_p(",") {
+            break;
+        }
+    }
+    p.expect_p("]")?;
+    Ok(names)
 }
 
 #[cfg(test)]

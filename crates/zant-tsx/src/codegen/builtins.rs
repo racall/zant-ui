@@ -321,11 +321,14 @@ fn global(
     let value = expr::emit(g, c, &call.args[0], None, false)?;
     let conversion = name == "Number" || name == "String";
     if conversion && !value.ty.numeric() && value.ty != Type::String && value.ty != Type::Boolean {
-        return fail(
-            g,
-            call.args[0].loc,
-            "conversion requires a number, string, or boolean",
-        );
+        let message = if super::model::optional_child(g, value.ty).is_some() {
+            format!(
+                "this value may be missing (null / undefined); give it a fallback: `{name}(x ?? 0)`"
+            )
+        } else {
+            "conversion requires a number, string, or boolean".to_owned()
+        };
+        return fail(g, call.args[0].loc, message);
     }
     if name == "String" && c.constant {
         return fail(g, loc, "String cannot run in a top-level constant");

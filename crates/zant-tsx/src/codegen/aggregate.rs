@@ -232,6 +232,18 @@ pub fn object(
         None => infer_object(g, c, loc, properties)?,
     };
     let ty = unwrap(g, expected);
+    if super::dicts::kind(g, ty) == Some(model::InfoKind::Record) {
+        let value = super::dicts::literal(g, c, loc, properties, ty)?;
+        return Ok(Value {
+            ty: expected,
+            code: if expected == ty {
+                value.code
+            } else {
+                format!("Some({})", value.code)
+            },
+            ..Value::default()
+        });
+    }
     let Some(entry) = model::info(g, ty) else {
         return fail(g, loc, "object literal needs a struct type");
     };
@@ -478,6 +490,9 @@ pub fn member(g: &mut Generator<'_>, c: &mut scope::Context, m: &ast::Member) ->
             "optional value needs ?? or ! before member access",
         );
     }
+    if let Some(read) = super::dicts::member(g, &value, &m.name)? {
+        return Ok(read);
+    }
     let operand = rust_text::operand(&value, Precedence::Suffix, false);
     member_read(g, value.ty, &operand, &m.name)
 }
@@ -542,6 +557,9 @@ pub fn index(
 ) -> Result<Value> {
     super::place::project(c, &ix.object);
     let value = expr::emit(g, c, &ix.object, None, false)?;
+    if super::dicts::kind(g, value.ty).is_some() {
+        return super::dicts::index(g, c, value, &ix.index);
+    }
     if let Some(items) = model::tuple_items(g, value.ty) {
         // `pair[1]`: a literal position
         let position = match &ix.index.data {

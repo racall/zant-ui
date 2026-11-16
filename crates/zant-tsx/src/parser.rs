@@ -310,27 +310,23 @@ impl<'a> Parser<'a> {
                 }
             }
             let loc = self.cur.start;
-            let body = TypeDetail::Object(type_parser::parse_members(self)?);
-            let detail = if bases.is_empty() {
+            // `{ [key: string]: V }` is a Record
+            let body = type_parser::parse_object_type(self, loc)?;
+            let ty = if bases.is_empty() {
                 body
             } else {
-                bases.push(TypeRef {
+                bases.push(body);
+                TypeRef {
                     args: Vec::new(),
                     name: Vec::new(),
                     loc,
-                    detail: Some(Box::new(body)),
-                });
-                TypeDetail::Intersection(bases)
+                    detail: Some(Box::new(TypeDetail::Intersection(bases))),
+                }
             };
             return Ok(TypeDecl {
                 type_params,
                 name,
-                ty: TypeRef {
-                    args: Vec::new(),
-                    name: Vec::new(),
-                    loc,
-                    detail: Some(Box::new(detail)),
-                },
+                ty,
                 exported,
             });
         }

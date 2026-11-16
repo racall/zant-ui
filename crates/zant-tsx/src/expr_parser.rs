@@ -200,6 +200,10 @@ pub fn parse_cond(p: &mut Parser) -> Result<Box<Expr>, Error> {
 
 pub fn binary_prec(p: &mut Parser) -> Option<u8> {
     p.rescan_greater();
+    // `key in record`: relational, like `<`
+    if p.is_kw("in") {
+        return Some(8);
+    }
     if p.cur.kind != Kind::Punct {
         return None;
     }
@@ -282,7 +286,22 @@ pub fn parse_unary(p: &mut Parser) -> Result<Box<Expr>, Error> {
             ));
         }
     }
-    for kw in ["typeof", "void", "delete", "await", "new"] {
+    if p.is_kw("delete") {
+        // `delete record[key]` (a statement; codegen checks)
+        p.advance();
+        let operand = parse_unary(p)?;
+        return Ok(p.expr(
+            loc,
+            ExprData::Unary(Unary {
+                op: b"delete".to_vec(),
+                operand,
+            }),
+        ));
+    }
+    if p.is_kw("new") {
+        return parse_new(p, loc);
+    }
+    for kw in ["typeof", "void", "await"] {
         if p.is_kw(kw) {
             return Err(p.fail(loc, format!("`{kw}` is not supported")));
         }
@@ -290,8 +309,42 @@ pub fn parse_unary(p: &mut Parser) -> Result<Box<Expr>, Error> {
     parse_postfix(p)
 }
 
+/// `new Map<K, V>(args)` / `new Set()` / `new Map`: a constructor call.
+fn parse_new(p: &mut Parser, loc: u32) -> Result<Box<Expr>, Error> {
+    p.advance(); // new
+    let name = p.expect_ident("a class name after `new`")?;
+    let callee = p.expr(name.loc, ExprData::Ident(name.name));
+    let type_args = if p.is_p("<") {
+        crate::type_params::parse_args(p)?
+    } else {
+        Vec::new()
+    };
+    let args = if p.is_p("(") {
+        parse_args(p, &callee)?
+    } else {
+        Vec::new()
+    };
+    let call = p.expr(
+        loc,
+        ExprData::Call(Call {
+            is_new: true,
+            callee,
+            type_args,
+            args,
+            optional: false,
+        }),
+    );
+    // `new Map().set(…)`: members and calls may follow
+    parse_postfix_on(p, call)
+}
+
 pub fn parse_postfix(p: &mut Parser) -> Result<Box<Expr>, Error> {
-    let mut e = parse_primary(p)?;
+    let e = parse_primary(p)?;
+    parse_postfix_on(p, e)
+}
+
+/// Members, calls, indexes, `!`, `++` and `as` after `e`.
+fn parse_postfix_on(p: &mut Parser, mut e: Box<Expr>) -> Result<Box<Expr>, Error> {
     loop {
         if p.is_p(".") {
             p.advance();
@@ -311,6 +364,7 @@ pub fn parse_postfix(p: &mut Parser) -> Result<Box<Expr>, Error> {
             e = p.expr(
                 loc,
                 ExprData::Call(Call {
+                    is_new: false,
                     callee: e,
                     type_args: Vec::new(),
                     args,
@@ -326,6 +380,7 @@ pub fn parse_postfix(p: &mut Parser) -> Result<Box<Expr>, Error> {
             e = p.expr(
                 loc,
                 ExprData::Call(Call {
+                    is_new: false,
                     callee: e,
                     type_args,
                     args,
@@ -348,6 +403,7 @@ pub fn parse_postfix(p: &mut Parser) -> Result<Box<Expr>, Error> {
                 e = p.expr(
                     loc,
                     ExprData::Call(Call {
+                        is_new: false,
                         callee: e,
                         type_args,
                         args,
@@ -742,9 +798,9 @@ mod tests {
     #[test]
     fn const_assertions_do_not_relax_other_assertion_targets() {
         expect_codegen_error(
-            "const value = 1 as Record<string, number>;\nexport default function App() { return null; }",
-            "generic type `Record<…>` is not supported yet; declare it in this file (`interface X<T>`) or use a concrete type",
-            "Record",
+            "const value = 1 as Promise<number>;\nexport default function App() { return null; }",
+            "generic type `Promise<…>` is not supported yet; declare it in this file (`interface X<T>`) or use a concrete type",
+            "Promise",
         );
         expect_syntax_error(
             "const value = 1 as typeof other;",
@@ -766,9 +822,9 @@ mod tests {
     #[test]
     fn typed_arrows_report_errors_inside_their_parameters() {
         expect_codegen_error(
-            "function f() { return (v: Record<string, number>) => v; }",
-            "generic type `Record<…>` is not supported yet; declare it in this file (`interface X<T>`) or use a concrete type",
-            "Record",
+            "function f() { return (v: Promise<number>) => v; }",
+            "generic type `Promise<…>` is not supported yet; declare it in this file (`interface X<T>`) or use a concrete type",
+            "Promise",
         );
         expect_syntax_error(
             "function f() { return (): number => ; }",

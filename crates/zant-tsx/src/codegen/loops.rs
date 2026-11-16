@@ -134,6 +134,40 @@ fn for_of(
     label: &str,
 ) -> Result<String> {
     let mut iterable = expr::emit(g, c, &v.iterable, None, false)?;
+    // a Map iterates its `[key, value]` entries, a Set its values
+    match super::dicts::kind(g, iterable.ty) {
+        Some(model::InfoKind::Map) => {
+            let info = model::info(g, iterable.ty).expect("map");
+            let pair = model::tuple(g, vec![info.params[0], info.child])?;
+            iterable = types::Value {
+                ty: model::array(g, pair)?,
+                code: format!(
+                    "{}.entries()",
+                    rust_text::operand(&iterable, rust_text::Precedence::Suffix, false)
+                ),
+                ..types::Value::default()
+            };
+        }
+        Some(model::InfoKind::Set) => {
+            let info = model::info(g, iterable.ty).expect("set");
+            iterable = types::Value {
+                ty: model::array(g, info.child)?,
+                code: format!(
+                    "{}.values()",
+                    rust_text::operand(&iterable, rust_text::Precedence::Suffix, false)
+                ),
+                ..types::Value::default()
+            };
+        }
+        Some(_) => {
+            return fail(
+                g,
+                v.iterable.loc,
+                "a record is not iterable; loop over Object.entries(record) / Object.keys(record)",
+            );
+        }
+        None => {}
+    }
     if iterable.ty == Type::String {
         // by code point, like JS: `for (const ch of name)`
         iterable = types::Value {

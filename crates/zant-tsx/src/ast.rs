@@ -146,6 +146,8 @@ pub struct Call {
     /// `f?.(args)`: nothing happens (the arguments are not evaluated) when
     /// `f` is absent.
     pub optional: bool,
+    /// `new Map<K, V>(args)`: a constructor call.
+    pub is_new: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

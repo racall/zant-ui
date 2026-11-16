@@ -58,6 +58,9 @@ pub fn emit(
     let ast::ExprData::Member(member) = &call.callee.data else {
         unreachable!("array method call")
     };
+    if let Some(value) = super::dicts::mutating_method(g, c, loc, call, member)? {
+        return Ok(value);
+    }
     if super::array_mutations::is_mutating(&member.name.name) {
         return super::array_mutations::emit(g, c, loc, call, member);
     }
@@ -105,6 +108,9 @@ fn emit_on(
     };
     if value.ty == Type::String {
         return string_methods::emit(g, c, loc, call, value);
+    }
+    if let Some(result) = super::dicts::read_method(g, c, loc, call, member, &value)? {
+        return Ok(result);
     }
     if let Some(optional) = model::optional_child(g, value.ty) {
         let message = if optional == Type::String {

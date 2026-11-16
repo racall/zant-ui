@@ -473,6 +473,7 @@ impl Rewriter<'_> {
                 Ok(self.new_expr(
                     e.loc,
                     ast::ExprData::Call(ast::Call {
+                        is_new: false,
                         callee,
                         type_args,
                         args,

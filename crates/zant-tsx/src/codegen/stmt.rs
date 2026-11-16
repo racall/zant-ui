@@ -384,6 +384,11 @@ pub fn expression_statement(
     c: &mut scope::Context,
     e: &ast::Expr,
 ) -> Result<String> {
+    if let ast::ExprData::Unary(unary) = &e.data
+        && unary.op == b"delete"
+    {
+        return super::dicts::delete(g, c, &unary.operand);
+    }
     if let ast::ExprData::Call(call) = &e.data {
         if let ast::ExprData::Ident(name) = &call.callee.data
             && scope::local(c, name).is_none()

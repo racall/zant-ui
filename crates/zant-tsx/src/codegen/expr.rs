@@ -163,6 +163,9 @@ pub fn unary(
     u: &ast::Unary,
     expected: Option<Type>,
 ) -> Result<Value> {
+    if u.op == b"delete" {
+        return fail(g, loc, "`delete record[key]` is a statement");
+    }
     if u.op == b"!" {
         let x = condition(g, c, &u.operand)?;
         return Ok(Value {
@@ -255,6 +258,9 @@ pub fn binary(
 ) -> Result<Value> {
     if b.op == b"??" {
         return aggregate::coalesce(g, c, loc, b, expected);
+    }
+    if b.op == b"in" {
+        return super::dicts::contains(g, c, &b.lhs, &b.rhs);
     }
     if b.op == b"**" {
         return fail(g, loc, "** is not supported yet");
@@ -524,6 +530,9 @@ pub fn call_value(
     call: &ast::Call,
     expected: Option<Type>,
 ) -> Result<Value> {
+    if call.is_new {
+        return super::dicts::construct(g, c, loc, call, expected);
+    }
     for hook in g.extensions.call_before_functions.clone() {
         if let Some(value) = hook(g, c, loc, call)? {
             return Ok(value);
@@ -545,6 +554,9 @@ pub fn call_value(
             loc,
             "optional calls (`f?.()`) work on optional callback props (`onSave?.()`); call this function directly",
         );
+    }
+    if let Some(value) = super::dicts::object_call(g, c, loc, call)? {
+        return Ok(value);
     }
     if let Some(value) = builtins::try_call(g, c, loc, call)? {
         return Ok(value);

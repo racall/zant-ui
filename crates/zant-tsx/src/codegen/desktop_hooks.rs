@@ -99,6 +99,7 @@ fn callback(g: &mut Generator<'_>, e: &ast::Expr) -> Result<()> {
                 let call = ast::Expr {
                     loc: e.loc,
                     data: ast::ExprData::Call(ast::Call {
+                        is_new: false,
                         callee: Box::new(e.clone()),
                         type_args: Vec::new(),
                         args: Vec::new(),

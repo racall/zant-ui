@@ -100,7 +100,12 @@ fn optional_type(t: Option<&TypeRef>) -> Result {
 }
 
 fn type_ref(t: &TypeRef) -> Result {
+    let builtin = matches!(
+        t.name.as_slice(),
+        b"Record" | b"Map" | b"Set" | b"ReadonlyMap" | b"ReadonlySet"
+    );
     if !t.args.is_empty()
+        && !builtin
         && !GENERIC.with(|generic| generic.borrow().contains(&t.name))
         && let Some(diag) = super::types::generic_error(t)
     {

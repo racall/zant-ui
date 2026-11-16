@@ -295,6 +295,9 @@ pub fn type_ref(g: &mut Generator<'_>, reference: &ast::TypeRef, allow_void: boo
         if let Some(index) = super::generic_types::generic_decl(g, &reference.name) {
             return super::generic_types::instantiate(g, reference, index);
         }
+        if let Some(ty) = super::dicts::named(g, reference)? {
+            return Ok(ty);
+        }
         if let Some(diag) = generic_error(reference) {
             return fail(g, diag.loc, diag.msg);
         }

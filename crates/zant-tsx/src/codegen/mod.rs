@@ -78,6 +78,7 @@ pub mod callbacks;
 pub mod captures;
 pub mod components;
 pub mod desktop_hooks;
+pub mod dicts;
 pub mod enums;
 pub mod events;
 pub mod expr;
