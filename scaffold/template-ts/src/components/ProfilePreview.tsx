@@ -1,4 +1,4 @@
-import { useStore, useTheme, Text } from "zant";
+import { useStore, useTheme, Text, t } from "zant";
 import { profile } from "../stores/profile";
 
 export function ProfilePreview() {
@@ -6,7 +6,7 @@ export function ProfilePreview() {
   const theme = useTheme();
   return (
     <Text color={user.accent ? theme.colorPrimary : theme.colorText}>
-      共享资料：{user.displayName}
+      {t("profile.shared", { name: user.displayName })}
     </Text>
   );
 }

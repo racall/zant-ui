@@ -10,5 +10,5 @@
     "types": [],
     "paths": { "zant": ["./zant.d.ts"], "native/*": ["./native/*"] }
   },
-  "include": ["src/**/*.tsx", "native/*.ts", "zant.d.ts"]
+  "include": ["src/**/*.tsx", "src/**/*.ts", "native/*.ts", "zant.d.ts", "zant.i18n.d.ts"]
 }

@@ -1,33 +1,43 @@
-import { createWindow, useCloseRequest, useStore, useTheme, View, Heading, Paragraph, Input, Button } from "zant";
+import { createWindow, useCloseRequest, useStore, useTheme, useLocale, setLocale, localePreference, locales, localeName, t, View, Row, Heading, Paragraph, Input, Button } from "zant";
 import { profile } from "../stores/profile";
 
 export function SettingsWindow() {
   const user = useStore(profile);
   const theme = useTheme();
-  // 关闭时隐藏这个窗口，主窗口继续运行；再次打开复用同一个窗口。
+  const locale = useLocale();
+  const following = localePreference() === "system";
+  // Closing hides this window; the main window keeps running and reopening reuses it.
   useCloseRequest(() => {
     settingsWindow.hide();
     return false;
   });
   return (
     <View background={theme.colorBgLayout} padding={24} gap={14}>
-      <Heading level={2}>设置</Heading>
-      <Paragraph>修改显示名称，主窗口的共享资料会同步更新。</Paragraph>
-      <Paragraph>显示名称</Paragraph>
-      <Input key="settings-profile-name" value={user.displayName} placeholder="显示名称"
+      <Heading level={2}>{t("settings.title")}</Heading>
+      <Paragraph>{t("settings.intro")}</Paragraph>
+      <Input key="settings-profile-name" value={user.displayName} placeholder={t("profile.name")}
         onChange={(name) => profile.update({ displayName: name })} />
-      <Button key="close-settings-window" onClick={() => settingsWindow.hide()}>关闭设置窗口</Button>
+      <Paragraph>{t("settings.language")}</Paragraph>
+      <Row gap={8}>
+        <Button key="locale-system" variant={following ? "primary" : "default"}
+          onClick={() => { setLocale("system"); }}>{t("settings.system")}</Button>
+        {locales().map((tag) => (
+          <Button key={`locale-${tag}`} variant={!following && tag === locale ? "primary" : "default"}
+            onClick={() => { setLocale(tag); }}>{localeName(tag)}</Button>
+        ))}
+      </Row>
+      <Button key="close-settings-window" onClick={() => settingsWindow.hide()}>{t("settings.close")}</Button>
     </View>
   );
 }
 
-// activate() 首次打开窗口，之后将已有窗口带到前面。
+// activate() opens the window the first time and brings it forward afterwards.
 export const settingsWindow = createWindow(SettingsWindow, {
-  title: "设置",
+  title: "Settings",
   style: "native",
-  width: 440,
-  height: 320,
-  minWidth: 360,
-  minHeight: 300,
+  width: 460,
+  height: 380,
+  minWidth: 380,
+  minHeight: 340,
   center: true,
 });
