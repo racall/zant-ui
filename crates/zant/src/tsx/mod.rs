@@ -54,6 +54,9 @@ pub mod builtins;
 pub mod builtins_format;
 #[forbid(unsafe_code)]
 pub mod desktop;
+/// `Record` / `Map` / `Set`: insertion-ordered, copy-on-write.
+#[forbid(unsafe_code)]
+pub mod dict;
 #[forbid(unsafe_code)]
 pub mod hooks;
 pub mod hot;
@@ -82,6 +85,7 @@ use std::rc::Rc;
 pub use any::Any;
 pub use app::{Config, KeyEvent, Shell, current_theme, key_event, run, system_theme};
 pub use builtins::log;
+pub use dict::{Dict, DictKey, Set};
 pub use hooks::{Callback, Deps, Effect, Memo, Ref, callback, local_state, new_ref};
 pub use ids::{ChildKey, child_id, site_id};
 pub use list::List;

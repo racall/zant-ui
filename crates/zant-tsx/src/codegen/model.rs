@@ -76,6 +76,12 @@ pub enum InfoKind {
     Callback,
     /// `[A, B]`: the element types are `params`.
     Tuple,
+    /// `Record<K, V>` / `{ [key: string]: V }`: `params[0]` is K, `child` V.
+    Record,
+    /// `Map<K, V>`: `params[0]` is K, `child` V.
+    Map,
+    /// `Set<T>`: `child` is T.
+    Set,
 }
 
 #[derive(Clone, Debug)]
@@ -245,6 +251,7 @@ pub fn owned(g: &Generator<'_>, ty: Type) -> bool {
             .params
             .iter()
             .any(|item| owned(g, *item) || *item == Type::String),
+        InfoKind::Record | InfoKind::Map | InfoKind::Set => true,
     }
 }
 
@@ -701,7 +708,7 @@ fn enumeration(g: &mut Generator<'_>, members: &[Vec<u8>], name: Option<&[u8]>) 
     if !names.is_empty() {
         variants[0] = format!("    #[default]\n{}", variants[0]);
         declaration.push_str(&format!(
-            "#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]\npub enum {rust} {{\n{}\n}}\n\n",
+            "#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]\npub enum {rust} {{\n{}\n}}\nimpl tsx::DictKey for {rust} {{\n    type Stored = Self;\n    fn stored(&self) -> Self {{\n        *self\n    }}\n}}\n\n",
             variants.join("\n")
         ));
         declaration.push_str(&format!(
@@ -1030,7 +1037,7 @@ mod tests {
             assert!(ty.copy(g));
             let declaration = declarations(g);
             assert!(
-                declaration.contains("#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]"),
+                declaration.contains("#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]"),
                 "{declaration}"
             );
             assert!(declaration.contains("InProgress,"), "{declaration}");

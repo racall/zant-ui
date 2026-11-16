@@ -44,11 +44,17 @@ impl tsx::hot::Hot for BadgeProps {
         Some(instance)
     }
 }
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum _Enum2 {
     #[default]
     Info,
     Warn,
+}
+impl tsx::DictKey for _Enum2 {
+    type Stored = Self;
+    fn stored(&self) -> Self {
+        *self
+    }
 }
 impl _Enum2 {
     pub fn as_str(self) -> &'static str {
