@@ -613,6 +613,10 @@ fn float_literal(n: f32) -> String {
 /// directly instead of the `emit_jsx` extension wrapper, so the component
 /// check must live here too.
 pub fn emit(g: &mut Generator<'_>, c: &mut scope::Context, jsx: &ast::Jsx) -> Result<Value> {
+    if let Err(diag) = super::generics::jsx_type_args(jsx) {
+        return fail(g, diag.loc, diag.msg);
+    }
+
     let name = String::from_utf8_lossy(&jsx.name);
     if !name.is_empty()
         && let Some(component) = super::components::find(g, &name)

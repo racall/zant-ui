@@ -108,6 +108,7 @@ fn callback(g: &mut Generator<'_>, e: &ast::Expr) -> Result<()> {
                 ast::Expr {
                     loc: e.loc,
                     data: ast::ExprData::Arrow(Box::new(ast::Function {
+                        type_params: Vec::new(),
                         loc: e.loc,
                         name: Vec::new(),
                         params: Vec::new(),

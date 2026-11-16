@@ -575,6 +575,7 @@ function App() { return null; }
     let mut c = scope::Context::default();
     g.loop_depth = 1;
     let jsx = ast::Jsx {
+        type_args: Vec::new(),
         loc: 0,
         name: b"Row".to_vec(),
         attrs: Vec::new(),

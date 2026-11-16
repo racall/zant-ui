@@ -259,6 +259,7 @@ fn annotate_param(g: &mut Generator<'_>, function: &mut ast::Function, name: &st
     if parameter.ty.is_none() {
         let _ = g;
         parameter.ty = Some(ast::TypeRef {
+            args: Vec::new(),
             name: name.as_bytes().to_vec(),
             loc: parameter.name.loc,
             detail: None,
@@ -329,6 +330,7 @@ fn forwarding_arrow(callee: &ast::Expr, takes_argument: bool) -> Box<ast::Functi
         }));
     }
     Box::new(ast::Function {
+        type_params: Vec::new(),
         loc,
         name: Vec::new(),
         params,

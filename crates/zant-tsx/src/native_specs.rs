@@ -203,6 +203,9 @@ pub fn app_type_path(spec_name: &str, type_name: &str) -> String {
 /// Object and string-union types must be named so both sides can refer to
 /// them.
 pub fn validate(g: &mut Generator<'_>, module: &ast::Module, name: &str) -> Result<()> {
+    if let Err(diag) = crate::codegen::generics::validate(module) {
+        return fail(g, diag.loc, diag.msg);
+    }
     if let Some(top) = module.functions.first() {
         return fail(
             g,

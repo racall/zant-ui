@@ -690,6 +690,13 @@ pub fn named(g: &mut Generator<'_>, name: &[u8]) -> Result<Option<Type>> {
     let Some(index) = decl else {
         return Ok(None);
     };
+    if !g.type_decls[index].type_params.is_empty() {
+        return fail(
+            g,
+            g.type_decls[index].name.loc,
+            "generic types are not supported yet",
+        );
+    }
     if g.resolving[index] {
         return fail(
             g,
@@ -703,10 +710,12 @@ pub fn named(g: &mut Generator<'_>, name: &[u8]) -> Result<Option<Type>> {
     // pointers into a temporary that is freed right after (`testdata/arrays`
     // hit that as a stale cache entry for `Box[]`).
     let placeholder = ast::TypeDecl {
+        type_params: Vec::new(),
         // keep the name: a reference to the same type while resolving it must
         // find this declaration and report the recursion, not "unsupported"
         name: g.type_decls[index].name.clone(),
         ty: ast::TypeRef {
+            args: Vec::new(),
             name: Vec::new(),
             loc: 0,
             detail: None,
@@ -819,6 +828,9 @@ pub fn edit_distance(a: &[u8], b: &[u8]) -> usize {
 /// `Rc<dyn Fn(..)>` by default. The component layer maps UI event signatures
 /// to `ui::Action` through [`Generator::extensions`].
 pub fn callback_type(g: &mut Generator<'_>, loc: ast::Loc, f: &ast::FuncType) -> Result<Type> {
+    if !f.type_params.is_empty() {
+        return fail(g, loc, "generic functions are not supported yet");
+    }
     if let Some(hook) = g.extensions.hooks.callback_type {
         return hook(g, loc, f);
     }

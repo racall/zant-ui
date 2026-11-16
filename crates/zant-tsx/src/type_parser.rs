@@ -93,6 +93,10 @@ fn parse_primary(p: &mut Parser) -> Result<TypeRef, Error> {
             if p.is_p("{") {
                 return Ok(detailed(loc, TypeDetail::Object(parse_members(p)?)));
             }
+            if p.is_p("<") {
+                let type_params = crate::type_params::parse_params(p)?;
+                return parse_function(p, loc, type_params);
+            }
             if p.is_p("(") {
                 return parse_paren_or_function(p);
             }
@@ -124,30 +128,23 @@ fn parse_primary(p: &mut Parser) -> Result<TypeRef, Error> {
     if name.ends_with(".FC") {
         return Err(p.fail(loc, "write a function component: function X(props: P)"));
     }
-    if !p.is_p("<") {
-        return Ok(TypeRef {
-            name: name.as_bytes().to_vec(),
-            loc,
-            detail: None,
-        });
+    let mut args = if p.is_p("<") {
+        crate::type_params::parse_args(p)?
+    } else {
+        Vec::new()
+    };
+    if (name == "Array" || name == "ReadonlyArray") && !args.is_empty() {
+        if args.len() != 1 {
+            return Err(p.fail(loc, "`Array` takes one type argument"));
+        }
+        return Ok(detailed(loc, TypeDetail::Array(args.remove(0))));
     }
-    // generics: only Array<T> / ReadonlyArray<T>
-    if name != "Array" && name != "ReadonlyArray" {
-        return Err(p.fail(
-            loc,
-            format!("generic type `{name}<…>` is not supported; only `Array<T>` is"),
-        ));
-    }
-    p.advance();
-    let item = parse_type(p)?;
-    if p.is_p(",") {
-        return Err(p.fail(p.cur.start, "`Array` takes one type argument"));
-    }
-    if !p.is_p(">") {
-        return Err(p.unexpected(">"));
-    }
-    p.advance();
-    Ok(detailed(loc, TypeDetail::Array(item)))
+    Ok(TypeRef {
+        name: name.as_bytes().to_vec(),
+        loc,
+        detail: None,
+        args,
+    })
 }
 
 /// `{ id: number; title?: string }`: members end with `;`, `,` or a line
@@ -228,10 +225,25 @@ fn parse_paren_or_function(p: &mut Parser) -> Result<TypeRef, Error> {
         p.expect_p(")")?;
         return Ok(inner);
     }
+    parse_function(p, loc, Vec::new())
+}
+
+fn parse_function(
+    p: &mut Parser,
+    loc: u32,
+    type_params: Vec<crate::ast::TypeParam>,
+) -> Result<TypeRef, Error> {
     let params = p.parse_params()?;
     p.expect_p("=>")?;
     let ret = parse_type(p)?;
-    Ok(detailed(loc, TypeDetail::Func(FuncType { params, ret })))
+    Ok(detailed(
+        loc,
+        TypeDetail::Func(FuncType {
+            type_params,
+            params,
+            ret,
+        }),
+    ))
 }
 
 /// Whether the `(` at `cur` is matched by a `)` followed by `=>` (nothing
@@ -261,6 +273,7 @@ pub fn followed_by_arrow(p: &mut Parser) -> bool {
 
 fn detailed(loc: u32, detail: TypeDetail) -> TypeRef {
     TypeRef {
+        args: Vec::new(),
         name: Vec::new(),
         loc,
         detail: Some(Box::new(detail)),

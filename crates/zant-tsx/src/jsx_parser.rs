@@ -2,7 +2,7 @@
 //! JSX tag mode (so `>` never merges into `>=`), text with its raw mode, and
 //! `{expressions}` with the normal expression parser.
 
-use crate::ast::{Attr, Child, Jsx, JsxText, Name};
+use crate::ast::{Attr, Child, Jsx, JsxText, Name, TypeRef};
 use crate::expr_parser;
 use crate::jsx_text;
 use crate::lexer::{Kind, Token};
@@ -16,12 +16,23 @@ pub fn parse_jsx_after_lt(p: &mut Parser, loc: u32) -> Result<Box<Jsx>, Error> {
     let mut t = p.lx.jsx_tag_token();
     let mut attrs: Vec<Attr> = Vec::new();
     if t.is(p.src, ">") {
-        return parse_jsx_children(p, loc, Vec::new(), attrs); // fragment
+        return parse_jsx_children(p, loc, Vec::new(), Vec::new(), attrs); // fragment
     }
     if t.kind != Kind::Identifier {
         return Err(p.fail(t.start, "expected a tag name after `<`"));
     }
     let name = tag_name(p, t)?;
+    let before = p.lx.pos;
+    p.advance();
+    let type_args = if p.is_p("<") {
+        let args = crate::type_params::parse_args(p)?;
+        // Return to tag mode without consuming the first attribute or `>`.
+        p.lx.pos = p.cur.start;
+        args
+    } else {
+        p.lx.pos = before;
+        Vec::new()
+    };
     loop {
         t = p.lx.jsx_tag_token();
         if t.kind == Kind::Identifier {
@@ -115,13 +126,14 @@ pub fn parse_jsx_after_lt(p: &mut Parser, loc: u32) -> Result<Box<Jsx>, Error> {
                 return Err(p.fail(gt.start, msg));
             }
             return Ok(Box::new(Jsx {
+                type_args,
                 loc,
                 name,
                 attrs,
                 children: Vec::new(),
             }));
         } else if t.is(p.src, ">") {
-            return parse_jsx_children(p, loc, name, attrs);
+            return parse_jsx_children(p, loc, name, type_args, attrs);
         } else if t.kind == Kind::Eof {
             let msg = format!("unterminated <{}> tag", bytes_lossy(&name));
             return Err(p.fail(loc, msg));
@@ -140,6 +152,7 @@ pub fn parse_jsx_children(
     p: &mut Parser,
     loc: u32,
     name: Vec<u8>,
+    type_args: Vec<TypeRef>,
     attrs: Vec<Attr>,
 ) -> Result<Box<Jsx>, Error> {
     let mut children: Vec<Child> = Vec::new();
@@ -219,6 +232,7 @@ pub fn parse_jsx_children(
                 }
             }
             return Ok(Box::new(Jsx {
+                type_args,
                 loc,
                 name,
                 attrs,

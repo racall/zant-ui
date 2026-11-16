@@ -16,7 +16,7 @@ pub struct Name {
 }
 
 /// A type annotation. Named types (`u32`, `string`, `Todo`, `JSX.Element`)
-/// have `name` and no `detail`; structured types (`Todo[]`, `"a" | "b"`,
+/// have `name`, optional `args` and no `detail`; structured types (`Todo[]`, `"a" | "b"`,
 /// `{ id: number }`, `(id: number) => void`) carry a `detail` and an empty
 /// `name`.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -24,6 +24,8 @@ pub struct TypeRef {
     pub name: Vec<u8>,
     pub loc: Loc,
     pub detail: Option<Box<TypeDetail>>,
+    /// Type arguments of a named type.
+    pub args: Vec<TypeRef>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -52,8 +54,18 @@ pub struct TypeField {
     pub optional: bool,
 }
 
+/// A generic type parameter; variance modifiers are parsed but erased.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TypeParam {
+    pub name: Name,
+    pub constraint: Option<TypeRef>,
+    pub default: Option<TypeRef>,
+    pub is_const: bool,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FuncType {
+    pub type_params: Vec<TypeParam>,
     pub params: Vec<Param>,
     pub ret: TypeRef,
 }
@@ -183,6 +195,7 @@ pub struct Update {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Jsx {
+    pub type_args: Vec<TypeRef>,
     pub loc: Loc,
     /// Empty for a fragment `<>...</>`.
     pub name: Vec<u8>,
@@ -243,6 +256,7 @@ pub struct DestructuredProp {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Function {
+    pub type_params: Vec<TypeParam>,
     pub loc: Loc,
     /// Empty for an arrow function.
     pub name: Vec<u8>,
@@ -387,6 +401,7 @@ pub struct Module {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TypeDecl {
+    pub type_params: Vec<TypeParam>,
     pub name: Name,
     pub ty: TypeRef,
     pub exported: bool,
