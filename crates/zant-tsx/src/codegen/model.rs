@@ -394,6 +394,26 @@ pub(super) fn intersection_members(
     Ok(result)
 }
 
+/// The struct of an untyped object literal (`const p = { x: 1 }`): one
+/// anonymous struct per shape, so literals of the same shape share a type.
+pub(super) fn literal_object(g: &mut Generator<'_>, members: Vec<Member>) -> Result<Type> {
+    for (index, entry) in g.compounds.iter().enumerate() {
+        let same = entry.kind == InfoKind::Object
+            && entry.rust.starts_with("_Object")
+            && entry.declaration.is_some()
+            && entry.fields.len() == members.len()
+            && entry
+                .fields
+                .iter()
+                .zip(&members)
+                .all(|(field, member)| field.name == member.name && field.ty == member.ty);
+        if same {
+            return Ok(Type::Compound(index as u32));
+        }
+    }
+    object_with(g, None, |_| Ok(members))
+}
+
 /// Declares the struct for an object type whose fields `members` resolves
 /// (after the type is registered, so a field may refer back to it by name).
 fn object_with(

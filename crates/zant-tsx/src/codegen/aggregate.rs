@@ -124,6 +124,63 @@ pub fn array(
     })
 }
 
+/// The type of an object literal without a contextual type, as TypeScript
+/// infers it: each property's (widened) value type, in source order. A lone
+/// spread base (`{ ...todo, done: true }`) keeps the base's type.
+fn infer_object(
+    g: &mut Generator<'_>,
+    c: &mut scope::Context,
+    loc: ast::Loc,
+    properties: &[ast::Property],
+) -> Result<Type> {
+    let spreads: Vec<&ast::Property> = properties.iter().filter(|p| p.spread).collect();
+    if let [base] = spreads.as_slice() {
+        let value = expr::emit(g, c, &base.value, None, false)?;
+        if model::info(g, value.ty).is_some_and(|info| info.kind == model::InfoKind::Object) {
+            return Ok(value.ty);
+        }
+        return fail(g, base.value.loc, "spread needs an object");
+    }
+    if !spreads.is_empty() {
+        return fail(
+            g,
+            loc,
+            "an object with several spreads needs a type annotation (`const x: T = { … }`)",
+        );
+    }
+    let mut members: Vec<model::Member> = Vec::new();
+    for property in properties {
+        if matches!(property.value.data, ast::ExprData::NullLit) {
+            return fail(
+                g,
+                property.value.loc,
+                format!(
+                    "`{}` is null: give the object a type so the field's type is known (`const x: T = {{ … }}`)",
+                    String::from_utf8_lossy(&property.key.name)
+                ),
+            );
+        }
+        let value = expr::emit(g, c, &property.value, None, false)?;
+        if value.ty == Type::Void || value.ty == Type::Node || value.ty == Type::OptionalNode {
+            return fail(
+                g,
+                property.value.loc,
+                "this value cannot be an object field",
+            );
+        }
+        let ty = value.ty.concrete();
+        // a repeated key: the last one wins, as in JavaScript
+        members.retain(|member| member.name != property.key.name);
+        members.push(model::Member {
+            name: property.key.name.clone(),
+            loc: property.key.loc,
+            ty,
+            optional: false,
+        });
+    }
+    model::literal_object(g, members)
+}
+
 /// Copy a spread exactly once, then apply fields in source order (last write
 /// wins).
 pub fn object(
@@ -133,8 +190,9 @@ pub fn object(
     properties: &[ast::Property],
     expected: Option<Type>,
 ) -> Result<Value> {
-    let Some(expected) = expected else {
-        return fail(g, loc, "object literal needs a type annotation");
+    let expected = match expected {
+        Some(expected) => expected,
+        None => infer_object(g, c, loc, properties)?,
     };
     let ty = unwrap(g, expected);
     let Some(entry) = model::info(g, ty) else {

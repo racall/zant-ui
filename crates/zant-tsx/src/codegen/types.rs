@@ -410,6 +410,9 @@ pub fn coerce(g: &mut Generator<'_>, v: Value, t: Type, loc: ast::Loc) -> Result
             "optional value needs a fallback with ?? or a non-null assertion !",
         );
     }
+    if let Some(converted) = super::structural::convert(g, &v, t, loc)? {
+        return Ok(converted);
+    }
     if model::enum_type(g, t)
         && v.ty == Type::String
         && let Some(text) = v.text.as_ref()

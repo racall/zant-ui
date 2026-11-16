@@ -108,6 +108,7 @@ pub mod stateful;
 pub mod stmt;
 pub mod stores;
 pub mod string_methods;
+pub mod structural;
 pub mod types;
 pub mod windows;
 pub mod zant_api;
