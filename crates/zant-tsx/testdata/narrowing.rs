@@ -156,11 +156,11 @@ pub fn describe(s: Session) -> zant::Str {
         );
         for ch in _items.iter().cloned() {
             {
-                if '_string: {
+                if ('_string: {
                     let _text: zant::Str = ch.clone();
                     let _arg: f64 = 0.0f64;
                     break '_string tsx::strings::char_code_at(&_text, _arg);
-                } >= 97.0f64
+                }) >= 97.0f64
                 {
                     initials = zant::Str::copy(
                         &format!(

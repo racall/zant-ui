@@ -10,12 +10,12 @@ use zant::tsx;
 #[allow(unused_imports)]
 use zant::ui;
 #[derive(Clone, PartialEq, Default)]
-pub struct Box {
+pub struct Box_ {
     pub title: zant::Str,
     pub values: tsx::List<f64>,
     pub nested: _Object2,
 }
-impl tsx::hot::Hot for Box {
+impl tsx::hot::Hot for Box_ {
     fn save(&self) -> tsx::hot::Value {
         let mut snapshot = tsx::hot::Snapshot::new();
         zant::hot_put!(snapshot, "title", self.title);
@@ -39,7 +39,7 @@ impl tsx::hot::Hot for Box {
         Some(instance)
     }
 }
-impl tsx::json::Json for Box {
+impl tsx::json::Json for Box_ {
     fn to_json(&self) -> Option<tsx::json::JsonValue> {
         Some(
             tsx::json::object_builder()
@@ -220,22 +220,22 @@ fn NUMBERS() -> tsx::List<f64> {
     _NUMBERS_VALUE.with(|value| value.clone())
 }
 pub struct Arrays {
-    boxes: tsx::List<Box>,
-    _render_boxes: tsx::List<Box>,
+    boxes: tsx::List<Box_>,
+    _render_boxes: tsx::List<Box_>,
 }
 impl Default for Arrays {
     fn default() -> Self {
         Self {
             boxes: tsx::List::from_vec(
                 vec![
-                    Box { title : zant::Str::from("First"), values :
+                    Box_ { title : zant::Str::from("First"), values :
                     tsx::List::from_vec(vec![1.0f64, 2.0f64]), nested : _Object2 {
                     enabled : true, }, }
                 ],
             ),
             _render_boxes: tsx::List::from_vec(
                 vec![
-                    Box { title : zant::Str::from("First"), values :
+                    Box_ { title : zant::Str::from("First"), values :
                     tsx::List::from_vec(vec![1.0f64, 2.0f64]), nested : _Object2 {
                     enabled : true, }, }
                 ],
@@ -271,9 +271,9 @@ impl Arrays {
     }
     fn _on_click1(&mut self, cap: &_Capture1) {
         {
-            let current: tsx::List<Box> = self.boxes.clone();
+            let current: tsx::List<Box_> = self.boxes.clone();
             self.boxes = {
-                let _items: tsx::List<Box> = current.clone();
+                let _items: tsx::List<Box_> = current.clone();
                 let _start: usize = tsx::slice_index(0.0f64, _items.as_slice().len());
                 let _end: usize = tsx::slice_index(
                     cap._captured_self,
@@ -285,17 +285,17 @@ impl Arrays {
     }
     fn _on_click2(&mut self, cap: &_Capture2) {
         {
-            let current: tsx::List<Box> = self.boxes.clone();
+            let current: tsx::List<Box_> = self.boxes.clone();
             self.boxes = {
-                let _items: tsx::List<Box> = current.clone();
+                let _items: tsx::List<Box_> = current.clone();
                 tsx::List::from_vec(
                     _items
                         .as_slice()
                         .iter()
                         .cloned()
-                        .map(|b: Box| {
+                        .map(|b: Box_| {
                             {
-                                let mut _object: Box = Box::default();
+                                let mut _object: Box_ = Box_::default();
                                 _object = b.clone();
                                 _object.title = cap.suffix.clone();
                                 _object
@@ -442,14 +442,14 @@ impl ui::App for Arrays {
         let chosen: Option<f64> = found;
         let fallback: f64 = chosen.unwrap_or_else(|| 0.0f64);
         let certain: f64 = found.unwrap();
-        let maybe: Option<Box> = {
-            let _items_15: tsx::List<Box> = self.boxes.clone();
+        let maybe: Option<Box_> = {
+            let _items_15: tsx::List<Box_> = self.boxes.clone();
             _items_15
                 .as_slice()
                 .iter()
                 .cloned()
                 .find_map(|b| {
-                    let _hit: bool = (|b: Box| {
+                    let _hit: bool = (|b: Box_| {
                         b.clone().nested.clone().enabled
                     })(b.clone());
                     if _hit { Some(b) } else { None }
@@ -484,7 +484,7 @@ impl ui::App for Arrays {
                     .collect::<Vec<_>>(),
             )
         };
-        let firstFound: f64 = {
+        let firstFound: f64 = ({
             let _items_18: tsx::List<f64> = NUMBERS().clone();
             _items_18
                 .as_slice()
@@ -494,7 +494,7 @@ impl ui::App for Arrays {
                     let _hit: bool = (|_arg0: f64| { true })(_arg0.clone());
                     if _hit { Some(_arg0) } else { None }
                 })
-        }
+        })
             .unwrap();
         let nulls: tsx::List<Option<f64>> = {
             let _items_19: tsx::List<f64> = NUMBERS().clone();
@@ -527,7 +527,8 @@ impl ui::App for Arrays {
         let suffix: zant::Str = zant::Str::copy(&format!("mode={}", mode.as_str()));
         let self_2: f64 = sum;
         let bytes: tsx::List<u8> = tsx::List::from_vec(vec![1u8, 2u8]);
-        let peer: u8 = if some { 1u8 } else { 2u8 } + bytes.clone()[tsx::index(0.0f64)];
+        let peer: u8 = (if some { 1u8 } else { 2u8 })
+            + bytes.clone()[tsx::index(0.0f64)];
         return ui::view(ui::ViewOptions {
             gap: 8.0f32,
             children: nodes![

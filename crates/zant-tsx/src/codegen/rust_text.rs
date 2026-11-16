@@ -37,11 +37,22 @@ pub enum Precedence {
 /// Parenthesize only operands whose binding strength would change the parse.
 pub fn operand(v: &Value, parent: Precedence, equal: bool) -> String {
     let precedence = v.precedence;
-    if precedence < parent || (equal && precedence == parent) {
+    if precedence < parent || (equal && precedence == parent) || block_like(&v.code) {
         format!("({})", v.code)
     } else {
         v.code.clone()
     }
+}
+
+/// A block expression (`'label: { … }`, `{ … }`, `if`, `match`): at the start
+/// of a statement Rust reads it as a statement, so `'s: { … } || b` would
+/// end the expression after the block; as an operand it is parenthesized.
+fn block_like(code: &str) -> bool {
+    let code = code.trim_start();
+    code.starts_with('\'')
+        || code.starts_with('{')
+        || code.starts_with("if ")
+        || code.starts_with("match ")
 }
 
 /// Rust spelling of a source identifier.
@@ -130,7 +141,44 @@ pub fn id(name: &[u8]) -> Option<String> {
             | "virtual"
             | "yield"
     );
-    if is_keyword {
+    // the Rust prelude's names: a TSX `type Result = …` must not shadow the
+    // `Result` / `Option` / `Ok` / … the generated code itself uses
+    let is_prelude = matches!(
+        out.as_str(),
+        "Result"
+            | "Option"
+            | "Some"
+            | "None"
+            | "Ok"
+            | "Err"
+            | "Vec"
+            | "String"
+            | "Box"
+            | "Default"
+            | "Clone"
+            | "Copy"
+            | "Drop"
+            | "Fn"
+            | "FnMut"
+            | "FnOnce"
+            | "Iterator"
+            | "IntoIterator"
+            | "PartialEq"
+            | "Eq"
+            | "PartialOrd"
+            | "Ord"
+            | "Send"
+            | "Sync"
+            | "Sized"
+            | "ToString"
+            | "ToOwned"
+            | "From"
+            | "Into"
+            | "AsRef"
+            | "AsMut"
+            | "Extend"
+    );
+    if is_keyword || is_prelude {
         out.push('_');
     }
     Some(out)

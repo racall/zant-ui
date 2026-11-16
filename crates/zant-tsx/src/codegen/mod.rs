@@ -116,6 +116,7 @@ pub mod stores;
 pub mod string_methods;
 pub mod structural;
 pub mod throws;
+pub mod truthy;
 pub mod type_ops;
 pub mod types;
 pub mod unions;

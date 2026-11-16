@@ -194,7 +194,7 @@ impl Stats {
             let _deps: (tsx::List<Item>,) = (self.props.items.clone(),);
             if self._memo2.as_ref().is_none_or(|(deps, _)| deps != &_deps) {
                 let _value: usize = (|| {
-                    {
+                    ({
                         let _items: tsx::List<Item> = self.props.items.clone();
                         tsx::List::from_vec(
                             _items
@@ -207,7 +207,7 @@ impl Stats {
                                 })
                                 .collect::<Vec<_>>(),
                         )
-                    }
+                    })
                         .len()
                 })();
                 self._memo2 = Some((_deps, _value));

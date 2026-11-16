@@ -234,6 +234,9 @@ pub fn truthy(g: &mut Generator<'_>, v: Value) -> Result<Value> {
     let name = format!("_present{}", g.counter);
     let test = if child == Type::String {
         format!("{name}.len() > 0")
+    } else if child.float() {
+        // NaN is falsy
+        format!("{name} != 0.0 && !{name}.is_nan()")
     } else {
         format!("{name} != 0")
     };
@@ -367,7 +370,7 @@ mod tests {
     }
 
     #[test]
-    fn truthiness_of_an_optional_number_checks_zero() {
+    fn truthiness_of_an_optional_number_checks_zero_and_nan() {
         with_generator(|g| {
             let optional = types::Type::F64;
             let ty = model::optional(g, optional).unwrap();
@@ -375,7 +378,7 @@ mod tests {
             let truthy = truthy(g, value).unwrap();
             assert_eq!(Type::Boolean, truthy.ty);
             assert_eq!(
-                "value.map_or(false, |_present1| _present1 != 0)",
+                "value.map_or(false, |_present1| _present1 != 0.0 && !_present1.is_nan())",
                 truthy.code
             );
         });

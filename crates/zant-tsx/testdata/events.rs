@@ -175,14 +175,14 @@ impl ui::App for Events {
         let _ = unused;
         let small: u16 = 2u16;
         let computed: u32 = 1u32 + 2u32;
-        let choice: u32 = self.count + if self.on { 1u32 } else { 2u32 };
-        let otherChoice: u32 = if self.on { 1u32 } else { 2u32 } + self.count;
+        let choice: u32 = self.count + (if self.on { 1u32 } else { 2u32 });
+        let otherChoice: u32 = (if self.on { 1u32 } else { 2u32 }) + self.count;
         let narrow: f32 = (self.count as f32);
         let wide: f64 = (narrow as f64);
         let back: f32 = (wide as f32);
         let mixed: f64 = (self.count as f64) + 0.5f64;
         let fractionalChoice: f64 = (self.count as f64)
-            + if self.on { 1.25f64 } else { 2.0f64 };
+            + (if self.on { 1.25f64 } else { 2.0f64 });
         let peer: f64 = 0.1234567890123f64 + ((narrow as f64) + wide);
         let type_: zant::Str = zant::Str::from("escaped keyword");
         let u8: zant::Str = zant::Str::from("escaped primitive");
