@@ -589,6 +589,9 @@ pub struct DismissLayerOptions {
     pub on_dismiss: Option<Action>,
     /// Optional dimming colour (transparent by default).
     pub background: Option<u32>,
+    /// Esc dismisses too, when this is the topmost such layer shown
+    /// (a modal's mask, a popover).
+    pub escape: bool,
 }
 
 impl Default for DismissLayerOptions {
@@ -597,6 +600,7 @@ impl Default for DismissLayerOptions {
             key: Some(Str::Static("dismiss-layer")),
             on_dismiss: None,
             background: None,
+            escape: false,
         }
     }
 }

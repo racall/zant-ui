@@ -631,3 +631,53 @@ export default function App() {
     .unwrap_err();
     assert!(error.msg.contains("Object.entries"), "{}", error.msg);
 }
+
+/// Found by the everyday-TypeScript probes (`node_parity/everyday*.ts`).
+#[test]
+fn everyday_typescript_regressions() {
+    // the right side of an assignment still reads the narrowed `let`
+    compile(
+        "narrowed_assign",
+        r#"import { View } from "zant";
+function total(rows: number[][]): number {
+  let row: number[] | null = rows.length > 0 ? rows[0] : null;
+  let n = 0;
+  while (row !== null) {
+    n += row.length;
+    row = row.length > 1 ? null : row;
+  }
+  return n;
+}
+export default function App() { return <View />; }
+"#,
+    );
+    // `?.` short-circuits the rest of the chain
+    let out = compile(
+        "optional_chain",
+        r#"import { View } from "zant";
+function title(text: string | null): string { return text?.trim().toUpperCase() ?? "x"; }
+export default function App() { return <View />; }
+"#,
+    );
+    contains(&out, ".map(|_some|");
+    // `satisfies` keeps the object's own type
+    compile(
+        "satisfies_record",
+        r#"import { View } from "zant";
+const PALETTE = { red: 1, green: 2 } satisfies Record<string, number>;
+function green(): number { return PALETTE.green; }
+export default function App() { return <View />; }
+"#,
+    );
+    // a type holding itself directly is reported (Rust needs a pointer)
+    let error = zant_tsx::compile::compile(
+        "interface Person { name: string; boss: Person | null }\nexport default function App() { return <View />; }",
+        "recursive.tsx",
+    )
+    .unwrap_err();
+    assert!(
+        error.msg.contains("contains its own type directly"),
+        "{}",
+        error.msg
+    );
+}

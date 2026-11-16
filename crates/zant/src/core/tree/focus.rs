@@ -98,6 +98,30 @@ impl Tree {
         }
     }
 
+    /// The topmost (last painted) dismiss layer that Esc dismisses, if any.
+    pub fn escape_target(&self) -> Option<NodeId> {
+        self.topmost(self.root, &|node| node.visual.escape_dismiss)
+    }
+
+    fn topmost(
+        &self,
+        id: NodeId,
+        wanted: &dyn Fn(&crate::core::node::RetainedNode) -> bool,
+    ) -> Option<NodeId> {
+        let node = &self.nodes[id as usize];
+        if !node.in_flow() {
+            return None;
+        }
+        let mut i = node.children.len();
+        while i > 0 {
+            i -= 1;
+            if let Some(hit) = self.topmost(node.children[i], wanted) {
+                return Some(hit);
+            }
+        }
+        wanted(node).then_some(id)
+    }
+
     /// The topmost (last painted) focus scope shown, if any.
     fn active_focus_scope(&self, id: NodeId) -> Option<NodeId> {
         let node = &self.nodes[id as usize];

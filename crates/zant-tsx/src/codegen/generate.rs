@@ -50,7 +50,7 @@ use super::{Diag, Generator, Result, fail, parse_and_format};
 /// so an app's `clippy -D warnings` stays about its own code.
 pub const HEADER_ALLOWS: &str = "#![allow(clippy::redundant_clone)]\n\
      #![allow(clippy::too_many_arguments)]\n\
-     #![allow(non_snake_case)]\n\
+     #![allow(non_snake_case, non_upper_case_globals)]\n\
      #![allow(unused_parens, break_with_label_and_loop, dead_code, unreachable_code)]\n";
 pub const PREAMBLE: &str = "#[allow(unused_imports)]\nuse zant::nodes;\n#[allow(unused_imports)]\nuse zant::tsx;\n#[allow(unused_imports)]\nuse zant::ui;\n\n";
 

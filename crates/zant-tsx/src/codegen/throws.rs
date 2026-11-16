@@ -123,6 +123,10 @@ pub fn builtin_throws(call: &ast::Call) -> bool {
     let ast::ExprData::Member(member) = &call.callee.data else {
         return false;
     };
+    // `xs.reduce(f)` with no initial value: a TypeError on an empty array
+    if member.name.name == b"reduce" && call.args.len() == 1 {
+        return true;
+    }
     matches!(&member.object.data, ast::ExprData::Ident(object) if object == b"JSON")
         && member.name.name == b"parse"
 }

@@ -19,6 +19,7 @@ export default function App() {
 弹层设 `blockPointer`，防止空白处点击穿透（`DropdownMenu` 已内置）。
 
 - `onDismiss`：点击回调；`background` 默认不绘制，设置后可作遮罩。
+- `escape`：默认 `false`；为 `true` 时 Esc 也触发 `onDismiss`（只触发最上层的一个），用于弹出菜单、浮层（同 antd 下拉菜单按 Esc 收起）。
 - `key` 默认 `"dismiss-layer"`，同屏多个实例应分别指定。
 
 Rust：`ui::dismiss_layer(ui::DismissLayerOptions { .. })`。

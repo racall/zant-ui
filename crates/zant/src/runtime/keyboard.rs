@@ -101,6 +101,12 @@ impl Runtime {
                     self.tree.input_cancel_composition(id);
                     return 1;
                 }
+                // a modal or popover closes (antd `keyboard`)
+                if let Some(layer) = self.tree.escape_target()
+                    && self.run_button_action(layer)
+                {
+                    return 1;
+                }
                 self.focus_node(None);
                 return 1;
             }
@@ -118,23 +124,7 @@ impl Runtime {
                         crate::components::button::start_wave(data, now);
                     }
                     self.tree.poke(id);
-                    // copy first: the node must not be read after an action
-                    let (index_action, index, action) = {
-                        let node = self.tree.get(id);
-                        match &node.data {
-                            NodeData::Button(data) => {
-                                (data.index_action.clone(), data.index, data.action.clone())
-                            }
-                            _ => (None, 0, None),
-                        }
-                    };
-                    let mut app = self.app.borrow_mut();
-                    let mut cx = super::action_cx(&mut app);
-                    if let Some(index_action) = index_action {
-                        index_action.call(&mut cx, index);
-                    } else if let Some(action) = action {
-                        action.call(&mut cx);
-                    }
+                    self.run_button_action(id);
                     return 1;
                 }
                 0
@@ -163,6 +153,33 @@ impl Runtime {
             crate::core::node::NodeKind::Input => self.input_key(id, k),
             _ => 0,
         }
+    }
+
+    /// Runs button `id`'s action as a click would; false when it has none.
+    fn run_button_action(&mut self, id: NodeId) -> bool {
+        // copy first: the node must not be read after an action
+        let (index_action, index, action) = {
+            let node = self.tree.get(id);
+            match &node.data {
+                NodeData::Button(data) => {
+                    (data.index_action.clone(), data.index, data.action.clone())
+                }
+                _ => (None, 0, None),
+            }
+        };
+        if index_action.is_none() && action.is_none() {
+            return false;
+        }
+        let mut app = self.app.borrow_mut();
+        let mut cx = super::action_cx(&mut app);
+        if let Some(index_action) = index_action {
+            index_action.call(&mut cx, index);
+        } else if let Some(action) = action {
+            action.call(&mut cx);
+        }
+        drop(app);
+        self.needs_build = true;
+        true
     }
 
     /// Key handling of a focused select.
@@ -842,5 +859,67 @@ mod keyboard_tests {
         runtime.dispatch(Event::KeyDown(key(Key::Escape)));
         assert_eq!(runtime.open_select, None);
         assert!(matches!(&runtime.tree.get(select_id).data, NodeData::Select(data) if !data.open));
+    }
+
+    struct Dialogs {
+        outer: bool,
+        inner: bool,
+        closed: Vec<&'static str>,
+    }
+
+    impl App for Dialogs {
+        fn render(&mut self) -> Node {
+            let mut children = Vec::new();
+            for (open, name) in [(self.outer, "outer"), (self.inner, "inner")] {
+                if open {
+                    children.push(crate::components::modal::modal(
+                        crate::components::modal::ModalOptions {
+                            key: name.into(),
+                            title: name.into(),
+                            on_close: Some(action(move |s: &mut Dialogs| {
+                                s.closed.push(name);
+                                if name == "inner" {
+                                    s.inner = false;
+                                } else {
+                                    s.outer = false;
+                                }
+                            })),
+                            ..Default::default()
+                        },
+                    ));
+                }
+            }
+            column(BoxOptions {
+                children,
+                ..Default::default()
+            })
+        }
+    }
+
+    /// Esc closes the topmost open modal first, then the one below.
+    #[test]
+    fn escape_closes_the_topmost_modal() {
+        let mut runtime = Runtime::init(
+            Dialogs {
+                outer: true,
+                inner: true,
+                closed: Vec::new(),
+            },
+            RunOptions::default(),
+        );
+        let mut renderer = Renderer::create_raster(200, 120).expect("renderer");
+        frame(&mut runtime, &mut renderer);
+        assert_eq!(runtime.dispatch(Event::KeyDown(key(Key::Escape))), 1);
+        frame(&mut runtime, &mut renderer);
+        assert_eq!(runtime.app_state_mut::<Dialogs>().closed, ["inner"]);
+        runtime.dispatch(Event::KeyDown(key(Key::Escape)));
+        frame(&mut runtime, &mut renderer);
+        assert_eq!(
+            runtime.app_state_mut::<Dialogs>().closed,
+            ["inner", "outer"]
+        );
+        // nothing open: Esc only drops the focus
+        runtime.dispatch(Event::KeyDown(key(Key::Escape)));
+        assert_eq!(runtime.app_state_mut::<Dialogs>().closed.len(), 2);
     }
 }

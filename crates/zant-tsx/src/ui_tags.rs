@@ -11,7 +11,7 @@
 //! Tags whose builder the derive metadata does not describe are carried by
 //! `src/bin/zant-tsx-tags/pending.rs`.
 //!
-//! 38 tags, 466 props, 854 spellings, 46 theme fields, 10 skipped.
+//! 38 tags, 468 props, 854 spellings, 46 theme fields, 10 skipped.
 use crate::tags::{Content, Kind, Prop, Sides, Skipped, Tag, Value};
 
 /// Every supported `ui::*` builder, in table order.
@@ -337,6 +337,7 @@ pub fn tags() -> Vec<Tag> {
             Prop { name: "key", field: "key", kind: Kind::String, ..Default::default() },
             Prop { name: "onDismiss", field: "on_dismiss", kind: Kind::Action, ..Default::default() },
             Prop { name: "background", field: "background", kind: Kind::Color, ..Default::default() },
+            Prop { name: "escape", field: "escape", kind: Kind::Boolean, ..Default::default() },
         ], ..Default::default() },
         Tag { name: "RichText", builder: "ui.richText", props: vec![
             Prop { name: "key", field: "key", kind: Kind::String, ..Default::default() },
@@ -429,6 +430,7 @@ pub fn tags() -> Vec<Tag> {
             Prop { name: "onClose", field: "on_close", kind: Kind::Action, ..Default::default() },
             Prop { name: "closable", field: "closable", kind: Kind::Boolean, ..Default::default() },
             Prop { name: "maskClosable", field: "mask_closable", kind: Kind::Boolean, ..Default::default() },
+            Prop { name: "keyboard", field: "keyboard", kind: Kind::Boolean, ..Default::default() },
             Prop { name: "mask", field: "mask", kind: Kind::Color, ..Default::default() },
         ], ..Default::default() },
         Tag { name: "ShortcutList", builder: "ui.shortcutList", props: vec![

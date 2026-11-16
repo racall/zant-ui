@@ -95,6 +95,11 @@ struct IntInfo {
 }
 
 impl Type {
+    /// An unsigned Rust integer (`.length` is `usize`).
+    pub fn unsigned(self) -> bool {
+        self.int_info().is_some_and(|info| !info.signed)
+    }
+
     pub fn integer(self) -> bool {
         matches!(
             self,
@@ -397,6 +402,29 @@ pub fn type_ref(g: &mut Generator<'_>, reference: &ast::TypeRef, allow_void: boo
 pub fn coerce(g: &mut Generator<'_>, v: Value, t: Type, loc: ast::Loc) -> Result<Value> {
     if v.ty == t {
         return Ok(v);
+    }
+    // string unions are structural (`keyof Labels` where `keyof typeof
+    // labels` is expected): member by member
+    if let (Some(from), Some(to)) = (model::info(g, v.ty), model::info(g, t))
+        && from.kind == model::InfoKind::Enumeration
+        && to.kind == model::InfoKind::Enumeration
+        && !from.members.is_empty()
+        && from
+            .members
+            .iter()
+            .all(|member| to.members.contains(member))
+    {
+        let (from_rust, to_rust) = (from.rust.clone(), to.rust.clone());
+        let mut arms = String::new();
+        for member in &from.members {
+            let Some(variant) = rust_text::enum_variant(member) else {
+                return fail(g, loc, "enum member is not valid UTF-8");
+            };
+            arms.push_str(&format!(
+                "{from_rust}::{variant} => {to_rust}::{variant},\n"
+            ));
+        }
+        return Ok(Value::new(t, format!("match {} {{\n{arms}}}", v.code)));
     }
     // `Promise<any>` (`res.json()`) where a `Promise<T>` is expected: decoded
     if let Some(decoded) = super::promises::cast(g, &v, t)? {

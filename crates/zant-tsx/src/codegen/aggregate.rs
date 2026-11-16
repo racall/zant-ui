@@ -478,7 +478,7 @@ pub fn member(g: &mut Generator<'_>, c: &mut scope::Context, m: &ast::Member) ->
     }
     super::place::project(c, &m.object);
     let value = expr::emit(g, c, &m.object, None, false)?;
-    if m.optional
+    if (m.optional || in_optional_chain(&m.object))
         && let Some(child) = model::optional_child(g, value.ty)
     {
         let name = temporary(g, c, b"_value")?;
@@ -670,4 +670,18 @@ pub fn index(
         precedence: Precedence::Suffix,
         ..Value::default()
     })
+}
+
+/// `e` ends an optional chain (`a?.b`, `a?.b.c`, `f?.()`): by JavaScript's
+/// short-circuiting, the member or call that follows it applies only when
+/// the chain did not stop, so it continues inside the optional
+/// (`text?.trim().toUpperCase()` is `text.map(|t| t.trim().to_upper())`).
+pub(super) fn in_optional_chain(e: &ast::Expr) -> bool {
+    match &e.data {
+        ast::ExprData::Member(m) => m.optional || in_optional_chain(&m.object),
+        ast::ExprData::Call(call) => call.optional || in_optional_chain(&call.callee),
+        ast::ExprData::Index(i) => i.optional || in_optional_chain(&i.object),
+        ast::ExprData::NonNull(inner) => in_optional_chain(inner),
+        _ => false,
+    }
 }

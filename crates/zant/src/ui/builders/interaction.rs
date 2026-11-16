@@ -95,7 +95,8 @@ pub fn tooltip(options: TooltipOptions) -> Node {
 /// `ui::dismiss_layer`: a full-size invisible click catcher placed right before
 /// a popover / menu; `on_dismiss` fires for clicks outside the popover.
 pub fn dismiss_layer(options: DismissLayerOptions) -> Node {
-    styled(
+    let escape = options.escape;
+    let mut node = styled(
         button(ButtonOptions {
             key: options.key,
             text: Str::default(),
@@ -114,7 +115,9 @@ pub fn dismiss_layer(options: DismissLayerOptions) -> Node {
             background: options.background,
             ..Default::default()
         },
-    )
+    );
+    node.make_mut().visual.escape_dismiss = escape;
+    node
 }
 
 #[cfg(test)]

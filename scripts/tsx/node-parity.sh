@@ -95,7 +95,7 @@ for probe in "${probes[@]}"; do
     name=$(basename "${probe%.ts}")
     case "$compiled" in *" $name "*) ;; *) status=1; continue ;; esac
     rust=$("$binary" "$name" 2>&1)
-    js=$(cd "$(dirname "$probe")" && node --no-warnings -e "import('./$(basename "$probe")').then(m => m.run()).catch(e => console.error('Uncaught', String(e)))" 2>&1)
+    js=$(cd "$(dirname "$probe")" && node --no-warnings --experimental-transform-types -e "import('./$(basename "$probe")').then(m => m.run()).catch(e => console.error('Uncaught', String(e)))" 2>&1)
     if [ "$rust" = "$js" ]; then
         echo "SAME $name ($(printf '%s\n' "$rust" | wc -l | tr -d ' ') lines)"
     else

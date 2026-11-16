@@ -492,7 +492,8 @@ pub fn expression_statement(
         }
         let binding_index = scope::local_index(c, name).expect("local binding");
         c.bindings[binding_index].assigned = true;
-        c.bindings[binding_index].assignments += 1;
+        // the new value starts a new generation only after the right side
+        // ran: `current = current.next` still reads the narrowed `current`
         let rust = c.bindings[binding_index].rust.clone();
         let ty = c.bindings[binding_index].ty;
         if let ast::ExprData::Update(update) = &e.data {
@@ -500,6 +501,7 @@ pub fn expression_statement(
                 return fail(g, e.loc, "++ and -- require a number");
             }
             let one = if ty.float() { "1.0" } else { "1" };
+            c.bindings[binding_index].assignments += 1;
             return Ok(format!(
                 "{rust} {} {one};\n",
                 if update.op == b"++" { "+=" } else { "-=" }
@@ -514,6 +516,7 @@ pub fn expression_statement(
             // a new value: earlier uses saw the old one
             c.bindings[binding_index].fresh = super::place::fresh(&assign.value);
             c.bindings[binding_index].escaped = false;
+            c.bindings[binding_index].assignments += 1;
             return Ok(format!("{rust} = {};\n", v.code));
         }
         // Reuse the arithmetic checker so integer `/=` and `%=` keep Rust's
@@ -529,6 +532,7 @@ pub fn expression_statement(
         };
         let value = expr::binary(g, c, e.loc, &binary, Some(ty), false)?;
         let value = types::coerce(g, value, ty, e.loc)?;
+        c.bindings[binding_index].assignments += 1;
         return Ok(format!("{rust} = {};\n", value.code));
     }
     fail(

@@ -528,6 +528,19 @@ fn object_with(
     let mut has_callback = false;
     let mut json_fields: Vec<super::json::JsonField> = Vec::new();
     for member in members(g)? {
+        // `manager: User | null` inside `User` needs a pointer in Rust; an
+        // array (`reports: User[]`) already is one
+        if contains_inline(g, member.ty, ty, 0) {
+            return fail(
+                g,
+                member.loc,
+                format!(
+                    "`{}` contains its own type directly; recursive data goes through an array (`children: {}[]`)",
+                    String::from_utf8_lossy(&member.name),
+                    String::from_utf8_lossy(name.unwrap_or(b"T"))
+                ),
+            );
+        }
         json_fields.push(super::json::JsonField {
             name: String::from_utf8_lossy(&member.name).into_owned(),
             rust: rust_text::id_at(g, &member.name, member.loc)?,
@@ -1065,6 +1078,32 @@ pub fn declarations(g: &Generator<'_>) -> String {
         }
     }
     out
+}
+
+/// Whether a value of `ty` holds a `target` inline (no array, dictionary
+/// or set in between): Rust would need a pointer for it.
+fn contains_inline(g: &Generator<'_>, ty: Type, target: Type, depth: usize) -> bool {
+    if ty == target {
+        return true;
+    }
+    if depth > 32 {
+        return false;
+    }
+    let Some(info) = info(g, ty) else {
+        return false;
+    };
+    match info.kind {
+        InfoKind::Optional => contains_inline(g, info.child, target, depth + 1),
+        InfoKind::Object => info
+            .fields
+            .iter()
+            .any(|field| contains_inline(g, field.ty, target, depth + 1)),
+        InfoKind::Tuple | InfoKind::Union => info
+            .params
+            .iter()
+            .any(|param| contains_inline(g, *param, target, depth + 1)),
+        _ => false,
+    }
 }
 
 #[cfg(test)]

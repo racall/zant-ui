@@ -3,8 +3,8 @@
 //! A dimmed mask over the window with a centred card — title, close button,
 //! content and an optional footer. The mask fades and the card zooms (antd
 //! motion). Render it as the last child of the window root while it is open;
-//! give each modal its own `key`. Esc handling stays with the app (call the
-//! same close action from its key handler).
+//! give each modal its own `key`. Esc closes the topmost open modal
+//! (`keyboard`, on by default, as in antd).
 //!
 //! ```ignore
 //! if state.help_open {
@@ -41,10 +41,13 @@ pub struct ModalOptions {
     pub footer: Option<Node>,
     /// Card width (antd default 520). `None` sizes it to the content.
     pub width: Option<f32>,
-    /// Close button, mask click (when `mask_closable`) and the app's Esc.
+    /// Close button, mask click (when `mask_closable`) and Esc (when
+    /// `keyboard`).
     pub on_close: Option<Action>,
     pub closable: bool,
     pub mask_closable: bool,
+    /// Esc closes the dialog (antd `keyboard`, on by default).
+    pub keyboard: bool,
     /// Mask colour (antd colorBgMask: rgba(0,0,0,.45)).
     pub mask: u32,
 }
@@ -60,6 +63,7 @@ impl Default for ModalOptions {
             on_close: None,
             closable: true,
             mask_closable: true,
+            keyboard: true,
             // 45% black
             mask: 0x7300_0000,
         }
@@ -159,6 +163,23 @@ pub fn modal(o: ModalOptions) -> Node {
             None
         },
         background: Some(o.mask),
+        escape: false,
+    });
+    // Esc: a layer of no size (it takes no clicks) whose action is the close
+    let escape = o.keyboard.then(|| {
+        styled(
+            dismiss_layer(DismissLayerOptions {
+                key: Some(k("escape").into()),
+                on_dismiss: o.on_close.clone(),
+                background: None,
+                escape: true,
+            }),
+            Style {
+                width_percent: Some(0.0),
+                height_percent: Some(0.0),
+                ..Default::default()
+            },
+        )
     });
     // the centring layer holds nothing clickable: clicks beside the card
     // reach the mask
@@ -185,7 +206,10 @@ pub fn modal(o: ModalOptions) -> Node {
             key: Some(o.key),
             // Tab stays inside the dialog while it is open
             focus_scope: true,
-            children: vec![mask, center],
+            children: [Some(mask), Some(center), escape]
+                .into_iter()
+                .flatten()
+                .collect(),
             ..Default::default()
         }),
         Style {
@@ -264,7 +288,16 @@ mod tests {
         assert_eq!(overlay.layout.width_percent, Some(100.0));
         assert_eq!(overlay.layout.height_percent, Some(100.0));
         assert_eq!(overlay.motion.presence, motion::Presence::Fade);
-        assert_eq!(overlay.children.len(), 2, "mask then centre layer");
+        assert_eq!(
+            overlay.children.len(),
+            3,
+            "mask, centre layer, then the Esc layer (keyboard)"
+        );
+        let escape = overlay.children[2].element();
+        assert_eq!(escape.key.as_deref(), Some("modal-escape"));
+        assert!(escape.visual.escape_dismiss, "Esc closes the dialog");
+        assert_eq!(escape.layout.width_percent, Some(0.0), "it takes no clicks");
+        assert!(!overlay.children[0].element().visual.escape_dismiss);
 
         let mask = overlay.children[0].element();
         assert_eq!(mask.key.as_deref(), Some("modal-mask"));
