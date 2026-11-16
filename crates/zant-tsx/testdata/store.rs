@@ -242,8 +242,9 @@ impl App {
             let mut _object: Settings = Settings::default();
             _object = settings_get();
             _object.recent = {
-                let mut _items: Vec<zant::Str> = vec![word.clone()];
+                let mut _items: Vec<zant::Str> = Vec::new();
                 _items.extend(settings_get().recent.clone().iter().cloned());
+                _items.push(word.clone());
                 tsx::List::from_vec(_items)
             };
             _object

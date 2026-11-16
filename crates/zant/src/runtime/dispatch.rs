@@ -22,6 +22,10 @@ impl Runtime {
         let prev_owner = crate::ui::set_command_owner(Some(self.owner_ptr()));
         self.sample_clock();
         let outer_local = super::window::take_local_rebuild();
+        if self.dispatch_depth == 1 && discrete(&event) && self.needs_build && super::handler_ran()
+        {
+            self.flush_build();
+        }
         let result = self.dispatch_event(&event);
         let local_only = super::window::take_local_rebuild();
         if outer_local {
@@ -61,6 +65,19 @@ impl Runtime {
         crate::ui::set_command_owner(prev_owner);
         self.dispatch_depth -= 1;
         redraw
+    }
+
+    /// Renders the state changes of the previous event now, before a
+    /// discrete event is handled (React flushes discrete updates the same
+    /// way): handlers read the state of the render they come from, so a key
+    /// press right after typing, within one frame, must see the typed text.
+    /// Hover, scroll and press looks alone never get here (no app code ran).
+    fn flush_build(&mut self) {
+        self.rebuild();
+        if self.last_width > 0.0 && self.tree.needs_layout() {
+            self.tree.layout(self.viewport);
+            self.refresh_key_bounds();
+        }
     }
 
     /// The per-event handler.
@@ -123,6 +140,7 @@ impl Runtime {
                         None => self.app.borrow_mut().on_key(key),
                     };
                 if consumed {
+                    super::note_handler();
                     self.needs_build = true;
                     return 1;
                 }
@@ -271,6 +289,18 @@ impl Runtime {
         }
         0
     }
+}
+
+/// A discrete user action: each one sees the result of the one before.
+fn discrete(event: &Event) -> bool {
+    matches!(
+        event,
+        Event::PointerDown(_)
+            | Event::PointerUp(_)
+            | Event::KeyDown(_)
+            | Event::TextInput(_)
+            | Event::Composition(_)
+    )
 }
 
 #[cfg(test)]
@@ -507,6 +537,78 @@ mod tests {
             NodeData::Input(data) => assert_eq!(data.text, "Zant UI"),
             _ => panic!("expected an input"),
         }
+    }
+
+    /// Handlers built with the values of their render (React's closures).
+    struct Snapshot {
+        text: String,
+        submitted: Vec<String>,
+        renders: u32,
+    }
+
+    impl App for Snapshot {
+        fn render(&mut self) -> Node {
+            self.renders += 1;
+            let seen = self.text.clone();
+            column(BoxOptions {
+                children: crate::nodes![crate::ui::input(crate::ui::options::InputOptions {
+                    key: Some("name".into()),
+                    value: Some(crate::Str::copy(&self.text)),
+                    on_change: Some(text_action(|state: &mut Snapshot, value| {
+                        state.text = value.to_string();
+                    })),
+                    on_submit: Some(action(move |state: &mut Snapshot| {
+                        state.submitted.push(seen.clone());
+                    })),
+                    ..Default::default()
+                })],
+                ..Default::default()
+            })
+        }
+    }
+
+    #[test]
+    fn a_key_after_typing_in_the_same_frame_sees_the_typed_text() {
+        let mut runtime = Runtime::init(
+            Snapshot {
+                text: String::new(),
+                submitted: Vec::new(),
+                renders: 0,
+            },
+            RunOptions::default(),
+        );
+        let mut renderer = Renderer::create_raster(200, 120).expect("renderer");
+        frame(&mut runtime, &mut renderer, 200.0, 120.0);
+        click_into_input(&mut runtime);
+        frame(&mut runtime, &mut renderer, 200.0, 120.0);
+        let renders = runtime.app_state_mut::<Snapshot>().renders;
+        // typing and Enter arrive before the next frame
+        runtime.dispatch(Event::TextInput(String::from("abc")));
+        runtime.dispatch(Event::KeyDown(key(Key::Enter)));
+        let state = runtime.app_state_mut::<Snapshot>();
+        assert_eq!(state.submitted, vec![String::from("abc")]);
+        assert_eq!(state.renders, renders + 1, "one render between the events");
+    }
+
+    #[test]
+    fn events_without_app_code_do_not_render_early() {
+        let mut runtime = Runtime::init(
+            Snapshot {
+                text: String::new(),
+                submitted: Vec::new(),
+                renders: 0,
+            },
+            RunOptions::default(),
+        );
+        let mut renderer = Renderer::create_raster(200, 120).expect("renderer");
+        frame(&mut runtime, &mut renderer, 200.0, 120.0);
+        let renders = runtime.app_state_mut::<Snapshot>().renders;
+        // presses on the empty background, then keys nothing handles
+        let empty = pointer(190.0, 110.0);
+        runtime.dispatch(Event::PointerDown(empty));
+        runtime.dispatch(Event::PointerUp(empty));
+        runtime.dispatch(Event::KeyDown(key(Key::Escape)));
+        assert_eq!(runtime.app_state_mut::<Snapshot>().renders, renders);
     }
 
     #[test]

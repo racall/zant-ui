@@ -79,22 +79,24 @@ pub fn array(
     let element = element.concrete();
     let ty = model::array(g, element)?;
     let element_rust = element.rust(g).to_owned();
-    let mut parts: Vec<String> = Vec::new();
-    let mut spread_parts: Vec<Value> = Vec::new();
-    let mut has_spread = false;
+    // in source order: `[...xs, x]` appends, `[x, ...xs]` prepends
+    let mut parts: Vec<(bool, String)> = Vec::new();
     for (item, raw) in items.iter().zip(values) {
         if matches!(item.data, ast::ExprData::Spread(_)) {
             if model::element(g, raw.ty) != Some(element) {
                 return fail(g, item.loc, "spread array element type does not match");
             }
-            has_spread = true;
-            spread_parts.push(raw);
+            parts.push((
+                true,
+                rust_text::operand(&raw, Precedence::Suffix, false).to_string(),
+            ));
         } else {
             let value = types::coerce(g, raw, element, item.loc)?;
-            parts.push(value.code);
+            parts.push((false, value.code));
         }
     }
-    if !has_spread {
+    if parts.iter().all(|(spread, _)| !spread) {
+        let parts: Vec<String> = parts.into_iter().map(|(_, code)| code).collect();
         let code = if parts.is_empty() {
             // an empty `vec![]` would need the type from context; name it
             format!("tsx::List::from_vec(Vec::<{element_rust}>::new())")
@@ -108,15 +110,13 @@ pub fn array(
         });
     }
     let temp = temporary(g, c, b"_items")?;
-    let mut block = format!(
-        "{{\n    let mut {temp}: Vec<{element_rust}> = vec![{}];\n",
-        parts.join(", ")
-    );
-    for part in spread_parts {
-        block.push_str(&format!(
-            "    {temp}.extend({}.iter().cloned());\n",
-            rust_text::operand(&part, Precedence::Suffix, false)
-        ));
+    let mut block = format!("{{\n    let mut {temp}: Vec<{element_rust}> = Vec::new();\n");
+    for (spread, code) in parts {
+        if spread {
+            block.push_str(&format!("    {temp}.extend({code}.iter().cloned());\n"));
+        } else {
+            block.push_str(&format!("    {temp}.push({code});\n"));
+        }
     }
     block.push_str(&format!("    tsx::List::from_vec({temp})\n}}"));
     Ok(Value {

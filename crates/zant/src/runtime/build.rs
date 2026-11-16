@@ -30,6 +30,8 @@ impl Runtime {
             }
             return;
         }
+        // the render sees every change so far; effects below may note more
+        super::clear_handler_ran();
         self.build_tree();
         // `ui::effect` callbacks: after the tree is in place; they may set
         // state, so another build follows
@@ -39,6 +41,8 @@ impl Runtime {
             crate::ui::run_effects(&mut cx)
         };
         if requested {
+            // an effect changed state: rendered before the next discrete event
+            super::note_handler();
             self.needs_build = true;
             self.request_redraw();
         }

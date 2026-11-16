@@ -119,8 +119,9 @@ impl Counter {
         let log: tsx::List<zant::Str> = self._render_log.clone();
         let draft: zant::Str = self._render_draft.clone();
         self.log = {
-            let mut _items: Vec<zant::Str> = vec![draft.clone()];
+            let mut _items: Vec<zant::Str> = Vec::new();
             _items.extend(log.clone().iter().cloned());
+            _items.push(draft.clone());
             tsx::List::from_vec(_items)
         };
         self.draft = zant::Str::from("");

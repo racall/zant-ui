@@ -391,12 +391,16 @@ impl App {
     fn add(&mut self) {
         let items: tsx::List<Item> = self._render_items.clone();
         self.items = {
-            let mut _items: Vec<Item> = vec![
-                Item { id : self.nextId.clone(), title : zant::Str::copy(&
-                format!("Item {}", tsx::builtins::string(self.nextId.clone()))), done :
-                false, }
-            ];
+            let mut _items: Vec<Item> = Vec::new();
             _items.extend(items.clone().iter().cloned());
+            _items
+                .push(Item {
+                    id: self.nextId.clone(),
+                    title: zant::Str::copy(
+                        &format!("Item {}", tsx::builtins::string(self.nextId.clone())),
+                    ),
+                    done: false,
+                });
             tsx::List::from_vec(_items)
         };
         self.nextId += 1;
