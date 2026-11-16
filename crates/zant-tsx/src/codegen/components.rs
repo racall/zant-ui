@@ -190,6 +190,13 @@ pub fn collect(
             continue;
         }
         let f = &top.func;
+        if let Some(rest) = f.params.iter().find(|param| param.rest) {
+            return fail(
+                g,
+                rest.name.loc,
+                "components take one props object, not rest parameters",
+            );
+        }
         if f.params.len() > 1 {
             return fail(g, f.params[1].name.loc, "components take one props object");
         }
@@ -383,6 +390,7 @@ pub fn try_call(
     if !callee_is_prop {
         return Ok(None);
     }
+    super::expr::no_type_args(g, loc, call)?;
     let callee = expr::emit(g, c, &call.callee, None, false)?;
     let Some(entry) = callback_info(g, callee.ty) else {
         return Ok(None);
@@ -714,6 +722,7 @@ fn forward_arrow(g: &mut Generator<'_>, e: &ast::Expr, count: usize) -> Result<a
             optional: false,
             destructure: Vec::new(),
             destructure_defaults: Vec::new(),
+            rest: false,
             default: None,
         });
         args.push(Box::new(ast::Expr {
@@ -723,6 +732,7 @@ fn forward_arrow(g: &mut Generator<'_>, e: &ast::Expr, count: usize) -> Result<a
     }
     let _ = g;
     Ok(ast::Function {
+        type_params: Vec::new(),
         loc: e.loc,
         name: Vec::new(),
         params,

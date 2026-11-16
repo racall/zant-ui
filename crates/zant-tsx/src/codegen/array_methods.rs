@@ -58,6 +58,10 @@ pub fn emit(
     let ast::ExprData::Member(member) = &call.callee.data else {
         unreachable!("array method call")
     };
+    if super::array_mutations::is_mutating(&member.name.name) {
+        return super::array_mutations::emit(g, c, loc, call, member);
+    }
+    super::place::project(c, &member.object);
     let value = expr::emit(g, c, &member.object, None, false)?;
     // `title?.trim()` / `items?.map(…)`: absent stays absent, like
     // TypeScript's optional chaining (the result is optional; use `??`)

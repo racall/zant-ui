@@ -125,6 +125,7 @@ pub struct GeneratedProject {
 /// Parse, expand custom hooks and generate one file.
 pub fn compile(src: &str, source_name: &str) -> Result<String, Diag> {
     let module = parse_module(src)?;
+    codegen::generics::validate(&module)?;
     let mut units = [Unit {
         name: source_name
             .rsplit(['/', '\\'])
@@ -228,6 +229,7 @@ pub fn compile_project_with(
             continue;
         }
         let module = parse_module(&file.src).map_err(|diag| ProjectError { file: index, diag })?;
+        codegen::generics::validate(&module).map_err(|diag| ProjectError { file: index, diag })?;
         modules.push(ModuleFile {
             name: file.stem(),
             path: file.path.clone(),

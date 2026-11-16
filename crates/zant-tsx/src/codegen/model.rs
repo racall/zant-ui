@@ -266,10 +266,141 @@ pub fn resolve(
         ast::TypeDetail::StringLit(member) => enumeration(g, std::slice::from_ref(member), name),
         ast::TypeDetail::Null => Ok(Type::Null),
         ast::TypeDetail::Func(f) => callback_type(g, reference.loc, f),
+        ast::TypeDetail::Intersection(members) => intersection(g, members, name),
     }
 }
 
+/// A field of an object type being declared, already resolved.
+pub(super) struct Member {
+    pub name: Vec<u8>,
+    pub loc: ast::Loc,
+    pub ty: Type,
+    pub optional: bool,
+}
+
 fn object(g: &mut Generator<'_>, fields: &[ast::TypeField], name: Option<&[u8]>) -> Result<Type> {
+    object_with(g, name, |g| object_members(g, fields))
+}
+
+pub(super) fn object_members(
+    g: &mut Generator<'_>,
+    fields: &[ast::TypeField],
+) -> Result<Vec<Member>> {
+    let mut result: Vec<Member> = Vec::new();
+    for field in fields {
+        if result
+            .iter()
+            .any(|previous| previous.name == field.name.name)
+        {
+            return fail(
+                g,
+                field.name.loc,
+                format!(
+                    "duplicate field `{}`",
+                    String::from_utf8_lossy(&field.name.name)
+                ),
+            );
+        }
+        let mut ty = types::type_ref(g, &field.ty, false)?;
+        if field.optional {
+            ty = optional(g, ty)?;
+        }
+        result.push(Member {
+            name: field.name.name.clone(),
+            loc: field.name.loc,
+            ty,
+            optional: field.optional,
+        });
+    }
+    Ok(result)
+}
+
+/// `A & B` / `interface B extends A`: one struct with every member's fields,
+/// as TypeScript's structural types see it. A field both sides declare must
+/// have the same type; it is optional only when optional on every side.
+fn intersection(
+    g: &mut Generator<'_>,
+    members: &[ast::TypeRef],
+    name: Option<&[u8]>,
+) -> Result<Type> {
+    object_with(g, name, |g| intersection_members(g, members))
+}
+
+pub(super) fn intersection_members(
+    g: &mut Generator<'_>,
+    members: &[ast::TypeRef],
+) -> Result<Vec<Member>> {
+    let mut result: Vec<Member> = Vec::new();
+    for member in members {
+        let ty = types::type_ref(g, member, false)?;
+        let fields = match info(g, ty) {
+            // another native spec's type is opaque here: its fields are
+            // not known, so they cannot be copied
+            Some(entry)
+                if entry.kind == InfoKind::Object
+                    && entry.fields.is_empty()
+                    && entry.declaration.is_none() =>
+            {
+                return fail(
+                    g,
+                    member.loc,
+                    "this type's fields are not known in this file; declare the combined type next to it",
+                );
+            }
+            Some(entry) if entry.kind == InfoKind::Object => entry.fields,
+            _ => {
+                return fail(
+                    g,
+                    member.loc,
+                    "`&` and `extends` combine object types (interfaces or `{ .. }` types)",
+                );
+            }
+        };
+        for field in fields {
+            let required = optional_child(g, field.ty).filter(|_| field.optional);
+            match result
+                .iter_mut()
+                .find(|previous| previous.name == field.name)
+            {
+                None => result.push(Member {
+                    name: field.name,
+                    loc: member.loc,
+                    ty: field.ty,
+                    optional: field.optional,
+                }),
+                Some(previous) => {
+                    let previous_required =
+                        optional_child(g, previous.ty).filter(|_| previous.optional);
+                    let same = previous.ty == field.ty
+                        || previous_required.unwrap_or(previous.ty) == required.unwrap_or(field.ty);
+                    if !same {
+                        let name = String::from_utf8_lossy(&field.name).into_owned();
+                        return fail(
+                            g,
+                            member.loc,
+                            format!(
+                                "field `{name}` has different types in the combined types; declare it with one type"
+                            ),
+                        );
+                    }
+                    if previous.optional && !field.optional {
+                        previous.ty = required.unwrap_or(field.ty);
+                        previous.optional = false;
+                    }
+                }
+            }
+        }
+    }
+    Ok(result)
+}
+
+/// Declares the struct for an object type whose fields `members` resolves
+/// (after the type is registered, so a field may refer back to it by name).
+fn object_with(
+    g: &mut Generator<'_>,
+    name: Option<&[u8]>,
+    members: impl FnOnce(&mut Generator<'_>) -> Result<Vec<Member>>,
+) -> Result<Type> {
     let external = match name {
         Some(name) => match g.extensions.hooks.external_name {
             Some(hook) => hook(g, &String::from_utf8_lossy(name))?,
@@ -309,36 +440,19 @@ fn object(g: &mut Generator<'_>, fields: &[ast::TypeField], name: Option<&[u8]>)
     let mut result: Vec<Field> = Vec::new();
     let mut code = String::new();
     let mut has_callback = false;
-    for field in fields {
-        if result
-            .iter()
-            .any(|previous| previous.name == field.name.name)
-        {
-            return fail(
-                g,
-                field.name.loc,
-                format!(
-                    "duplicate field `{}`",
-                    String::from_utf8_lossy(&field.name.name)
-                ),
-            );
-        }
-        let mut field_ty = types::type_ref(g, &field.ty, false)?;
-        if field.optional {
-            field_ty = optional(g, field_ty)?;
-        }
-        has_callback = has_callback || callback_params(g, field_ty).is_some();
-        result.push(Field {
-            name: field.name.name.clone(),
-            ty: field_ty,
-            optional: field.optional,
-            rust: None,
-        });
+    for member in members(g)? {
+        has_callback = has_callback || callback_params(g, member.ty).is_some();
         code.push_str(&format!(
             "    pub {}: {},\n",
-            rust_text::id_at(g, &field.name.name, field.name.loc)?,
-            field_ty.rust(g)
+            rust_text::id_at(g, &member.name, member.loc)?,
+            member.ty.rust(g)
         ));
+        result.push(Field {
+            name: member.name,
+            ty: member.ty,
+            optional: member.optional,
+            rust: None,
+        });
     }
     // `Rc<dyn Fn(..)>` implements neither `Default` nor `PartialEq`, so structs
     // that hold callback props derive `Clone` only and get a hand-written
@@ -558,6 +672,10 @@ fn enumeration(g: &mut Generator<'_>, members: &[Vec<u8>], name: Option<&[u8]>) 
 /// Lazily resolve named declarations, permitting references to later
 /// declarations.
 pub fn named(g: &mut Generator<'_>, name: &[u8]) -> Result<Option<Type>> {
+    // a type parameter of the generic declaration being instantiated
+    if let Some(ty) = super::generic_types::bound(g, name) {
+        return Ok(Some(ty));
+    }
     if g.type_scope {
         return match g.extensions.hooks.imported_type {
             Some(hook) => hook(g, &String::from_utf8_lossy(name)),
@@ -585,6 +703,16 @@ pub fn named(g: &mut Generator<'_>, name: &[u8]) -> Result<Option<Type>> {
     let Some(index) = decl else {
         return Ok(None);
     };
+    if !g.type_decls[index].type_params.is_empty() {
+        // `Box` alone: every parameter must have a default
+        let reference = ast::TypeRef {
+            name: name.to_vec(),
+            loc: g.type_decls[index].name.loc,
+            detail: None,
+            args: Vec::new(),
+        };
+        return super::generic_types::instantiate(g, &reference, index).map(Some);
+    }
     if g.resolving[index] {
         return fail(
             g,
@@ -598,10 +726,12 @@ pub fn named(g: &mut Generator<'_>, name: &[u8]) -> Result<Option<Type>> {
     // pointers into a temporary that is freed right after (`testdata/arrays`
     // hit that as a stale cache entry for `Box[]`).
     let placeholder = ast::TypeDecl {
+        type_params: Vec::new(),
         // keep the name: a reference to the same type while resolving it must
         // find this declaration and report the recursion, not "unsupported"
         name: g.type_decls[index].name.clone(),
         ty: ast::TypeRef {
+            args: Vec::new(),
             name: Vec::new(),
             loc: 0,
             detail: None,
@@ -714,6 +844,9 @@ pub fn edit_distance(a: &[u8], b: &[u8]) -> usize {
 /// `Rc<dyn Fn(..)>` by default. The component layer maps UI event signatures
 /// to `ui::Action` through [`Generator::extensions`].
 pub fn callback_type(g: &mut Generator<'_>, loc: ast::Loc, f: &ast::FuncType) -> Result<Type> {
+    if !f.type_params.is_empty() {
+        return fail(g, loc, "generic functions are not supported yet");
+    }
     if let Some(hook) = g.extensions.hooks.callback_type {
         return hook(g, loc, f);
     }

@@ -104,6 +104,7 @@ fn scan_timer(g: &mut Generator<'_>, call: &ast::Call) -> Result<()> {
     let callback = &call.args[0];
     let arrow = match &callback.data {
         ast::ExprData::Arrow(function) => ast::Function {
+            type_params: function.type_params.clone(),
             loc: callback.loc,
             name: Vec::new(),
             params: function.params.clone(),
@@ -971,6 +972,7 @@ fn function_arrow(e: &ast::Expr, kind: Kind, pass_value: bool) -> ast::Expr {
             optional: false,
             destructure: Vec::new(),
             destructure_defaults: Vec::new(),
+            rest: false,
             default: None,
         });
     }
@@ -984,6 +986,7 @@ fn function_arrow(e: &ast::Expr, kind: Kind, pass_value: bool) -> ast::Expr {
         }),
     };
     let function = ast::Function {
+        type_params: Vec::new(),
         loc: e.loc,
         name: Vec::new(),
         params,
@@ -1014,6 +1017,7 @@ pub fn forward_arrow(e: &ast::Expr, count: usize) -> ast::Expr {
             optional: false,
             destructure: Vec::new(),
             destructure_defaults: Vec::new(),
+            rest: false,
             default: None,
         });
     }
@@ -1027,6 +1031,7 @@ pub fn forward_arrow(e: &ast::Expr, count: usize) -> ast::Expr {
         }),
     };
     let function = ast::Function {
+        type_params: Vec::new(),
         loc: e.loc,
         name: Vec::new(),
         params,

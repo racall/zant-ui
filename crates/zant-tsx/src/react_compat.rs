@@ -251,14 +251,17 @@ impl Walker {
                         match self.mode {
                             Mode::Callback => Some((*c.args[0]).clone()),
                             _ => match &c.args[0].data {
-                                ExprData::Arrow(factory) => match &factory.body {
-                                    Body::Expr(inner)
-                                        if matches!(inner.data, ExprData::Arrow(_)) =>
-                                    {
-                                        Some((**inner).clone())
+                                // Preserve generic factories for the codegen diagnostic.
+                                ExprData::Arrow(factory) if factory.type_params.is_empty() => {
+                                    match &factory.body {
+                                        Body::Expr(inner)
+                                            if matches!(inner.data, ExprData::Arrow(_)) =>
+                                        {
+                                            Some((**inner).clone())
+                                        }
+                                        _ => None,
                                     }
-                                    _ => None,
-                                },
+                                }
                                 _ => None,
                             },
                         }

@@ -107,6 +107,9 @@ pub(crate) fn emit_jsx(
     c: &mut super::scope::Context,
     jsx: &ast::Jsx,
 ) -> Result<super::types::Value> {
+    if let Err(diag) = super::generics::jsx_type_args(jsx) {
+        return fail(g, diag.loc, diag.msg);
+    }
     let name = String::from_utf8_lossy(&jsx.name).into_owned();
     if let Some(component) = super::components::find(g, &name) {
         let component = component.clone();
@@ -199,6 +202,10 @@ fn generate_inner(
     install_extra: Option<fn(&mut Generator<'_>)>,
     diag: &mut Option<Diag>,
 ) -> Result<GeneratedFile> {
+    if let Err(error) = super::generics::validate(module) {
+        *diag = Some(error);
+        return Err(super::Error::Tsx);
+    }
     if options.native {
         // `native/<name>.ts`: the spec compiles to `pub mod <name> { … }` of
         // `native/spec.rs`; the project's specs resolve its imports.
@@ -240,7 +247,10 @@ fn generate_inner(
         hook(&mut g, module)?;
     }
     for declaration in &module.types {
-        let _ = model::named(&mut g, &declaration.name.name)?;
+        // a generic declaration is emitted with its first use (`Box<number>`)
+        if declaration.type_params.is_empty() {
+            let _ = model::named(&mut g, &declaration.name.name)?;
+        }
     }
     if let Some(first) = module.declared.first() {
         return fail(
@@ -649,6 +659,7 @@ fn root_component_stub() -> components::Component {
         name: String::new(),
         builder: String::new(),
         func: Box::new(ast::Function {
+            type_params: Vec::new(),
             loc: 0,
             name: Vec::new(),
             params: Vec::new(),

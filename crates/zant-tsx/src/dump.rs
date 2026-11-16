@@ -127,6 +127,7 @@ impl Dumper {
             t.exported
         ));
         self.depth += 1;
+        self.type_params(&t.type_params);
         self.type_ref(&t.ty);
         self.depth -= 1;
     }
@@ -149,6 +150,7 @@ impl Dumper {
     fn function(&mut self, f: &Function) {
         self.line_fmt(format!("function loc={} name={}", f.loc, quote(&f.name)));
         self.depth += 1;
+        self.type_params(&f.type_params);
         self.section("params", |d| {
             for p in &f.params {
                 d.param(p);
@@ -174,6 +176,30 @@ impl Dumper {
             }
         }
         self.depth -= 1;
+    }
+
+    fn type_params(&mut self, params: &[ast::TypeParam]) {
+        if params.is_empty() {
+            return;
+        }
+        self.section("type-params", |d| {
+            for p in params {
+                d.line_fmt(format!(
+                    "type-param name={} loc={} const={}",
+                    quote(&p.name.name),
+                    p.name.loc,
+                    p.is_const
+                ));
+                d.depth += 1;
+                if let Some(t) = &p.constraint {
+                    d.wrapped("constraint", |d| d.type_ref(t));
+                }
+                if let Some(t) = &p.default {
+                    d.wrapped("default", |d| d.type_ref(t));
+                }
+                d.depth -= 1;
+            }
+        });
     }
 
     fn param(&mut self, p: &Param) {
@@ -206,6 +232,15 @@ impl Dumper {
 
     fn type_ref(&mut self, t: &TypeRef) {
         self.line_fmt(format!("type-ref loc={} name={}", t.loc, quote(&t.name)));
+        if !t.args.is_empty() {
+            self.depth += 1;
+            self.section("args", |d| {
+                for arg in &t.args {
+                    d.type_ref(arg);
+                }
+            });
+            self.depth -= 1;
+        }
         let Some(detail) = &t.detail else {
             return;
         };
@@ -236,6 +271,14 @@ impl Dumper {
                 self.depth -= 1;
             }
             TypeDetail::Func(f) => self.func_type(f),
+            TypeDetail::Intersection(members) => {
+                self.line("intersection");
+                self.depth += 1;
+                for m in members {
+                    self.type_ref(m);
+                }
+                self.depth -= 1;
+            }
         }
         self.depth -= 1;
     }
@@ -255,6 +298,7 @@ impl Dumper {
     fn func_type(&mut self, f: &FuncType) {
         self.line("func");
         self.depth += 1;
+        self.type_params(&f.type_params);
         self.section("params", |d| {
             for p in &f.params {
                 d.param(p);
@@ -569,6 +613,13 @@ impl Dumper {
     fn jsx(&mut self, j: &Jsx) {
         self.line_fmt(format!("jsx loc={} name={}", j.loc, quote(&j.name)));
         self.depth += 1;
+        if !j.type_args.is_empty() {
+            self.section("type-args", |d| {
+                for arg in &j.type_args {
+                    d.type_ref(arg);
+                }
+            });
+        }
         for attr in &j.attrs {
             self.attr(attr);
         }

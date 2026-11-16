@@ -64,15 +64,29 @@ pub fn try_arrow(p: &mut Parser) -> Result<Option<Box<Expr>>, Error> {
             optional: false,
             destructure: Vec::new(),
             destructure_defaults: Vec::new(),
+            rest: false,
             default: None,
         }];
         let func = arrow_body(p, loc, params, None)?;
         return Ok(Some(p.expr(loc, ExprData::Arrow(func))));
     }
+    let generic = p.is_p("<") && crate::type_params::starts_arrow(p);
+    let type_params = if generic {
+        crate::type_params::parse_params(p)?
+    } else {
+        Vec::new()
+    };
     if !p.is_p("(") {
+        if generic {
+            return Err(p.unexpected("("));
+        }
         return Ok(None);
     }
-    if !definitely_arrow(p) && !type_parser::followed_by_arrow(p) && !return_typed_arrow(p) {
+    if !generic
+        && !definitely_arrow(p)
+        && !type_parser::followed_by_arrow(p)
+        && !return_typed_arrow(p)
+    {
         return Ok(None);
     }
     let params = p.parse_params()?;
@@ -80,7 +94,8 @@ pub fn try_arrow(p: &mut Parser) -> Result<Option<Box<Expr>>, Error> {
     if !p.is_p("=>") {
         return Err(p.unexpected("=>"));
     }
-    let func = arrow_body(p, loc, params, ret)?;
+    let mut func = arrow_body(p, loc, params, ret)?;
+    func.type_params = type_params;
     Ok(Some(p.expr(loc, ExprData::Arrow(func))))
 }
 
@@ -154,6 +169,7 @@ pub fn arrow_body(
         crate::ast::Body::Expr(parse_assign(p)?)
     };
     Ok(Box::new(Function {
+        type_params: Vec::new(),
         loc,
         name: Vec::new(),
         params,
@@ -301,7 +317,7 @@ pub fn parse_postfix(p: &mut Parser) -> Result<Box<Expr>, Error> {
                     optional: false,
                 }),
             );
-        } else if p.is_p("<") && matches!(&e.data, ExprData::Ident(_)) {
+        } else if p.is_p("<") {
             let Some(type_args) = try_type_args(p) else {
                 break;
             };
@@ -320,15 +336,20 @@ pub fn parse_postfix(p: &mut Parser) -> Result<Box<Expr>, Error> {
             p.advance();
             if p.is_p("[") {
                 e = parse_index(p, e, true)?;
-            } else if p.is_p("(") {
-                // `onSave?.(id)`: the codegen checks the callee is optional
+            } else if p.is_p("(") || p.is_p("<") {
+                // `onSave?.(id)`: the codegen checks the callee is optional.
+                let type_args = if p.is_p("<") {
+                    crate::type_params::parse_args(p)?
+                } else {
+                    Vec::new()
+                };
                 let args = parse_args(p, &e)?;
                 let loc = e.loc;
                 e = p.expr(
                     loc,
                     ExprData::Call(Call {
                         callee: e,
-                        type_args: Vec::new(),
+                        type_args,
                         args,
                         optional: true,
                     }),
@@ -366,7 +387,27 @@ pub fn parse_postfix(p: &mut Parser) -> Result<Box<Expr>, Error> {
             }
             let ty = p.parse_type()?;
             let loc = e.loc;
-            e = p.expr(loc, ExprData::As(As { expr: e, ty }));
+            e = p.expr(
+                loc,
+                ExprData::As(As {
+                    expr: e,
+                    ty,
+                    satisfies: false,
+                }),
+            );
+        } else if p.is_kw("satisfies") && !p.cur.nl_before {
+            // `expr satisfies T`: TypeScript 4.9's checked contextual type
+            p.advance();
+            let ty = p.parse_type()?;
+            let loc = e.loc;
+            e = p.expr(
+                loc,
+                ExprData::As(As {
+                    expr: e,
+                    ty,
+                    satisfies: true,
+                }),
+            );
         } else {
             break;
         }
@@ -379,19 +420,10 @@ pub fn parse_postfix(p: &mut Parser) -> Result<Box<Expr>, Error> {
 pub fn try_type_args(p: &mut Parser) -> Option<Vec<TypeRef>> {
     let s = p.save();
     let saved_diag = p.diag.clone();
-    p.advance(); // <
-    let mut list: Vec<TypeRef> = Vec::new();
-    while let Ok(ty) = p.parse_type() {
-        list.push(ty);
-        if !p.eat_p(",") {
-            break;
-        }
-    }
-    if !list.is_empty() && p.is_p(">") {
-        p.advance();
-        if p.is_p("(") {
-            return Some(list);
-        }
+    if let Ok(list) = crate::type_params::parse_args(p)
+        && p.is_p("(")
+    {
+        return Some(list);
     }
     p.restore(s);
     p.diag = saved_diag;
@@ -420,7 +452,15 @@ pub fn parse_args(p: &mut Parser, callee: &Expr) -> Result<Vec<Box<Expr>>, Error
     let mut args: Vec<Box<Expr>> = Vec::new();
     while !p.is_p(")") {
         if p.is_p("...") {
-            return Err(p.fail(p.cur.start, "spread arguments are not supported"));
+            // `f(...items)`: only a rest parameter accepts it (codegen checks)
+            let loc = p.cur.start;
+            p.advance();
+            let inner = parse_assign(p)?;
+            args.push(p.expr(loc, ExprData::Spread(inner)));
+            if !p.eat_p(",") {
+                break;
+            }
+            continue;
         }
         let arg = match parse_assign(p) {
             Ok(arg) => arg,
@@ -663,6 +703,16 @@ mod tests {
         }
     }
 
+    fn expect_codegen_error(source: &str, message: &str, at: &str) {
+        parse_ok(source);
+        let diag = crate::compile::compile(source, "test.tsx").expect_err("codegen error");
+        assert_eq!(diag.msg, message);
+        assert_eq!(
+            diag.loc as usize,
+            source.find(at).expect("diagnostic location")
+        );
+    }
+
     fn text(value: &[u8]) -> &str {
         std::str::from_utf8(value).expect("text is UTF-8")
     }
@@ -691,9 +741,9 @@ mod tests {
 
     #[test]
     fn const_assertions_do_not_relax_other_assertion_targets() {
-        expect_syntax_error(
-            "const value = 1 as Record<string, number>;",
-            "generic type `Record<…>` is not supported; only `Array<T>` is",
+        expect_codegen_error(
+            "const value = 1 as Record<string, number>;\nexport default function App() { return null; }",
+            "generic type `Record<…>` is not supported yet; declare it in this file (`interface X<T>`) or use a concrete type",
             "Record",
         );
         expect_syntax_error(
@@ -715,9 +765,9 @@ mod tests {
 
     #[test]
     fn typed_arrows_report_errors_inside_their_parameters() {
-        expect_syntax_error(
+        expect_codegen_error(
             "function f() { return (v: Record<string, number>) => v; }",
-            "generic type `Record<…>` is not supported; only `Array<T>` is",
+            "generic type `Record<…>` is not supported yet; declare it in this file (`interface X<T>`) or use a concrete type",
             "Record",
         );
         expect_syntax_error(

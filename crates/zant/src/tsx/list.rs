@@ -61,7 +61,7 @@ impl<T> List<T> {
 /// cheaply `Clone`).
 impl<T: Clone> List<T> {
     /// The unique vector, copied first when the list is shared.
-    fn unique(&mut self) -> &mut Vec<T> {
+    pub(crate) fn unique(&mut self) -> &mut Vec<T> {
         Rc::make_mut(&mut self.0)
     }
 
@@ -207,7 +207,7 @@ impl<T: std::fmt::Debug> std::fmt::Debug for List<T> {
 /// `Array.prototype.splice` start: negative counts from the end, clamped to
 /// `0..=len` (a fractional value truncates toward zero like ToIntegerOrInfinity
 /// except for the NaN case, which is 0).
-fn splice_start(start: f64, len: usize) -> usize {
+pub(crate) fn splice_start(start: f64, len: usize) -> usize {
     let len_f = len as f64;
     if start.is_nan() {
         return 0;

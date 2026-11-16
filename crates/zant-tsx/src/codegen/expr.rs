@@ -84,7 +84,11 @@ pub fn emit(
         },
         ast::ExprData::Index(ix) => aggregate::index(g, c, e.loc, ix)?,
         ast::ExprData::Spread(_) => {
-            return fail(g, e.loc, "this expression is not supported yet");
+            return fail(
+                g,
+                e.loc,
+                "`...` spreads into array literals, object literals and a function's rest parameter (`...items: T[]`)",
+            );
         }
     };
     match expected {
@@ -493,6 +497,26 @@ pub fn template(g: &mut Generator<'_>, c: &mut scope::Context, t: &ast::Template
     })
 }
 
+/// Reject explicit type arguments on a call with a concrete signature.
+pub(crate) fn no_type_args(g: &mut Generator<'_>, loc: ast::Loc, call: &ast::Call) -> Result<()> {
+    if !call.type_args.is_empty() {
+        let name = match &call.callee.data {
+            ast::ExprData::Ident(name) => name,
+            ast::ExprData::Member(m) => &m.name.name,
+            _ => b"function".as_slice(),
+        };
+        return fail(
+            g,
+            loc,
+            format!(
+                "`{}` takes no type arguments",
+                String::from_utf8_lossy(name)
+            ),
+        );
+    }
+    Ok(())
+}
+
 pub fn call_value(
     g: &mut Generator<'_>,
     c: &mut scope::Context,
@@ -525,6 +549,7 @@ pub fn call_value(
     if let Some(value) = builtins::try_call(g, c, loc, call)? {
         return Ok(value);
     }
+    no_type_args(g, loc, call)?;
     if matches!(call.callee.data, ast::ExprData::Member(_)) {
         return match g.extensions.array_methods {
             Some(hook) => hook(g, c, loc, call, expected),
@@ -580,9 +605,6 @@ pub fn call_value(
                 "setter calls must be statements"
             },
         );
-    }
-    if !call.type_args.is_empty() {
-        return fail(g, loc, "type arguments are only supported on useState");
     }
     let Some(index) = scope::source_method(g, name.as_bytes()) else {
         return fail(g, loc, format!("unknown function `{name}`"));
@@ -694,6 +716,7 @@ pub fn call_statement(
     if let ast::ExprData::Member(member) = &call.callee.data {
         let console = matches!(&member.object.data, ast::ExprData::Ident(n) if n == b"console");
         if console && member.name.name == b"log" {
+            no_type_args(g, e.loc, call)?;
             let mut format = Format::default();
             for (index, arg) in call.args.iter().enumerate() {
                 if index > 0 {
@@ -734,7 +757,12 @@ fn explicit_cast(
     cast: &ast::As,
     child: bool,
 ) -> Result<Value> {
-    let value = emit(g, c, &cast.expr, None, child)?;
     let target = types::type_ref(g, &cast.ty, false)?;
+    if cast.satisfies {
+        // TypeScript checks assignability and keeps the value unchanged; here
+        // the contextual type also decides the literal's Rust type.
+        return emit(g, c, &cast.expr, Some(target), child);
+    }
+    let value = emit(g, c, &cast.expr, None, child)?;
     types::explicit_cast(g, value, target, loc)
 }

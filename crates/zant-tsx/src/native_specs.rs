@@ -203,6 +203,9 @@ pub fn app_type_path(spec_name: &str, type_name: &str) -> String {
 /// Object and string-union types must be named so both sides can refer to
 /// them.
 pub fn validate(g: &mut Generator<'_>, module: &ast::Module, name: &str) -> Result<()> {
+    if let Err(diag) = crate::codegen::generics::validate(module) {
+        return fail(g, diag.loc, diag.msg);
+    }
     if let Some(top) = module.functions.first() {
         return fail(
             g,
@@ -257,6 +260,18 @@ pub fn validate(g: &mut Generator<'_>, module: &ast::Module, name: &str) -> Resu
                     }
                 }
             }
+            ast::TypeDetail::Intersection(members) => {
+                for member in members {
+                    match member.detail.as_deref() {
+                        Some(ast::TypeDetail::Object(fields)) => {
+                            for field in fields {
+                                require_named(g, &field.ty)?;
+                            }
+                        }
+                        _ => require_named(g, member)?,
+                    }
+                }
+            }
             _ => require_named(g, &decl.ty)?,
         }
     }
@@ -296,6 +311,7 @@ fn require_named(g: &mut Generator<'_>, ty: &ast::TypeRef) -> Result<()> {
         }
         ast::TypeDetail::StringLit(_) => unnamed(g, ty, "a union"),
         ast::TypeDetail::Object(_) => unnamed(g, ty, "an object type"),
+        ast::TypeDetail::Intersection(_) => unnamed(g, ty, "an intersection"),
         ast::TypeDetail::Func(_) => fail(
             g,
             ty.loc,
@@ -600,7 +616,9 @@ fn prepare_imports(
 /// import adds to the generator (`super::<spec>::<Type>`).
 fn imported_kind(decl: &ast::TypeDecl) -> model::InfoKind {
     match decl.ty.detail.as_deref() {
-        Some(ast::TypeDetail::Object(_)) => model::InfoKind::Object,
+        Some(ast::TypeDetail::Object(_) | ast::TypeDetail::Intersection(_)) => {
+            model::InfoKind::Object
+        }
         Some(ast::TypeDetail::StringLit(_)) => model::InfoKind::Enumeration,
         Some(ast::TypeDetail::Union(members))
             if members.iter().all(|member| {

@@ -812,6 +812,7 @@ fn a_component_function_handler_keeps_its_method_reference() {
         // The component layer collects component functions; the harness registers one so the
         // source-method branch is exercised.
         let function = ast::Function {
+            type_params: Vec::new(),
             loc: 0,
             name: b"increment".to_vec(),
             params: Vec::new(),
