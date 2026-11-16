@@ -902,9 +902,9 @@ mod tests {
     #[test]
     fn const_assertions_do_not_relax_other_assertion_targets() {
         expect_codegen_error(
-            "const value = 1 as Promise<number>;\nexport default function App() { return null; }",
-            "generic type `Promise<…>` is not supported yet; declare it in this file (`interface X<T>`) or use a concrete type",
-            "Promise",
+            "const value = 1 as WeakRef<number>;\nexport default function App() { return null; }",
+            "generic type `WeakRef<…>` is not supported yet; declare it in this file (`interface X<T>`) or use a concrete type",
+            "WeakRef",
         );
         // `typeof` names a top-level constant of the file
         expect_codegen_error(
@@ -927,9 +927,9 @@ mod tests {
     #[test]
     fn typed_arrows_report_errors_inside_their_parameters() {
         expect_codegen_error(
-            "function f() { return (v: Promise<number>) => v; }",
-            "generic type `Promise<…>` is not supported yet; declare it in this file (`interface X<T>`) or use a concrete type",
-            "Promise",
+            "function f() { return (v: WeakRef<number>) => v; }",
+            "generic type `WeakRef<…>` is not supported yet; declare it in this file (`interface X<T>`) or use a concrete type",
+            "WeakRef",
         );
         expect_syntax_error(
             "function f() { return (): number => ; }",

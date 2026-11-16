@@ -111,7 +111,7 @@ fn generic_references_are_rejected_after_parsing_including_known_type_names() {
     for ty in [
         "Box<number>",
         "Partial<Todo>",
-        "Promise<void>",
+        "WeakRef<void>",
         "number<string>",
     ] {
         let source = format!("interface Box {{ value: number }} type Value = {ty};");

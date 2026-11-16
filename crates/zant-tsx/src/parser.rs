@@ -1197,7 +1197,7 @@ function g(a: number, b?: string) {}"#,
                 paths.push(path);
             }
         }
-        assert_eq!(35, paths.len());
+        assert_eq!(36, paths.len());
         let examples = root.join("crates/zant-examples/tsx/corpus");
         if examples.is_dir() {
             collect_tsx(&examples, &mut paths);

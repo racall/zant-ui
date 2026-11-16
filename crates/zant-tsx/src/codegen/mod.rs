@@ -104,6 +104,7 @@ pub mod model;
 pub mod narrowing;
 pub mod nesting;
 pub mod place;
+pub mod promises;
 pub mod regexps;
 pub mod rich_text;
 pub mod rust_imports;
@@ -247,6 +248,10 @@ pub struct Method {
     /// A component function that reads render locals: not a method of its
     /// own, emitted like an inline arrow wherever it is passed.
     pub inline_only: bool,
+    /// A promise reaction (`.then(v => …)`): returns `Result<ret, Thrown>`
+    /// (a throw rejects the next promise); an expression body's type is
+    /// inferred into `ret` (`promises`).
+    pub promise_callback: bool,
 }
 
 impl Default for Method {
@@ -265,6 +270,7 @@ impl Default for Method {
             effect_field: None,
             cleanup: false,
             inline_only: false,
+            promise_callback: false,
         }
     }
 }

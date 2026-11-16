@@ -658,6 +658,9 @@ pub fn call_value(
     if let Some(regexp) = super::regexps::construct(g, c, loc, call)? {
         return Ok(regexp);
     }
+    if let Some(value) = super::promises::call(g, c, loc, call)? {
+        return Ok(value);
+    }
     if call.is_new {
         return super::dicts::construct(g, c, loc, call, expected);
     }
@@ -919,5 +922,9 @@ fn explicit_cast(
         return emit(g, c, &cast.expr, Some(target), child);
     }
     let value = emit(g, c, &cast.expr, None, child)?;
+    // `r.json() as Promise<Item[]>`
+    if let Some(decoded) = super::promises::cast(g, &value, target)? {
+        return Ok(decoded);
+    }
     types::explicit_cast(g, value, target, loc)
 }

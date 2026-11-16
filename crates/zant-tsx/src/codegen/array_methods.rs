@@ -112,6 +112,9 @@ pub(super) fn emit_on(
     if let Some(result) = super::regexps::method(g, c, loc, call, &value)? {
         return Ok(result);
     }
+    if let Some(result) = super::promises::method(g, c, loc, call, &value)? {
+        return Ok(result);
+    }
     if let Some(result) = super::dicts::read_method(g, c, loc, call, member, &value)? {
         return Ok(result);
     }

@@ -102,7 +102,7 @@ fn optional_type(t: Option<&TypeRef>) -> Result {
 fn type_ref(t: &TypeRef) -> Result {
     let builtin = matches!(
         t.name.as_slice(),
-        b"Record" | b"Map" | b"Set" | b"ReadonlyMap" | b"ReadonlySet"
+        b"Record" | b"Map" | b"Set" | b"ReadonlyMap" | b"ReadonlySet" | b"Promise"
     );
     if !t.args.is_empty()
         && !builtin

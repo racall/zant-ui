@@ -338,6 +338,13 @@ impl Response {
         .then(|_, text| Ok(Str::from(text.borrow_mut().take().unwrap_or_default())))
     }
 
+    /// `response.json()` before its type is known: parsed JSON
+    /// (`SyntaxError` for bad JSON), decoded where the type appears.
+    pub fn json_value(&self) -> Promise<super::json::JsonValue> {
+        self.text()
+            .then(|_, text| super::json::parse(text.as_str()))
+    }
+
     /// `response.json()`, decoded into `T` (`SyntaxError` for bad JSON).
     pub fn json<T: Json + Clone + 'static>(&self) -> Promise<T> {
         self.text()

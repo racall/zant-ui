@@ -532,6 +532,9 @@ fn member_read(
     if let Some(read) = super::regexps::member_read(g, object_ty, operand, name)? {
         return Ok(read);
     }
+    if let Some(read) = super::promises::member_read(g, object_ty, operand, name)? {
+        return Ok(read);
+    }
     let length = name.name == b"length"
         && (object_ty == Type::String || model::element(g, object_ty).is_some());
     if length && object_ty == Type::String {

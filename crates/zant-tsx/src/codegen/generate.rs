@@ -900,7 +900,9 @@ pub fn method(
         cx_var: needs_cx.then(|| super::action_cx::CX.to_owned()),
         // a throw nobody catches is reported; the handler returns (like a
         // browser's uncaught error, the app keeps running)
-        throw_mode: if m.ret == Type::Void {
+        throw_mode: if m.promise_callback {
+            super::exceptions::ThrowMode::Propagate
+        } else if m.ret == Type::Void {
             super::exceptions::ThrowMode::Report
         } else {
             super::exceptions::ThrowMode::Forbid
@@ -956,9 +958,19 @@ pub fn method(
         };
         params.push(format!(", _: {ty}"));
     }
-    let body = match &f.body {
-        ast::Body::Block(statements) => method_block(g, &mut c, f.loc, statements)?,
-        ast::Body::Expr(e) => method_expression(g, &mut c, e)?,
+    let mut ret = m.ret;
+    let body = if m.promise_callback {
+        let (body, ty) = super::promises::reaction::body(g, &mut c, &f, m.ret)?;
+        ret = ty;
+        if let Some(index) = index {
+            g.methods[index].ret = ret;
+        }
+        body
+    } else {
+        match &f.body {
+            ast::Body::Block(statements) => method_block(g, &mut c, f.loc, statements)?,
+            ast::Body::Expr(e) => method_expression(g, &mut c, e)?,
+        }
     };
     let body = match &text_parameter {
         Some(id) => format!("let {id}: zant::Str = zant::Str::copy({id});\n{body}"),
@@ -980,7 +992,14 @@ pub fn method(
             m.capture_name.clone().unwrap_or_default()
         )
     };
-    let returns = if m.ret == Type::Void {
+    let returns = if m.promise_callback {
+        let value = if ret == Type::Void {
+            "()".to_owned()
+        } else {
+            ret.rust(g).to_owned()
+        };
+        format!(" -> Result<{value}, zant::tsx::Thrown>")
+    } else if m.ret == Type::Void {
         String::new()
     } else {
         format!(" -> {}", m.ret.rust(g))
@@ -1125,7 +1144,7 @@ pub fn collect_state(
         return fail(
             g,
             loc,
-            "useState needs exactly two names: const [value, setValue] = useState(...)",
+            "useState is destructured as const [value, setValue] = useState(...) (or const [value] = useState(...))",
         );
     }
     if !d.is_const {
@@ -1139,13 +1158,15 @@ pub fn collect_state(
         );
     }
     let init = &call.args[0];
+    // `useState(new AbortController())`: evaluated once, when the
+    // component's state is created (React keeps the first value too)
     let aggregate_init = matches!(
-        init.data,
+        &init.data,
         ast::ExprData::Array(_)
             | ast::ExprData::Object(_)
             | ast::ExprData::NullLit
             | ast::ExprData::Ident(_)
-    );
+    ) || matches!(&init.data, ast::ExprData::Call(call) if call.is_new);
     // `useState(Mode.Light)`: an enum member is a constant too
     let enum_init = matches!(&init.data, ast::ExprData::Member(member)
         if matches!(&member.object.data, ast::ExprData::Ident(name)
@@ -1174,8 +1195,13 @@ pub fn collect_state(
         unreachable!("state pattern")
     };
     let n = String::from_utf8_lossy(&names[0].as_ref().expect("value name").name).into_owned();
-    let setter =
-        String::from_utf8_lossy(&names[1].as_ref().expect("setter name").name).into_owned();
+    let setter = match names.get(1) {
+        Some(name) => {
+            String::from_utf8_lossy(&name.as_ref().expect("setter name").name).into_owned()
+        }
+        // never called: a name no source can spell
+        None => format!("_{n}__setter"),
+    };
     let value_conflict = scope::state_index(g, n.as_bytes()).is_some()
         || scope::setter_index(g, n.as_bytes()).is_some();
     let setter_conflict = scope::state_index(g, setter.as_bytes()).is_some()
@@ -1447,7 +1473,10 @@ fn collect_declaration(g: &mut Generator<'_>, loc: ast::Loc, d: &ast::Decl) -> R
 /// Validate destructuring with short circuit checks before accessing its names.
 fn state_pattern(pattern: &ast::Pattern) -> bool {
     match pattern {
-        ast::Pattern::Array(names) => names.len() == 2 && names[0].is_some() && names[1].is_some(),
+        // `const [value] = useState(…)` keeps a value without a setter
+        ast::Pattern::Array(names) => {
+            (names.len() == 1 || names.len() == 2) && names.iter().all(|name| name.is_some())
+        }
         _ => false,
     }
 }
@@ -1458,7 +1487,7 @@ fn reserved_component_name(name: &str) -> bool {
 }
 
 /// Check complete returns before emitting a component method's statements.
-fn method_block(
+pub(super) fn method_block(
     g: &mut Generator<'_>,
     c: &mut scope::Context,
     loc: ast::Loc,
@@ -1472,7 +1501,7 @@ fn method_block(
 
 /// Treat a concise arrow as a statement or return according to its declared
 /// type.
-fn method_expression(
+pub(super) fn method_expression(
     g: &mut Generator<'_>,
     c: &mut scope::Context,
     e: &ast::Expr,
