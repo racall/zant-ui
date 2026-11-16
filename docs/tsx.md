@@ -66,7 +66,7 @@ cargo run -p zant-tsx --bin zant-tsx -- --out out --src src
 | 写法 | 支持与限制 |
 |---|---|
 | 导入 | `"zant"` / `"react"`、相对 `.tsx` / `.ts` / `.rs`、资源、`"native/模块"`；不支持副作用导入（CSS 等）和其他 npm 包 |
-| React 兼容 | 默认、命名空间、默认 + 具名混合导入；绑定可任意命名；`React.useState/useRef/useMemo/useEffect`、`React.Fragment`、`React.ReactNode/ReactElement`；不支持 `useReducer`、`React.FC<P>` |
+| React 兼容 | 默认、命名空间、默认 + 具名混合导入；绑定可任意命名；`React.useState/useRef/useMemo/useEffect/useCallback`（`useCallback(fn, deps)` 即 `fn`，返回函数的 `useMemo` 即该函数）、`React.Fragment`、`React.ReactNode/ReactElement`；不支持 `useReducer`、`React.FC<P>` |
 | 入口 | 一个默认导出的无 props 根组件；也可声明 `function Name` / `const Name = () => …` 后 `export default Name`；同文件可有其他组件和普通函数 |
 | 标签 | PascalCase；编译器允许不导入，编辑器检查需导入；不支持小写 HTML 标签 |
 | 数值 | `number` → `f64`；`u8/u16/u32/u64/i8/i16/i32/i64/usize/isize/f32/f64` 从 `"zant"` 导入，对应同名 Rust 类型 |
@@ -87,8 +87,9 @@ return <Button onClick={increment}>{count * 2}</Button>;
 
 - 组件顶层按顺序写 hooks、派生值、函数、提前 `if (…) return <…>` 与最终 return；`const` / `let` 可保存派生值，组件内函数返回类型默认 void，有返回值需标注。
 - `useState<T>(初始值)` 可省略类型；初值是数字、字符串、布尔、`null`、数组、对象字面量或可编译期求值的文件常量，不支持惰性初始化函数。
-- setter 只能用于事件、effect 等非渲染回调；事件读取本帧快照，两次 `setCount(count + 1)` 只加 1，`setCount(c => c + 1)` 每次读最新值。
-- 事件属性接受函数名、类型匹配的 setter 或内联箭头；参数类型可从事件推断。处理函数可调用组件函数，按值捕获渲染局部变量和 `.map` 参数。
+- setter 只能用于事件、effect 等非渲染回调；与 React 一样，处理函数读到的是所在那次渲染的状态：同一次事件里两次 `setCount(count + 1)`（包括经由 `const bump = () => setCount(count + 1)` 连续调用）只加 1，`setCount(c => c + 1)` 每次读最新值。
+- 事件属性接受函数名（本文件、导入的或原生模块的）、类型匹配的 setter、内联箭头、`useCallback(fn, deps)`，以及 `cond ? a : b` / `cond ? a : undefined`（渲染时选定，`undefined` / `null` 表示没有处理函数）；参数类型可从事件推断，回调参数可以少于事件参数（`onChange={save}`，`save` 不接参数）。处理函数可调用组件函数，按值捕获渲染局部变量和 `.map` 参数。
+- 绑定了处理函数的组件（不论有没有 hook）都有自己的实例状态槽，处理函数通过它派发；直接转发组件自己的回调 prop（`onClick={onSave}`）不需要。
 - 读渲染局部变量的命名箭头处理函数也按快照捕获，可传给控件 / 子组件 / `useHotkey`，或在其他事件与 effect 中调用；应用 hook 不能调用它。
 
 ### 表达式、循环与分支
@@ -174,7 +175,8 @@ export default function App() {
 | 值 / 类型 | 写法 |
 |---|---|
 | 组件 | 同文件函数或 `import { TodoRow, type Todo } from "./TodoRow"`；被导入项须 `export`，跨文件共享嵌套对象 / 联合类型须具名 |
-| props | 一个带类型的对象参数，支持解构；回调如 `onToggle: (id: number) => void`；可选 prop 可设常量默认值，必填 prop 不能设默认值 |
+| props | 一个带类型的对象参数，支持解构、重命名（`{ title: label = "未命名" }`）与默认值；回调如 `onToggle: (id: number) => void`；可选回调 `onClose?: () => void` 用 `onClose?.()` 调用，可直接传给事件（`onClick={onClose}`，缺省时没有处理函数）；给子组件传 `cond ? a : b` / `undefined` 同样在渲染时选定 |
+| 返回 | `return null` 不渲染任何内容（不占位置、不产生 gap） |
 | 内置组件 | 支持的 `ui::*` builder 对应 PascalCase 标签（radio_group → RadioGroup）；字段变为 camelCase，别名保留；缺必填字段报错，不支持的字段类型不暴露 |
 | 枚举 / 图标 | 字符串字面量；接受 `chevron_down` / `chevron-down` / `chevronDown` |
 | 边距 | 数字或 `{ top, right, bottom, left, horizontal, vertical }` |
@@ -195,7 +197,8 @@ export default function App() {
 ```
 
 - 数组支持字面量、`[...xs, item]`、`.length`、`a[i]`、`map/filter/find/findIndex/some/every/reduce/indexOf/includes/slice/concat`、字符串数组 `join`；状态用展开 / 过滤 / 替换更新，不支持 `push/splice`。
-- 对象支持字面量、`{ ...todo, done: true }`、成员、`?.`、`??`；状态可存数组 / 对象，字符串与集合可跨帧保存并廉价克隆。
+- 对象支持字面量、`{ ...todo, done: true }`、成员、`?.`、`??`、带类型的解构（`const { title: label } = item`）；可选值上的方法用 `?.` 调用，结果仍是可选值（`title?.trim() ?? "未命名"`、`{tags?.map(t => <Text>{t}</Text>)}`）；状态可存数组 / 对象，字符串与集合可跨帧保存并廉价克隆。
+- 类型：`interface` / `type`、字符串联合、`readonly T[]` / `ReadonlyArray<T>`、`as const`、`as`、`!`；不支持 `enum`（用字符串联合类型和常量代替）。函数暂不能存进对象 / 数组 / 变量（`{ save }`），请直接传给事件或调用。
 - 可选值支持条件收窄：`peer ? peer.name : "无"`、`peer !== null && peer.online`、`!peer || peer.files.length === 0`、提前 `if (!entry) return …`；对象非 null 即真，字符串还须非空、数字非 0、布尔为 true。分支内箭头捕获非空值；可变 `let` 不收窄，用 `!` 或改 `const`。
 - 普通函数小写开头，参数须标类型，有返回值须写返回类型；支持递归、导出、当事件回调，可读写 store，不能用 hook。参数可设常量默认值（注解或默认值推断类型）。大写开头才是组件。
 - `Uint8Array` 用于静态字节（资源导入、纯整数字面量数组、Rust 的 `&'static [u8]`）；剪贴板图片为运行时字节，当前不能传给 `setImage/assetImage` 或赋给 `Uint8Array` 注解。

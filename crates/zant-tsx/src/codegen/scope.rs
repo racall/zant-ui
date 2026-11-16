@@ -459,6 +459,19 @@ pub fn read(g: &mut Generator<'_>, c: &mut Context, n: &[u8], loc: ast::Loc) -> 
             ),
         );
     }
+    // a function used as a value (`{ save }`, `const f = save`, `[save]`):
+    // only handler positions take functions
+    if super::functions::find_index(g, n).is_some() || source_method(g, n).is_some() {
+        return fail(
+            g,
+            loc,
+            format!(
+                "`{0}` is a function; functions can't be stored in objects, arrays or variables yet. \
+                 Pass it directly where a handler goes (`onClick={{{0}}}`) or call it (`{0}()`)",
+                String::from_utf8_lossy(n)
+            ),
+        );
+    }
     fail(
         g,
         loc,

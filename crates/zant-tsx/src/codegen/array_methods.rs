@@ -59,14 +59,54 @@ pub fn emit(
         unreachable!("array method call")
     };
     let value = expr::emit(g, c, &member.object, None, false)?;
+    // `title?.trim()` / `items?.map(…)`: absent stays absent, like
+    // TypeScript's optional chaining (the result is optional; use `??`)
+    if member.optional
+        && let Some(child) = model::optional_child(g, value.ty)
+    {
+        let inner = emit_on(g, c, loc, call, expected, Value::new(child, "_some"))?;
+        if inner.ty == Type::Void {
+            return Ok(Value {
+                ty: Type::Void,
+                code: format!("if let Some(_some) = {} {{ {}; }}", value.code, inner.code),
+                ..Value::default()
+            });
+        }
+        let ty = if model::optional_child(g, inner.ty).is_some() {
+            inner.ty
+        } else {
+            model::optional(g, inner.ty)?
+        };
+        let map = if ty == inner.ty { "and_then" } else { "map" };
+        return Ok(Value {
+            ty,
+            code: format!("({}).{map}(|_some| {})", value.code, inner.code),
+            ..Value::default()
+        });
+    }
+    emit_on(g, c, loc, call, expected, value)
+}
+
+/// A string or array method on the evaluated receiver `value`.
+fn emit_on(
+    g: &mut Generator<'_>,
+    c: &mut scope::Context,
+    loc: ast::Loc,
+    call: &ast::Call,
+    expected: Option<Type>,
+    value: Value,
+) -> Result<Value> {
+    let ast::ExprData::Member(member) = &call.callee.data else {
+        unreachable!("array method call")
+    };
     if value.ty == Type::String {
         return string_methods::emit(g, c, loc, call, value);
     }
     if let Some(optional) = model::optional_child(g, value.ty) {
         let message = if optional == Type::String {
-            "optional value needs ?? or !"
+            "optional value: call the method with `?.` (`value?.trim()`), or use ?? / !"
         } else {
-            "optional array needs ?? or !"
+            "optional array: call the method with `?.` (`items?.map(…)`), or use ?? / !"
         };
         return fail(g, loc, message);
     }

@@ -240,7 +240,7 @@ pub fn collect(
                 };
                 let default = p.destructure_defaults.get(index).cloned().flatten();
                 if let Some(default) = default {
-                    functions::prop(g, &default, field, "")?;
+                    functions::prop(g, &default, field, "", f)?;
                 }
             }
         }
@@ -314,7 +314,13 @@ pub fn read_prop(g: &mut Generator<'_>, n: &str) -> Result<Option<Value>> {
             .get(i)
             .and_then(|default| default.as_ref())
         {
-            return Ok(Some(functions::prop(g, default, ty, &code)?));
+            return Ok(Some(functions::prop(
+                g,
+                default,
+                ty,
+                &code,
+                &component.func,
+            )?));
         }
         return Ok(Some(super::scope::owned_read(g, ty, code)));
     }

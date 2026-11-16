@@ -56,8 +56,9 @@ fn string_method_diagnostics_stop_unsupported_calls() {
             "cannot convert bool to zant::Str",
         ),
         (
-            source("  const [s, setS] = useState<string | null>(null);\n  const x = s?.trim();"),
-            "optional value needs ?? or !",
+            // `s?.trim()` is fine (an optional result); a plain call is not
+            source("  const [s, setS] = useState<string | null>(null);\n  const x = s.trim();"),
+            "optional value: call the method with `?.` (`value?.trim()`), or use ?? / !",
         ),
         (
             source("  const x: string = \"a\".at(9);"),

@@ -257,6 +257,10 @@ export default function App() {
 "#;
 
 const MODULES: &[(&str, &str)] = &[
+    (
+        "callback_defaults",
+        include_str!("../testdata/tsx/callback_defaults.tsx"),
+    ),
     ("local_destructure_rename", LOCAL_DESTRUCTURE_RENAME),
     ("child_callbacks", CHILD_CALLBACKS),
     ("props_object_callbacks", PROPS_OBJECT_CALLBACKS),
@@ -265,6 +269,100 @@ const MODULES: &[(&str, &str)] = &[
     ("list_in_child", LIST_IN_CHILD),
     ("optional_children", OPTIONAL_CHILDREN),
 ];
+
+fn imported_callback_defaults() -> zant_tsx::compile::GeneratedProject {
+    use zant_tsx::compile::{SourceFile, compile_project};
+    compile_project(&[
+        SourceFile::tsx("callbacks.tsx", "export function save(): void {} export const toggle = (checked: boolean) => {}; export function pair(id: number, text: string): void {}"),
+        SourceFile::tsx("imported_defaults.tsx", r#"
+import { save, toggle, pair } from "./callbacks";
+import { Button, Checkbox, View } from "zant";
+function Child({ onClose = save, onToggle = toggle, onPair = pair }: {
+    onClose?: () => void; onToggle?: (checked: boolean) => void; onPair?: (id: number, text: string) => void;
+}) {
+    return <View><Button onClick={onClose}>Close</Button>
+      <Checkbox checked={false} onChange={onToggle} />
+      <Button onClick={() => { onClose(); onPair(1, "x"); }}>Pair</Button></View>;
+}
+export default function App() { return <Child />; }
+"#),
+    ]).expect("imported callback defaults compile")
+}
+
+#[test]
+fn callback_defaults_accept_imported_functions_and_module_arrows() {
+    let generated = imported_callback_defaults();
+    contains(&generated.outputs[1], "crate::callbacks::save()");
+    contains(&generated.outputs[1], "crate::callbacks::toggle(");
+    contains(&generated.outputs[1], "crate::callbacks::pair(");
+}
+
+#[test]
+fn callback_defaults_are_required_values_with_the_props_exact_callback_type() {
+    let generated = compile(
+        "callback_defaults",
+        include_str!("../testdata/tsx/callback_defaults.tsx"),
+    );
+    contains(
+        &generated,
+        "self.props.onClose).clone().unwrap_or_else(|| ui::Action::new(",
+    );
+    contains(&generated, "ui::BoolAction::new(");
+    contains(&generated, "ui::TextAction::new(");
+    contains(&generated, "ui::IndexAction::new(");
+    contains(&generated, "std::rc::Rc::new(");
+    contains(&generated, ".call(_cx)");
+}
+
+#[test]
+fn callback_defaults_reject_render_captures_and_incompatible_signatures() {
+    for (default, signature, expected) in [
+        (
+            "() => onOther()",
+            "() => void",
+            "callback defaults cannot read props, state or render locals",
+        ),
+        (
+            "() => count",
+            "() => void",
+            "callback defaults cannot read props, state or render locals",
+        ),
+        (
+            "() => label",
+            "() => void",
+            "callback defaults cannot read props, state or render locals",
+        ),
+        (
+            "(value: string) => {}",
+            "(value: number) => void",
+            "different signature",
+        ),
+        (
+            "(a, b) => {}",
+            "(value: number) => void",
+            "too many parameters",
+        ),
+        ("() : number => 1", "() => void", "must return void"),
+        ("wrong", "() => void", "different signature"),
+        (
+            "() => { const n = count; }",
+            "() => void",
+            "cannot read props, state or render locals",
+        ),
+        (
+            "() => { const values = [1]; values.map(n => count + n); }",
+            "() => void",
+            "cannot read props, state or render locals",
+        ),
+    ] {
+        let source = format!(
+            "function wrong(n: number): void {{}} function Child({{ onClose = {default}, onOther }}: {{ onClose?: {signature}; onOther: () => void }}) {{ const [count, setCount] = useState(0); const label = \"x\"; return <Button onClick={{() => onClose()}}>x</Button>; }} export default function App() {{ return <View />; }}"
+        );
+        let error = zant_tsx::compile::compile(&source, "invalid.tsx")
+            .expect_err("invalid callback default");
+        assert!(error.msg.contains(expected), "{}", error.msg);
+    }
+}
 
 #[test]
 fn local_object_destructuring_preserves_fields_and_evaluates_once() {
@@ -417,6 +515,14 @@ fn the_regression_modules_compile_against_the_runtime() {
     for (name, source) in MODULES {
         let generated = compile(name, source);
         std::fs::write(src_dir.join(format!("{name}.rs")), generated).expect("write module");
+        modules.push_str(&format!("#[path = \"{name}.rs\"]\nmod {name};\n"));
+    }
+    for (name, generated) in ["callbacks", "imported_defaults"]
+        .iter()
+        .zip(imported_callback_defaults().outputs)
+    {
+        std::fs::write(src_dir.join(format!("{name}.rs")), generated)
+            .expect("write imported module");
         modules.push_str(&format!("#[path = \"{name}.rs\"]\nmod {name};\n"));
     }
     modules.push_str("fn main() {}\n");

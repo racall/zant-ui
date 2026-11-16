@@ -514,7 +514,7 @@ impl<'a> Parser<'a> {
                 local,
             });
             if self.eat_p("=") {
-                defaults.push(Some(expr_parser::parse_cond(self)?));
+                defaults.push(Some(expr_parser::parse_assign(self)?));
             } else {
                 defaults.push(None);
             }
@@ -976,6 +976,21 @@ function g(a: number, b?: string) {}"#,
     }
 
     #[test]
+    fn destructured_defaults_accept_assignment_level_arrows() {
+        let m = parse_ok(
+            "function Probe({ onClose = () => {}, onPick: pick = (id: number) => save(id), onPair = (a, b) => { save(a); } }: Props) { return <View />; }",
+        );
+        let p = &m.functions[0].func.params[0];
+        for (index, count) in [0, 1, 2].into_iter().enumerate() {
+            let ExprData::Arrow(f) = &p.destructure_defaults[index].as_ref().unwrap().data else {
+                panic!("expected an arrow default");
+            };
+            assert_eq!(count, f.params.len());
+        }
+        assert_eq!(b"pick", p.destructure[1].local.name.as_slice());
+    }
+
+    #[test]
     fn typed_local_object_destructuring_keeps_keys_and_bindings() {
         let m = parse_ok(
             r#"function f() {
@@ -1017,7 +1032,7 @@ function g(a: number, b?: string) {}"#,
                 paths.push(path);
             }
         }
-        assert_eq!(34, paths.len());
+        assert_eq!(35, paths.len());
         let examples = root.join("crates/zant-examples/tsx/corpus");
         if examples.is_dir() {
             collect_tsx(&examples, &mut paths);

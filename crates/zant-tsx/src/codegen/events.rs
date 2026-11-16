@@ -559,6 +559,14 @@ pub fn event(g: &mut Generator<'_>, e: &ast::Expr, prop: &tags::Prop, loc: ast::
         ast::ExprData::Arrow(_) => {
             index = register_arrow(g, prop, e)?;
         }
+        ast::ExprData::Member(_) => {
+            return fail(
+                g,
+                e.loc,
+                "functions stored in objects can't be handlers yet; pass the function itself \
+                 (`onClick={save}`) or call it in an inline arrow (`onClick={() => save()}`)",
+            );
+        }
         _ => {
             return fail(
                 g,
