@@ -243,6 +243,7 @@ fn run_ok_with_env(argv: &[String], cwd: &str, envs: &[(&str, String)]) -> bool 
     for (key, value) in envs {
         command.env(key, value);
     }
+    command.env("ZANT_LANG", crate::lang::tag());
     #[cfg(windows)]
     command.env_remove("PSModulePath");
     matches!(command.status(), Ok(status) if status.success())

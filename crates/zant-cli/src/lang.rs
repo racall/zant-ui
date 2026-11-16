@@ -8,6 +8,12 @@ pub fn zh() -> bool {
     *CHINESE.get().unwrap_or(&false)
 }
 
+/// `"zh"` or `"en"`: passed as `ZANT_LANG` to the scripts zant runs, so
+/// they print in the same language.
+pub fn tag() -> &'static str {
+    if zh() { "zh" } else { "en" }
+}
+
 pub fn init(chinese: bool) {
     CHINESE.set(chinese).expect("language initialized once");
 }

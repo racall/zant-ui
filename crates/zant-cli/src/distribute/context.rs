@@ -271,7 +271,8 @@ impl Ctx {
         command
             .args(&argv[1..])
             .current_dir(&self.root)
-            .envs(&self.env);
+            .envs(&self.env)
+            .env("ZANT_LANG", crate::lang::tag());
         #[cfg(windows)]
         command.env_remove("PSModulePath");
         match command.output() {
@@ -289,7 +290,11 @@ impl Ctx {
     pub fn run_script_env(&self, env: &HashMap<String, String>, action: &str, must: bool) -> bool {
         let argv = script_argv(action);
         let mut command = std::process::Command::new(&argv[0]);
-        command.args(&argv[1..]).current_dir(&self.root).envs(env);
+        command
+            .args(&argv[1..])
+            .current_dir(&self.root)
+            .envs(env)
+            .env("ZANT_LANG", crate::lang::tag());
         #[cfg(windows)]
         command.env_remove("PSModulePath");
         let mut child = match command.spawn() {

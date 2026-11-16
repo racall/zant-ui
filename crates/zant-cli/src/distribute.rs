@@ -48,7 +48,8 @@ fn cleanup() {
         command
             .args(&argv[1..])
             .current_dir(&state.root)
-            .env("ZANT_KEYCHAIN", keychain);
+            .env("ZANT_KEYCHAIN", keychain)
+            .env("ZANT_LANG", crate::lang::tag());
         #[cfg(windows)]
         command.env_remove("PSModulePath");
         let _ = command.status();
