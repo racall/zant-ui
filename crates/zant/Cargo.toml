@@ -15,3 +15,11 @@ serde.workspace = true
 serde_json.workspace = true
 regress = { workspace = true, features = ["utf16"] }
 ryu-js.workspace = true
+async-task.workspace = true
+reqwest = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true }
+
+[features]
+default = ["fetch"]
+# `fetch` in TSX / zant::net: reqwest on a private tokio thread
+fetch = ["dep:reqwest", "dep:tokio"]
