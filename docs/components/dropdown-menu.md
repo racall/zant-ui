@@ -7,7 +7,7 @@ export default function App() {
   const [open, setOpen] = useState(false);
   return <View>
     <Button onClick={() => setOpen(!open)}>菜单</Button>
-    {open && <DismissLayer onDismiss={() => setOpen(false)} />}
+    {open && <DismissLayer escape onDismiss={() => setOpen(false)} />}
     {open && <View absolute top={36} left={0}>
       <DropdownMenu key="file-menu" items={[
         { kind: "group", label: "文件" },
