@@ -139,11 +139,15 @@ impl Todos {
             {
                 let current: tsx::List<Todo> = self.todos.clone();
                 self.todos = {
-                    let mut _items: Vec<Todo> = vec![
-                        Todo { id : nextId, title : name.clone(), done : false,
-                        ..Default::default() }
-                    ];
+                    let mut _items: Vec<Todo> = Vec::new();
                     _items.extend(current.clone().iter().cloned());
+                    _items
+                        .push(Todo {
+                            id: nextId,
+                            title: name.clone(),
+                            done: false,
+                            ..Default::default()
+                        });
                     tsx::List::from_vec(_items)
                 };
             }

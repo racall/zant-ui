@@ -129,8 +129,8 @@ fn BANNER() -> zant::Str {
 fn ALL_PLANS() -> tsx::List<zant::Str> {
     thread_local! {
         static _ALL_PLANS_VALUE : tsx::List < zant::Str > = { let mut _items : Vec <
-        zant::Str > = vec![zant::Str::from("Enterprise")]; _items.extend(PLANS().clone()
-        .iter().cloned()); tsx::List::from_vec(_items) };
+        zant::Str > = Vec::new(); _items.extend(PLANS().clone().iter().cloned()); _items
+        .push(zant::Str::from("Enterprise")); tsx::List::from_vec(_items) };
     }
     _ALL_PLANS_VALUE.with(|value| value.clone())
 }
@@ -356,8 +356,8 @@ impl ui::App for Arrays {
         let matrix: tsx::List<tsx::List<f64>> = tsx::List::from_vec(
             vec![
                 tsx::List::from_vec(vec![1.0f64, 2.0f64]), { let mut _items_14 : Vec <
-                f64 > = vec![8.0f64]; _items_14.extend(filtered.clone().iter().cloned());
-                tsx::List::from_vec(_items_14) }
+                f64 > = Vec::new(); _items_14.extend(filtered.clone().iter().cloned());
+                _items_14.push(8.0f64); tsx::List::from_vec(_items_14) }
             ],
         );
         let first: f64 = matrix.clone()[tsx::index(0.0f64)].clone()[tsx::index(1.0f64)];

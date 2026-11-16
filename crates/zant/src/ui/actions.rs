@@ -44,6 +44,26 @@ impl<'a> ActionCx<'a> {
     }
 }
 
+thread_local! {
+    /// An app callback ran since the last build: state it changed is not
+    /// rendered yet (`runtime` renders it before the next discrete event).
+    static RAN: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Records that an app callback is running.
+pub(crate) fn note_ran() {
+    RAN.with(|ran| ran.set(true));
+}
+
+/// Whether an app callback ran since [`clear_ran`].
+pub(crate) fn ran() -> bool {
+    RAN.with(|ran| ran.get())
+}
+
+pub(crate) fn clear_ran() {
+    RAN.with(|ran| ran.set(false));
+}
+
 /// `ui::action`: a callback that only needs the root state.
 #[derive(Clone)]
 pub struct Action(Rc<ActionFn>);
@@ -57,6 +77,7 @@ impl Action {
     }
 
     pub fn call(&self, cx: &mut ActionCx<'_>) {
+        note_ran();
         (self.0)(cx);
     }
 }
@@ -73,6 +94,7 @@ impl BoolAction {
     }
 
     pub fn call(&self, cx: &mut ActionCx<'_>, checked: bool) {
+        note_ran();
         (self.0)(cx, checked);
     }
 }
@@ -89,6 +111,7 @@ impl TextAction {
     }
 
     pub fn call(&self, cx: &mut ActionCx<'_>, value: &str) {
+        note_ran();
         (self.0)(cx, value);
     }
 }
@@ -105,6 +128,7 @@ impl IndexAction {
     }
 
     pub fn call(&self, cx: &mut ActionCx<'_>, index: usize) {
+        note_ran();
         (self.0)(cx, index);
     }
 }
@@ -121,6 +145,7 @@ impl RangeAction {
     }
 
     pub fn call(&self, cx: &mut ActionCx<'_>, start: usize, end: usize) {
+        note_ran();
         (self.0)(cx, start, end);
     }
 }
@@ -202,6 +227,7 @@ impl PointerAction {
     }
 
     pub fn call(&self, cx: &mut ActionCx<'_>, info: PointerInfo) -> bool {
+        note_ran();
         (self.0)(cx, info)
     }
 }
@@ -218,6 +244,7 @@ impl KeyAction {
     }
 
     pub fn call(&self, cx: &mut ActionCx<'_>, key: KeyEvent) -> bool {
+        note_ran();
         (self.0)(cx, key)
     }
 }
@@ -244,6 +271,7 @@ impl InputKeyAction {
         anchor: usize,
         cursor: usize,
     ) -> bool {
+        note_ran();
         (self.0)(cx, key, text, anchor, cursor)
     }
 }

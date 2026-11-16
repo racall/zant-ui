@@ -366,11 +366,26 @@ impl Runtime {
     /// work, then every window rebuilds.
     pub fn handle_wake(&mut self) {
         self.app.borrow_mut().on_wake();
+        note_handler();
         self.needs_build = true;
         self.request_redraw();
         // background results concern the shared app state: other windows too
         window::invalidate_all();
     }
+}
+
+/// Records that app code ran (a handler may have changed state).
+pub(crate) fn note_handler() {
+    crate::ui::actions::note_ran();
+}
+
+/// Whether app code ran since the last build.
+pub(crate) fn handler_ran() -> bool {
+    crate::ui::actions::ran()
+}
+
+pub(crate) fn clear_handler_ran() {
+    crate::ui::actions::clear_ran();
 }
 
 /// Builds the runtime context of a callback: the root application state of

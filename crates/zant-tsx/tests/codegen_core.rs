@@ -178,14 +178,33 @@ fn array_literals_and_spreads_become_lists() {
         r#"function pick(xs: number[]): number[] { return [...xs, 3]; }"#,
         r#"pub fn pick(xs: tsx::List<f64>) -> tsx::List<f64> {
 return {
-    let mut _items: Vec<f64> = vec![3.0f64];
+    let mut _items: Vec<f64> = Vec::new();
     _items.extend(xs.clone().iter().cloned());
+    _items.push(3.0f64);
     tsx::List::from_vec(_items)
 };
 }
 
 "#,
     );
+    // items keep their source order around spreads (`[...xs, x]` appends)
+    let compiled = generated(
+        r#"function wrap(xs: number[], ys: number[]): number[] { return [1, ...xs, 2, ...ys]; }"#,
+    );
+    let body = &compiled.functions;
+    let order: Vec<usize> = [
+        "_items.push(1.0f64);",
+        "_items.extend(xs.clone().iter().cloned());",
+        "_items.push(2.0f64);",
+        "_items.extend(ys.clone().iter().cloned());",
+    ]
+    .iter()
+    .map(|part| {
+        body.find(part)
+            .unwrap_or_else(|| panic!("{part} in {body}"))
+    })
+    .collect();
+    assert!(order.windows(2).all(|pair| pair[0] < pair[1]), "{body}");
     let compiled = generated(
         r#"function empty(): number[] { return []; }
 function indexAt(xs: number[], i: number): number { return xs[i] + xs.length; }"#,
