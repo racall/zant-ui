@@ -275,8 +275,25 @@ pub fn bytes_type(g: &mut Generator<'_>) -> Result<Type> {
     rust_imports::bytes(g)
 }
 
+/// The parser preserves named generic arguments until monomorphization exists.
+pub(crate) fn generic_error(reference: &ast::TypeRef) -> Option<super::Diag> {
+    if reference.args.is_empty() {
+        return None;
+    }
+    Some(super::Diag {
+        loc: reference.loc,
+        msg: format!(
+            "generic type `{}<…>` is not supported; only `Array<T>` is",
+            String::from_utf8_lossy(&reference.name)
+        ),
+    })
+}
+
 /// Resolve a type annotation.
 pub fn type_ref(g: &mut Generator<'_>, reference: &ast::TypeRef, allow_void: bool) -> Result<Type> {
+    if let Some(diag) = generic_error(reference) {
+        return fail(g, diag.loc, diag.msg);
+    }
     if let Some(detail) = reference.detail.as_deref() {
         if let Some(resolved) = g
             .resolved_types

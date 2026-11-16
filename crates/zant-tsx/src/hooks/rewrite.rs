@@ -46,6 +46,8 @@ pub trait Free {
 
 pub struct Rewriter<'a> {
     pub env: Vec<Entry>,
+    /// Lexically bound type names, separate from value bindings.
+    pub type_names: Vec<Vec<u8>>,
     /// Bindings declared in the copy get this prefix (null: they keep their names).
     pub prefix: Option<Vec<u8>>,
     /// Or-ed into every location (the file of inlined code, `expand.rs`).
@@ -58,6 +60,7 @@ impl Rewriter<'static> {
     pub fn empty() -> Self {
         Rewriter {
             env: Vec::new(),
+            type_names: Vec::new(),
             prefix: None,
             loc_tag: 0,
             free: None,
@@ -349,7 +352,9 @@ impl Rewriter<'_> {
 
     pub fn function(&mut self, f: &ast::Function) -> Result<Box<ast::Function>, Failure> {
         let mark = self.env.len();
+        let type_mark = self.type_names.len();
         let result = (|| {
+            let type_params = self.type_params(&f.type_params)?;
             let mut params = Vec::with_capacity(f.params.len());
             for p in &f.params {
                 let mut o = p.clone();
@@ -386,6 +391,7 @@ impl Rewriter<'_> {
                 ast::Body::Expr(e) => ast::Body::Expr(self.expr(e)?),
             };
             Ok(Box::new(ast::Function {
+                type_params,
                 loc: self.loc(f.loc),
                 name: f.name.clone(),
                 params,
@@ -394,6 +400,7 @@ impl Rewriter<'_> {
             }))
         })();
         self.env.truncate(mark);
+        self.type_names.truncate(type_mark);
         result
     }
 
@@ -621,6 +628,11 @@ impl Rewriter<'_> {
         }
         let name = self.tag_name(j)?;
         Ok(Box::new(ast::Jsx {
+            type_args: j
+                .type_args
+                .iter()
+                .map(|t| self.type_ref(t))
+                .collect::<Result<_, _>>()?,
             loc: self.loc(j.loc),
             name,
             attrs,
@@ -651,12 +663,41 @@ impl Rewriter<'_> {
         Ok(name)
     }
 
+    fn type_params(&mut self, params: &[ast::TypeParam]) -> Result<Vec<ast::TypeParam>, Failure> {
+        self.type_names
+            .extend(params.iter().map(|p| p.name.name.clone()));
+        params
+            .iter()
+            .map(|p| {
+                Ok(ast::TypeParam {
+                    name: ast::Name {
+                        name: p.name.name.clone(),
+                        loc: self.loc(p.name.loc),
+                    },
+                    constraint: p
+                        .constraint
+                        .as_ref()
+                        .map(|t| self.type_ref(t))
+                        .transpose()?,
+                    default: p.default.as_ref().map(|t| self.type_ref(t)).transpose()?,
+                    is_const: p.is_const,
+                })
+            })
+            .collect()
+    }
+
     pub fn type_ref(&mut self, t: &ast::TypeRef) -> Result<ast::TypeRef, Failure> {
         let loc_tag = self.loc_tag;
         let mut out = t.clone();
         out.loc = self.loc(t.loc);
+        out.args = t
+            .args
+            .iter()
+            .map(|t| self.type_ref(t))
+            .collect::<Result<_, _>>()?;
         if !t.name.is_empty()
             && !t.name.contains(&b'.')
+            && !self.type_names.contains(&t.name)
             && let Some(free) = self.free.as_mut()
         {
             out.name = free.resolve(&t.name, t.loc | loc_tag, Kind::TypeName)?;
@@ -692,17 +733,24 @@ impl Rewriter<'_> {
                     ast::TypeDetail::Object(out)
                 }
                 ast::TypeDetail::Func(f) => {
-                    let mut params = Vec::with_capacity(f.params.len());
-                    for p in &f.params {
-                        let mut o = p.clone();
-                        o.ty = match &p.ty {
-                            Some(pt) => Some(self.type_ref(pt)?),
-                            None => None,
-                        };
-                        params.push(o);
-                    }
-                    let ret = self.type_ref(&f.ret)?;
-                    ast::TypeDetail::Func(ast::FuncType { params, ret })
+                    let mark = self.type_names.len();
+                    let result = (|| {
+                        let type_params = self.type_params(&f.type_params)?;
+                        let mut params = Vec::with_capacity(f.params.len());
+                        for p in &f.params {
+                            let mut o = p.clone();
+                            o.ty = p.ty.as_ref().map(|t| self.type_ref(t)).transpose()?;
+                            params.push(o);
+                        }
+                        let ret = self.type_ref(&f.ret)?;
+                        Ok(ast::TypeDetail::Func(ast::FuncType {
+                            type_params,
+                            params,
+                            ret,
+                        }))
+                    })();
+                    self.type_names.truncate(mark);
+                    result?
                 }
             };
             out.detail = Some(Box::new(detail));

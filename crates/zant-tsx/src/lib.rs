@@ -25,5 +25,6 @@ pub mod react_compat;
 pub mod string_method_names;
 pub mod tag_aliases;
 pub mod tags;
+pub mod type_params;
 pub mod type_parser;
 pub mod ui_tags;

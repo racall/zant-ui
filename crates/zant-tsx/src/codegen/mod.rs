@@ -82,6 +82,7 @@ pub mod expr;
 pub mod free_names;
 pub mod functions;
 pub mod generate;
+pub(crate) mod generics;
 pub mod globals;
 pub mod hooks;
 pub mod imports;

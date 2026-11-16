@@ -397,6 +397,7 @@ impl Expander<'_, '_> {
             };
             let mut rw = Rewriter {
                 env: Vec::new(),
+                type_names: Vec::new(),
                 prefix: Some(prefix),
                 loc_tag,
                 free: Some(&mut names),

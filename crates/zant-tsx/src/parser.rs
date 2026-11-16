@@ -281,12 +281,7 @@ impl<'a> Parser<'a> {
         let is_interface = self.is_kw("interface");
         self.advance();
         let name = self.expect_ident("a type name")?;
-        if self.is_p("<") {
-            return Err(self.fail(
-                self.cur.start,
-                "generic type declarations are not supported",
-            ));
-        }
+        let type_params = crate::type_params::parse_params(self)?;
         if is_interface {
             // `interface B extends A, C { .. }`: the body plus the bases' fields
             let mut bases: Vec<TypeRef> = Vec::new();
@@ -305,6 +300,7 @@ impl<'a> Parser<'a> {
                 body
             } else {
                 bases.push(TypeRef {
+                    args: Vec::new(),
                     name: Vec::new(),
                     loc,
                     detail: Some(Box::new(body)),
@@ -312,8 +308,10 @@ impl<'a> Parser<'a> {
                 TypeDetail::Intersection(bases)
             };
             return Ok(TypeDecl {
+                type_params,
                 name,
                 ty: TypeRef {
+                    args: Vec::new(),
                     name: Vec::new(),
                     loc,
                     detail: Some(Box::new(detail)),
@@ -324,7 +322,12 @@ impl<'a> Parser<'a> {
         self.expect_p("=")?;
         let ty = self.parse_type()?;
         self.end_statement()?;
-        Ok(TypeDecl { name, ty, exported })
+        Ok(TypeDecl {
+            type_params,
+            name,
+            ty,
+            exported,
+        })
     }
 
     /// A top-level `const`: an arrow function is a component, anything else
@@ -394,15 +397,13 @@ impl<'a> Parser<'a> {
         if self.is_p("*") {
             return Err(self.fail(self.cur.start, "generator functions are not supported"));
         }
-        let name = if default && self.is_p("(") {
+        let name = if default && (self.is_p("(") || self.is_p("<")) {
             // The parser has no file name; anonymous default components use App.
             b"App".to_vec()
         } else {
             self.expect_ident("a function name")?.name
         };
-        if self.is_p("<") {
-            return Err(self.fail(self.cur.start, "generic functions are not supported"));
-        }
+        let type_params = crate::type_params::parse_params(self)?;
         let params = self.parse_params_with(true)?;
         let ret = self.parse_return_type()?;
         if !self.is_p("{") {
@@ -410,6 +411,7 @@ impl<'a> Parser<'a> {
         }
         let body = self.parse_block()?;
         Ok(Box::new(Function {
+            type_params,
             loc,
             name,
             params,
@@ -423,9 +425,7 @@ impl<'a> Parser<'a> {
         let loc = self.cur.start;
         self.advance(); // function
         let name = self.expect_ident("a function name")?;
-        if self.is_p("<") {
-            return Err(self.fail(self.cur.start, "generic functions are not supported"));
-        }
+        let type_params = crate::type_params::parse_params(self)?;
         let params = self.parse_params()?;
         let ret = self.parse_return_type()?;
         if self.is_p("{") {
@@ -433,6 +433,7 @@ impl<'a> Parser<'a> {
         }
         self.end_statement()?;
         Ok(Box::new(Function {
+            type_params,
             loc,
             name: name.name,
             params,

@@ -390,6 +390,7 @@ pub fn try_call(
     if !callee_is_prop {
         return Ok(None);
     }
+    super::expr::no_type_args(g, loc, call)?;
     let callee = expr::emit(g, c, &call.callee, None, false)?;
     let Some(entry) = callback_info(g, callee.ty) else {
         return Ok(None);
@@ -731,6 +732,7 @@ fn forward_arrow(g: &mut Generator<'_>, e: &ast::Expr, count: usize) -> Result<a
     }
     let _ = g;
     Ok(ast::Function {
+        type_params: Vec::new(),
         loc: e.loc,
         name: Vec::new(),
         params,

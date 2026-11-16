@@ -158,6 +158,7 @@ fn callback_default(
     );
     let mut walker = crate::hooks::rewrite::Rewriter {
         env: Vec::new(),
+        type_names: Vec::new(),
         prefix: None,
         loc_tag: 0,
         free: Some(&mut free),
@@ -330,6 +331,9 @@ pub fn signature(
     rust: String,
     external: bool,
 ) -> Result<Function> {
+    if !f.type_params.is_empty() {
+        return fail(g, f.loc, "generic functions are not supported yet");
+    }
     let mut params: Vec<Type> = Vec::new();
     for p in &f.params {
         if !p.destructure.is_empty() {
@@ -386,6 +390,9 @@ pub fn signature(
 /// call each other in any order).
 pub fn collect(g: &mut Generator<'_>, module: &ast::Module) -> Result<()> {
     for top in &module.functions {
+        if let Err(diag) = super::generics::function(&top.func) {
+            return fail(g, diag.loc, diag.msg);
+        }
         if !is_function(&top.func) {
             continue;
         }
