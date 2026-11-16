@@ -48,7 +48,23 @@ pub fn parse_assign(p: &mut Parser) -> Result<Box<Expr>, Error> {
 /// Arrows are recognised before parsing them (tsc's approach), so errors
 /// inside their parameters are reported as such.
 pub fn try_arrow(p: &mut Parser) -> Result<Option<Box<Expr>>, Error> {
+    // `async x => …`, `async (x) => …`; otherwise `async` is a name
+    if p.is_kw("async") {
+        let s = p.save();
+        p.advance();
+        if !p.cur.nl_before
+            && (p.cur.kind == Kind::Identifier || p.is_p("(") || p.is_p("<"))
+            && let Some(arrow) = try_arrow_with(p, s.cur.start, true)?
+        {
+            return Ok(Some(arrow));
+        }
+        p.restore(s);
+    }
     let loc = p.cur.start;
+    try_arrow_with(p, loc, false)
+}
+
+fn try_arrow_with(p: &mut Parser, loc: u32, is_async: bool) -> Result<Option<Box<Expr>>, Error> {
     if p.cur.kind == Kind::Identifier {
         let s = p.save();
         let name = Name {
@@ -69,7 +85,7 @@ pub fn try_arrow(p: &mut Parser) -> Result<Option<Box<Expr>>, Error> {
             rest: false,
             default: None,
         }];
-        let func = arrow_body(p, loc, params, None)?;
+        let func = arrow_body(p, loc, params, None, is_async)?;
         return Ok(Some(p.expr(loc, ExprData::Arrow(func))));
     }
     let generic = p.is_p("<") && crate::type_params::starts_arrow(p);
@@ -96,7 +112,7 @@ pub fn try_arrow(p: &mut Parser) -> Result<Option<Box<Expr>>, Error> {
     if !p.is_p("=>") {
         return Err(p.unexpected("=>"));
     }
-    let mut func = arrow_body(p, loc, params, ret)?;
+    let mut func = arrow_body(p, loc, params, ret, is_async)?;
     func.type_params = type_params;
     Ok(Some(p.expr(loc, ExprData::Arrow(func))))
 }
@@ -163,21 +179,28 @@ pub fn arrow_body(
     loc: u32,
     params: Vec<Param>,
     ret: Option<TypeRef>,
+    is_async: bool,
 ) -> Result<Box<Function>, Error> {
     p.advance(); // =>
+    let outer = std::mem::replace(&mut p.in_async, is_async);
     let body = if p.is_p("{") {
-        crate::ast::Body::Block(p.parse_block()?)
+        p.parse_block().map(crate::ast::Body::Block)
     } else {
-        crate::ast::Body::Expr(parse_assign(p)?)
+        parse_assign(p).map(crate::ast::Body::Expr)
     };
-    Ok(Box::new(Function {
+    p.in_async = outer;
+    let mut function = Box::new(Function {
         type_params: Vec::new(),
         loc,
         name: Vec::new(),
         params,
         ret,
-        body,
-    }))
+        body: body?,
+    });
+    if is_async {
+        crate::async_lower::lower(p, &mut function)?;
+    }
+    Ok(function)
 }
 
 pub fn parse_cond(p: &mut Parser) -> Result<Box<Expr>, Error> {
@@ -317,10 +340,22 @@ pub fn parse_unary(p: &mut Parser) -> Result<Box<Expr>, Error> {
             }),
         ));
     }
-    for kw in ["void", "await"] {
-        if p.is_kw(kw) {
-            return Err(p.fail(loc, format!("`{kw}` is not supported")));
+    if p.is_kw("await") {
+        if !p.in_async {
+            return Err(p.fail(loc, "`await` is only valid inside an async function"));
         }
+        p.advance();
+        let operand = parse_unary(p)?;
+        return Ok(p.expr(
+            loc,
+            ExprData::Unary(Unary {
+                op: b"await".to_vec(),
+                operand,
+            }),
+        ));
+    }
+    if p.is_kw("void") {
+        return Err(p.fail(loc, "`void` is not supported"));
     }
     parse_postfix(p)
 }

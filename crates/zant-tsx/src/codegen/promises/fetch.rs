@@ -22,6 +22,30 @@ pub fn call(
         ast::ExprData::Ident(name) if name == b"fetch" && scope::local(c, name).is_none() => {
             fetch(g, c, loc, call).map(Some)
         }
+        // `Promise.resolve(value?)`
+        ast::ExprData::Member(member)
+            if member.name.name == b"resolve"
+                && matches!(&member.object.data, ast::ExprData::Ident(n) if n == b"Promise" && scope::local(c, n).is_none()) =>
+        {
+            let (code, ty) = match call.args.as_slice() {
+                [] => ("()".to_owned(), Type::Void),
+                [value] => {
+                    let value = expr::emit(g, c, value, None, false)?;
+                    let value = types::concrete(g, value)?;
+                    (value.code, value.ty)
+                }
+                _ => return fail(g, loc, "`Promise.resolve(value)` takes one value"),
+            };
+            // already a promise: itself (JS adopts it)
+            if super::promise_child(g, ty).is_some() {
+                return Ok(Some(Value::new(ty, code)));
+            }
+            let promise = promise_type(g, ty)?;
+            Ok(Some(Value::new(
+                promise,
+                format!("zant::tsx::Promise::resolve({code})"),
+            )))
+        }
         ast::ExprData::Ident(name)
             if name == b"AbortController" && call.is_new && scope::local(c, name).is_none() =>
         {

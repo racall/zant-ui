@@ -523,6 +523,13 @@ fn emit_component(
         if g.methods[index].inline_only {
             continue;
         }
+        // reactions and local functions are emitted where they are used;
+        // one never reached (`.then` on something else) is not a method
+        if (g.methods[index].promise_callback || g.methods[index].local_function)
+            && g.methods[index].emitted.is_none()
+        {
+            continue;
+        }
         let method = g.methods[index].clone();
         methods.push(emit_method(g, &method)?);
     }

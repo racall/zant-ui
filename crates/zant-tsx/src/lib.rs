@@ -7,6 +7,7 @@
 pub mod assets;
 pub mod ast;
 pub mod ast_walk;
+pub mod async_lower;
 pub mod codegen;
 pub mod compile;
 pub mod dump;

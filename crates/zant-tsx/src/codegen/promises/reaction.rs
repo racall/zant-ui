@@ -167,6 +167,11 @@ pub(super) fn reaction(
         );
     };
     let thrown = super::super::exceptions::thrown_type(g)?;
+    // a callback may ignore the value (`.then(() => …)`, `await save();`)
+    let takes_value = g.methods[info.method]
+        .func
+        .as_ref()
+        .is_some_and(|function| !function.params.is_empty());
     let params = match name {
         b"then" => {
             // `any` from `response.json()` meets its type here
@@ -177,20 +182,21 @@ pub(super) fn reaction(
                 receiver = decoded(g, &receiver, to)?;
                 child = to;
             }
-            if is(g, child, ANY) {
+            if is(g, child, ANY) && takes_value {
                 return fail(
                     g,
                     callback.loc,
                     "give the JSON a type: `(items: Item[]) => …`, `.then(setItems)` or `r.json() as Promise<Item[]>`",
                 );
             }
-            if child == Type::Void {
+            if child == Type::Void || !takes_value {
                 vec![]
             } else {
                 vec![child]
             }
         }
-        b"catch" => vec![thrown],
+        b"catch" if takes_value => vec![thrown],
+        b"catch" => vec![],
         _ => vec![],
     };
     if let Some(function) = g.methods[info.method].func.clone()
@@ -204,10 +210,10 @@ pub(super) fn reaction(
     // the runtime hands `then` / `catch` the value (`()` for a void promise)
     let value = match name {
         b"then" => Some((child, !params.is_empty())),
-        b"catch" => Some((thrown, true)),
+        b"catch" => Some((thrown, takes_value)),
         _ => None,
     };
-    let closure = closure(g, info.method, value, ret)?;
+    let closure = closure(g, c, info.method, value, ret)?;
     let operand = rust_text::operand(&receiver, Precedence::Suffix, false);
     match name {
         b"then" => match promise_child(g, ret) {
@@ -245,6 +251,7 @@ pub(super) fn reaction(
 /// the method on the component instance.
 fn closure(
     g: &mut Generator<'_>,
+    c: &mut scope::Context,
     index: usize,
     value: Option<(Type, bool)>,
     ret: Type,
@@ -253,7 +260,7 @@ fn closure(
     let capture = if method.captures.is_empty() {
         None
     } else {
-        Some(super::super::captures::value(g, &method)?)
+        Some(super::super::captures::value_in(g, c, &method)?)
     };
     let needs_cx = method
         .func

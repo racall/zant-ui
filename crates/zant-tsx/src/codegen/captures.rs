@@ -176,6 +176,24 @@ pub fn value(g: &mut Generator<'_>, m: &Method) -> Result<String> {
     Ok(format!("{name} {{\n{fields}}}"))
 }
 
+/// [`value`] with each captured name read in `c`, where the closure or call
+/// is built: a local there, or the enclosing method's own capture `cap.x`
+/// (a reaction or local function inside another one).
+pub fn value_in(g: &mut Generator<'_>, c: &mut scope::Context, m: &Method) -> Result<String> {
+    let mut method = m.clone();
+    for capture in &mut method.captures {
+        if capture.name == "self" {
+            continue;
+        }
+        let read = crate::ast::Expr {
+            loc: 0,
+            data: crate::ast::ExprData::Ident(capture.name.as_bytes().to_vec()),
+        };
+        capture.source = super::expr::emit(g, c, &read, None, false)?.code;
+    }
+    value(g, &method)
+}
+
 fn capture_field_taken(method: &Method, field: &str) -> bool {
     if field == "self" {
         return true;

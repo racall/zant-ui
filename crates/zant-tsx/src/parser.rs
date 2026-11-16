@@ -31,6 +31,10 @@ pub struct Parser<'a> {
     pub lx: Lexer<'a>,
     pub cur: Token,
     pub diag: Option<Diag>,
+    /// Inside the body of an `async` function: `await` is an operator.
+    pub in_async: bool,
+    /// The next function parsed is `async` (set by `async function`).
+    pub pending_async: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -48,6 +52,8 @@ impl<'a> Parser<'a> {
             lx,
             cur: first,
             diag: None,
+            in_async: false,
+            pending_async: false,
         }
     }
 
@@ -208,6 +214,7 @@ impl<'a> Parser<'a> {
                 if default
                     && self.cur.kind == Kind::Identifier
                     && !self.is_kw("function")
+                    && !self.is_async_function()
                     && !self.is_kw("enum")
                 {
                     self.mark_default(&mut m)?;
@@ -246,7 +253,11 @@ impl<'a> Parser<'a> {
                     exported,
                     default: false,
                 });
-            } else if self.is_kw("function") {
+            } else if self.is_kw("function") || self.is_async_function() {
+                if self.is_kw("async") {
+                    self.advance();
+                    self.pending_async = true;
+                }
                 let func = self.parse_function_with_default(default)?;
                 m.functions.push(TopFunction {
                     func,
@@ -428,15 +439,34 @@ impl<'a> Parser<'a> {
         if !self.is_p("{") {
             return Err(self.unexpected("{"));
         }
-        let body = self.parse_block()?;
-        Ok(Box::new(Function {
+        let is_async = std::mem::take(&mut self.pending_async);
+        let outer = std::mem::replace(&mut self.in_async, is_async);
+        let body = self.parse_block();
+        self.in_async = outer;
+        let mut function = Box::new(Function {
             type_params,
             loc,
             name,
             params,
             ret,
-            body: Body::Block(body),
-        }))
+            body: Body::Block(body?),
+        });
+        if is_async {
+            crate::async_lower::lower(self, &mut function)?;
+        }
+        Ok(function)
+    }
+
+    /// `async function`: the `async` keyword is the current token.
+    pub fn is_async_function(&mut self) -> bool {
+        if !self.is_kw("async") {
+            return false;
+        }
+        let state = self.save();
+        self.advance();
+        let yes = self.is_kw("function") && !self.cur.nl_before;
+        self.restore(state);
+        yes
     }
 
     /// `function copy(row: i64): CopyResult;`: a signature with no body.
@@ -749,6 +779,10 @@ impl<'a> Parser<'a> {
                 }),
             }));
         }
+        if self.is_async_function() {
+            self.advance(); // async
+            self.pending_async = true;
+        }
         if self.is_kw("function") {
             let func = self.parse_function()?;
             return Ok(Box::new(Stmt {
@@ -818,10 +852,8 @@ impl<'a> Parser<'a> {
         if self.is_kw("try") {
             return self.parse_try(loc);
         }
-        for kw in ["class", "async", "await"] {
-            if self.is_kw(kw) {
-                return Err(self.fail(loc, format!("`{kw}` is not supported yet")));
-            }
+        if self.is_kw("class") {
+            return Err(self.fail(loc, "`class` is not supported yet"));
         }
         let e = expr_parser::parse_expr(self)?;
         self.end_statement()?;
@@ -1197,7 +1229,7 @@ function g(a: number, b?: string) {}"#,
                 paths.push(path);
             }
         }
-        assert_eq!(36, paths.len());
+        assert_eq!(37, paths.len());
         let examples = root.join("crates/zant-examples/tsx/corpus");
         if examples.is_dir() {
             collect_tsx(&examples, &mut paths);

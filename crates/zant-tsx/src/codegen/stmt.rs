@@ -77,9 +77,12 @@ pub fn statement(
         | ast::StmtData::Break
         | ast::StmtData::Continue => loops::emit(g, c, s),
         ast::StmtData::Decl(d) => declaration(g, c, s.loc, d, top),
-        ast::StmtData::Func(_) => {
+        ast::StmtData::Func(function) => {
             if c.render && top {
                 return Ok(String::new());
+            }
+            if !c.render && super::local_functions::registered(g, function) {
+                return super::local_functions::declare(g, c, s.loc, &function.name, function);
             }
             fail(
                 g,
@@ -183,6 +186,10 @@ fn declaration(
             (None, None) => super::closures::arrow_type(g, c, arrow)?,
         };
         let Some(ty) = annotated.filter(|ty| super::closures::signature(g, *ty).is_some()) else {
+            // a procedure (it sets state, it is async): a local function
+            if !c.render && super::local_functions::registered(g, arrow) {
+                return super::local_functions::declare(g, c, e.loc, &pattern.name, arrow);
+            }
             return fail(
                 g,
                 e.loc,

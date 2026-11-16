@@ -80,6 +80,9 @@ pub struct Context {
     /// The runtime context parameter available in this handler (see
     /// [`super::action_cx`]): a local must not shadow it.
     pub cx_var: Option<String>,
+    /// Functions declared in this handler so far: name → method index
+    /// (`local_functions`).
+    pub local_functions: Vec<(Vec<u8>, usize)>,
     /// The next local read only looks into the value (`place::project`).
     pub projection: bool,
     /// Where a throw outside every `try` of this body goes (`exceptions`).
@@ -112,6 +115,7 @@ impl Default for Context {
             no_self: false,
             narrowed: Vec::new(),
             cx_var: None,
+            local_functions: Vec::new(),
             projection: false,
             throw_mode: super::exceptions::ThrowMode::Forbid,
             try_frames: Vec::new(),

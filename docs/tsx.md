@@ -456,7 +456,35 @@ useEffect(() => {
 - 取消：`new AbortController()` + `controller.abort()`，或 `AbortSignal.timeout(ms)`；effect 的清理函数里 `abort()` 就是 React 文档的写法，依赖变化或组件卸载时取消旧请求。
 - `res.json()` 同 TS 是 `any`，在第一次有类型的地方解码：带类型的回调参数 `(items: Todo[]) => …`、直接交给 setter `.then(setTodos)`，或 `res.json() as Promise<Todo[]>`。形状不对时以 `TypeError` 进 `catch`，写明哪个字段不对。都没有类型时编译报错并给出这三种写法。
 - `.then` / `.catch` / `.finally` 的回调在 UI 线程执行，执行完重建所有窗口；回调里可直接调 setter，读到的 state / props 是发起请求时的值（同 React 闭包）。回调返回 Promise（如 `res.json()`）时自动展开；回调里 `throw` 让后面的 `.catch` 收到。子组件也能用；组件卸载后才到达的结果被丢弃，不会出错。
-- `fetch` 只能在事件处理和 effect 里调用，render 里调用编译报错。`async` / `await` 尚未支持，用 `.then` 链。
+- `fetch` 只能在事件处理和 effect 里调用，render 里调用编译报错。
+
+### `async` / `await`
+
+```tsx
+// 组件体片段：
+async function load() {
+  setLoading(true);
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const items: Todo[] = await res.json();
+    setTodos(items);
+  } catch (e) {
+    setError(e instanceof Error ? e.message : String(e));
+  } finally {
+    setLoading(false);
+  }
+}
+useEffect(() => {
+  load();
+}, []);
+```
+
+- `async function`、`async () => …` 都可以写在组件里、effect 里（React 文档的 `async function fetchData() { … } fetchData();` 写法）、事件属性里（`onClick={async () => { … }}`）。
+- 编译时改写成 `.then` 链（同 TypeScript 降级到 ES5 的做法）：`await` 之后的语句成为前一个 Promise 的回调，`try / catch / finally` 对应 `.catch` / `.finally`，`await` 的 Promise 失败就进 `catch`。`await` 之间对局部变量的赋值按顺序生效。
+- 声明了返回类型 `Promise<T>` 的 async 函数返回它的 Promise，可以被另一个 async 函数 `await`（`return res.json()` 按 `T` 解码）；没写返回类型的 async 函数只负责启动，返回 nothing。
+- 暂不支持：`if` / 循环 / `switch` 里的 `await`、`&& || ?? ?:` 右侧的 `await`、`catch` / `finally` 块里的 `await`、手写 `new Promise((resolve) => …)`。编译时报错并指出位置；把这部分写成单独的 async 函数或先 `const x = await …`。
+- effect 和事件里定义的函数（async 或普通）会编译成组件方法，读取的局部变量在定义时复制（同 React 闭包）；参数需写类型。
 
 ### 多窗口：`createWindow`
 
