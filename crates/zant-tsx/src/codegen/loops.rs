@@ -262,6 +262,20 @@ fn switch_statement(
                 })
             })
         });
+    // `switch (s.kind)` / `switch (typeof x)` over a union's members
+    let literals: Option<Vec<Vec<u8>>> = v
+        .cases
+        .iter()
+        .map(|case| match case.value.as_deref().map(|e| &e.data) {
+            Some(ast::ExprData::String(text)) => Some(text.clone()),
+            _ => None,
+        })
+        .collect();
+    let exhaustive = exhaustive
+        || match &literals {
+            Some(literals) => super::unions::switch_covers(g, c, &v.value, literals)?,
+            None => false,
+        };
     if exhaustive {
         EXHAUSTIVE.with(|switches| switches.borrow_mut().push(v.value.loc));
     }
@@ -301,7 +315,30 @@ fn switch_statement(
             }
         }
         let depth = c.active.len();
+        // a case of `switch (s.kind)` narrows `s` like `s.kind === "…"`
+        let mark = match v.cases[start..=index].as_ref() {
+            [only]
+                if matches!(
+                    only.value.as_deref().map(|e| &e.data),
+                    Some(ast::ExprData::String(_))
+                ) =>
+            {
+                let test = ast::Expr {
+                    loc: only.loc,
+                    data: ast::ExprData::Binary(ast::Binary {
+                        op: b"===".to_vec(),
+                        lhs: v.value.clone(),
+                        rhs: only.value.clone().expect("case value"),
+                    }),
+                };
+                Some(super::narrowing::push(g, c, &test, true)?)
+            }
+            _ => None,
+        };
         let body = stmt::statements(g, c, &case.body, false)?;
+        if let Some(mark) = mark {
+            super::narrowing::restore(c, mark);
+        }
         c.active.truncate(depth);
         let end = if default_label.is_some() && !is_default && !ends_case(&case.body) {
             format!("break '{label};\n")

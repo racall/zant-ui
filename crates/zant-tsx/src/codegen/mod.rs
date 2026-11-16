@@ -113,6 +113,7 @@ pub mod string_methods;
 pub mod structural;
 pub mod type_ops;
 pub mod types;
+pub mod unions;
 pub mod windows;
 pub mod zant_api;
 

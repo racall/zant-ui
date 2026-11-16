@@ -232,6 +232,18 @@ pub fn object(
         None => infer_object(g, c, loc, properties)?,
     };
     let ty = unwrap(g, expected);
+    if super::unions::is_union(g, ty) {
+        let value = super::unions::object_literal(g, c, loc, properties, ty)?;
+        return Ok(if expected == ty {
+            value
+        } else {
+            Value {
+                ty: expected,
+                code: format!("Some({})", value.code),
+                ..Value::default()
+            }
+        });
+    }
     if super::dicts::kind(g, ty) == Some(model::InfoKind::Record) {
         let value = super::dicts::literal(g, c, loc, properties, ty)?;
         return Ok(Value {
@@ -491,6 +503,9 @@ pub fn member(g: &mut Generator<'_>, c: &mut scope::Context, m: &ast::Member) ->
         );
     }
     if let Some(read) = super::dicts::member(g, &value, &m.name)? {
+        return Ok(read);
+    }
+    if let Some(read) = super::unions::member(g, &value, &m.name)? {
         return Ok(read);
     }
     let operand = rust_text::operand(&value, Precedence::Suffix, false);
