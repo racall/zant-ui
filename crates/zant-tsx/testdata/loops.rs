@@ -29,6 +29,22 @@ impl Mode {
         }
     }
 }
+impl tsx::json::Json for Mode {
+    fn to_json(&self) -> Option<tsx::json::JsonValue> {
+        Some(tsx::json::JsonValue::String(zant::Str::Static(self.as_str())))
+    }
+    fn from_json(
+        value: &tsx::json::JsonValue,
+        path: &mut tsx::json::JsonPath,
+    ) -> Result<Self, String> {
+        let text: zant::Str = tsx::json::Json::from_json(value, path)?;
+        match text.as_str() {
+            "a" => Ok(Self::A),
+            "b" => Ok(Self::B),
+            _ => Err(path.expected("one of the type's strings", value)),
+        }
+    }
+}
 impl tsx::hot::Hot for Mode {
     fn save(&self) -> tsx::hot::Value {
         tsx::hot::Value::from(self.as_str())
@@ -59,6 +75,24 @@ impl tsx::hot::Hot for _Object2 {
             return None;
         }
         Some(instance)
+    }
+}
+impl tsx::json::Json for _Object2 {
+    fn to_json(&self) -> Option<tsx::json::JsonValue> {
+        Some(tsx::json::object_builder().field("values", &self.values).build())
+    }
+    fn from_json(
+        value: &tsx::json::JsonValue,
+        path: &mut tsx::json::JsonPath,
+    ) -> Result<Self, String> {
+        if !matches!(value, tsx::json::JsonValue::Object(_)) {
+            return Err(path.expected("an object", value));
+        }
+        #[allow(clippy::needless_update)]
+        Ok(Self {
+            values: tsx::json::read_field(value, "values", path)?,
+            ..Default::default()
+        })
     }
 }
 fn NUMBERS() -> tsx::List<f64> {

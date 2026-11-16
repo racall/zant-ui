@@ -240,10 +240,22 @@ pub fn declare(
             "            Some({index}) => Some({rust}::{variant}(<{spelled} as tsx::hot::Hot>::load(items.get(1)?)?)),\n"
         ));
     }
+    let json_variants: Vec<(String, String)> = variants
+        .iter()
+        .zip(&types_list)
+        .map(|(variant, ty)| (variant.clone(), ty.rust(g).to_owned()))
+        .collect();
     let first = &variants[0];
-    let declaration = format!(
+    let mut declaration = format!(
         "#[derive(Clone, PartialEq)]\npub enum {rust} {{\n{body}}}\n\nimpl Default for {rust} {{\n    fn default() -> Self {{\n        {rust}::{first}(Default::default())\n    }}\n}}\n\nimpl tsx::hot::Hot for {rust} {{\n    fn save(&self) -> tsx::hot::Value {{\n        match self {{\n{save}        }}\n    }}\n    fn load(value: &tsx::hot::Value) -> Option<Self> {{\n        let items = value.as_array()?;\n        match items.first()?.as_u64() {{\n{load}            _ => None,\n        }}\n    }}\n}}\n\n"
     );
+    // data members only (a function member has no JSON form)
+    if types_list
+        .iter()
+        .all(|member| super::json::check(g, *member).is_ok())
+    {
+        declaration.push_str(&super::json::union_impl(&rust, &json_variants));
+    }
     let ty = model::add(
         g,
         Info {

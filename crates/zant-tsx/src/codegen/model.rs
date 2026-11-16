@@ -526,7 +526,13 @@ fn object_with(
     let mut result: Vec<Field> = Vec::new();
     let mut code = String::new();
     let mut has_callback = false;
+    let mut json_fields: Vec<super::json::JsonField> = Vec::new();
     for member in members(g)? {
+        json_fields.push(super::json::JsonField {
+            name: String::from_utf8_lossy(&member.name).into_owned(),
+            rust: rust_text::id_at(g, &member.name, member.loc)?,
+            optional: member.optional,
+        });
         has_callback = has_callback
             || callback_params(g, member.ty).is_some()
             || super::closures::signature(g, optional_child(g, member.ty).unwrap_or(member.ty))
@@ -592,6 +598,15 @@ fn object_with(
     }
     let hot_fields = code.replace("pub ", "");
     declaration.push_str(&super::generate::hot_impl(&rust, &hot_fields, true));
+    // functions and elements are not data: a struct holding one has no
+    // JSON form
+    if !has_callback
+        && result
+            .iter()
+            .all(|field| super::json::check(g, field.ty).is_ok())
+    {
+        declaration.push_str(&super::json::struct_impl(&rust, "", &json_fields));
+    }
     let info = info_mut(g, ty);
     info.fields = result;
     // declared by the other file
@@ -759,6 +774,16 @@ pub(super) fn enumeration(
         let text = rust_text::quote(member).unwrap();
         cases.push_str(&format!("{text} => Some(Self::{variant}),"));
     }
+    let json_members: Vec<(String, String)> = names
+        .iter()
+        .filter_map(|member| {
+            Some((
+                String::from_utf8(member.clone()).ok()?,
+                rust_text::enum_variant(member)?,
+            ))
+        })
+        .collect();
+    declaration.push_str(&super::json::enum_impl(&rust, &json_members));
     declaration.push_str(&super::parse_and_format(&format!("impl tsx::hot::Hot for {rust} {{
         fn save(&self) -> tsx::hot::Value {{ tsx::hot::Value::from(self.as_str()) }}
         fn load(value: &tsx::hot::Value) -> Option<Self> {{ match value.as_str()? {{ {cases} _ => None }} }}

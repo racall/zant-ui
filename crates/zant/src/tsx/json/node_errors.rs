@@ -1,0 +1,31 @@
+// Expected diagnostics captured from Node v24.21.0 JSON.parse.
+const NODE_ERRORS: &[(&str, &str)] = &[
+    (r###""###, r###"Unexpected end of JSON input"###),
+    (r###"{"a":}"###, r###"Unexpected token '}', "{"a":}" is not valid JSON"###),
+    (r###"nullx"###, r###"Unexpected non-whitespace character after JSON at position 4 (line 1 column 5)"###),
+    (r###"[1,]"###, r###"Unexpected token ']', "[1,]" is not valid JSON"###),
+    (r###"{"###, r###"Expected property name or '}' in JSON at position 1 (line 1 column 2)"###),
+    (r###"{a:1}"###, r###"Expected property name or '}' in JSON at position 1 (line 1 column 2)"###),
+    (r###"{"a" 1}"###, r###"Expected ':' after property name in JSON at position 5 (line 1 column 6)"###),
+    (r###"[1 2]"###, r###"Expected ',' or ']' after array element in JSON at position 3 (line 1 column 4)"###),
+    (r###"01"###, r###"Unexpected number in JSON at position 1 (line 1 column 2)"###),
+    (r###"+1"###, r###"Unexpected token '+', "+1" is not valid JSON"###),
+    (r###"1."###, r###"Unterminated fractional number in JSON at position 2 (line 1 column 3)"###),
+    (r###"1e"###, r###"Exponent part is missing a number in JSON at position 2 (line 1 column 3)"###),
+    (r###"-"###, r###"No number after minus sign in JSON at position 1 (line 1 column 2)"###),
+    (r###""abc"###, r###"Unterminated string in JSON at position 4 (line 1 column 5)"###),
+    (r###""\x""###, r###"Bad escaped character in JSON at position 2 (line 1 column 3)"###),
+    (r###""\uZZZZ""###, r###"Bad Unicode escape in JSON at position 3 (line 1 column 4)"###),
+    (r###""a
+b""###, r###"Bad control character in string literal in JSON at position 2 (line 1 column 3)"###),
+    (r###"undefined"###, r###""undefined" is not valid JSON"###),
+    (r###"NaN"###, r###""NaN" is not valid JSON"###),
+    (r###"true false"###, r###"Unexpected non-whitespace character after JSON at position 5 (line 1 column 6)"###),
+    (r###"{"a":1,}"###, r###"Expected double-quoted property name in JSON at position 7 (line 1 column 8)"###),
+    (r###"{"a":1 x}"###, r###"Expected ',' or '}' after property value in JSON at position 7 (line 1 column 8)"###),
+    (r###"["###, r###"Unexpected end of JSON input"###),
+    (r###"[1"###, r###"Expected ',' or ']' after array element in JSON at position 2 (line 1 column 3)"###),
+    (r###"true
+false"###, r###"Unexpected non-whitespace character after JSON at position 5 (line 2 column 1)"###),
+    (r###""😀"x"###, r###"Unexpected non-whitespace character after JSON at position 4 (line 1 column 5)"###),
+];

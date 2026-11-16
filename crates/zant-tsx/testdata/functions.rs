@@ -29,6 +29,24 @@ impl tsx::hot::Hot for Prefs {
         Some(instance)
     }
 }
+impl tsx::json::Json for Prefs {
+    fn to_json(&self) -> Option<tsx::json::JsonValue> {
+        Some(tsx::json::object_builder().field("unit", &self.unit).build())
+    }
+    fn from_json(
+        value: &tsx::json::JsonValue,
+        path: &mut tsx::json::JsonPath,
+    ) -> Result<Self, String> {
+        if !matches!(value, tsx::json::JsonValue::Object(_)) {
+            return Err(path.expected("an object", value));
+        }
+        #[allow(clippy::needless_update)]
+        Ok(Self {
+            unit: tsx::json::read_field(value, "unit", path)?,
+            ..Default::default()
+        })
+    }
+}
 #[derive(Clone, PartialEq, Default)]
 pub struct _Object2 {
     pub count: f64,
@@ -47,6 +65,24 @@ impl tsx::hot::Hot for _Object2 {
             return None;
         }
         Some(instance)
+    }
+}
+impl tsx::json::Json for _Object2 {
+    fn to_json(&self) -> Option<tsx::json::JsonValue> {
+        Some(tsx::json::object_builder().field("count", &self.count).build())
+    }
+    fn from_json(
+        value: &tsx::json::JsonValue,
+        path: &mut tsx::json::JsonPath,
+    ) -> Result<Self, String> {
+        if !matches!(value, tsx::json::JsonValue::Object(_)) {
+            return Err(path.expected("an object", value));
+        }
+        #[allow(clippy::needless_update)]
+        Ok(Self {
+            count: tsx::json::read_field(value, "count", path)?,
+            ..Default::default()
+        })
     }
 }
 thread_local! {

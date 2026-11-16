@@ -44,6 +44,34 @@ impl tsx::hot::Hot for Todo {
         Some(instance)
     }
 }
+impl tsx::json::Json for Todo {
+    fn to_json(&self) -> Option<tsx::json::JsonValue> {
+        Some(
+            tsx::json::object_builder()
+                .field("id", &self.id)
+                .field("title", &self.title)
+                .field("done", &self.done)
+                .optional("note", &self.note)
+                .build(),
+        )
+    }
+    fn from_json(
+        value: &tsx::json::JsonValue,
+        path: &mut tsx::json::JsonPath,
+    ) -> Result<Self, String> {
+        if !matches!(value, tsx::json::JsonValue::Object(_)) {
+            return Err(path.expected("an object", value));
+        }
+        #[allow(clippy::needless_update)]
+        Ok(Self {
+            id: tsx::json::read_field(value, "id", path)?,
+            title: tsx::json::read_field(value, "title", path)?,
+            done: tsx::json::read_field(value, "done", path)?,
+            note: tsx::json::read_optional(value, "note", path)?,
+            ..Default::default()
+        })
+    }
+}
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum Filter {
     #[default]
@@ -63,6 +91,23 @@ impl Filter {
             Filter::All => "all",
             Filter::Active => "active",
             Filter::Done => "done",
+        }
+    }
+}
+impl tsx::json::Json for Filter {
+    fn to_json(&self) -> Option<tsx::json::JsonValue> {
+        Some(tsx::json::JsonValue::String(zant::Str::Static(self.as_str())))
+    }
+    fn from_json(
+        value: &tsx::json::JsonValue,
+        path: &mut tsx::json::JsonPath,
+    ) -> Result<Self, String> {
+        let text: zant::Str = tsx::json::Json::from_json(value, path)?;
+        match text.as_str() {
+            "all" => Ok(Self::All),
+            "active" => Ok(Self::Active),
+            "done" => Ok(Self::Done),
+            _ => Err(path.expected("one of the type's strings", value)),
         }
     }
 }

@@ -34,6 +34,30 @@ impl tsx::hot::Hot for ButtonLook {
         Some(instance)
     }
 }
+impl tsx::json::Json for ButtonLook {
+    fn to_json(&self) -> Option<tsx::json::JsonValue> {
+        Some(
+            tsx::json::object_builder()
+                .field("variant", &self.variant)
+                .field("size", &self.size)
+                .build(),
+        )
+    }
+    fn from_json(
+        value: &tsx::json::JsonValue,
+        path: &mut tsx::json::JsonPath,
+    ) -> Result<Self, String> {
+        if !matches!(value, tsx::json::JsonValue::Object(_)) {
+            return Err(path.expected("an object", value));
+        }
+        #[allow(clippy::needless_update)]
+        Ok(Self {
+            variant: tsx::json::read_field(value, "variant", path)?,
+            size: tsx::json::read_field(value, "size", path)?,
+            ..Default::default()
+        })
+    }
+}
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum _Enum1 {
     #[default]
@@ -51,6 +75,22 @@ impl _Enum1 {
         match self {
             _Enum1::Primary => "primary",
             _Enum1::Default => "default",
+        }
+    }
+}
+impl tsx::json::Json for _Enum1 {
+    fn to_json(&self) -> Option<tsx::json::JsonValue> {
+        Some(tsx::json::JsonValue::String(zant::Str::Static(self.as_str())))
+    }
+    fn from_json(
+        value: &tsx::json::JsonValue,
+        path: &mut tsx::json::JsonPath,
+    ) -> Result<Self, String> {
+        let text: zant::Str = tsx::json::Json::from_json(value, path)?;
+        match text.as_str() {
+            "primary" => Ok(Self::Primary),
+            "default" => Ok(Self::Default),
+            _ => Err(path.expected("one of the type's strings", value)),
         }
     }
 }
@@ -83,6 +123,22 @@ impl _Enum2 {
         match self {
             _Enum2::Small => "small",
             _Enum2::Middle => "middle",
+        }
+    }
+}
+impl tsx::json::Json for _Enum2 {
+    fn to_json(&self) -> Option<tsx::json::JsonValue> {
+        Some(tsx::json::JsonValue::String(zant::Str::Static(self.as_str())))
+    }
+    fn from_json(
+        value: &tsx::json::JsonValue,
+        path: &mut tsx::json::JsonPath,
+    ) -> Result<Self, String> {
+        let text: zant::Str = tsx::json::Json::from_json(value, path)?;
+        match text.as_str() {
+            "small" => Ok(Self::Small),
+            "middle" => Ok(Self::Middle),
+            _ => Err(path.expected("one of the type's strings", value)),
         }
     }
 }
@@ -121,6 +177,30 @@ impl tsx::hot::Hot for CardProps {
             return None;
         }
         Some(instance)
+    }
+}
+impl tsx::json::Json for CardProps {
+    fn to_json(&self) -> Option<tsx::json::JsonValue> {
+        Some(
+            tsx::json::object_builder()
+                .field("title", &self.title)
+                .field("count", &self.count)
+                .build(),
+        )
+    }
+    fn from_json(
+        value: &tsx::json::JsonValue,
+        path: &mut tsx::json::JsonPath,
+    ) -> Result<Self, String> {
+        if !matches!(value, tsx::json::JsonValue::Object(_)) {
+            return Err(path.expected("an object", value));
+        }
+        #[allow(clippy::needless_update)]
+        Ok(Self {
+            title: tsx::json::read_field(value, "title", path)?,
+            count: tsx::json::read_field(value, "count", path)?,
+            ..Default::default()
+        })
     }
 }
 pub struct Card {

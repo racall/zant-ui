@@ -44,6 +44,34 @@ impl tsx::hot::Hot for Settings {
         Some(instance)
     }
 }
+impl tsx::json::Json for Settings {
+    fn to_json(&self) -> Option<tsx::json::JsonValue> {
+        Some(
+            tsx::json::object_builder()
+                .field("dark", &self.dark)
+                .field("fontSize", &self.fontSize)
+                .field("user", &self.user)
+                .field("recent", &self.recent)
+                .build(),
+        )
+    }
+    fn from_json(
+        value: &tsx::json::JsonValue,
+        path: &mut tsx::json::JsonPath,
+    ) -> Result<Self, String> {
+        if !matches!(value, tsx::json::JsonValue::Object(_)) {
+            return Err(path.expected("an object", value));
+        }
+        #[allow(clippy::needless_update)]
+        Ok(Self {
+            dark: tsx::json::read_field(value, "dark", path)?,
+            fontSize: tsx::json::read_field(value, "fontSize", path)?,
+            user: tsx::json::read_field(value, "user", path)?,
+            recent: tsx::json::read_field(value, "recent", path)?,
+            ..Default::default()
+        })
+    }
+}
 thread_local! {
     static SETTINGS : std::cell::RefCell < zant::store::Store < Settings >> =
     std::cell::RefCell::new(zant::store::Store::new(Settings { dark : false, fontSize :

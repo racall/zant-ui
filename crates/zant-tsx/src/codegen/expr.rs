@@ -585,6 +585,9 @@ pub fn call_value(
             "optional calls (`f?.()`) work on optional callback props (`onSave?.()`); call this function directly",
         );
     }
+    if let Some(value) = super::json::call(g, c, loc, call, expected)? {
+        return Ok(value);
+    }
     if let Some(value) = super::dicts::object_call(g, c, loc, call)? {
         return Ok(value);
     }
@@ -810,7 +813,7 @@ fn explicit_cast(
     let literal = matches!(
         cast.expr.data,
         ast::ExprData::Array(_) | ast::ExprData::Object(_)
-    );
+    ) || super::json::takes_context(&cast.expr);
     if cast.satisfies || literal {
         return emit(g, c, &cast.expr, Some(target), child);
     }

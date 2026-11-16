@@ -315,8 +315,27 @@ fn declare(g: &mut Generator<'_>, index: usize) -> Result<()> {
         &format!("impl<{bounds}> tsx::hot::Hot for"),
         1,
     );
-    let declaration =
+    let mut declaration =
         format!("#[derive(Clone, PartialEq, Default)]\npub struct {generic} {{\n{code}}}\n\n{hot}");
+    if fields
+        .iter()
+        .all(|field| super::json::check(g, field.ty).is_ok())
+    {
+        let mut json_fields = Vec::new();
+        for field in &fields {
+            json_fields.push(super::json::JsonField {
+                name: String::from_utf8_lossy(&field.name).into_owned(),
+                rust: rust_text::id_at(g, &field.name, decl.name.loc)?,
+                optional: field.optional,
+            });
+        }
+        let base = generic.split('<').next().unwrap_or(&generic);
+        declaration.push_str(&super::json::struct_impl(
+            base,
+            &params.join(", "),
+            &json_fields,
+        ));
+    }
     model::add(
         g,
         Info {

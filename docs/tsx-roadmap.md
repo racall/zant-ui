@@ -36,7 +36,8 @@ TSX 是推荐的应用写法，编译期生成 Rust，无 JS 运行时。此表�
 | ⬜ | 泛型组件、跨文件泛型函数 |
 | ✅ | `throw` / `try` / `catch` / `finally`、`Error` 及其子类、`instanceof` 收窄（Swift 式 `Result`，推断会抛出的函数） |
 | ⬜ | `class`（引用语义） |
-| ⬜ | `JSON.parse` / `JSON.stringify`、`RegExp`、`Date` |
+| ✅ | `JSON.parse` / `JSON.stringify`（按类型编解码，输出与 Node 一致，`SyntaxError` / `TypeError`） |
+| ⬜ | `RegExp`、`Date` |
 | ⬜ | `async` / `await` / `Promise`（需 UI 线程任务队列） |
 
 ## 运行时与工具链

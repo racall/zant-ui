@@ -34,6 +34,30 @@ impl tsx::hot::Hot for Peer {
         Some(instance)
     }
 }
+impl tsx::json::Json for Peer {
+    fn to_json(&self) -> Option<tsx::json::JsonValue> {
+        Some(
+            tsx::json::object_builder()
+                .field("name", &self.name)
+                .field("files", &self.files)
+                .build(),
+        )
+    }
+    fn from_json(
+        value: &tsx::json::JsonValue,
+        path: &mut tsx::json::JsonPath,
+    ) -> Result<Self, String> {
+        if !matches!(value, tsx::json::JsonValue::Object(_)) {
+            return Err(path.expected("an object", value));
+        }
+        #[allow(clippy::needless_update)]
+        Ok(Self {
+            name: tsx::json::read_field(value, "name", path)?,
+            files: tsx::json::read_field(value, "files", path)?,
+            ..Default::default()
+        })
+    }
+}
 #[derive(Clone, PartialEq, Default)]
 pub struct Session {
     pub peer: Option<Peer>,
@@ -52,6 +76,24 @@ impl tsx::hot::Hot for Session {
             return None;
         }
         Some(instance)
+    }
+}
+impl tsx::json::Json for Session {
+    fn to_json(&self) -> Option<tsx::json::JsonValue> {
+        Some(tsx::json::object_builder().field("peer", &self.peer).build())
+    }
+    fn from_json(
+        value: &tsx::json::JsonValue,
+        path: &mut tsx::json::JsonPath,
+    ) -> Result<Self, String> {
+        if !matches!(value, tsx::json::JsonValue::Object(_)) {
+            return Err(path.expected("an object", value));
+        }
+        #[allow(clippy::needless_update)]
+        Ok(Self {
+            peer: tsx::json::read_field(value, "peer", path)?,
+            ..Default::default()
+        })
     }
 }
 #[derive(Clone, PartialEq, Default)]
@@ -77,6 +119,30 @@ impl tsx::hot::Hot for _Object4 {
             return None;
         }
         Some(instance)
+    }
+}
+impl tsx::json::Json for _Object4 {
+    fn to_json(&self) -> Option<tsx::json::JsonValue> {
+        Some(
+            tsx::json::object_builder()
+                .field("peer", &self.peer)
+                .optional("note", &self.note)
+                .build(),
+        )
+    }
+    fn from_json(
+        value: &tsx::json::JsonValue,
+        path: &mut tsx::json::JsonPath,
+    ) -> Result<Self, String> {
+        if !matches!(value, tsx::json::JsonValue::Object(_)) {
+            return Err(path.expected("an object", value));
+        }
+        #[allow(clippy::needless_update)]
+        Ok(Self {
+            peer: tsx::json::read_field(value, "peer", path)?,
+            note: tsx::json::read_optional(value, "note", path)?,
+            ..Default::default()
+        })
     }
 }
 pub fn describe(s: Session) -> zant::Str {

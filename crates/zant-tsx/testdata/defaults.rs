@@ -44,6 +44,34 @@ impl tsx::hot::Hot for BadgeProps {
         Some(instance)
     }
 }
+impl tsx::json::Json for BadgeProps {
+    fn to_json(&self) -> Option<tsx::json::JsonValue> {
+        Some(
+            tsx::json::object_builder()
+                .field("text", &self.text)
+                .optional("size", &self.size)
+                .optional("tone", &self.tone)
+                .optional("bold", &self.bold)
+                .build(),
+        )
+    }
+    fn from_json(
+        value: &tsx::json::JsonValue,
+        path: &mut tsx::json::JsonPath,
+    ) -> Result<Self, String> {
+        if !matches!(value, tsx::json::JsonValue::Object(_)) {
+            return Err(path.expected("an object", value));
+        }
+        #[allow(clippy::needless_update)]
+        Ok(Self {
+            text: tsx::json::read_field(value, "text", path)?,
+            size: tsx::json::read_optional(value, "size", path)?,
+            tone: tsx::json::read_optional(value, "tone", path)?,
+            bold: tsx::json::read_optional(value, "bold", path)?,
+            ..Default::default()
+        })
+    }
+}
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum _Enum2 {
     #[default]
@@ -61,6 +89,22 @@ impl _Enum2 {
         match self {
             _Enum2::Info => "info",
             _Enum2::Warn => "warn",
+        }
+    }
+}
+impl tsx::json::Json for _Enum2 {
+    fn to_json(&self) -> Option<tsx::json::JsonValue> {
+        Some(tsx::json::JsonValue::String(zant::Str::Static(self.as_str())))
+    }
+    fn from_json(
+        value: &tsx::json::JsonValue,
+        path: &mut tsx::json::JsonPath,
+    ) -> Result<Self, String> {
+        let text: zant::Str = tsx::json::Json::from_json(value, path)?;
+        match text.as_str() {
+            "info" => Ok(Self::Info),
+            "warn" => Ok(Self::Warn),
+            _ => Err(path.expected("one of the type's strings", value)),
         }
     }
 }
