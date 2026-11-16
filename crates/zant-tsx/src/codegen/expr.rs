@@ -758,9 +758,13 @@ fn explicit_cast(
     child: bool,
 ) -> Result<Value> {
     let target = types::type_ref(g, &cast.ty, false)?;
-    if cast.satisfies {
-        // TypeScript checks assignability and keeps the value unchanged; here
-        // the contextual type also decides the literal's Rust type.
+    // `satisfies` checks assignability and keeps the value unchanged; `[…]
+    // as T` / `{…} as T` give the literal T as its context, as in TS
+    let literal = matches!(
+        cast.expr.data,
+        ast::ExprData::Array(_) | ast::ExprData::Object(_)
+    );
+    if cast.satisfies || literal {
         return emit(g, c, &cast.expr, Some(target), child);
     }
     let value = emit(g, c, &cast.expr, None, child)?;

@@ -95,7 +95,7 @@ fn react_import_diagnostics() {
         (
             "export default function App() { const [n, setN] = React.useState(0); \
              return <Text>{n}</Text>; }",
-            "destructuring is only supported for useState",
+            "unknown name `React`",
         ),
         (
             "export default function App() { return <React.Fragment/>; }",
