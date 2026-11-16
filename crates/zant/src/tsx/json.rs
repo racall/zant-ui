@@ -14,8 +14,11 @@ use crate::Str;
 pub use parser::parse;
 pub use writer::stringify;
 
-#[derive(Clone, Debug, PartialEq)]
+/// Parsed JSON; also TypeScript's `any` from `response.json()` until a
+/// type decodes it ([`decode`]).
+#[derive(Clone, Debug, Default, PartialEq)]
 pub enum JsonValue {
+    #[default]
     Null,
     Bool(bool),
     Number(f64),
@@ -160,8 +163,13 @@ pub fn stringify_value<T: Json>(value: &T, indent: Option<&str>) -> Option<Str> 
 }
 /// Parse and decode; grammar failures are SyntaxError, shape failures TypeError.
 pub fn parse_as<T: Json>(text: &str) -> Result<T, Thrown> {
-    let value = parse(text)?;
-    T::from_json(&value, &mut JsonPath::new()).map_err(|detail| {
+    decode(&parse(text)?)
+}
+
+/// Decodes parsed JSON (`response.json()` meets its type); a value of the
+/// wrong shape is a TypeError.
+pub fn decode<T: Json>(value: &JsonValue) -> Result<T, Thrown> {
+    T::from_json(value, &mut JsonPath::new()).map_err(|detail| {
         Thrown::error(Error::new(
             "TypeError",
             Str::from(format!("JSON does not match the expected type: {detail}")),

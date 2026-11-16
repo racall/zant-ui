@@ -61,6 +61,9 @@ pub fn scan_expr(g: &mut Generator<'_>, e: &ast::Expr) -> Result<()> {
         ast::ExprData::Cond(value) => scan_conditional(g, value),
         ast::ExprData::Call(call) => {
             scan_timer(g, call)?;
+            super::promises::scan(g, call)?;
+            // a chain: `fetch(u).then(a).then(b)` holds the inner calls here
+            scan_expr(g, &call.callee)?;
             // arguments (including inline arrows) still register handlers
             for arg in &call.args {
                 scan_expr(g, arg)?;

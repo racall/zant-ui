@@ -175,8 +175,12 @@ pub fn run(app: impl App, options: RunOptions) -> Result<(), Error> {
     // `ZANT_SNAPSHOT`: the native side takes the screenshot after a few
     // frames and `ZANT_SNAPSHOT_EXIT` (handled by the platform layer, not by
     // the runtime) makes it quit afterwards.
+    // `ZANT_SNAPSHOT_DELAY=<ms>` waits longer (content loaded by `fetch`)
     if let Some(path) = snapshot {
-        window.schedule_snapshot(&path, 600);
+        let delay = crate::platform::platform::getenv("ZANT_SNAPSHOT_DELAY")
+            .and_then(|ms| ms.trim().parse::<i32>().ok())
+            .unwrap_or(600);
+        window.schedule_snapshot(&path, delay);
     }
     window.run();
     stop(&core);
@@ -187,7 +191,13 @@ pub fn run(app: impl App, options: RunOptions) -> Result<(), Error> {
 /// Wires a runtime to its window and starts the app: debug switches, the
 /// desktop registries and `on_start`.
 pub(crate) fn start(core: &Rc<RefCell<crate::runtime::Runtime>>, window: &Rc<Window>) {
-    let autosave_name = core.borrow().config.autosave_name.clone();
+    // `ZANT_WINDOW_SIZE` (automation) wins over a remembered frame, and the
+    // forced size is not saved as the user's
+    let autosave_name = if crate::platform::platform::getenv("ZANT_WINDOW_SIZE").is_some() {
+        None
+    } else {
+        core.borrow().config.autosave_name.clone()
+    };
     window.set_autosave(autosave_name.as_deref().unwrap_or(""));
     core.borrow_mut().attach_window(Rc::clone(window));
     if let Some(path) = crate::platform::platform::getenv("ZANT_LAYOUT_FILE") {
