@@ -112,6 +112,27 @@ fn emit_on(
     if let Some(result) = super::dicts::read_method(g, c, loc, call, member, &value)? {
         return Ok(result);
     }
+    // `op.run(x)`: a function stored in a field
+    if let Some(info) = model::info(g, value.ty).filter(|info| info.kind == model::InfoKind::Object)
+        && let Some(field) = info
+            .fields
+            .iter()
+            .find(|field| field.name == member.name.name)
+        && super::closures::signature(g, field.ty).is_some()
+    {
+        let rust = match &field.rust {
+            Some(rust) => rust.clone(),
+            None => super::rust_text::id_at(g, &field.name, member.name.loc)?,
+        };
+        let callee = Value::new(
+            field.ty,
+            format!(
+                "{}.{rust}.clone()",
+                super::rust_text::operand(&value, super::rust_text::Precedence::Suffix, false)
+            ),
+        );
+        return super::closures::call_value(g, c, loc, callee, &call.args);
+    }
     if let Some(optional) = model::optional_child(g, value.ty) {
         let message = if optional == Type::String {
             "optional value: call the method with `?.` (`value?.trim()`), or use ?? / !"

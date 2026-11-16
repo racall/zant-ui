@@ -186,17 +186,25 @@ impl ui::App for Events {
         let peer: f64 = 0.1234567890123f64 + ((narrow as f64) + wide);
         let type_: zant::Str = zant::Str::from("escaped keyword");
         let u8: zant::Str = zant::Str::from("escaped primitive");
+        let format_2: std::rc::Rc<dyn Fn(u32) -> zant::Str> = {
+            let _function: std::rc::Rc<dyn Fn(u32) -> zant::Str> = std::rc::Rc::new(move |
+                n: u32,
+            | -> zant::Str {
+                return zant::Str::copy(&format!("value={}", tsx::builtins::string(n)));
+            });
+            _function
+        };
         return ui::view(ui::ViewOptions {
             children: nodes![
                 ui::text(zant::Str::copy(&
                 format!("{} {} {} {} {} {} {} {} {} {} {} {} {}",
-                tsx::builtins::string(self.twice(ui_2)), self_2.clone(), self.format(self
-                .count), tsx::builtins::string(small), tsx::builtins::string(computed),
-                tsx::builtins::string(choice), tsx::builtins::string(otherChoice),
-                tsx::builtins::string(back), tsx::builtins::string(mixed),
-                tsx::builtins::string(fractionalChoice), tsx::builtins::string(peer),
-                type_.clone(), u8.clone())), ui::TextOptions { max_lines : if self.on {
-                1u16 } else { 2u16 }, ..Default::default() }),
+                tsx::builtins::string(self.twice(ui_2)), self_2.clone(), (format_2
+                .clone()) (self.count), tsx::builtins::string(small),
+                tsx::builtins::string(computed), tsx::builtins::string(choice),
+                tsx::builtins::string(otherChoice), tsx::builtins::string(back),
+                tsx::builtins::string(mixed), tsx::builtins::string(fractionalChoice),
+                tsx::builtins::string(peer), type_.clone(), u8.clone())), ui::TextOptions
+                { max_lines : if self.on { 1u16 } else { 2u16 }, ..Default::default() }),
                 ui::button(ui::ButtonOptions { text : zant::Str::from("Functional"),
                 on_click : Some(ui::action(| s : & mut Events | s._on_click1())),
                 ..Default::default() }), ui::button(ui::ButtonOptions { text :

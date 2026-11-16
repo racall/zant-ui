@@ -474,10 +474,14 @@ impl Default for Cb {
 }
 
 #[test]
-fn arrow_functions_outside_handler_positions_are_diagnostics() {
-    let message = diagnostic(r#"function bad(): number { const f = () => 1; return f(); }"#);
+fn local_arrows_are_function_values() {
+    // a local function value (`closures`)
+    let compiled = generated(r#"function good(): number { const f = () => 1; return f(); }"#);
+    assert_contains(&compiled.functions, "std::rc::Rc::new(move ||");
+    // without a return value it is not a function value
+    let message = diagnostic(r#"function bad(): number { const f = (x) => { }; return 1; }"#);
     assert!(
-        message.contains("nested functions are not supported yet (closures arrive in phase 2)"),
+        message.contains("needs typed parameters and a return value"),
         "{message}"
     );
 }

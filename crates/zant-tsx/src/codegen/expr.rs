@@ -50,7 +50,19 @@ pub fn emit(
         },
         ast::ExprData::Boolean(b) => Value::new(Type::Boolean, if *b { "true" } else { "false" }),
         ast::ExprData::NullLit => Value::new(Type::Null, "None"),
-        ast::ExprData::Ident(n) => scope::read(g, c, n, e.loc)?,
+        ast::ExprData::Ident(n) => {
+            // a plain function as a value where a function type is expected
+            let function = match expected {
+                Some(ty) if scope::local(c, n).is_none() => {
+                    super::closures::named(g, n, ty, e.loc)?
+                }
+                _ => None,
+            };
+            match function {
+                Some(value) => value,
+                None => scope::read(g, c, n, e.loc)?,
+            }
+        }
         ast::ExprData::Template(t) => template(g, c, t)?,
         ast::ExprData::Unary(u) => unary(g, c, e.loc, u, expected)?,
         ast::ExprData::Binary(b) => binary(g, c, e.loc, b, expected, child)?,
@@ -61,12 +73,18 @@ pub fn emit(
             Some(hook) => hook(g, c, jsx)?,
             None => return fail(g, e.loc, "JSX needs the JSX emitter installed"),
         },
-        ast::ExprData::Arrow(_) => {
-            return fail(
-                g,
-                e.loc,
-                "arrow functions are only supported as component functions, event handlers, or functional updates",
-            );
+        ast::ExprData::Arrow(arrow) => {
+            // a function value where a function type is expected
+            match expected.filter(|ty| super::closures::signature(g, *ty).is_some()) {
+                Some(ty) => super::closures::arrow(g, c, e.loc, arrow, ty)?,
+                None => {
+                    return fail(
+                        g,
+                        e.loc,
+                        "an arrow needs a function type here (`const f: (x: number) => number = …`, or annotate its parameters and return type)",
+                    );
+                }
+            }
         }
         ast::ExprData::Object(properties) => aggregate::object(g, c, e.loc, properties, expected)?,
         ast::ExprData::Assign(_) | ast::ExprData::Update(_) => {
@@ -536,6 +554,9 @@ pub fn call_value(
     if call.is_new {
         return super::dicts::construct(g, c, loc, call, expected);
     }
+    if let Some(value) = super::closures::call_name(g, c, loc, call)? {
+        return Ok(value);
+    }
     for hook in g.extensions.call_before_functions.clone() {
         if let Some(value) = hook(g, c, loc, call)? {
             return Ok(value);
@@ -576,10 +597,15 @@ pub fn call_value(
         };
     }
     let ast::ExprData::Ident(name) = &call.callee.data else {
+        // `make(1)(2)`, `fns[0](x)`: a function value
+        let callee = emit(g, c, &call.callee, None, false)?;
+        if super::closures::signature(g, callee.ty).is_some() {
+            return super::closures::call_value(g, c, loc, callee, &call.args);
+        }
         return fail(
             g,
             loc,
-            "only component functions can be called here; console.log is a statement",
+            "only functions can be called; console.log is a statement",
         );
     };
     let name = String::from_utf8_lossy(name).into_owned();

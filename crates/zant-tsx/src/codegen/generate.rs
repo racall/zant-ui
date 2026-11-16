@@ -1396,6 +1396,16 @@ fn collect_declaration(g: &mut Generator<'_>, loc: ast::Loc, d: &ast::Decl) -> R
         let ast::ExprData::Arrow(function) = &init.data else {
             unreachable!("arrow")
         };
+        // `(x: number) => x + 1` is a function value, not a handler
+        let value_arrow = function.ret.is_none()
+            && function.params.iter().all(|param| param.ty.is_some())
+            && matches!(&function.body, ast::Body::Expr(body) if !matches!(
+                body.data,
+                ast::ExprData::Call(_) | ast::ExprData::Assign(_) | ast::ExprData::Update(_)
+            ));
+        if value_arrow {
+            return Ok(());
+        }
         return collect_method(g, &name.name, function);
     }
     Ok(())
