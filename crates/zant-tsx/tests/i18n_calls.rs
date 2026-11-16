@@ -78,18 +78,30 @@ export default function App() {
         "zant::i18n::context::set_locale(",
         "tsx::List::from_vec(zant::i18n::context::locales())",
     ] {
-        assert!(rust.contains(&squash(needle)), "missing `{needle}` in:\n{rust}");
+        assert!(
+            rust.contains(&squash(needle)),
+            "missing `{needle}` in:\n{rust}"
+        );
     }
 }
 
 #[test]
 fn mistakes_are_compile_errors() {
     for (body, expected) in [
-        (r#"t("home.ad")"#, "unknown message key `home.ad` (not in locales/en.json); did you mean `home.add`?"),
+        (
+            r#"t("home.ad")"#,
+            "unknown message key `home.ad` (not in locales/en.json); did you mean `home.add`?",
+        ),
         (r#"t("home.welcome")"#, "this message needs { name }"),
         (r#"t("home.welcome", { name: 1 })"#, "cannot convert"),
-        (r#"t("home.welcome", { name: "a", extra: 1 })"#, "`extra` is not a parameter of this message"),
-        (r#"t("home.add", { x: 1 })"#, "this message has no parameters"),
+        (
+            r#"t("home.welcome", { name: "a", extra: 1 })"#,
+            "`extra` is not a parameter of this message",
+        ),
+        (
+            r#"t("home.add", { x: 1 })"#,
+            "this message has no parameters",
+        ),
         (r#"t("home." + "add")"#, "`t` keys are string literals"),
     ] {
         let source = app(&format!(
@@ -100,14 +112,27 @@ fn mistakes_are_compile_errors() {
     }
     let mixed = app(r#"type K = "home.add" | "home.items";
 export default function App() { const k: K = "home.add"; return <Text>{t(k)}</Text>; }"#);
-    assert!(compile_app(&mixed).unwrap_err().contains("need the same parameters"));
-    let render = app(r#"export default function App() { setLocale("en"); return <Text>x</Text>; }"#);
-    assert!(compile_app(&render).unwrap_err().contains("not while rendering"));
+    assert!(
+        compile_app(&mixed)
+            .unwrap_err()
+            .contains("need the same parameters")
+    );
+    let render =
+        app(r#"export default function App() { setLocale("en"); return <Text>x</Text>; }"#);
+    assert!(
+        compile_app(&render)
+            .unwrap_err()
+            .contains("not while rendering")
+    );
     // without locales/ the app gets a pointer to them
     let files = [SourceFile::tsx(
         "src/App.tsx",
         &app(r#"export default function App() { return <Text>{t("x")}</Text>; }"#),
     )];
     let error = compile::compile_project(&files).unwrap_err();
-    assert!(error.diag.msg.contains("add locales/<language>.json"), "{}", error.diag.msg);
+    assert!(
+        error.diag.msg.contains("add locales/<language>.json"),
+        "{}",
+        error.diag.msg
+    );
 }

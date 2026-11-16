@@ -5,8 +5,10 @@
 
 pub mod catalog;
 pub mod contract;
+pub mod emit;
 pub mod json;
 pub mod message;
+mod names;
 pub mod types;
 
 pub use catalog::{Catalog, CatalogError, Entry, canonical_tag, discover, parse};
