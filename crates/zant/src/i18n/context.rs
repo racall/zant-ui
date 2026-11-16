@@ -338,6 +338,20 @@ mod tests {
     }
 
     #[test]
+    fn memo_hashes_change_with_the_locale() {
+        let hash = || {
+            let node = crate::ui::memo(7u64, || {
+                crate::ui::text("x", crate::ui::TextOptions::default())
+            });
+            crate::ui::memo_hash(&node).unwrap()
+        };
+        install_with(&DESCRIPTION, Setup::default(), system(&["en"]));
+        let english = hash();
+        assert!(set_locale_with("zh-CN", system(&["en"])));
+        assert_ne!(hash(), english);
+    }
+
+    #[test]
     fn a_remembered_choice_is_read_on_the_first_install() {
         let app_id = format!("zant-i18n-test-{}", std::process::id());
         let setup = Setup {

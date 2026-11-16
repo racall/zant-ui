@@ -50,7 +50,11 @@ pub fn memo(options: impl Into<MemoOptions>, build: impl Fn() -> Node + 'static)
     Node::new(Element {
         kind: NodeKind::Container,
         key: options.key,
-        memo_hash: Some(options.hash),
+        // translated text inside must rebuild after `setLocale` / a new
+        // catalog; revision 0 (no translations) keeps the hash as given
+        memo_hash: Some(
+            options.hash ^ crate::i18n::context::revision().wrapping_mul(0x9e37_79b9_7f4a_7c15),
+        ),
         memo_build: Some(MemoBuild::new(build)),
         ..Element::default()
     })
