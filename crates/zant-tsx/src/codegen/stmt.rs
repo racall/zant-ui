@@ -155,15 +155,48 @@ fn declaration(
     let ast::Pattern::Ident(pattern) = &d.pattern else {
         return fail(g, loc, "destructuring is only supported for useState");
     };
-    if matches!(e.data, ast::ExprData::Arrow(_)) {
-        if c.render && top {
+    if let ast::ExprData::Arrow(arrow) = &e.data {
+        // at a component's top level a `void` arrow is a handler (a method);
+        // one with typed parameters that returns a value is a function value
+        let value_type = if c.render && top && d.ty.is_none() {
+            let mark = g.diag.is_none();
+            match super::closures::arrow_type(g, c, arrow) {
+                Ok(ty) => ty,
+                Err(_) if mark => {
+                    *g.diag = None;
+                    None
+                }
+                Err(error) => return Err(error),
+            }
+        } else {
+            None
+        };
+        if c.render && top && value_type.is_none() {
             return Ok(String::new());
         }
-        return fail(
-            g,
-            e.loc,
-            "nested functions are not supported yet (closures arrive in phase 2)",
-        );
+        // `const f = (x: number): number => …`: a function value
+        let annotated = match (d.ty.as_ref(), value_type) {
+            (Some(t), _) => Some(types::type_ref(g, t, false)?),
+            (None, Some(ty)) => Some(ty),
+            (None, None) => super::closures::arrow_type(g, c, arrow)?,
+        };
+        let Some(ty) = annotated.filter(|ty| super::closures::signature(g, *ty).is_some()) else {
+            return fail(
+                g,
+                e.loc,
+                "a local function needs typed parameters and a return value (`(x: number): number => …`)",
+            );
+        };
+        let value = super::closures::arrow(g, c, e.loc, arrow, ty)?;
+        let binding = scope::bind(g, c, &pattern.name, ty, !d.is_const)?;
+        c.bindings[binding].init = Some(value.code);
+        c.bindings[binding].fresh = true;
+        return Ok(format!(
+            "{}{}{}",
+            scope::PLACEHOLDER_START,
+            binding,
+            scope::PLACEHOLDER_END
+        ));
     }
     let target = match d.ty.as_ref() {
         Some(t) => Some(types::type_ref(g, t, false)?),

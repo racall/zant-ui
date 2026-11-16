@@ -76,6 +76,7 @@ pub mod array_mutations;
 pub mod builtins;
 pub mod callbacks;
 pub mod captures;
+pub mod closures;
 pub mod components;
 pub mod desktop_hooks;
 pub mod dicts;

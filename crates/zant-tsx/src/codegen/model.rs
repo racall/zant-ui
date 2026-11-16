@@ -84,6 +84,8 @@ pub enum InfoKind {
     Set,
     /// `string | number`, discriminated object unions (`unions`).
     Union,
+    /// `(A) => R` with a return value: `params` are A, `child` R (`closures`).
+    Function,
 }
 
 #[derive(Clone, Debug)]
@@ -253,7 +255,9 @@ pub fn owned(g: &Generator<'_>, ty: Type) -> bool {
             .params
             .iter()
             .any(|item| owned(g, *item) || *item == Type::String),
-        InfoKind::Record | InfoKind::Map | InfoKind::Set | InfoKind::Union => true,
+        InfoKind::Record | InfoKind::Map | InfoKind::Set | InfoKind::Union | InfoKind::Function => {
+            true
+        }
     }
 }
 
@@ -523,7 +527,10 @@ fn object_with(
     let mut code = String::new();
     let mut has_callback = false;
     for member in members(g)? {
-        has_callback = has_callback || callback_params(g, member.ty).is_some();
+        has_callback = has_callback
+            || callback_params(g, member.ty).is_some()
+            || super::closures::signature(g, optional_child(g, member.ty).unwrap_or(member.ty))
+                .is_some();
         code.push_str(&format!(
             "    pub {}: {},\n",
             rust_text::id_at(g, &member.name, member.loc)?,
@@ -548,7 +555,9 @@ fn object_with(
         let mut defaults = String::new();
         for field in &result {
             let field_name = rust_text::id_at(g, &field.name, 0)?;
+            let function = super::closures::signature(g, field.ty).is_some();
             let default = match callback_params(g, field.ty) {
+                _ if function => super::closures::default_code(g, field.ty),
                 Some(params) if model_optional_child_is_none(g, field.ty) => {
                     let _ = params;
                     "None".to_owned()
@@ -948,6 +957,25 @@ pub fn edit_distance(a: &[u8], b: &[u8]) -> usize {
 pub fn callback_type(g: &mut Generator<'_>, loc: ast::Loc, f: &ast::FuncType) -> Result<Type> {
     if !f.type_params.is_empty() {
         return fail(g, loc, "generic functions are not supported yet");
+    }
+    // a function that returns a value is a function value (`closures`)
+    let ret = types::type_ref(g, &f.ret, true)?;
+    if ret != Type::Void && ret != Type::Node && ret != Type::OptionalNode {
+        let mut params = Vec::new();
+        for param in &f.params {
+            let Some(reference) = param.ty.as_ref() else {
+                return fail(
+                    g,
+                    param.name.loc,
+                    format!(
+                        "parameter `{}` needs a type",
+                        String::from_utf8_lossy(&param.name.name)
+                    ),
+                );
+            };
+            params.push(types::type_ref(g, reference, false)?);
+        }
+        return super::closures::function_type(g, params, ret);
     }
     if let Some(hook) = g.extensions.hooks.callback_type {
         return hook(g, loc, f);
