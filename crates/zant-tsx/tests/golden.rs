@@ -1,4 +1,4 @@
-//! Golden cases: the 34 Rust outputs of the TSX corpus, and the proof that
+//! Golden cases: the 35 Rust outputs of the TSX corpus, and the proof that
 //! the generated code compiles against the runtime.
 //!
 //! - [`golden_outputs_match_the_compiler`] regenerates every `.rs` with
@@ -25,7 +25,7 @@ use std::process::Command;
 
 use zant_tsx::compile;
 
-/// The 35 corpus names (`testdata/tsx/<name>.tsx`); the generated ones are
+/// The 36 corpus names (`testdata/tsx/<name>.tsx`); the generated ones are
 /// below.
 const CORPUS: &[&str] = &[
     "counter",
@@ -63,6 +63,7 @@ const CORPUS: &[&str] = &[
     "handler_slots",
     "destructure_rename",
     "callback_defaults",
+    "fetch",
 ];
 
 /// Corpus files that have no `.rs` golden: rejected by the Rust compiler for
@@ -91,7 +92,7 @@ fn read_corpus(name: &str) -> String {
 }
 
 #[test]
-fn the_corpus_and_the_goldens_are_the_35_listed_cases() {
+fn the_corpus_and_the_goldens_are_the_36_listed_cases() {
     // every listed input exists (nothing silently dropped)
     for name in CORPUS {
         assert!(
