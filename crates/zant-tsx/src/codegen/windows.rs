@@ -370,6 +370,8 @@ pub(crate) fn component_impl(
          impl tsx::window::Component for {wrapper} {{\n\
          type Local = {struct_name};\n\n\
          fn with_local(local: std::rc::Rc<std::cell::RefCell<{struct_name}>>) -> {wrapper} {{\n\
+         // the component's handlers reach it through `_state`\n\
+         local.borrow_mut()._state = std::rc::Rc::downgrade(&local);\n\
          {wrapper} {{ _s: local }}\n\
          }}\n\n\
          fn render(&mut self) -> ui::Node {{\n\

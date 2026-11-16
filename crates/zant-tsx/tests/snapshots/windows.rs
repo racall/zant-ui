@@ -113,6 +113,7 @@ pub struct PanelWindow {
 impl tsx::window::Component for PanelWindow {
     type Local = Panel;
     fn with_local(local: std::rc::Rc<std::cell::RefCell<Panel>>) -> PanelWindow {
+        local.borrow_mut()._state = std::rc::Rc::downgrade(&local);
         PanelWindow { _s: local }
     }
     fn render(&mut self) -> ui::Node {

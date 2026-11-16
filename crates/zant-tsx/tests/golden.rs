@@ -25,7 +25,7 @@ use std::process::Command;
 
 use zant_tsx::compile;
 
-/// The 32 corpus names (`testdata/tsx/<name>.tsx`); the generated ones are
+/// The 33 corpus names (`testdata/tsx/<name>.tsx`); the generated ones are
 /// below.
 const CORPUS: &[&str] = &[
     "counter",
@@ -60,6 +60,7 @@ const CORPUS: &[&str] = &[
     "defaults",
     "timers",
     "list_scroll",
+    "handler_slots",
 ];
 
 /// Corpus files that have no `.rs` golden: rejected by the Rust compiler for
@@ -88,7 +89,7 @@ fn read_corpus(name: &str) -> String {
 }
 
 #[test]
-fn the_corpus_and_the_goldens_are_the_32_listed_cases() {
+fn the_corpus_and_the_goldens_are_the_33_listed_cases() {
     // every listed input exists (nothing silently dropped)
     for name in CORPUS {
         assert!(

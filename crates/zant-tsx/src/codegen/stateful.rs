@@ -6,6 +6,16 @@
 //! call sites pass `tsx::child_id(parent, "TodoRow", key)` (or
 //! `tsx::site_id`). Components without state keep the plain
 //! `TodoRow::build(props)` and cost nothing extra.
+//!
+//! Event handlers count as state: a handler compiles to a method of the
+//! instance and its node reaches that method through the instance's slot
+//! (`_state.upgrade()`), so any JSX attribute that binds a handler — an
+//! inline arrow, a function of the file, an imported or native function,
+//! `onX={…}` on any tag, or an action prop of a built-in tag — needs the slot.
+//! Forwarding the component's own callback prop (`onClick={onSave}`) does not:
+//! that value is passed through as is. `generate::action_value` refuses to
+//! emit a slot-bound handler for a component classified without one, so a gap
+//! here is a compile error instead of a silently dropped event.
 
 use crate::ast;
 use crate::tags;
@@ -55,14 +65,44 @@ fn check(
     if depth > MAX_DEPTH {
         return false;
     }
+    let mut forwarded: Vec<Vec<u8>> = Vec::new();
+    for param in &func.params {
+        forwarded.push(param.name.name.clone());
+        forwarded.extend(param.destructure.iter().map(|name| name.name.clone()));
+    }
     let mut walker = Walker {
         project,
         module,
         depth,
         found: false,
+        forwarded,
+        local_functions: Vec::new(),
     };
     walker.body(&func.body);
     walker.found
+}
+
+/// `onClick`, `onChange`, …: the attribute names a handler.
+fn event_name(attr: &[u8]) -> bool {
+    attr.len() > 2 && attr.starts_with(b"on") && attr[2].is_ascii_uppercase()
+}
+
+/// An action prop of a built-in tag (whatever its name).
+fn action_prop(tag: Option<&tags::Tag>, attr: &[u8]) -> bool {
+    let Some(tag) = tag else {
+        return false;
+    };
+    let attr = String::from_utf8_lossy(attr);
+    tags::find_prop(tag, &attr).is_some_and(|prop| {
+        matches!(
+            prop.kind,
+            tags::Kind::Action
+                | tags::Kind::TextAction
+                | tags::Kind::BoolAction
+                | tags::Kind::IndexAction
+                | tags::Kind::ShortcutAction
+        )
+    })
 }
 
 /// `ui` builders that keep per-instance state and take a stable id first
@@ -81,6 +121,11 @@ pub(crate) struct Walker<'a> {
     pub module: &'a ast::Module,
     pub depth: u32,
     pub found: bool,
+    /// The component's parameters (`props`, destructured props): a callback
+    /// prop passed on as is needs no slot.
+    pub forwarded: Vec<Vec<u8>>,
+    /// Local `const f = () => …` seen so far in the body.
+    pub local_functions: Vec<Vec<u8>>,
 }
 
 impl Walker<'_> {
@@ -134,6 +179,11 @@ impl Walker<'_> {
             ast::StmtData::Break | ast::StmtData::Continue => {}
             ast::StmtData::Decl(d) => {
                 if let Some(e) = d.init.as_deref() {
+                    if let (ast::Pattern::Ident(name), ast::ExprData::Arrow(_)) =
+                        (&d.pattern, &e.data)
+                    {
+                        self.local_functions.push(name.name.clone());
+                    }
                     self.expr(e);
                 }
             }
@@ -232,11 +282,12 @@ impl Walker<'_> {
             self.found = true;
             return;
         }
+        let tag = tags::find(&name);
         for a in &j.attrs {
             if let Some(v) = a.value.as_deref() {
-                // an inline handler becomes a method reached through the
-                // instance's state slot: without a slot the event is lost
-                if matches!(v.data, ast::ExprData::Arrow(_)) {
+                // a handler becomes a method reached through the instance's
+                // state slot: without a slot the event is lost
+                if self.binds_handler(tag, &a.name.name, v) {
                     self.found = true;
                     return;
                 }
@@ -256,10 +307,102 @@ impl Walker<'_> {
         }
     }
 
+    /// Whether attribute `attr = value` of a JSX element binds an event
+    /// handler that compiles to a method of this component.
+    fn binds_handler(&self, tag: Option<&tags::Tag>, attr: &[u8], value: &ast::Expr) -> bool {
+        match &value.data {
+            ast::ExprData::Arrow(_) => true,
+            ast::ExprData::Ident(name) => {
+                if self.forwarded.iter().any(|param| param == name) {
+                    return false;
+                }
+                event_name(attr) || action_prop(tag, attr) || self.is_function(name)
+            }
+            // `props.onSave` is forwarded; `store.save` and the like are
+            // handlers when they sit where a handler goes
+            ast::ExprData::Member(member) => {
+                let forwarded = matches!(&member.object.data,
+                    ast::ExprData::Ident(object) if self.forwarded.iter().any(|param| param == object));
+                !forwarded && (event_name(attr) || action_prop(tag, attr))
+            }
+            // literals are no handlers
+            ast::ExprData::Number(_)
+            | ast::ExprData::String(_)
+            | ast::ExprData::Boolean(_)
+            | ast::ExprData::NullLit
+            | ast::ExprData::Template(_) => false,
+            // `cond ? save : undefined`, `makeHandler(id)`, … where a handler
+            // goes: conservatively a handler (a slot too many costs little, a
+            // missing one drops events)
+            _ => event_name(attr) || action_prop(tag, attr),
+        }
+    }
+
+    /// `name` is a function: of this file (top level or a local arrow), a
+    /// project file or a native module it imports.
+    fn is_function(&self, name: &[u8]) -> bool {
+        if self.local_functions.iter().any(|local| local == name)
+            || self
+                .module
+                .functions
+                .iter()
+                .any(|top| top.func.name == name)
+            || self.module.declared.iter().any(|top| top.func.name == name)
+            || self.module.consts.iter().any(|top| {
+                top.name.name == name && matches!(top.value.data, ast::ExprData::Arrow(_))
+            })
+        {
+            return true;
+        }
+        for import in &self.module.imports {
+            if import.type_only {
+                continue;
+            }
+            for n in &import.names {
+                if n.type_only || n.local.name != name {
+                    continue;
+                }
+                // native module specs (`native/capture`) export functions
+                if import.source.starts_with(b"native/") {
+                    return true;
+                }
+                if !import.source.starts_with(b".") {
+                    return false;
+                }
+                let Some(target) = self
+                    .project
+                    .iter()
+                    .find(|source| module_matches(source, &import.source))
+                else {
+                    // a `.ts` helper outside the parsed project: a value
+                    // used as an attribute here is most likely a function
+                    return true;
+                };
+                let module = target.module;
+                return module
+                    .functions
+                    .iter()
+                    .any(|top| top.func.name == n.imported.name)
+                    || module
+                        .declared
+                        .iter()
+                        .any(|top| top.func.name == n.imported.name)
+                    || module.consts.iter().any(|top| {
+                        top.name.name == n.imported.name
+                            && matches!(top.value.data, ast::ExprData::Arrow(_))
+                    });
+            }
+        }
+        false
+    }
+
     /// `useRef`, `useMemo`, `useEffect`, `useState` or the local name it is
     /// imported under.
     fn is_hook(&self, name: &[u8]) -> bool {
-        if hooks::extra_hook(&String::from_utf8_lossy(name)) || name == b"useHotkey" {
+        if hooks::extra_hook(&String::from_utf8_lossy(name))
+            || name == b"useHotkey"
+            || name == b"useTray"
+        {
             return true;
         }
         for import in &self.module.imports {
@@ -334,6 +477,51 @@ mod tests {
                 "{}",
                 String::from_utf8_lossy(&top.func.name)
             );
+        }
+    }
+
+    #[test]
+    fn every_kind_of_bound_handler_needs_the_state_slot() {
+        // a handler compiles to a method reached through `_state`: a component
+        // without hooks still needs the slot, or its events are dropped
+        let src = "import { grant } from \"./actions\";\n\
+             import { relaunch } from \"native/capture\";\n\
+             import type { Mode } from \"./actions\";\n\
+             import { useTray, useTheme } from \"zant\";\n\
+             function save(): void {}\n\
+             const reset = () => {};\n\
+             function Imported() { return <Button onClick={grant}>Grant</Button>; }\n\
+             function Native() { return <Button onClick={relaunch}>Reopen</Button>; }\n\
+             function Module() { return <Switch onChange={save} />; }\n\
+             function ModuleConst() { return <Button onClick={reset}>Reset</Button>; }\n\
+             function LocalArrow() { const go = () => save(); return <Button onClick={go}>Go</Button>; }\n\
+             function Member() { return <Button onClick={store.save}>Save</Button>; }\n\
+             function ChildCallback() { return <Row2 commit={save} />; }\n\
+             function Tray() { useTray({ icon: \"\", items: [] }); return <Text>t</Text>; }\n\
+             function Forwarded({ onSave }: P) { return <Button onClick={onSave}>Save</Button>; }\n\
+             function ForwardedProps(props: P) { return <Button onClick={props.onSave}>Save</Button>; }\n\
+             function Visual() { const theme = useTheme(); return <Text color={theme.colorText}>{label}</Text>; }\n\
+             function Conditional({ busy }: P) { return <Button onClick={busy ? undefined : save}>Save</Button>; }\n";
+        let module = parse_module(src);
+        let expected = [
+            ("save", false),
+            ("reset", false),
+            ("Imported", true),
+            ("Native", true),
+            ("Module", true),
+            ("ModuleConst", true),
+            ("LocalArrow", true),
+            ("Member", true),
+            ("ChildCallback", true),
+            ("Tray", true),
+            ("Forwarded", false),
+            ("ForwardedProps", false),
+            ("Visual", false),
+            ("Conditional", true),
+        ];
+        for (top, (name, want)) in module.functions.iter().zip(expected) {
+            assert_eq!(name.as_bytes(), top.func.name.as_slice());
+            assert_eq!(want, stateful(&[], &module, &top.func), "{name}");
         }
     }
 

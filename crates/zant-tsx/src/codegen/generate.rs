@@ -764,6 +764,29 @@ fn builder_function(
     ))
 }
 
+/// A handler bound through `self._state` needs a component built over a state
+/// slot: a component classified without one (`stateful.rs`) would get an empty
+/// `Weak` and drop the event silently, so that is a compile error.
+fn require_instance(g: &mut Generator<'_>, method: &super::Method) -> Result<()> {
+    let Some(index) = g.current_component else {
+        return Ok(());
+    };
+    if g.components[index].stateful {
+        return Ok(());
+    }
+    let loc = method.func.as_deref().map_or(0, |function| function.loc);
+    let component = g.components[index].name.clone();
+    fail(
+        g,
+        loc,
+        format!(
+            "internal: a handler of `{component}` needs the component's state slot, but \
+             `{component}` was classified without one (zant-tsx `stateful.rs`); please \
+             report this. Workaround: write the handler as an inline arrow function"
+        ),
+    )
+}
+
 /// Emit a method with inferred event parameters.
 pub fn emit_method(g: &mut Generator<'_>, m: &super::Method) -> Result<String> {
     if let Some(emitted) = &m.emitted {
@@ -1187,7 +1210,10 @@ pub fn action_value(
     // hoisted into a local instead (`list.rs`).
     let state = match &g.handler_state {
         Some(local) => format!("{local}.clone()"),
-        None => "self._state.clone()".to_owned(),
+        None => {
+            require_instance(g, &method)?;
+            "self._state.clone()".to_owned()
+        }
     };
     Ok(format!(
         "{constructor}::new({{\n{prefix}let _state = {state};\n\
@@ -1259,7 +1285,10 @@ pub fn callback_value(
     // hoisted into a local instead (`list.rs`).
     let state = match &g.handler_state {
         Some(local) => format!("{local}.clone()"),
-        None => "self._state.clone()".to_owned(),
+        None => {
+            require_instance(g, &method)?;
+            "self._state.clone()".to_owned()
+        }
     };
     Ok(format!(
         "std::rc::Rc::new({{\n{prefix}let _state = {state};\n\

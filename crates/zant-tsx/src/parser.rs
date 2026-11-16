@@ -908,11 +908,11 @@ function g(a: number, b?: string) {}"#,
                 paths.push(path);
             }
         }
-        assert_eq!(32, paths.len());
+        assert_eq!(33, paths.len());
         let examples = root.join("crates/zant-examples/tsx/corpus");
         if examples.is_dir() {
             collect_tsx(&examples, &mut paths);
-            assert!(paths.len() > 32);
+            assert!(paths.len() > 33);
         }
         for path in paths {
             let src = std::fs::read_to_string(&path).expect("read TSX file");
