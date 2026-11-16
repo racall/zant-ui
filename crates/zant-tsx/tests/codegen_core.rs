@@ -653,3 +653,28 @@ fn generated_modules_round_trip_through_syn_and_prettyplease() {
     );
     syn::parse_file(&formatted).expect("formatted output parses");
 }
+
+// ── `satisfies` ──────────────────────────────────────────────────────
+
+#[test]
+fn satisfies_types_the_value_without_a_cast() {
+    let compiled = generated(
+        r#"interface P { a: number; name: string }
+function make(): P { const p = { a: 1, name: "x" } satisfies P; return p; }
+function count(): u32 { return 3 satisfies u32; }"#,
+    );
+    assert_contains(
+        &compiled.functions,
+        "let p: P = P {\n    a: 1.0f64,\n    name: zant::Str::from(\"x\"),\n};",
+    );
+    assert_contains(&compiled.functions, "return 3u32;");
+}
+
+#[test]
+fn satisfies_rejects_values_the_type_does_not_accept() {
+    let message = diagnostic(
+        r#"interface P { a: number }
+function make(): P { return { a: "x" } satisfies P; }"#,
+    );
+    assert!(message.contains("cannot convert"), "{message}");
+}

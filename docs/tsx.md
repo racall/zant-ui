@@ -198,7 +198,7 @@ export default function App() {
 
 - 数组支持字面量、`[...xs, item]`、`.length`、`a[i]`、`map/filter/find/findIndex/some/every/reduce/indexOf/includes/slice/concat`、字符串数组 `join`；状态用展开 / 过滤 / 替换更新，不支持 `push/splice`。
 - 对象支持字面量、`{ ...todo, done: true }`、成员、`?.`、`??`、带类型的解构（`const { title: label } = item`）；可选值上的方法用 `?.` 调用，结果仍是可选值（`title?.trim() ?? "未命名"`、`{tags?.map(t => <Text>{t}</Text>)}`）；状态可存数组 / 对象，字符串与集合可跨帧保存并廉价克隆。
-- 类型：`interface` / `type`、字符串联合、`readonly T[]` / `ReadonlyArray<T>`、`as const`、`as`、`!`；不支持 `enum`（用字符串联合类型和常量代替）。函数暂不能存进对象 / 数组 / 变量（`{ save }`），请直接传给事件或调用。
+- 类型：`interface` / `type`、字符串联合、`readonly T[]` / `ReadonlyArray<T>`、`as const`、`as`、`satisfies`（按目标类型检查、不做转换）、`!`；不支持 `enum`（用字符串联合类型和常量代替）。函数暂不能存进对象 / 数组 / 变量（`{ save }`），请直接传给事件或调用。
 - 可选值支持条件收窄：`peer ? peer.name : "无"`、`peer !== null && peer.online`、`!peer || peer.files.length === 0`、提前 `if (!entry) return …`；对象非 null 即真，字符串还须非空、数字非 0、布尔为 true。分支内箭头捕获非空值；可变 `let` 不收窄，用 `!` 或改 `const`。
 - 普通函数小写开头，参数须标类型，有返回值须写返回类型；支持递归、导出、当事件回调，可读写 store，不能用 hook。参数可设常量默认值（注解或默认值推断类型）。大写开头才是组件。
 - `Uint8Array` 用于静态字节（资源导入、纯整数字面量数组、Rust 的 `&'static [u8]`）；剪贴板图片为运行时字节，当前不能传给 `setImage/assetImage` 或赋给 `Uint8Array` 注解。

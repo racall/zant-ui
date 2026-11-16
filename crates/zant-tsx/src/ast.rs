@@ -151,6 +151,8 @@ pub struct Index {
 pub struct As {
     pub expr: Box<Expr>,
     pub ty: TypeRef,
+    /// `expr satisfies T`: checked against `T` without a cast.
+    pub satisfies: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

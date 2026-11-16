@@ -734,7 +734,12 @@ fn explicit_cast(
     cast: &ast::As,
     child: bool,
 ) -> Result<Value> {
-    let value = emit(g, c, &cast.expr, None, child)?;
     let target = types::type_ref(g, &cast.ty, false)?;
+    if cast.satisfies {
+        // TypeScript checks assignability and keeps the value unchanged; here
+        // the contextual type also decides the literal's Rust type.
+        return emit(g, c, &cast.expr, Some(target), child);
+    }
+    let value = emit(g, c, &cast.expr, None, child)?;
     types::explicit_cast(g, value, target, loc)
 }

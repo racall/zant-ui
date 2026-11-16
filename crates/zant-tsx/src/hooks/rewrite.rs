@@ -520,7 +520,14 @@ impl Rewriter<'_> {
             ast::ExprData::As(cast) => {
                 let expr = self.expr(&cast.expr)?;
                 let ty = self.type_ref(&cast.ty)?;
-                Ok(self.new_expr(e.loc, ast::ExprData::As(ast::As { expr, ty })))
+                Ok(self.new_expr(
+                    e.loc,
+                    ast::ExprData::As(ast::As {
+                        expr,
+                        ty,
+                        satisfies: cast.satisfies,
+                    }),
+                ))
             }
             ast::ExprData::Assign(v) => {
                 let target = self.expr(&v.target)?;

@@ -366,7 +366,27 @@ pub fn parse_postfix(p: &mut Parser) -> Result<Box<Expr>, Error> {
             }
             let ty = p.parse_type()?;
             let loc = e.loc;
-            e = p.expr(loc, ExprData::As(As { expr: e, ty }));
+            e = p.expr(
+                loc,
+                ExprData::As(As {
+                    expr: e,
+                    ty,
+                    satisfies: false,
+                }),
+            );
+        } else if p.is_kw("satisfies") && !p.cur.nl_before {
+            // `expr satisfies T`: TypeScript 4.9's checked contextual type
+            p.advance();
+            let ty = p.parse_type()?;
+            let loc = e.loc;
+            e = p.expr(
+                loc,
+                ExprData::As(As {
+                    expr: e,
+                    ty,
+                    satisfies: true,
+                }),
+            );
         } else {
             break;
         }
