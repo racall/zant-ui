@@ -24,6 +24,10 @@ pub fn primary(m: Modifiers) -> bool {
 }
 
 /// `mac` on macOS, `other` elsewhere.
+/// Width of a shortcut list's key column: Windows spells the modifiers out
+/// (`Ctrl+Shift+S` against `⇧⌘S`), so its labels need more room.
+pub const LABEL_COLUMN_WIDTH: f32 = if IS_MACOS { 250.0 } else { 310.0 };
+
 pub fn pick<T>(mac: T, other: T) -> T {
     if IS_MACOS { mac } else { other }
 }

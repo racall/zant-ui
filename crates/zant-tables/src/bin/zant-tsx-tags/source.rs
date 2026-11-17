@@ -251,7 +251,7 @@ fn is_builder_module(module: &[String]) -> bool {
 }
 
 /// `src/ui/builders/mod.rs` → `["crate", "ui", "builders"]`;
-/// `src/layout/flex.rs` → `["crate", "layout", "flex"]`.
+/// `src/core/layout/mod.rs` → `["crate", "core", "layout"]`.
 fn module_path_for(path: &Path) -> Vec<String> {
     let mut segments = vec!["crate".to_string()];
     let mut parts: Vec<String> = path
@@ -481,9 +481,10 @@ mod tests {
             ["crate", "ui", "builders"]
         );
         assert_eq!(
-            module_path_for(&root.join("layout/flex.rs")),
-            ["crate", "layout", "flex"]
+            module_path_for(&root.join("core/layout/mod.rs")),
+            ["crate", "core", "layout"]
         );
+        assert_eq!(module_path_for(&root.join("flex.rs")), ["crate", "flex"]);
     }
 
     #[test]

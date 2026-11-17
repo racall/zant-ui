@@ -81,7 +81,7 @@ mod tests {
                 width: Some(100.0),
                 height: Some(50.0),
                 scroll: true,
-                direction: crate::layout::flex::Direction::Column,
+                direction: crate::flex::Direction::Column,
                 ..Default::default()
             },
         );
@@ -124,7 +124,7 @@ mod tests {
                 width: Some(100.0),
                 height: Some(50.0),
                 scroll: true,
-                direction: crate::layout::flex::Direction::Column,
+                direction: crate::flex::Direction::Column,
                 ..Default::default()
             },
         );

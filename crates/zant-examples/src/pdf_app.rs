@@ -40,7 +40,7 @@ impl PdfApp {
     fn build(&mut self) -> ui::Node {
         ui::column(BoxOptions {
             grow: 1.0,
-            align_items: zant::layout::flex::Align::Stretch,
+            align_items: zant::flex::Align::Stretch,
             children: vec![pdf::view(
                 &self.viewer,
                 ViewOptions {

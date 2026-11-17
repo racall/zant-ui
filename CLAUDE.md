@@ -12,7 +12,7 @@
 
 - 项目：Zant UI，TSX + Rust 的原生桌面 UI 框架（macOS：Metal + AppKit；Windows：Direct3D 12 + Win32）。
   界面用 TSX 写，编译期由 `zant-tsx` 转成 Rust；底层能力用 Rust 写在应用的 `native/` 里。
-- 工作区（Cargo workspace，Rust 1.94.1）：`crates/{zant-sys,zant,zant-macros,zant-tsx,zant-build,zant-cli,zant-examples,zant-dylib,zant-hot-host}`。
+- 工作区（Cargo workspace，Rust 1.94.1）：`crates/{zant-sys,zant,zant-macros,zant-base,zant-tsx,zant-tables,zant-build,zant-cli,zant-examples,zant-dylib,zant-hot-host}`。
 - 入口/示例：`crates/zant-examples/src/bin/`（`zant-demo`、`zant-gallery`、`zant-components`、
   `zant-markdown`、`zant-md-stream`、`zant-math`、`zant-pdf`）；TSX 应用模板 `scaffold/template-ts/`。
 - 声明式 API：`crates/zant/src/ui/`；协调器：`crates/zant/src/runtime/`。

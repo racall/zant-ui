@@ -12,7 +12,7 @@
 
 use crate::core::layout::Nodes;
 use crate::core::node::{FlexStyle, NodeData, NodeId, NodeKind};
-use crate::layout::flex;
+use crate::flex;
 use crate::theme::tokens::Theme;
 
 /// Applies a node's min / max size.

@@ -3,10 +3,10 @@
 //! These tests run the binaries the way CI does:
 //!
 //! ```text
-//! cargo run -p zant-tsx --bin zant-tsx-tags -- crates/zant-tsx/src/ui_tags.rs
-//! cargo run -p zant-tsx --bin zant-tsx-tags -- --check crates/zant-tsx/src/ui_tags.rs
-//! cargo run -p zant-tsx --bin zant-tsx-dts -- crates/zant-tsx/zant.d.ts
-//! cargo run -p zant-tsx --bin zant-tsx-dts -- --check crates/zant-tsx/zant.d.ts
+//! cargo run -p zant-tables --bin zant-tsx-tags -- crates/zant-tsx/src/ui_tags.rs
+//! cargo run -p zant-tables --bin zant-tsx-tags -- --check crates/zant-tsx/src/ui_tags.rs
+//! cargo run -p zant-tables --bin zant-tsx-dts -- crates/zant-tsx/zant.d.ts
+//! cargo run -p zant-tables --bin zant-tsx-dts -- --check crates/zant-tsx/zant.d.ts
 //! ```
 
 use std::path::{Path, PathBuf};
@@ -143,4 +143,54 @@ fn the_dts_check_mode_reports_a_missing_file() {
     let _ = std::fs::remove_file(&path);
     let output = run(bin, &["--check", path.to_str().unwrap()]);
     assert!(!output.status.success(), "a missing file fails --check");
+}
+
+/// Every `icon` enumeration of the committed table (reflected props and the
+/// hand-written pending tags alike) offers exactly the icons of
+/// `zant::core::node::Icon`, so adding an icon reaches all of them.
+#[test]
+fn every_icon_prop_lists_every_icon() {
+    fn collect<'a>(props: &'a [zant_tsx::tags::Prop], out: &mut Vec<&'a zant_tsx::tags::Prop>) {
+        for prop in props {
+            if prop.name == "icon" && !prop.values.is_empty() {
+                out.push(prop);
+            }
+            collect(&prop.item_props, out);
+        }
+    }
+    let expected: std::collections::BTreeSet<String> = zant::core::node::Icon::ALL
+        .iter()
+        .map(|icon| format!("{icon:?}"))
+        .map(|name| zant_tables_snake(&name))
+        .chain(std::iter::once("none".to_owned()))
+        .collect();
+    let mut props = Vec::new();
+    for tag in zant_tsx::tags::all() {
+        collect(&tag.props, &mut props);
+    }
+    assert!(props.len() >= 4, "icon props: {}", props.len());
+    for prop in props {
+        let values: std::collections::BTreeSet<String> = prop
+            .values
+            .iter()
+            .map(|value| value.rust.to_owned())
+            .collect();
+        assert_eq!(values, expected, "icon values of `{}`", prop.field);
+    }
+}
+
+/// `ChevronDown` → `chevron_down`.
+fn zant_tables_snake(name: &str) -> String {
+    let mut out = String::new();
+    for (index, c) in name.chars().enumerate() {
+        if c.is_ascii_uppercase() {
+            if index > 0 {
+                out.push('_');
+            }
+            out.push(c.to_ascii_lowercase());
+        } else {
+            out.push(c);
+        }
+    }
+    out
 }

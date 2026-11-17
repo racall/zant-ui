@@ -272,7 +272,7 @@ mod tests {
     use super::*;
     use crate::core::geometry::Size;
     use crate::core::tree::Tree;
-    use crate::layout::flex;
+    use crate::flex;
     use crate::renderer::text;
     use crate::theme::tokens::ant_light;
 

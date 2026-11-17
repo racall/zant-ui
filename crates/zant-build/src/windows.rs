@@ -27,8 +27,23 @@ pub fn apply(app_root: &Path, out_dir: &Path) -> Result<(), Error> {
         }
     }
     print_subsystem();
-    install_pdfium(out_dir)?;
+    if uses_pdf() {
+        install_pdfium(out_dir)?;
+    }
     Ok(())
+}
+
+/// Whether the app's `zant` has the `pdf` feature: `zant`'s build script
+/// reports it as `DEP_ZANT_PDF` (`links = "zant"`) to the build scripts of
+/// the packages that depend on it directly. A build script that cannot see
+/// it (no direct `zant` dependency, e.g. the hot-reload UI crate on top of
+/// `zant-dylib`) keeps installing the DLL.
+fn uses_pdf() -> bool {
+    pdf_from(std::env::var("DEP_ZANT_PDF").ok().as_deref())
+}
+
+fn pdf_from(value: Option<&str>) -> bool {
+    value != Some("0")
 }
 
 /// Writes `app.ico` / `zant.manifest` / `app.rc` into `out_dir`; `None` when
@@ -186,4 +201,15 @@ fn fallback(release: bool, message: String) -> Result<(), Error> {
 /// executable is in `target/<profile>/`.
 fn profile_dir(out_dir: &Path) -> Option<PathBuf> {
     out_dir.ancestors().nth(3).map(Path::to_path_buf)
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn pdfium_follows_the_pdf_feature() {
+        assert!(super::pdf_from(Some("1")));
+        assert!(!super::pdf_from(Some("0")));
+        // no direct `zant` dependency: unknown, keep shipping the DLL
+        assert!(super::pdf_from(None));
+    }
 }

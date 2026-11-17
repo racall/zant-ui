@@ -87,6 +87,46 @@ fn unsupported_places_say_what_to_do() {
     .unwrap_err();
     assert!(in_catch.contains("`catch` / `finally`"), "{in_catch}");
 
+    let in_finally = handler(
+        r#"    try {
+      await fetch("u");
+    } finally {
+      await fetch("v");
+    }"#,
+    )
+    .unwrap_err();
+    assert!(in_finally.contains("`catch` / `finally`"), "{in_finally}");
+
+    for (body, expected) in [
+        (
+            "    for (const u of [\"a\"]) {\n      await fetch(u);\n    }",
+            "not inside `if`, loops or `switch` yet",
+        ),
+        (
+            "    switch (text) {\n      case \"a\": await fetch(\"u\"); break;\n    }",
+            "not inside `if`, loops or `switch` yet",
+        ),
+        (
+            "    const ok = text !== \"\" && (await fetch(\"u\")).ok;",
+            "await into a `const` first",
+        ),
+        (
+            "    const ok = text === \"\" ? false : (await fetch(\"u\")).ok;",
+            "await into a `const` first",
+        ),
+        (
+            "    try {\n      await fetch(\"u\");\n      return;\n    } catch (e) {}\n    setText(\"after\");",
+            "a `return` inside this `try` would also skip the statements after it",
+        ),
+        (
+            "    const n = await new Promise<number>((resolve) => { resolve(1); });",
+            "`new Promise(…)` is not supported",
+        ),
+    ] {
+        let message = handler(body).unwrap_err();
+        assert!(message.contains(expected), "{message}\nbody:\n{body}");
+    }
+
     let outside = compile_app(
         r#"export default function App() {
   function go() { await fetch("u"); }

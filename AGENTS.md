@@ -85,7 +85,9 @@ crates/
     src/db/             SQLite：键值 + `#[derive(Table)]` 对象集合
     src/store.rs        Zustand 风格 Store
   zant-macros/          proc macro：`#[derive(TsxProps)]`、`#[derive(Table)]`
-  zant-tsx/             TSX → Rust 编译器（lexer / parser / hooks / codegen / tags / d.ts）
+  zant-base/            运行时与编译器共用、不依赖平台的部分：Wyhash、locale、CLDR 复数、JS 数字拼写、RegExp 校验
+  zant-tsx/             TSX → Rust 编译器（lexer / parser / hooks / codegen / tags / d.ts）；不链接 `zant`，只依赖 `zant-base`
+  zant-tables/          生成并检查 `ui_tags.rs` / `zant.d.ts`（`zant-tsx-tags` / `zant-tsx-dts`，读 `zant` 的 TsxProps）
   zant-build/           应用 build.rs 辅助：TSX → OUT_DIR、图标、Windows manifest、pdfium
   zant-cli/             zant 命令：create / run / compile / package / build / sync / update
   zant-examples/        示例：demo、gallery、components、markdown、md-stream、math、pdf
@@ -288,7 +290,7 @@ ui::styled(node, ui::Style {
 - `zant run`：TSX 项目按改动文件原地热刷新、重启自身或忽略，规则见 [热更新](docs/scaffold.md#热更新)。
   原地热刷新时宿主持有窗口，只替换 UI 动态库。隐藏 crate 使用 `zant::hot_app!()` 与 `zant_build::hot_app(root)`。
 - 保留兼容的根 / 组件本地状态；按稳定 key 恢复滚动、列表、焦点、光标与选区。不兼容字段单独重置。
-  全局 store、任意 Rust 全局变量与外部资源不自动序列化；旧库暂不卸载，长会话会累积映射。
+  全局 store、任意 Rust 全局变量与外部资源不自动序列化；新版本启动成功后默认卸载旧应用库，`ZANT_HOT_KEEP_LIBS=1` 可保留以便诊断。
 - TSX / Rust 编译错误显示在运行中 UI 上，修复后清除；未改内容不重建，构建中的保存合并为下一轮。
   `zant run` 重启自身时通过 `target/zant-hot/restart-state.json` 一次性传递状态，状态尽量保留。
 - `--watch` 是旧重启模式（macOS 编译失败保留旧窗口；Windows 先关旧 exe，失败后打开旧版本）；

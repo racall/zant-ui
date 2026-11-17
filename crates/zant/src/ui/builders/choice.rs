@@ -156,7 +156,7 @@ pub fn select(options: SelectOptions) -> Node {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::layout::flex;
+    use crate::flex;
     use crate::theme::tokens;
     use crate::ui::options::{RadioOption, TabItem, TextOptions};
 

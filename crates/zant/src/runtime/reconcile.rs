@@ -312,6 +312,9 @@ impl Runtime {
             }
         };
         self.apply_common(id, element);
+        if element.auto_focus {
+            self.focus_memory.auto_focus = Some(id);
+        }
         {
             let node = self.tree.get_mut(id);
             match &mut node.data {

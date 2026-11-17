@@ -3,7 +3,7 @@ use std::sync::OnceLock;
 
 use super::Category;
 
-pub(super) const JSON: &str = include_str!("../../../data/cldr/plurals.json");
+pub(super) const JSON: &str = include_str!("../../data/cldr/plurals.json");
 type Locales = BTreeMap<String, Vec<(Category, &'static str)>>;
 
 pub(super) fn locales() -> &'static Locales {

@@ -81,6 +81,13 @@ struct ZantWindow {
     float titlebar_height;
     float min_width;
     float min_height;
+    /* 0: no limit */
+    float max_width;
+    float max_height;
+    /* zant_window_set_fullscreen: the style and placement to restore */
+    bool fullscreen;
+    DWORD saved_style;
+    WINDOWPLACEMENT saved_placement;
     UINT dpi;
     float scale;
     int width_px;
@@ -285,6 +292,24 @@ static int zant_frame_x(ZantWindow *w) {
 
 static int zant_frame_y(ZantWindow *w) {
     return GetSystemMetricsForDpi(SM_CYFRAME, w->dpi) + GetSystemMetricsForDpi(SM_CXPADDEDBORDER, w->dpi);
+}
+
+static DWORD zant_window_style_bits(ZantWindow *w);
+
+/* The outer (frame) size in pixels of a `width` x `height` point content
+   area, as the window is styled now. */
+static void zant_outer_size(ZantWindow *w, float width, float height, int *outer_w, int *outer_h) {
+    RECT rc = {0, 0, (LONG)lroundf(width * w->scale), (LONG)lroundf(height * w->scale)};
+    if (w->custom_frame) {
+        rc.right += zant_frame_x(w) * 2;
+        rc.bottom += zant_frame_y(w);
+    } else if (w->style == ZANT_WINDOW_PANEL || w->style == ZANT_WINDOW_OVERLAY) {
+        /* no non-client area (WM_NCCALCSIZE / WS_POPUP) */
+    } else {
+        AdjustWindowRectExForDpi(&rc, zant_window_style_bits(w), FALSE, 0, w->dpi);
+    }
+    *outer_w = rc.right - rc.left;
+    *outer_h = rc.bottom - rc.top;
 }
 
 static DWORD zant_window_style_bits(ZantWindow *w) {
@@ -707,7 +732,7 @@ static LRESULT CALLBACK zant_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) 
             break;
 
         case WM_NCHITTEST:
-            if (w->style == ZANT_WINDOW_PANEL || w->style == ZANT_WINDOW_OVERLAY) return HTCLIENT;
+            if (w->style == ZANT_WINDOW_PANEL || w->style == ZANT_WINDOW_OVERLAY || w->fullscreen) return HTCLIENT;
             if (w->custom_frame || w->movable_by_background || w->style == ZANT_WINDOW_BORDERLESS) {
                 LRESULT hit = DefWindowProcW(hwnd, msg, wp, lp);
                 if (hit != HTCLIENT) return hit;
@@ -841,15 +866,17 @@ static LRESULT CALLBACK zant_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) 
 
         case WM_GETMINMAXINFO: {
             MINMAXINFO *info = (MINMAXINFO *)lp;
-            RECT rc = {0, 0, (LONG)lroundf(w->min_width * w->scale), (LONG)lroundf(w->min_height * w->scale)};
-            if (!w->custom_frame) {
-                AdjustWindowRectExForDpi(&rc, zant_window_style_bits(w), FALSE, 0, w->dpi);
-            } else {
-                rc.right += zant_frame_x(w) * 2;
-                rc.bottom += zant_frame_y(w);
+            if (w->fullscreen) return 0;
+            int outer_w = 0, outer_h = 0;
+            zant_outer_size(w, w->min_width, w->min_height, &outer_w, &outer_h);
+            info->ptMinTrackSize.x = outer_w;
+            info->ptMinTrackSize.y = outer_h;
+            if (w->max_width > 0 || w->max_height > 0) {
+                zant_outer_size(w, w->max_width > 0 ? w->max_width : 100000.0f,
+                                w->max_height > 0 ? w->max_height : 100000.0f, &outer_w, &outer_h);
+                if (w->max_width > 0) info->ptMaxTrackSize.x = outer_w;
+                if (w->max_height > 0) info->ptMaxTrackSize.y = outer_h;
             }
-            info->ptMinTrackSize.x = rc.right - rc.left;
-            info->ptMinTrackSize.y = rc.bottom - rc.top;
             return 0;
         }
 
@@ -1286,6 +1313,95 @@ void zant_window_toggle_maximize(ZantWindow *window) {
 
 int zant_window_is_maximized(ZantWindow *window) {
     return window && IsZoomed(window->hwnd) ? 1 : 0;
+}
+
+void zant_window_set_title(ZantWindow *window, const char *title) {
+    if (!window || !title) return;
+    wchar_t *wide = zant_widen(title);
+    if (!wide) return;
+    if (wcscmp(wide, window->title) != 0) {
+        wcsncpy(window->title, wide, sizeof(window->title) / sizeof(window->title[0]) - 1);
+        window->title[sizeof(window->title) / sizeof(window->title[0]) - 1] = 0;
+        zant_update_title(window);
+    }
+    free(wide);
+}
+
+void zant_window_set_size(ZantWindow *window, float width, float height) {
+    if (!window || window->fullscreen || width <= 0 || height <= 0) return;
+    if (width < window->min_width) width = window->min_width;
+    if (height < window->min_height) height = window->min_height;
+    if (window->max_width > 0 && width > window->max_width) width = window->max_width;
+    if (window->max_height > 0 && height > window->max_height) height = window->max_height;
+    if (IsZoomed(window->hwnd)) ShowWindow(window->hwnd, SW_RESTORE);
+    int outer_w = 0, outer_h = 0;
+    zant_outer_size(window, width, height, &outer_w, &outer_h);
+    SetWindowPos(window->hwnd, NULL, 0, 0, outer_w, outer_h, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+}
+
+/* Grows or shrinks the window into its current limits. */
+static void zant_clamp_size(ZantWindow *window) {
+    RECT rc;
+    if (window->fullscreen || IsZoomed(window->hwnd) || !GetClientRect(window->hwnd, &rc)) return;
+    const float width = (float)(rc.right - rc.left) / window->scale;
+    const float height = (float)(rc.bottom - rc.top) / window->scale;
+    float clamped_w = width < window->min_width ? window->min_width : width;
+    float clamped_h = height < window->min_height ? window->min_height : height;
+    if (window->max_width > 0 && clamped_w > window->max_width) clamped_w = window->max_width;
+    if (window->max_height > 0 && clamped_h > window->max_height) clamped_h = window->max_height;
+    if (clamped_w != width || clamped_h != height) zant_window_set_size(window, clamped_w, clamped_h);
+}
+
+void zant_window_set_min_size(ZantWindow *window, float width, float height) {
+    if (!window) return;
+    window->min_width = width > 0 ? width : 0;
+    window->min_height = height > 0 ? height : 0;
+    zant_clamp_size(window);
+}
+
+void zant_window_set_max_size(ZantWindow *window, float width, float height) {
+    if (!window) return;
+    window->max_width = width > 0 ? width : 0;
+    window->max_height = height > 0 ? height : 0;
+    zant_clamp_size(window);
+}
+
+void zant_window_set_always_on_top(ZantWindow *window, int on) {
+    if (!window || window->style == ZANT_WINDOW_PANEL || window->style == ZANT_WINDOW_OVERLAY) return;
+    SetWindowPos(window->hwnd, on ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0,
+                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+}
+
+/* Borderless over the whole monitor, and back to the saved style and
+   placement (Raymond Chen's approach). */
+void zant_window_set_fullscreen(ZantWindow *window, int on) {
+    if (!window || window->style == ZANT_WINDOW_PANEL || window->style == ZANT_WINDOW_OVERLAY) return;
+    if ((on != 0) == window->fullscreen) return;
+    HWND hwnd = window->hwnd;
+    if (on) {
+        MONITORINFO mi = {sizeof(mi)};
+        window->saved_placement.length = sizeof(window->saved_placement);
+        if (!GetWindowPlacement(hwnd, &window->saved_placement) ||
+            !GetMonitorInfoW(MonitorFromWindow(hwnd, MONITOR_DEFAULTTOPRIMARY), &mi)) {
+            return;
+        }
+        window->saved_style = (DWORD)GetWindowLongPtrW(hwnd, GWL_STYLE);
+        window->fullscreen = true;
+        SetWindowLongPtrW(hwnd, GWL_STYLE, (LONG_PTR)((window->saved_style & ~WS_OVERLAPPEDWINDOW) | WS_POPUP));
+        SetWindowPos(hwnd, HWND_TOP, mi.rcMonitor.left, mi.rcMonitor.top, mi.rcMonitor.right - mi.rcMonitor.left,
+                     mi.rcMonitor.bottom - mi.rcMonitor.top, SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+    } else {
+        window->fullscreen = false;
+        SetWindowLongPtrW(hwnd, GWL_STYLE, (LONG_PTR)window->saved_style);
+        SetWindowPlacement(hwnd, &window->saved_placement);
+        SetWindowPos(hwnd, NULL, 0, 0, 0, 0,
+                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+    }
+    zant_request(window);
+}
+
+int zant_window_is_fullscreen(ZantWindow *window) {
+    return window && window->fullscreen ? 1 : 0;
 }
 
 void zant_window_close(ZantWindow *window) {

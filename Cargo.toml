@@ -3,9 +3,11 @@ resolver = "3"
 members = [
     "crates/zant-sys",
     "crates/zant-macros",
+    "crates/zant-base",
     "crates/zant",
     "crates/zant-dylib",
     "crates/zant-tsx",
+    "crates/zant-tables",
     "crates/zant-build",
     "crates/zant-cli",
     "crates/zant-hot-host",
@@ -63,6 +65,7 @@ toml = "1.2"
 # internal crates
 zant-sys = { path = "crates/zant-sys", version = "0.2.11" }
 zant-macros = { path = "crates/zant-macros", version = "0.2.11" }
+zant-base = { path = "crates/zant-base", version = "0.2.11" }
 zant = { path = "crates/zant", version = "0.2.11" }
 zant-dylib = { path = "crates/zant-dylib", version = "0.2.11" }
 zant-tsx = { path = "crates/zant-tsx", version = "0.2.11" }

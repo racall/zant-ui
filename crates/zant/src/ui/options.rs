@@ -14,8 +14,8 @@ use crate::Str;
 use crate::core::geometry::Edges;
 use crate::core::node::{Icon, ImageFit, RichSpan};
 use crate::core::vector::{Drawing, DrawingRef};
+use crate::flex;
 use crate::image::Image;
-use crate::layout::flex;
 use crate::motion::motion;
 use crate::platform::platform::Cursor;
 use crate::renderer::text;
@@ -325,6 +325,9 @@ pub struct InputOptions {
     pub password: bool,
     pub multiline: bool,
     pub focus_ring: bool,
+    /// Takes the keyboard focus when it appears (the field of a dialog that
+    /// just opened, a search box): `autoFocus` in TSX.
+    pub auto_focus: bool,
     pub width: Option<f32>,
     pub height: f32,
     pub font_size: f32,
@@ -355,6 +358,7 @@ impl Default for InputOptions {
             password: false,
             multiline: false,
             focus_ring: true,
+            auto_focus: false,
             width: None,
             height: 32.0,
             font_size: 14.0,

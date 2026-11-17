@@ -172,8 +172,36 @@ impl ModuleState {
 }
 
 thread_local! {
+    /// The optional parts of the app's `zant` that are compiled in (its Cargo
+    /// features, `DEP_ZANT_FEATURES`); `None`: unknown, everything allowed.
+    static FEATURES: RefCell<Option<Vec<String>>> = const { RefCell::new(None) };
     static PROJECT: RefCell<Option<Rc<ProjectData>>> = const { RefCell::new(None) };
     static MODULE: RefCell<ModuleState> = const { RefCell::new(ModuleState::new()) };
+}
+
+/// Sets the Cargo features of the app's `zant` (`zant_build` reads them from
+/// `zant`'s build script), so a tag or API of a feature that is off is a TSX
+/// error at its position instead of a Rust error in the generated code.
+pub fn set_framework_features(features: Option<Vec<String>>) {
+    FEATURES.with(|slot| *slot.borrow_mut() = features);
+}
+
+/// `Some(feature)` when `feature` of `zant` is known to be off.
+pub fn missing_feature(feature: &'static str) -> Option<&'static str> {
+    FEATURES.with(|slot| {
+        slot.borrow()
+            .as_ref()
+            .is_some_and(|features| !features.iter().any(|on| on == feature))
+            .then_some(feature)
+    })
+}
+
+/// The message for a tag / function whose `zant` feature is off.
+pub fn feature_message(what: &str, feature: &str) -> String {
+    format!(
+        "{what} needs the `{feature}` feature of zant; turn it on in Cargo.toml: \
+         `zant = {{ …, features = [\"{feature}\"] }}`"
+    )
 }
 
 /// Wipes the per-module state (`generate::install` calls this before filling

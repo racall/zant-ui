@@ -407,6 +407,90 @@ fn modal_is_a_focus_scope_tab_cycles_inside_the_dialog_only() {
     motion::set_enabled(true);
 }
 
+/// A dialog with an `autoFocus` field (or none): opening it moves the
+/// keyboard into it, closing it gives the focus back to the page.
+struct FocusDialog {
+    open: bool,
+    auto_focus: bool,
+}
+
+impl App for FocusDialog {
+    fn render(&mut self) -> Node {
+        let behind = button(ButtonOptions {
+            key: Some("behind".into()),
+            text: "Open".into(),
+            ..Default::default()
+        });
+        let mut children = vec![behind];
+        if self.open {
+            children.push(modal(ModalOptions {
+                key: "dlg".into(),
+                title: "T".into(),
+                content: zant::ui::input(zant::ui::InputOptions {
+                    key: Some("dlg-input".into()),
+                    auto_focus: self.auto_focus,
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }));
+        }
+        column(BoxOptions {
+            grow: 1.0,
+            children,
+            ..Default::default()
+        })
+    }
+}
+
+fn focused_key(runtime: &Runtime) -> Option<String> {
+    runtime
+        .tree
+        .focused
+        .and_then(|id| runtime.tree.get(id).key.as_ref().map(|key| key.to_string()))
+}
+
+#[test]
+fn a_dialog_takes_the_focus_and_gives_it_back_when_it_closes() {
+    motion::set_enabled(false);
+    for auto_focus in [true, false] {
+        let mut runtime = Runtime::init(
+            FocusDialog {
+                open: false,
+                auto_focus,
+            },
+            RunOptions::default(),
+        );
+        let mut renderer = Renderer::create_raster(400, 300).expect("raster renderer");
+        frame(&mut runtime, &mut renderer, 400.0, 300.0);
+        runtime.dispatch(Event::KeyDown(KeyEvent {
+            key: Key::Tab,
+            modifiers: Modifiers::default(),
+            repeat: false,
+        }));
+        assert_eq!(focused_key(&runtime).as_deref(), Some("behind"));
+
+        runtime.app_state_mut::<FocusDialog>().open = true;
+        runtime.invalidate();
+        frame(&mut runtime, &mut renderer, 400.0, 300.0);
+        if auto_focus {
+            assert_eq!(focused_key(&runtime).as_deref(), Some("dlg-input"));
+        } else {
+            // the page behind no longer has the keyboard; Tab enters the dialog
+            assert_eq!(runtime.tree.focused, None);
+        }
+
+        runtime.app_state_mut::<FocusDialog>().open = false;
+        runtime.invalidate();
+        frame(&mut runtime, &mut renderer, 400.0, 300.0);
+        assert_eq!(
+            focused_key(&runtime).as_deref(),
+            Some("behind"),
+            "auto_focus: {auto_focus}"
+        );
+    }
+    motion::set_enabled(true);
+}
+
 struct Rows {
     picked: Option<usize>,
     deleted: usize,
@@ -422,7 +506,7 @@ impl App for Rows {
                 r#box: BoxOptions {
                     key: Some(if i == 0 { "row-0" } else { "row-1" }.into()),
                     height: Some(40.0),
-                    flex_direction: Some(zant::layout::flex::Direction::Row),
+                    flex_direction: Some(zant::flex::Direction::Row),
                     children: zant::nodes![
                         row(BoxOptions {
                             grow: 1.0,
@@ -457,7 +541,7 @@ impl App for Rows {
             ..Default::default()
         }));
         column(BoxOptions {
-            align_items: zant::layout::flex::Align::Stretch,
+            align_items: zant::flex::Align::Stretch,
             children,
             ..Default::default()
         })
@@ -540,12 +624,12 @@ struct WrappedRow;
 impl App for WrappedRow {
     fn render(&mut self) -> Node {
         column(BoxOptions {
-            align_items: zant::layout::flex::Align::Stretch,
+            align_items: zant::flex::Align::Stretch,
             children: zant::nodes![row(BoxOptions {
                 key: Some("row".into()),
                 padding: zant::ui::inset_xy(16.0, 12.0),
                 gap: 16.0,
-                align_items: zant::layout::flex::Align::Center,
+                align_items: zant::flex::Align::Center,
                 children: zant::nodes![
                     column(BoxOptions {
                         key: Some("text-col".into()),
@@ -553,7 +637,7 @@ impl App for WrappedRow {
                         shrink: 1.0,
                         basis: Some(0.0),
                         gap: 3.0,
-                        align_items: zant::layout::flex::Align::Stretch,
+                        align_items: zant::flex::Align::Stretch,
                         children: zant::nodes![
                             zant::ui::text(
                                 "自动同步",
@@ -644,7 +728,7 @@ impl App for Seg {
     fn render(&mut self) -> Node {
         column(BoxOptions {
             key: Some("col".into()),
-            align_items: zant::layout::flex::Align::Stretch,
+            align_items: zant::flex::Align::Stretch,
             gap: 8.0,
             children: zant::nodes![
                 segmented(SegmentedOptions {

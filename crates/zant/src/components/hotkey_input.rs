@@ -20,23 +20,17 @@
 //! Esc cancels, Backspace / Delete clears. Unregister the app's own hotkey in
 //! `on_start`: a registered hotkey never reaches the window.
 //!
-//! The recorder only needs `from_key_event` / `is_valid` / `eql` / `label`,
-//! so this module carries its own [`Shortcut`] with that subset (same
-//! normalisation and labels as `crate::desktop::Shortcut`, which adds
-//! `format` / `parse`).
-//!
-//! TODO: use `crate::desktop::Shortcut` here and re-export it instead of
-//! keeping two `Shortcut` types.
+//! The value is [`Shortcut`] (`desktop::Shortcut`): its `from_key_event`
+//! reads the recorded press and `key_caps` gives the caps shown.
 #![forbid(unsafe_code)]
 
 use std::rc::Rc;
 
 use crate::Str;
-use crate::core::events::{self, Key, KeyEvent, Modifiers};
+use crate::core::events::{self, Key};
 use crate::core::geometry::Edges;
-use crate::core::keys;
 use crate::core::node::Icon;
-use crate::layout::flex;
+use crate::flex;
 use crate::platform::platform::Cursor;
 use crate::renderer::text::Weight;
 use crate::ui::actions::{Action, ActionCx, KeyAction, PointerAction, PointerPhase};
@@ -46,133 +40,9 @@ use crate::ui::element::Node;
 use crate::ui::options::{BoxOptions, IconButtonOptions, PointerAreaOptions, TextOptions};
 use crate::ui::styled::inset_xy;
 
-/// A key combination, e.g. ⌥⌘V / Ctrl+Alt+V (see the module note about
-/// `crate::desktop::Shortcut`).
-#[derive(Clone, Copy, Debug)]
-pub struct Shortcut {
-    pub key: Key,
-    pub modifiers: Modifiers,
-}
-
-impl Shortcut {
-    /// Usable as a system-wide hotkey: a supported key plus at least one of
-    /// Ctrl / Alt (⌥) / ⌘ (Win).
-    pub fn is_valid(&self) -> bool {
-        let m = self.modifiers;
-        (m.control || m.alt || m.meta) && platform_key_supported(self.key)
-    }
-
-    /// From a key press in a shortcut recorder; `None` for modifier-only or
-    /// unsupported keys.
-    pub fn from_key_event(event: KeyEvent) -> Option<Shortcut> {
-        let mut modifiers = event.modifiers;
-        modifiers.caps_lock = false;
-        let shortcut = Shortcut {
-            key: normalized(event.key),
-            modifiers,
-        };
-        if shortcut.is_valid() {
-            Some(shortcut)
-        } else {
-            None
-        }
-    }
-
-    /// Compares the normalised key and the four
-    /// modifiers (`caps_lock` is ignored).
-    pub fn eql(&self, other: &Shortcut) -> bool {
-        normalized(self.key) == normalized(other.key)
-            && self.modifiers.shift == other.modifiers.shift
-            && self.modifiers.control == other.modifiers.control
-            && self.modifiers.alt == other.modifiers.alt
-            && self.modifiers.meta == other.modifiers.meta
-    }
-
-    /// Display label for this platform: "⌥⌘V" on macOS, "Ctrl+Alt+V" on Windows.
-    pub fn label(&self) -> String {
-        let m = self.modifiers;
-        let mut out = String::new();
-        if keys::IS_MACOS {
-            if m.control {
-                out.push('⌃');
-            }
-            if m.alt {
-                out.push('⌥');
-            }
-            if m.shift {
-                out.push('⇧');
-            }
-            if m.meta {
-                out.push('⌘');
-            }
-        } else {
-            if m.control {
-                out.push_str("Ctrl+");
-            }
-            if m.alt {
-                out.push_str("Alt+");
-            }
-            if m.shift {
-                out.push_str("Shift+");
-            }
-            if m.meta {
-                out.push_str("Win+");
-            }
-        }
-        out.push_str(&key_name(self.key));
-        out
-    }
-}
-
-/// Uppercase letters become lowercase.
-fn normalized(key: Key) -> Key {
-    match key {
-        Key::Character(c) if c.is_ascii_uppercase() => Key::Character(c.to_ascii_lowercase()),
-        other => other,
-    }
-}
-
-/// The display name of a key.
-fn key_name(key: Key) -> String {
-    match key {
-        Key::Character(' ') => "Space".to_owned(),
-        Key::Character(c) => c.to_ascii_uppercase().to_string(),
-        Key::Function(n) => format!("F{n}"),
-        Key::Enter => if keys::IS_MACOS { "↵" } else { "Enter" }.to_owned(),
-        Key::Tab => if keys::IS_MACOS { "⇥" } else { "Tab" }.to_owned(),
-        Key::Escape => "Esc".to_owned(),
-        Key::Left => "←".to_owned(),
-        Key::Right => "→".to_owned(),
-        Key::Up => "↑".to_owned(),
-        Key::Down => "↓".to_owned(),
-        // The remaining keys use their lowercase snake_case names.
-        Key::Home => "home".to_owned(),
-        Key::End => "end".to_owned(),
-        Key::Backspace => "backspace".to_owned(),
-        Key::Delete => "delete".to_owned(),
-        Key::PageUp => "page_up".to_owned(),
-        Key::PageDown => "page_down".to_owned(),
-    }
-}
-
-/// Whether the native hotkey API supports the key.
-fn platform_key_supported(key: Key) -> bool {
-    match key {
-        Key::Character(c) => {
-            c.is_ascii_lowercase()
-                || c.is_ascii_uppercase()
-                || c.is_ascii_digit()
-                || c == ' '
-                || matches!(
-                    c,
-                    '`' | '-' | '=' | '[' | ']' | ';' | '\'' | ',' | '.' | '/' | '\\'
-                )
-        }
-        Key::Function(n) => (1..=12).contains(&n),
-        Key::Enter | Key::Tab | Key::Escape | Key::Left | Key::Right | Key::Up | Key::Down => true,
-        Key::Home | Key::End | Key::Backspace | Key::Delete | Key::PageUp | Key::PageDown => false,
-    }
-}
+/// A key combination, e.g. ⌥⌘V / Ctrl+Alt+V: the one shortcut type of the
+/// framework (`desktop::Shortcut`, which also registers system-wide hotkeys).
+pub use crate::desktop::Shortcut;
 
 /// Receives the recorded [`Shortcut`].
 #[derive(Clone)]
@@ -267,19 +137,12 @@ pub fn hotkey_input(o: HotkeyInputOptions) -> Node {
             },
         ));
     } else if let Some(shortcut) = o.value {
-        // one cap per key: "⌃⌘V" -> ⌃ ⌘ V, "Ctrl+Alt+V" -> Ctrl Alt V
-        let label = shortcut.label();
-        let mut cap_nodes: Vec<Node> = Vec::new();
-        if keys::IS_MACOS {
-            for codepoint in label.chars() {
-                let cap = codepoint.to_string();
-                cap_nodes.push(key_cap(&cap, &theme));
-            }
-        } else {
-            for part in label.split('+') {
-                cap_nodes.push(key_cap(part, &theme));
-            }
-        }
+        // one cap per key: ⌃ ⌘ V / Ctrl Alt V
+        let cap_nodes: Vec<Node> = shortcut
+            .key_caps()
+            .iter()
+            .map(|cap| key_cap(cap, &theme))
+            .collect();
         children.push(row(BoxOptions {
             gap: 4.0,
             align_items: flex::Align::Center,
@@ -429,6 +292,8 @@ pub fn hotkey_input(o: HotkeyInputOptions) -> Node {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::events::{KeyEvent, Modifiers};
+    use crate::core::keys;
     use crate::core::node::NodeKind;
     use crate::theme::tokens::ant_light;
     use crate::ui::actions::{Action, PointerAction, PointerInfo, action};

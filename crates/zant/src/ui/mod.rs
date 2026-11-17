@@ -26,10 +26,12 @@ pub use actions::{
     call_index, call_range, call_text, index_action, range_action, text_action,
 };
 pub use app::{App, RunOptions, run};
+#[cfg(feature = "pdf")]
+pub use builders::pdf_preview;
 pub use builders::{
     alert, avatar, button, card, checkbox, clickable, column, dismiss_layer, divider, heading,
-    icon, icon_button, image, input, link, paragraph, pdf_preview, pointer_area, progress,
-    radio_group, rich_text, row, select, space, r#switch, tabs, tag, text, title, tooltip, vector,
+    icon, icon_button, image, input, link, paragraph, pointer_area, progress, radio_group,
+    rich_text, row, select, space, r#switch, tabs, tag, text, title, tooltip, vector,
 };
 pub use commands::{
     Command, CommandKind, MAX_COMMANDS, focus, queue_command_for, requeue_command,
@@ -90,9 +92,10 @@ pub use crate::components::window_controls::{
 /// Document widgets with runtime-owned per-instance state (`ui::markdown` /
 /// `ui::pdf_viewer`). The PDF reader's options and slot state are exported
 /// alongside the builder.
-pub use crate::components::widgets::{
-    MarkdownOptions, PdfViewerOptions, PdfViewerState, markdown, pdf_viewer,
-};
+#[cfg(feature = "markdown")]
+pub use crate::components::markdown::{MarkdownOptions, markdown};
+#[cfg(feature = "pdf")]
+pub use crate::components::pdf_viewer::{PdfViewerOptions, PdfViewerState, pdf_viewer};
 
 #[cfg(test)]
 mod contract_tests {

@@ -20,6 +20,7 @@
 use crate::ast;
 use crate::tags::{self, Content, Kind, Prop, Tag};
 
+use super::app_state;
 use super::events;
 use super::expr;
 use super::jsx_children::ChildList;
@@ -208,12 +209,12 @@ fn enum_type_path(owner: &str, field: &str) -> Option<&'static str> {
         return Some("ui::MenuItemKind");
     }
     match field {
-        "wrap" => Some("zant::layout::flex::Wrap"),
-        "align_content" => Some("zant::layout::flex::AlignContent"),
-        "align_self" => Some("zant::layout::flex::AlignSelf"),
-        "justify" | "justify_content" => Some("zant::layout::flex::Justify"),
-        "align_items" => Some("zant::layout::flex::Align"),
-        "flex_direction" | "direction" => Some("zant::layout::flex::Direction"),
+        "wrap" => Some("zant::flex::Wrap"),
+        "align_content" => Some("zant::flex::AlignContent"),
+        "align_self" => Some("zant::flex::AlignSelf"),
+        "justify" | "justify_content" => Some("zant::flex::Justify"),
+        "align_items" => Some("zant::flex::Align"),
+        "flex_direction" | "direction" => Some("zant::flex::Direction"),
         "weight" => Some("zant::renderer::text::Weight"),
         "text_align" => Some("zant::renderer::text::Align"),
         "family" => Some("zant::renderer::text::Family"),
@@ -643,6 +644,15 @@ fn emit_named(
     if name == b"List" {
         not_in_scroll(g, jsx)?;
         return list::emit(g, c, jsx);
+    }
+    let feature = match name {
+        b"Markdown" => app_state::missing_feature("markdown"),
+        b"PdfViewer" | b"PdfPreview" => app_state::missing_feature("pdf"),
+        _ => None,
+    };
+    if let Some(feature) = feature {
+        let what = format!("<{}>", String::from_utf8_lossy(name));
+        return fail(g, jsx.loc, app_state::feature_message(&what, feature));
     }
     let Some(tag) = tags::find(&String::from_utf8_lossy(name)) else {
         return fail(

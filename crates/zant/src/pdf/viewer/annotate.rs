@@ -13,7 +13,7 @@ use crate::Str;
 use crate::components::segmented::{SegmentedOption, SegmentedOptions};
 use crate::core::node::Icon;
 use crate::core::vector::{Command, Drawing, Path};
-use crate::layout::flex;
+use crate::flex;
 use crate::pdf::annotations::{self, Annotation, Kind, Point};
 use crate::pdf::native;
 use crate::pdf::text::Rect;
@@ -283,8 +283,8 @@ impl Inner {
             Kind::Note => {
                 if let Some(r) = a.rects.first() {
                     let icon = ui::row(BoxOptions {
-                        justify: crate::layout::flex::Justify::Center,
-                        align_items: crate::layout::flex::Align::Center,
+                        justify: crate::flex::Justify::Center,
+                        align_items: crate::flex::Align::Center,
                         children: vec![ui::icon(IconOptions {
                             name: crate::core::node::Icon::FileText,
                             size: (r.width * z * 0.7).max(10.0),

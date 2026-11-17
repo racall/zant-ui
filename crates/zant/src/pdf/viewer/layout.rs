@@ -11,7 +11,7 @@
 use crate::Str;
 use crate::core::geometry::Edges;
 use crate::core::node::{ButtonSize, ButtonType, Icon};
-use crate::layout::flex;
+use crate::flex;
 use crate::theme::tokens::Theme;
 use crate::ui::actions::Action;
 use crate::ui::builders::{button, icon_button, input, row, space, text, tooltip};

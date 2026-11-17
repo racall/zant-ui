@@ -1,10 +1,6 @@
-//! PNG decode / area-average resize / Windows `.ico` builder, the same code
-//! as `crates/zant-cli/src/png.rs`.
-//!
-//! `zant-build` owns the `.ico` for the application executable; `zant-cli` cannot be a
-//! dependency because it depends on this crate. The resize algorithm is kept
-//! byte-for-byte identical to the CLI's so the executable's icon matches what
-//! `zant package` produces elsewhere.
+//! PNG decode / area-average resize / Windows `.ico` builder: the
+//! executable's icon (`zant-build`) and the icons `zant package` /
+//! `zant build` generate (`zant-cli` uses this module), so they match.
 
 /// PNG errors: not a PNG, an unsupported PNG (bit depth /
 /// interlacing) or corrupt data.
@@ -262,8 +258,6 @@ mod tests {
             rgba,
         }
     }
-
-    // Same expectations as the tests of `crates/zant-cli/src/png.rs`.
 
     #[test]
     fn png_round_trip_resize_and_ico() {

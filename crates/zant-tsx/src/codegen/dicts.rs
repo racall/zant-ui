@@ -370,6 +370,13 @@ pub fn construct(
     let set = match name.as_slice() {
         b"Map" => false,
         b"Set" => true,
+        b"Promise" => {
+            return fail(
+                g,
+                loc,
+                "`new Promise(…)` is not supported; return a value from an `async` function, or use `Promise.resolve(value)`",
+            );
+        }
         _ => {
             return fail(
                 g,
@@ -644,6 +651,21 @@ pub fn object_call(
         return Ok(None);
     }
     let name = member.name.name.as_slice();
+    if !matches!(name, b"keys" | b"values" | b"entries" | b"fromEntries") {
+        let hint = match name {
+            b"assign" => " (copy with a spread instead: `{ ...a, ...b }`)",
+            b"hasOwn" => " (test a record key with `key in record`)",
+            _ => "",
+        };
+        return fail(
+            g,
+            loc,
+            format!(
+                "`Object.{}` is not supported; the Object functions are keys, values, entries and fromEntries{hint}",
+                String::from_utf8_lossy(name)
+            ),
+        );
+    }
     if call.args.len() != 1 {
         return fail(g, loc, "this Object function takes 1 argument");
     }

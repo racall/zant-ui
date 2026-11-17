@@ -270,7 +270,11 @@ cargo build -p zant-cli
 
 ## 发布
 
-开发者用一行命令安装（`install.sh` / `install.ps1`，见 README「安装」），装的是 GitHub Release 上的发布包：
+开发者用一行命令安装（`install.sh` / `install.ps1`，见 README「安装」），装的是 GitHub Release 上的发布包。
+Zant 不发布到 crates.io：所有 crate 都是 `publish = false`，应用从安装包（`$ZANT_HOME/zant-ui`）、源码路径或 git 依赖使用
+（`zant-sys` 依赖仓库外的 Skia / PDFium 预编译资产）。测试夹具因此可以继续放在仓库根 `tests/fixtures/`。
+
+发布步骤：
 
 1. 改根 `Cargo.toml` 的 `[workspace.package].version`（以及需要的话 `rust-version`；工具链由
    `rust-toolchain.toml` 固定，安装脚本装发布包里这个文件写的 channel，CI 用同一 channel，不用再改版本号），

@@ -96,13 +96,16 @@ fn reaction_block(
     loc: ast::Loc,
     statements: &[Box<ast::Stmt>],
 ) -> Result<(String, Type)> {
-    if !stmt::returns_all(statements) {
-        return fail(g, loc, "this callback must return a value on every path");
-    }
     let label = super::super::aggregate::temporary(g, c, b"_reaction")?;
     c.return_label = Some(label.clone());
     c.return_values = Some(Vec::new());
     let mut body = stmt::statements(g, c, statements, false)?;
+    // checked after generating: an exhaustive switch is known then
+    if !stmt::returns_all(statements) {
+        c.return_label = None;
+        c.return_values = None;
+        return fail(g, loc, "this callback must return a value on every path");
+    }
     let returned = c.return_values.take().unwrap_or_default();
     c.return_label = None;
     let mut ty = returned[0].value.ty;

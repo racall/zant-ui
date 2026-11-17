@@ -19,7 +19,6 @@ pub mod windows;
 
 use crate::generate::Need;
 use crate::{COLOR_CYAN, COLOR_RESET, fail, ok};
-use std::io::Write as _;
 use std::path::Path;
 use std::sync::Mutex;
 
@@ -236,6 +235,7 @@ pub fn write_secret_file(c: &Ctx, name: &str, data: &[u8]) -> std::io::Result<St
     register_temp_file(&path_string);
     #[cfg(unix)]
     {
+        use std::io::Write as _;
         use std::os::unix::fs::OpenOptionsExt;
         let mut file = std::fs::OpenOptions::new()
             .write(true)

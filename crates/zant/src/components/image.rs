@@ -312,7 +312,7 @@ mod tests {
         let theme = ant_light();
         let mut tree = Tree::init(theme);
         let root = tree.root;
-        tree.get_mut(root).style.direction = crate::layout::flex::Direction::Row;
+        tree.get_mut(root).style.direction = crate::flex::Direction::Row;
         let id = tree.add_image(Some(root), "missing.png", ImageFit::Fill, 0.0);
         let data = image_data_mut(tree.get_mut(id));
         data.handle = Some(Rc::new(red_image(40, 20)));

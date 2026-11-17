@@ -393,7 +393,7 @@ fn window_diagnostics() {
             format!(
                 "{panel}const w = createWindow(Panel, {{}});\nexport default function App() {{\n  return <Button onClick={{() => w.~close()}}/>;\n}}\n"
             ),
-            "a window has show, hide, activate, toggle, visible, active, minimized, place and focus",
+            "a window has show, hide, activate, toggle, visible, active, minimized, fullscreen, place, focus, setTitle",
         ),
     ];
     for (marked, message) in cases {
@@ -553,6 +553,37 @@ fn app_hook_diagnostics() {
                 "function Child({{ n }}: {{ n: number }}) {{\n  ~useCloseRequest(() => true);\n  return <View/>;\n}}\n{APP}  return <Child n={{1}}/>;\n}}\n"
             ),
             "useCloseRequest belongs to the root component or a window's component",
+        ),
+        // a child without props has no trait that would call its hooks
+        (
+            format!(
+                "function Child() {{\n  ~useCloseRequest(() => true);\n  return <View/>;\n}}\n{APP}  return <Child/>;\n}}\n"
+            ),
+            "useCloseRequest belongs to the root component or a window's component",
+        ),
+        (
+            format!(
+                "function Child() {{\n  ~useKeyDown((e: KeyEvent) => false);\n  return <View/>;\n}}\n{APP}  return <Child/>;\n}}\n"
+            ),
+            "useKeyDown belongs to the root component or a window's component",
+        ),
+        // `ui::App` has no focus hook: useWindowFocus is a window's
+        (
+            format!("{APP}  ~useWindowFocus((focused: boolean) => {{}});\n{END}"),
+            "useWindowFocus belongs to a window's component",
+        ),
+        // quitting is an app event: a window's trait has no on_quit_request
+        (
+            format!(
+                "function Panel() {{\n  ~useQuitRequest(() => true);\n  return <View/>;\n}}\nconst panel = createWindow(Panel, {{ title: \"P\" }});\n{APP}  return <View/>;\n}}\n"
+            ),
+            "useQuitRequest belongs to the root component (the app)",
+        ),
+        (
+            format!(
+                "function Panel() {{\n  ~useWake(() => {{}});\n  return <View/>;\n}}\nconst panel = createWindow(Panel, {{ title: \"P\" }});\n{APP}  return <View/>;\n}}\n"
+            ),
+            "useWake belongs to the root component (the app)",
         ),
         (
             format!("{APP}  ~useKeyDown(1);\n{END}"),
@@ -1305,4 +1336,52 @@ fn a_component_call_passes_the_props_struct_not_the_component() {
         dashboard.contains("onReset: ui::Action::new(|_cx| ())"),
         "{dashboard}"
     );
+}
+
+// ── `zant` features ───────────────────────────────────────────────────
+
+/// With the app's `zant` features known (`zant_build` passes them on), a tag
+/// or API of a feature that is off is a TSX error at its position.
+#[test]
+fn tags_of_a_feature_that_is_off_are_reported() {
+    struct Reset;
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            codegen::app_state::set_framework_features(None);
+        }
+    }
+    let _reset = Reset;
+    codegen::app_state::set_framework_features(Some(vec!["math".to_owned()]));
+    let cases = [
+        (
+            "import { Markdown } from \"zant\";\nexport default function App() {\n  return ~<Markdown source=\"# a\" />;\n}\n",
+            "<Markdown> needs the `markdown` feature of zant",
+        ),
+        (
+            "import { PdfViewer } from \"zant\";\nexport default function App() {\n  return ~<PdfViewer src=\"a.pdf\" />;\n}\n",
+            "<PdfViewer> needs the `pdf` feature of zant",
+        ),
+        (
+            "import { useEffect, View } from \"zant\";\nexport default function App() {\n  useEffect(() => { ~fetch(\"https://example.com\"); }, []);\n  return <View />;\n}\n",
+            "fetch needs the `fetch` feature of zant",
+        ),
+    ];
+    // the real JSX emitter (`expect_diagnostic` stubs it out)
+    for (marked, message) in cases {
+        let at = marked.find('~').expect("`~` marker");
+        let src = format!("{}{}", &marked[..at], &marked[at + 1..]);
+        let diag = compile::compile(&src, "app.tsx").expect_err(message);
+        assert!(diag.msg.contains(message), "{}\nsource: {src}", diag.msg);
+        let expected = zant_tsx::error::position(&src, at as u32);
+        let actual = zant_tsx::error::position(&src, diag.loc);
+        assert_eq!(
+            (expected.line, expected.column),
+            (actual.line, actual.column),
+            "{src}"
+        );
+    }
+    // everything allowed when the features are unknown
+    codegen::app_state::set_framework_features(None);
+    let src = "import { Markdown } from \"zant\";\nexport default function App() {\n  return <Markdown source=\"# a\" />;\n}\n";
+    assert!(compile::compile(src, "app.tsx").is_ok());
 }

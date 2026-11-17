@@ -36,7 +36,7 @@ impl App for DocApp {
         column(BoxOptions {
             grow: 1.0,
             padding: inset(20.0),
-            align_items: zant::layout::flex::Align::Stretch,
+            align_items: zant::flex::Align::Stretch,
             children: zant::nodes![streamdown(
                 &mut self.cache,
                 DOC,
@@ -293,12 +293,12 @@ impl App for PanelApp {
                     column(BoxOptions {
                         key: Some("panel".into()),
                         block_pointer: true,
-                        align_items: zant::layout::flex::Align::Stretch,
+                        align_items: zant::flex::Align::Stretch,
                         children: zant::nodes![column(BoxOptions {
                             key: Some("inner".into()),
                             selectable: true,
                             padding: inset(10.0),
-                            align_items: zant::layout::flex::Align::Stretch,
+                            align_items: zant::flex::Align::Stretch,
                             children: zant::nodes![paragraph(
                                 "Panel text",
                                 ParagraphOptions::default()

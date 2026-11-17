@@ -632,18 +632,61 @@ pub fn hook(g: &Generator<'_>, e: &ast::Expr) -> bool {
     }
 }
 
-/// Validate generated Rust with `syn::parse_file` and format it with
-/// `prettyplease`. A parse failure panics with the generated source: it is a
-/// compiler bug, never a user error. [`generate`] calls this once on the
-/// complete module.
-///
-/// The caller supplies the whole file, including the `// @generated` marker
-/// and the `#![allow(..)]` header; only the body is generated here.
+/// Formats a generated snippet with `prettyplease`; a snippet that does not
+/// parse is returned as written: [`check_and_format`] reports it once for the
+/// whole module.
 pub fn parse_and_format(source: &str) -> String {
     match syn::parse_file(source) {
         Ok(file) => prettyplease::unparse(&file),
-        Err(error) => panic!(
-            "zant-tsx: generated Rust does not parse: {error}\n--- generated source ---\n{source}"
-        ),
+        Err(_) => source.to_owned(),
+    }
+}
+
+/// Validates a whole generated module with `syn::parse_file` and formats it.
+/// A parse failure is a compiler bug, never a user error: the message says so
+/// and where the generated code was saved (`ZANT_TSX_DUMP=<dir>`), instead
+/// of a panic in the app's build script.
+pub fn check_and_format(source: &str, source_name: &str) -> std::result::Result<String, String> {
+    let error = match syn::parse_file(source) {
+        Ok(file) => return Ok(prettyplease::unparse(&file)),
+        Err(error) => error,
+    };
+    let saved = std::env::var_os("ZANT_TSX_DUMP").and_then(|dir| {
+        let base = source_name
+            .rsplit(['/', '\\'])
+            .next()
+            .unwrap_or(source_name);
+        let path = std::path::Path::new(&dir).join(format!("{base}.generated.rs"));
+        std::fs::create_dir_all(&dir).ok()?;
+        std::fs::write(&path, source).ok()?;
+        Some(path)
+    });
+    let dump = match saved {
+        Some(path) => format!("the generated code is in {}", path.display()),
+        None => "set ZANT_TSX_DUMP=<directory> to save the generated code".to_owned(),
+    };
+    Err(format!(
+        "internal compiler error: the Rust generated for this file does not parse ({error}). \
+         This is a zant-tsx bug, not an error in your code; please report it with this file \
+         ({dump})"
+    ))
+}
+
+#[cfg(test)]
+mod format_tests {
+    use super::{check_and_format, parse_and_format};
+
+    #[test]
+    fn unparsable_generated_code_is_reported_not_panicked() {
+        assert_eq!(
+            check_and_format("fn f() {}", "app.tsx").unwrap(),
+            "fn f() {}\n"
+        );
+        let message = check_and_format("fn f( {", "app.tsx").unwrap_err();
+        assert!(message.contains("internal compiler error"), "{message}");
+        assert!(message.contains("zant-tsx bug"), "{message}");
+        assert!(message.contains("ZANT_TSX_DUMP"), "{message}");
+        // a snippet that does not parse is kept as written
+        assert_eq!(parse_and_format("impl ("), "impl (");
     }
 }

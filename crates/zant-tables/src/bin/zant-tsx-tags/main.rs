@@ -4,8 +4,8 @@
 //! Regenerate `crates/zant-tsx/src/ui_tags.rs` with
 //!
 //! ```text
-//! cargo run -p zant-tsx --bin zant-tsx-tags -- crates/zant-tsx/src/ui_tags.rs
-//! cargo run -p zant-tsx --bin zant-tsx-tags -- --check crates/zant-tsx/src/ui_tags.rs
+//! cargo run -p zant-tables --bin zant-tsx-tags -- crates/zant-tsx/src/ui_tags.rs
+//! cargo run -p zant-tables --bin zant-tsx-tags -- --check crates/zant-tsx/src/ui_tags.rs
 //! ```
 //!
 //! The `zant` crate directory comes from `$ZANT_HOME` (zant-ui root or the
@@ -49,7 +49,7 @@ fn main() -> ExitCode {
 fn outdated(path: &str) -> ExitCode {
     eprintln!(
         "zant-tsx-tags: {path} is out of date; run \
-         `cargo run -p zant-tsx --bin zant-tsx-tags -- {path}`"
+         `cargo run -p zant-tables --bin zant-tsx-tags -- {path}`"
     );
     ExitCode::from(1)
 }

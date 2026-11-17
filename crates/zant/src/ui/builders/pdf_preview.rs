@@ -7,7 +7,7 @@
 
 use crate::Str;
 use crate::core::node::{ButtonSize, ImageFit};
-use crate::layout::flex;
+use crate::flex;
 use crate::platform::pdf;
 use crate::platform::platform::set_clipboard;
 

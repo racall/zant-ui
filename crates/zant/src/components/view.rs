@@ -12,7 +12,7 @@
 
 use crate::Str;
 use crate::core::geometry::Edges;
-use crate::layout::flex;
+use crate::flex;
 use crate::motion::motion;
 use crate::platform::platform::Cursor;
 use crate::ui::actions::{Action, IndexAction};

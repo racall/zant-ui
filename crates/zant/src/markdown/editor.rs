@@ -10,7 +10,7 @@ use crate::core::events::{self, Key, KeyEvent};
 use crate::core::geometry::Edges;
 use crate::core::icons::Icon;
 use crate::core::keys;
-use crate::layout::flex;
+use crate::flex;
 use crate::markdown::cache::Cache;
 use crate::markdown::edit;
 use crate::markdown::render::view::{self, Props as ViewProps};

@@ -26,6 +26,7 @@ pub fn input(options: InputOptions) -> Node {
         password: options.password,
         multiline: options.multiline,
         focus_ring: options.focus_ring,
+        auto_focus: options.auto_focus,
         enabled: !options.disabled,
         focusable: true,
         layout: FlexStyle {

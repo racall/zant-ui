@@ -56,7 +56,7 @@ use std::rc::Rc;
 use crate::Str;
 use crate::core::events::{Key, KeyEvent};
 use crate::core::geometry::{Edges, Size};
-use crate::layout::flex;
+use crate::flex;
 use crate::theme::tokens;
 use crate::ui::actions::{Action, ActionCx, KeyAction, PointerAction, PointerInfo, PointerPhase};
 use crate::ui::builders::{column, pointer_area};

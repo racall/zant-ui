@@ -226,22 +226,19 @@ pub fn tray_click(cx: &mut ActionCx<'_>) {
 
 // ---------------------------------------------------------------- shortcuts
 
-/// `HotkeyInput`'s shortcut type (a duplicate of `desktop::Shortcut` that
-/// lives in `components/hotkey_input.rs`).
-// TODO: merge the two `Shortcut` types into `desktop::Shortcut`.
-pub type Shortcut = crate::components::hotkey_input::Shortcut;
+/// `HotkeyInput`'s value: the framework's one shortcut type.
+pub type Shortcut = desktop::Shortcut;
 
-/// The control-side shortcut of a `desktop.Shortcut`.
+/// The `HotkeyInput` value of a shortcut (the same type since the two
+/// shortcut types were merged; kept for generated code).
 pub fn hotkey_shortcut(shortcut: desktop::Shortcut) -> Shortcut {
-    Shortcut {
-        key: shortcut.key,
-        modifiers: shortcut.modifiers,
-    }
+    shortcut
 }
 
-/// The framework-side shortcut of a control-side one.
+/// The `desktop::Shortcut` of a `HotkeyInput` value (identity, see
+/// [`hotkey_shortcut`]).
 pub fn desktop_shortcut(shortcut: Shortcut) -> desktop::Shortcut {
-    desktop::Shortcut::new(shortcut.key, shortcut.modifiers)
+    shortcut
 }
 
 /// `<HotkeyInput value="ctrl+cmd+v">`: `None` for "" or an invalid string.

@@ -482,7 +482,8 @@ fn find(_g: &Generator<'_>, c: &scope::Context, e: &ast::Expr) -> Option<Window>
 }
 
 /// `panel.show()`, `hide`, `activate`, `toggle`, `visible`, `active`,
-/// `minimized`, `place`, `focus`.
+/// `minimized`, `fullscreen`, `place`, `focus`, `setTitle`, `setSize`,
+/// `setMinSize`, `setMaxSize`, `setAlwaysOnTop`, `setFullscreen`.
 pub fn try_call(
     g: &mut Generator<'_>,
     c: &mut scope::Context,
@@ -509,7 +510,7 @@ pub fn try_call(
             format!("{begin}|window| window.{method}())"),
         )));
     }
-    for name in ["visible", "active", "minimized"] {
+    for name in ["visible", "active", "minimized", "fullscreen"] {
         if method != name {
             continue;
         }
@@ -545,10 +546,60 @@ pub fn try_call(
             format!("{begin}|window| window.focus({}.as_str()))", key.code),
         )));
     }
+    if method == "setTitle" {
+        if call.args.len() != 1 {
+            return fail(g, loc, "setTitle(title) takes the title");
+        }
+        let title = expr::emit(g, c, &call.args[0], Some(Type::String), false)?;
+        let title = types::coerce(g, title, Type::String, call.args[0].loc)?;
+        return Ok(Some(Value::new(
+            Type::Void,
+            format!("{begin}|window| window.set_title({}.as_str()))", title.code),
+        )));
+    }
+    for (name, rust) in [
+        ("setSize", "set_size"),
+        ("setMinSize", "set_min_size"),
+        ("setMaxSize", "set_max_size"),
+    ] {
+        if method != name {
+            continue;
+        }
+        if call.args.len() != 2 {
+            return fail(g, loc, format!("{name}(width, height) takes two numbers"));
+        }
+        let mut sizes = Vec::new();
+        for arg in &call.args {
+            let value = expr::emit(g, c, arg, Some(Type::F64), false)?;
+            sizes.push(types::coerce(g, value, Type::F64, arg.loc)?.code);
+        }
+        return Ok(Some(Value::new(
+            Type::Void,
+            format!("{begin}|window| window.{rust}({}, {}))", sizes[0], sizes[1]),
+        )));
+    }
+    for (name, rust) in [
+        ("setAlwaysOnTop", "set_always_on_top"),
+        ("setFullscreen", "set_fullscreen"),
+    ] {
+        if method != name {
+            continue;
+        }
+        if call.args.len() != 1 {
+            return fail(g, loc, format!("{name}(on) takes a boolean"));
+        }
+        let on = expr::emit(g, c, &call.args[0], Some(Type::Boolean), false)?;
+        let on = types::coerce(g, on, Type::Boolean, call.args[0].loc)?;
+        return Ok(Some(Value::new(
+            Type::Void,
+            format!("{begin}|window| window.{rust}({}))", on.code),
+        )));
+    }
     fail(
         g,
         member.name.loc,
-        "a window has show, hide, activate, toggle, visible, active, minimized, place and focus",
+        "a window has show, hide, activate, toggle, visible, active, minimized, fullscreen, place, focus, \
+         setTitle, setSize, setMinSize, setMaxSize, setAlwaysOnTop and setFullscreen",
     )
 }
 

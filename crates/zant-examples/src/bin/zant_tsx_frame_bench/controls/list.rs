@@ -6,7 +6,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use zant::Str;
-use zant::layout::flex;
+use zant::flex;
 use zant::ui::{
     self, App, BoxOptions, ButtonOptions, ListOptions, ListState, TextOptions, ViewOptions,
 };

@@ -111,7 +111,7 @@ pub fn compile(
         out.push_str(", name: ");
         literal(&mut out, names::name(&catalog.locale));
         out.push_str(", plural: &[");
-        let rules = match zant::i18n::plural::cldr_rules(&catalog.locale) {
+        let rules = match zant_base::plural::cldr_rules(&catalog.locale) {
             Some(rules) => rules,
             None => {
                 warnings.push(format!(
@@ -122,7 +122,7 @@ pub fn compile(
             }
         };
         // checked here so the runtime never meets a rule it cannot parse
-        if let Err(why) = zant::i18n::plural::Rules::parse(&rules) {
+        if let Err(why) = zant_base::plural::Rules::parse(&rules) {
             return Err(error(
                 &catalog.path,
                 0,

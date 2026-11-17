@@ -491,6 +491,8 @@ fn item_closure(
             body.push_str(&format!("return {};\n", value.code));
         }
         ast::Body::Block(statements) => {
+            body.push_str(&stmt::statements(g, &mut c, statements, true)?);
+            // checked after generating: an exhaustive switch is known then
             if !stmt::returns_all(statements) {
                 return fail(
                     g,
@@ -498,7 +500,6 @@ fn item_closure(
                     "renderItem must return an element on every path",
                 );
             }
-            body.push_str(&stmt::statements(g, &mut c, statements, true)?);
         }
     }
     let finished = scope::finish(g, &c, body)?;

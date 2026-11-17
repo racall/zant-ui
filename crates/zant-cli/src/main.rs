@@ -24,7 +24,9 @@ mod generate;
 mod hot;
 #[allow(dead_code)]
 mod icon;
-mod png;
+/// PNG decode / resize / `.ico`: the same code that gives the executable its
+/// icon (`zant_build::png`), so both icons match.
+use zant_build::png;
 mod project;
 mod run;
 mod scaffold;

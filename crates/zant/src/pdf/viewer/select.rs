@@ -14,7 +14,7 @@
 use crate::Str;
 use crate::core::geometry::Edges;
 use crate::core::node::{ButtonSize, ButtonType};
-use crate::layout::flex;
+use crate::flex;
 use crate::motion::motion::Presence;
 use crate::pdf::annotations;
 use crate::pdf::document::Link;

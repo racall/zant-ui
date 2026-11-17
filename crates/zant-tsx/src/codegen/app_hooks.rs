@@ -9,10 +9,11 @@
 //!
 //! Each hook becomes a private method of the root struct and an
 //! `impl ui::App` method that forwards to it (`on_close_request`,
-//! `on_quit_request`, `on_key`, `on_app_event`, `on_wake`, `on_exit`). A
-//! no-props child component of a `createWindow` gets `_window_on_*` methods
-//! instead, which [`super::windows`] forwards to through
-//! `tsx::window::Component`.
+//! `on_quit_request`, `on_key`, `on_app_event`, `on_wake`, `on_exit`). The
+//! component of a `createWindow` gets `_window_on_*` methods instead, which
+//! [`super::windows`] forwards to through `tsx::window::Component`
+//! (`useCloseRequest`, `useKeyDown`, `useWindowFocus` only). [`collect`]
+//! rejects a hook in a component whose trait would never call it.
 //!
 //! This module also owns the statement / declaration dispatcher hooks:
 //! `generate::install` installs [`statement`] and [`declaration`], which route
@@ -42,8 +43,11 @@ struct Hook {
     rust: &'static str,
     param: HookParam,
     returns: bool,
-    /// App events: the root component only (not windows).
-    root_only: bool,
+    /// Runs in the root component (`impl ui::App` forwards it).
+    root: bool,
+    /// Runs in a `createWindow` component (`tsx::window::Component`
+    /// forwards it).
+    window: bool,
 }
 
 const HOOKS: [Hook; 8] = [
@@ -52,56 +56,64 @@ const HOOKS: [Hook; 8] = [
         rust: "on_close_request",
         param: HookParam::None,
         returns: true,
-        root_only: false,
+        root: true,
+        window: true,
     },
     Hook {
         name: "useQuitRequest",
         rust: "on_quit_request",
         param: HookParam::None,
         returns: true,
-        root_only: false,
+        root: true,
+        window: false,
     },
     Hook {
         name: "useKeyDown",
         rust: "on_key",
         param: HookParam::Key,
         returns: true,
-        root_only: false,
+        root: true,
+        window: true,
     },
     Hook {
         name: "useWindowFocus",
         rust: "on_focus",
         param: HookParam::Focused,
         returns: false,
-        root_only: false,
+        root: false,
+        window: true,
     },
     Hook {
         name: "useClipboardChange",
         rust: "on_clipboard",
         param: HookParam::None,
         returns: false,
-        root_only: true,
+        root: true,
+        window: false,
     },
     Hook {
         name: "useReopen",
         rust: "on_reopen",
         param: HookParam::None,
         returns: false,
-        root_only: true,
+        root: true,
+        window: false,
     },
     Hook {
         name: "useWake",
         rust: "on_wake",
         param: HookParam::None,
         returns: false,
-        root_only: true,
+        root: true,
+        window: false,
     },
     Hook {
         name: "useAppExit",
         rust: "on_exit",
         param: HookParam::None,
         returns: false,
-        root_only: true,
+        root: true,
+        window: false,
     },
 ];
 
@@ -149,6 +161,47 @@ pub fn key_event_type(g: &mut Generator<'_>) -> Result<Type> {
     )
 }
 
+/// Which kind of component an app hook is called in: only the root and the
+/// components of `createWindow` have a trait that forwards the hooks.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Role {
+    Root,
+    Window,
+    Child,
+}
+
+fn role(g: &Generator<'_>) -> Role {
+    let Some(index) = g.current_component else {
+        return Role::Root;
+    };
+    if is_window_component(g, &g.components[index].name) {
+        Role::Window
+    } else {
+        Role::Child
+    }
+}
+
+/// Whether `name` is the component of a `createWindow(name, …)`: anywhere in
+/// the project, or in this file for a single-file compile.
+pub(crate) fn is_window_component(g: &Generator<'_>, name: &str) -> bool {
+    if let Some(project) = super::app_state::project() {
+        return project
+            .window_components
+            .iter()
+            .any(|window| window == name);
+    }
+    g.const_decls.iter().any(|constant| {
+        super::windows::is_create(&constant.value)
+            && matches!(
+                &constant.value.data,
+                ast::ExprData::Call(call) if matches!(
+                    call.args.first().map(|arg| &arg.data),
+                    Some(ast::ExprData::Ident(component)) if component.as_slice() == name.as_bytes()
+                )
+            )
+    })
+}
+
 /// The method name of a hook for the component being generated: the root's
 /// `impl ui::App` forwards to `_root_*`, a window component's trait to
 /// `_window_*`.
@@ -171,24 +224,33 @@ pub fn collect(g: &mut Generator<'_>, e: &ast::Expr) -> Result<()> {
         return Ok(());
     };
     let hook = find(&name).expect("app hook");
-    if hook.root_only && g.current_component.is_some() {
-        return fail(
-            g,
-            e.loc,
-            format!("{name} belongs to the root component (the app); call it there"),
-        );
-    }
-    if let Some(index) = g.current_component
-        && let Some(props) = g.components[index].props
-        && model::info(g, props).is_some_and(|info| !info.fields.is_empty())
-    {
-        return fail(
-            g,
-            e.loc,
-            format!(
-                "{name} belongs to the root component or a window's component (no props); call it there"
-            ),
-        );
+    match role(g) {
+        Role::Root if !hook.root => {
+            return fail(
+                g,
+                e.loc,
+                format!(
+                    "{name} belongs to a window's component (`createWindow(Panel, …)`); the main window has no {name}"
+                ),
+            );
+        }
+        Role::Window if !hook.window => {
+            return fail(
+                g,
+                e.loc,
+                format!("{name} belongs to the root component (the app); call it there"),
+            );
+        }
+        Role::Child => {
+            return fail(
+                g,
+                e.loc,
+                format!(
+                    "{name} belongs to the root component or a window's component (`createWindow(Panel, …)`); in any other component it never runs, call it there"
+                ),
+            );
+        }
+        _ => {}
     }
     if call.args.len() != 1 {
         return fail(g, e.loc, format!("{name} takes one function"));

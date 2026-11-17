@@ -46,12 +46,19 @@
     key: string;
     mod: boolean; shift: boolean; alt: boolean; ctrl: boolean; meta: boolean; repeat: boolean;
   }
+  /** Root or a createWindow component: the close button / ⌘W; return false to keep the window. */
   export function useCloseRequest(callback: () => boolean): void;
+  /** Root only: ⌘Q / Dock quit; return false to cancel. */
   export function useQuitRequest(callback: () => boolean): void;
+  /** Root or a createWindow component: runs before the focused control; return true when handled. */
   export function useKeyDown(callback: (event: KeyEvent) => boolean): void;
+  /** createWindow component only: the window gained or lost the keyboard. */
   export function useWindowFocus(callback: (focused: boolean) => void): void;
+  /** Root only: the clipboard changed. */
   export function useClipboardChange(callback: () => void): void;
+  /** Root only: the app was opened again (Dock icon). */
   export function useReopen(callback: () => void): void;
+  /** Root only: a background thread called `ui::post_wake()`. */
   export function useWake(callback: () => void): void;
   /** Root only: the app is about to end (quit, main window closed); stop workers and save. */
   export function useAppExit(callback: () => void): void;
@@ -91,6 +98,17 @@
     minimized(): boolean;
     place(where: WindowPlace, margin?: number): void;
     focus(key: string): void;
+    /** The system title (title bar, Dock / taskbar), e.g. the open file's name. */
+    setTitle(title: string): void;
+    /** The content size in points; the top-left corner stays put. */
+    setSize(width: number, height: number): void;
+    setMinSize(width: number, height: number): void;
+    /** 0 in a dimension leaves it unlimited. */
+    setMaxSize(width: number, height: number): void;
+    setAlwaysOnTop(on: boolean): void;
+    /** macOS: its own Space; Windows: borderless over the monitor. */
+    setFullscreen(on: boolean): void;
+    fullscreen(): boolean;
   }
   export function createWindow(component: () => JSX.Element, options: WindowOptions): WindowHandle;
 
@@ -130,6 +148,17 @@
     visible(): boolean;
     active(): boolean;
     minimized(): boolean;
+    /** The system title (title bar, Dock / taskbar), e.g. the open file's name. */
+    setTitle(title: string): void;
+    /** The content size in points; the top-left corner stays put. */
+    setSize(width: number, height: number): void;
+    setMinSize(width: number, height: number): void;
+    /** 0 in a dimension leaves it unlimited. */
+    setMaxSize(width: number, height: number): void;
+    setAlwaysOnTop(on: boolean): void;
+    /** macOS: its own Space; Windows: borderless over the monitor. */
+    setFullscreen(on: boolean): void;
+    fullscreen(): boolean;
   };
   /** Rebuild after `ms` milliseconds (call it while rendering). */
   export function wakeAfter(ms: number): void;

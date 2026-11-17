@@ -3,7 +3,7 @@
 use zant::core::geometry::{Edges, Size};
 use zant::core::node::{ButtonSize, ButtonType, FlexStyle, NodeData, NodeId, RichSpan};
 use zant::core::tree::Tree;
-use zant::layout::flex;
+use zant::flex;
 use zant::renderer::text;
 use zant::theme::tokens::ant_light;
 

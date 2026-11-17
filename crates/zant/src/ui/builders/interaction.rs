@@ -11,7 +11,7 @@
 use crate::Str;
 use crate::core::events::PointerButton;
 use crate::core::node::{ButtonType, NodeKind, PointerArea};
-use crate::layout::flex;
+use crate::flex;
 
 use super::super::actions::{PointerAction, PointerPhase};
 use super::super::element::{Element, Node};

@@ -60,11 +60,16 @@ export default function App() {
 - `show()` 只显示、不抢键盘焦点（用户可以继续在原来的应用里输入）；`activate()` 显示并获得键盘焦点（快捷面板）。
 - `Window`：`show` / `hide` / `activate` / `is_visible` / `is_active` / `is_minimized` / `place` /
   `focus` / `close`；主窗口用 `desktop::main_window()`。
+- 创建后修改窗口：`set_title`（标题栏、程序坞 / 任务栏，文档应用显示文件名）、`set_size(w, h)`（内容区大小，单位点，
+  左上角不动，受最小 / 最大尺寸限制）、`set_min_size` / `set_max_size`（最大值某一维为 0 表示不限）、`set_always_on_top`、
+  `set_fullscreen` / `is_fullscreen`（macOS 进入独立空间，Windows 无边框铺满所在显示器，退出时恢复原位置和样式）。
+  `.panel` / `.overlay` 不支持置顶切换与全屏（它们本来就浮在上层）。
 - `WindowOptions`：`hidden = true` 创建时不显示；`hidden_at_login = true` 只在系统登录时自动打开应用时不显示
   （托盘应用在后台启动，见下文“开机启动”）。
 - `is_minimized()`：最小化到程序坞 / 任务栏（仍算打开着，和隐藏不同）。
 - TSX 里用 `createWindow(Component, options)` 声明窗口，返回带 `show/hide/toggle/activate/visible/active/
-  minimized/place/focus` 的句柄。
+  minimized/fullscreen/place/focus/setTitle/setSize/setMinSize/setMaxSize/setAlwaysOnTop/setFullscreen` 的句柄；
+  窗口还没打开时设置的标题、尺寸、置顶会在打开时生效。
 
 ## 托盘 / 状态栏
 
@@ -198,7 +203,8 @@ let lines = zant::desktop::ocr_recognize(&px, w, h, stride); // 系统文字识�
 ## 其他
 
 - `single_instance(bundle_id)`：在 `main` 开头调用；再次启动时把已运行的实例调到前台并返回 false
-  （TSX 应用由 `app.config.json` 的 `single_instance` 自动处理）。
+  （TSX 应用由 `app.config.json` 的 `single_instance` 自动处理）。Debug 构建设了环境变量
+  `ZANT_ALLOW_MULTI_INSTANCE` 时不做这项检查，便于在一台机器上同时运行两份（例如调试局域网互联）。
 - `device_name()`：用户看到的电脑名（macOS“Brian 的 MacBook Pro”，Windows 计算机名）。
 - `downloads_dir()`：用户的“下载”文件夹（Windows 用系统记录的位置，用户移动过也正确）。
 - `system_dark_mode()`：系统深色模式。

@@ -104,7 +104,7 @@ pub fn call(
                     g,
                     loc,
                     format!(
-                        "cannot infer `{param}` of `{name}` from these arguments; pass it explicitly: `{name}<…>(…)`"
+                        "cannot infer `{param}` of `{name}` from these arguments; pass it explicitly: `{name}<…>(…)`, or store the argument in a typed variable first"
                     ),
                 );
             }
@@ -159,7 +159,53 @@ fn infer(
         unify(g, &func.type_params, reference, value.ty, bound);
         emitted[position] = Some(value);
     }
+    // `id({ a: 1 })`, `first([{ a: 1 }])`: an object literal takes its type
+    // from the context when there is one, so it only infers a parameter that
+    // nothing else bound (as `const p = { a: 1 }` infers its own shape)
+    for (position, param) in func.params.iter().enumerate() {
+        let Some(reference) = param.ty.as_ref() else {
+            continue;
+        };
+        if param.rest {
+            break;
+        }
+        let Some(arg) = call.args.get(position) else {
+            break;
+        };
+        if emitted[position].is_some()
+            || !object_literal(arg)
+            || !mentions_unbound(reference, &func.type_params, bound)
+        {
+            continue;
+        }
+        let value = expr::emit(g, c, arg, None, false)?;
+        unify(g, &func.type_params, reference, value.ty, bound);
+        emitted[position] = Some(value);
+    }
     Ok(())
+}
+
+/// An object literal, or a non-empty array literal of them.
+fn object_literal(e: &ast::Expr) -> bool {
+    match &e.data {
+        ast::ExprData::Object(_) => true,
+        ast::ExprData::Array(items) => {
+            !items.is_empty() && items.iter().all(|item| object_literal(item))
+        }
+        _ => false,
+    }
+}
+
+/// Whether `reference` names a type parameter that is not bound yet.
+fn mentions_unbound(
+    reference: &ast::TypeRef,
+    params: &[ast::TypeParam],
+    bound: &[Option<Type>],
+) -> bool {
+    params
+        .iter()
+        .zip(bound)
+        .any(|(param, ty)| ty.is_none() && mentions(reference, std::slice::from_ref(param)))
 }
 
 /// Whether `e` has a type of its own (not one the context gives it).

@@ -409,6 +409,14 @@ fn math(
         }
         return Ok(Value::new(Type::F64, "tsx::builtins::random()"));
     }
+    if variadic
+        && call
+            .args
+            .iter()
+            .any(|arg| matches!(arg.data, ast::ExprData::Spread(_)))
+    {
+        return spread_math(g, c, &name, call);
+    }
     let mut values: Vec<Value> = Vec::new();
     let mut peer = Type::IntLiteral;
     for arg in &call.args {
@@ -447,6 +455,46 @@ fn math(
         format!("tsx::builtins::atan2({args})")
     };
     Ok(builder.finish(ty, code))
+}
+
+/// `Math.max(...xs)` / `Math.min(0, ...xs)` / `Math.hypot(...xs)`: the
+/// arguments collected into one `f64` list, so an empty array gives
+/// `-Infinity` / `Infinity` / `0` as in JavaScript.
+fn spread_math(
+    g: &mut Generator<'_>,
+    c: &mut scope::Context,
+    name: &str,
+    call: &ast::Call,
+) -> Result<Value> {
+    let mut setup = String::from("let mut _items: Vec<f64> = Vec::new();\n");
+    for arg in &call.args {
+        let ast::ExprData::Spread(inner) = &arg.data else {
+            let value = expr::emit(g, c, arg, None, false)?;
+            numeric(g, &value, arg.loc)?;
+            let value = types::coerce(g, value, Type::F64, arg.loc)?;
+            setup.push_str(&format!("_items.push({});\n", value.code));
+            continue;
+        };
+        let value = expr::emit(g, c, inner, None, false)?;
+        let Some(item) = model::element(g, value.ty).filter(|item| item.numeric()) else {
+            return fail(
+                g,
+                inner.loc,
+                format!("Math.{name}(...) spreads an array of numbers"),
+            );
+        };
+        let each = types::coerce(g, Value::new(item, "(*_x)"), Type::F64, inner.loc)?;
+        setup.push_str(&format!(
+            "_items.extend({}.iter().map(|_x| {}));\n",
+            value.code, each.code
+        ));
+    }
+    let code = if name == "hypot" {
+        "tsx::builtins::hypot(&_items)".to_owned()
+    } else {
+        format!("tsx::builtins::extrema::<f64>({}, &_items)", name == "min")
+    };
+    Ok(Value::new(Type::F64, format!("{{\n{setup}{code}\n}}")))
 }
 
 fn unary_variant(name: &str) -> &'static str {

@@ -17,4 +17,20 @@ mod text;
 pub use block::{block, render};
 pub use text::inline_text;
 
-pub use crate::markdown::render::spans::inline_drawing;
+use std::rc::Rc;
+
+use crate::core::vector::{Drawing, DrawingRef};
+
+/// An inline (text-style) formula for embedding in rich text (Markdown's
+/// `$…$`).
+pub fn inline_drawing(source: &str, options: layout::Options) -> DrawingRef {
+    let opts = layout::Options {
+        display: false,
+        ..options
+    };
+    let mut drawing: Drawing = layout::layout(source, opts);
+    // keep line metrics stable: never shorter than the surrounding text
+    drawing.ascent = drawing.ascent.max(0.75 * opts.size);
+    drawing.descent = drawing.descent.max(0.22 * opts.size);
+    Rc::new(drawing)
+}

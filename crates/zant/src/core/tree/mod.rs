@@ -18,7 +18,7 @@ use std::collections::HashMap;
 
 use crate::core::geometry::{Rect, Size};
 use crate::core::layout;
-use crate::layout::flex;
+use crate::flex;
 use crate::motion::motion;
 use crate::theme::tokens::Theme;
 

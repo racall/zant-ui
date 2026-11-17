@@ -4,14 +4,14 @@
 //! One entry per `ui::*` builder.
 //!
 //! ```text
-//! cargo run -p zant-tsx --bin zant-tsx-tags -- crates/zant-tsx/src/ui_tags.rs
-//! cargo run -p zant-tsx --bin zant-tsx-tags -- --check crates/zant-tsx/src/ui_tags.rs
+//! cargo run -p zant-tables --bin zant-tsx-tags -- crates/zant-tsx/src/ui_tags.rs
+//! cargo run -p zant-tables --bin zant-tsx-tags -- --check crates/zant-tsx/src/ui_tags.rs
 //! ```
 //!
 //! Tags whose builder the derive metadata does not describe are carried by
-//! `src/bin/zant-tsx-tags/pending.rs`.
+//! `crates/zant-tables/src/bin/zant-tsx-tags/pending.rs`.
 //!
-//! 38 tags, 468 props, 854 spellings, 46 theme fields, 10 skipped.
+//! 38 tags, 469 props, 854 spellings, 46 theme fields, 10 skipped.
 use crate::tags::{Content, Kind, Prop, Sides, Skipped, Tag, Value};
 
 /// Every supported `ui::*` builder, in table order.
@@ -246,6 +246,7 @@ pub fn tags() -> Vec<Tag> {
             Prop { name: "password", field: "password", kind: Kind::Boolean, ..Default::default() },
             Prop { name: "multiline", field: "multiline", kind: Kind::Boolean, ..Default::default() },
             Prop { name: "focusRing", field: "focus_ring", kind: Kind::Boolean, ..Default::default() },
+            Prop { name: "autoFocus", field: "auto_focus", kind: Kind::Boolean, ..Default::default() },
             Prop { name: "width", field: "width", kind: Kind::Number, ..Default::default() },
             Prop { name: "height", field: "height", kind: Kind::Number, ..Default::default() },
             Prop { name: "fontSize", field: "font_size", kind: Kind::Number, ..Default::default() },

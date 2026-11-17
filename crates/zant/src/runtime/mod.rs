@@ -91,6 +91,9 @@ pub struct Runtime {
     pub local_states: Rc<RefCell<Store>>,
     pub needs_build: bool,
     pub(crate) pending_view_state: Option<view_state::Pending>,
+    /// Focus scopes shown (dialogs) and `autoFocus` nodes waiting for a frame
+    /// (`focus::FocusMemory`).
+    pub(crate) focus_memory: focus::FocusMemory,
     pub(crate) view_lists: view_state::Lists,
     /// Hot reload: a message shown over the UI (a build error of the next
     /// version); `None` hides it.
@@ -193,8 +196,8 @@ impl Runtime {
         {
             let root = tree.root;
             let root = tree.get_mut(root);
-            root.style.direction = crate::layout::flex::Direction::Column;
-            root.style.align_items = crate::layout::flex::Align::Stretch;
+            root.style.direction = crate::flex::Direction::Column;
+            root.style.align_items = crate::flex::Align::Stretch;
             root.visual.background = Some(window_background);
         }
         tree.selection_color = tokens::with_alpha(theme.color_primary, 0x4d);
@@ -207,6 +210,7 @@ impl Runtime {
             local_states: Rc::new(RefCell::new(Store::new())),
             needs_build: true,
             pending_view_state: None,
+            focus_memory: focus::FocusMemory::default(),
             view_lists: Rc::default(),
             hot_notice: None,
             dispatch_depth: 0,

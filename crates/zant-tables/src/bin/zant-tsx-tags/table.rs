@@ -178,14 +178,15 @@ pub fn generate() -> Table {
         }
         discovered.insert(builder.name.clone(), builder.clone());
     }
-    let pending = pending_tags();
+    let icons = icon_values(&index);
+    let pending = pending_tags(&icons);
     let mut tags = Vec::with_capacity(TAG_ORDER.len());
     for name in TAG_ORDER {
         if let Some(tag) = pending.get(*name) {
             if discovered.contains_key(*name) {
                 fail(format!(
                     "ui::{name} is now a builder in crates/zant/src/ui/builders/; \
-                     delete its entry from src/bin/zant-tsx-tags/pending.rs and regenerate"
+                     delete its entry from crates/zant-tables/src/bin/zant-tsx-tags/pending.rs and regenerate"
                 ));
             }
             tags.push(tag.clone());
@@ -222,11 +223,41 @@ fn registry() -> HashMap<&'static str, &'static TsxStruct> {
     registry
 }
 
-fn pending_tags() -> HashMap<String, Tag> {
+/// The hand-written tags, with every `icon` enumeration filled from the
+/// `Icon` enum (as for reflected props), so a new icon reaches them too.
+fn pending_tags(icons: &[Value]) -> HashMap<String, Tag> {
     pending::tags()
         .into_iter()
-        .map(|tag| (rust_name(tag.builder), tag))
+        .map(|mut tag| {
+            fill_icons(&mut tag.props, icons);
+            (rust_name(tag.builder), tag)
+        })
         .collect()
+}
+
+fn fill_icons(props: &mut [Prop], icons: &[Value]) {
+    for prop in props {
+        if prop.name == "icon" && prop.kind == Kind::Enumeration {
+            if !prop.values.is_empty() {
+                fail(format!(
+                    "pending.rs lists the spellings of an `icon` prop by hand; \
+                     leave `values` empty, they come from the Icon enum ({})",
+                    prop.field
+                ));
+            }
+            prop.values = icons.to_vec();
+        }
+        fill_icons(&mut prop.item_props, icons);
+    }
+}
+
+/// The TSX spellings of `zant::core::node::Icon`.
+fn icon_values(index: &Index) -> Vec<Value> {
+    let module = ["crate".to_owned(), "ui".to_owned(), "options".to_owned()];
+    match index.resolve(&module, &["Icon".to_owned()]) {
+        Some(Resolved::Enum(variants)) => enum_values(&variants),
+        _ => fail("could not resolve the Icon enum from crates/zant/src/ui/options.rs".to_owned()),
+    }
 }
 
 fn skipped() -> &'static [Skipped] {

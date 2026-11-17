@@ -3,7 +3,7 @@
 #![forbid(unsafe_code)]
 
 use zant::Str;
-use zant::layout::flex;
+use zant::flex;
 use zant::ui::{
     self, App, BoxOptions, ButtonOptions, HeadingOptions, Icon, IconButtonOptions, InputOptions,
     SegmentedOption, SegmentedOptions, TextOptions, ToggleOptions, ViewOptions,

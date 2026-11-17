@@ -511,7 +511,7 @@ impl App for SegState {
     fn render(&mut self) -> Node {
         column(BoxOptions {
             padding: inset(10.0),
-            align_items: zant::layout::flex::Align::Center,
+            align_items: zant::flex::Align::Center,
             grow: 1.0,
             children: zant::nodes![segmented(SegmentedOptions {
                 key: Some("seg".into()),

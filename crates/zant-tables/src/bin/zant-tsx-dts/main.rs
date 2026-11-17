@@ -2,8 +2,8 @@
 //! (`zant.d.ts`) from the alias-merged tag table.
 //!
 //! ```text
-//! cargo run -p zant-tsx --bin zant-tsx-dts -- crates/zant-tsx/zant.d.ts
-//! cargo run -p zant-tsx --bin zant-tsx-dts -- --check crates/zant-tsx/zant.d.ts
+//! cargo run -p zant-tables --bin zant-tsx-dts -- crates/zant-tsx/zant.d.ts
+//! cargo run -p zant-tables --bin zant-tsx-dts -- --check crates/zant-tsx/zant.d.ts
 //! ```
 
 use std::process::ExitCode;
@@ -46,7 +46,7 @@ fn main() -> ExitCode {
 fn outdated(path: &str) -> ExitCode {
     eprintln!(
         "zant-tsx-dts: {path} is out of date; run \
-         `cargo run -p zant-tsx --bin zant-tsx-dts -- {path}`"
+         `cargo run -p zant-tables --bin zant-tsx-dts -- {path}`"
     );
     ExitCode::from(1)
 }

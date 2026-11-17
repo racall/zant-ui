@@ -11,7 +11,7 @@
 use zant::core::geometry::Edges;
 use zant::core::node::{ButtonSize, ButtonType, FlexStyle, NodeData, NodeId};
 use zant::core::tree::Tree;
-use zant::layout::flex;
+use zant::flex;
 use zant::renderer::text::{Style as TextStyle, Weight};
 use zant::theme::tokens::Theme;
 

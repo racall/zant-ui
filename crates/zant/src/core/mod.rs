@@ -2,7 +2,7 @@
 
 pub mod events;
 pub mod geometry;
-pub mod hash;
+pub use zant_base::hash;
 pub mod icons;
 pub mod keys;
 pub mod layout;

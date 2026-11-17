@@ -16,7 +16,7 @@ use crate::core::layout::intrinsic::{
 use crate::core::layout::row::layout_row;
 use crate::core::layout::wrap::layout_row_wrap;
 use crate::core::node::{NodeData, NodeId, NodeKind, RetainedNode};
-use crate::layout::flex;
+use crate::flex;
 use crate::theme::tokens::Theme;
 
 /// Lays out the whole tree and resets the dirty flags.

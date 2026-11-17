@@ -5,13 +5,18 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 description = "TSX to Rust compiler for Zant desktop applications"
+# Zant is used from source or the installed release, not crates.io
+# (zant-sys needs the prebuilt Skia / PDFium assets).
+publish = false
 
 [[bin]]
 name = "zant-tsx"
 path = "src/main.rs"
 
 [dependencies]
-zant.workspace = true
+# not `zant`: an app's build.rs runs this compiler, and linking the framework
+# (and Skia) into every build script is what `zant-base` avoids
+zant-base.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 regress.workspace = true
@@ -21,3 +26,7 @@ proc-macro2.workspace = true
 prettyplease.workspace = true
 thiserror.workspace = true
 clap.workspace = true
+
+[dev-dependencies]
+# tests/native_specs.rs compiles a generated spec against the runtime
+zant.workspace = true

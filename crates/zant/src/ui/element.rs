@@ -76,6 +76,8 @@ pub struct Element {
     pub password: bool,
     pub multiline: bool,
     pub focus_ring: bool,
+    /// Takes the keyboard focus when the node is created (`autoFocus`).
+    pub auto_focus: bool,
     pub text_color: Option<u32>,
     /// Buttons: the label / icon colour the hover and press states fade to.
     pub hover_text_color: Option<u32>,
@@ -156,6 +158,7 @@ impl Default for Element {
             password: false,
             multiline: false,
             focus_ring: true,
+            auto_focus: false,
             text_color: None,
             hover_text_color: None,
             label_padding: 0.0,

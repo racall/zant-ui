@@ -3,7 +3,7 @@
 #![forbid(unsafe_code)]
 
 use crate::core::geometry::Edges;
-use crate::layout::flex;
+use crate::flex;
 use crate::motion::motion;
 use crate::renderer::text;
 

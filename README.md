@@ -380,7 +380,9 @@ See [Architecture](docs/architecture.md) and [Development](docs/development.md) 
 crates/zant-sys/       Native C ABI bindings, Skia bridges, and native builds
 crates/zant/           Framework: runtime, components, desktop, TSX, Markdown, math, PDF, SQLite
 crates/zant-macros/    TsxProps and Table derive macros
-crates/zant-tsx/       TSX-to-Rust compiler and TypeScript declarations
+crates/zant-base/      Platform-free pieces shared by runtime and compiler (hash, locales, plurals, RegExp checks)
+crates/zant-tsx/       TSX-to-Rust compiler and TypeScript declarations (does not link the framework)
+crates/zant-tables/    Generators of the checked-in tag table and zant.d.ts
 crates/zant-build/     App build helper: TSX, icons, Windows resources
 crates/zant-cli/       create / run / compile / package / build / sync / update
 crates/zant-examples/  Component, Markdown, streaming, math, and PDF demos

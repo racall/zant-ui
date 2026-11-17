@@ -9,7 +9,84 @@ use crate::core::node::{NodeData, NodeId};
 
 use super::Runtime;
 
+/// What the runtime remembers about focus between frames.
+#[derive(Default)]
+pub(crate) struct FocusMemory {
+    /// The focus scopes shown, outermost first, each with the node that had
+    /// the focus before it opened (given back when it closes).
+    scopes: Vec<(NodeId, Option<NodeId>)>,
+    /// An `autoFocus` node created by the last build, focused once it is laid
+    /// out.
+    pub(crate) auto_focus: Option<NodeId>,
+}
+
 impl Runtime {
+    /// After a frame's layout: a focus scope that appeared (a dialog) takes
+    /// the focus away from what is behind it and remembers it; one that
+    /// disappeared gives it back; an `autoFocus` node that was just created
+    /// gets it. Runs after `ui::focus` commands, which it does not override.
+    pub(crate) fn update_focus_scopes(&mut self) {
+        let shown = self.tree.focus_scope_chain();
+        // scopes that closed, innermost first: give their focus back
+        let mut restore: Option<Option<NodeId>> = None;
+        while let Some(&(scope, before)) = self.focus_memory.scopes.last() {
+            if shown.contains(&scope) {
+                break;
+            }
+            self.focus_memory.scopes.pop();
+            restore = Some(before);
+        }
+        // scopes that opened: remember the focus and take it out of the page
+        let mut opened = false;
+        for &scope in &shown {
+            if self
+                .focus_memory
+                .scopes
+                .iter()
+                .any(|(open, _)| *open == scope)
+            {
+                continue;
+            }
+            let before = self.tree.focused;
+            self.focus_memory.scopes.push((scope, before));
+            opened = true;
+        }
+        let auto = self
+            .focus_memory
+            .auto_focus
+            .take()
+            .filter(|&id| self.can_focus(id));
+        if let Some(id) = auto {
+            self.focus_node(Some(id));
+        } else if opened {
+            let scope = self.focus_memory.scopes.last().map(|(scope, _)| *scope);
+            let inside = match (self.tree.focused, scope) {
+                (Some(focused), Some(scope)) => self.tree.is_inside(focused, scope),
+                _ => true,
+            };
+            if !inside {
+                // Tab enters the dialog at its first control; keys no longer
+                // reach the page behind it
+                self.focus_node(None);
+            }
+        } else if let Some(before) = restore {
+            let scope = self.focus_memory.scopes.last().map(|(scope, _)| *scope);
+            let target = before.filter(|&id| {
+                self.can_focus(id) && scope.is_none_or(|scope| self.tree.is_inside(id, scope))
+            });
+            if target.is_some() || self.tree.focused.is_none_or(|id| !self.can_focus(id)) {
+                self.focus_node(target);
+            }
+        }
+    }
+
+    fn can_focus(&self, id: NodeId) -> bool {
+        let Some(node) = self.tree.nodes.get(id as usize) else {
+            return false;
+        };
+        node.alive && node.focusable && node.enabled && self.tree.in_flow_path(id)
+    }
+
     /// Cancels the IME composition of the node that loses the
     /// focus, moves the focus and closes a select popup that is no longer
     /// focused.

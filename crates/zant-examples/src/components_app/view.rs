@@ -7,7 +7,7 @@ use zant::Str;
 use zant::components::widgets::{MarkdownOptions, markdown};
 use zant::core::geometry::Edges;
 use zant::core::node::{ButtonSize, ButtonType, Icon};
-use zant::layout::flex;
+use zant::flex;
 use zant::markdown::render::options::Caret;
 use zant::platform::platform::Cursor;
 use zant::renderer::text::Weight;

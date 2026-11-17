@@ -5,7 +5,7 @@
 use crate::Str;
 use crate::core::geometry::Edges;
 use crate::core::node::RichSpan;
-use crate::layout::flex;
+use crate::flex;
 use crate::markdown::ast;
 use crate::markdown::highlight;
 use crate::markdown::render::actions::{Copy, Download};

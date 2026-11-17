@@ -103,10 +103,7 @@ fn math_block_is_the_centred_display_wrapper() {
     // the `math::block` row: 100% wide, centred, half-em vertical margins,
     // one vector child
     assert_eq!(node.element().layout.width_percent, Some(100.0));
-    assert_eq!(
-        node.element().layout.justify,
-        zant::layout::flex::Justify::Center
-    );
+    assert_eq!(node.element().layout.justify, zant::flex::Justify::Center);
     assert_eq!(node.element().layout.margin.top, 8.5);
     assert_eq!(node.element().layout.margin.bottom, 8.5);
     assert_eq!(node.element().children.len(), 1);

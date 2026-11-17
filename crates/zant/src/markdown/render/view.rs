@@ -11,7 +11,7 @@ use std::rc::Rc;
 
 use crate::Str;
 use crate::core::hash::{self, Wyhash};
-use crate::layout::flex;
+use crate::flex;
 use crate::markdown::ast;
 use crate::markdown::cache::{self, Cache};
 use crate::markdown::parser;

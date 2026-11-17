@@ -219,6 +219,57 @@ impl Window {
         }
     }
 
+    /// The system title: title bar, Dock / taskbar, window menus (a document
+    /// app shows the open file's name here).
+    pub fn set_title(&self, title: &str) {
+        if let Some(native) = self.native() {
+            native.set_title(title);
+        }
+    }
+
+    /// Resizes the content area to `width` × `height` points (clamped to the
+    /// minimum / maximum size); the top-left corner stays put.
+    pub fn set_size(&self, width: f32, height: f32) {
+        if let Some(native) = self.native() {
+            native.set_size(width, height);
+        }
+    }
+
+    /// The smallest content size the user can resize to.
+    pub fn set_min_size(&self, width: f32, height: f32) {
+        if let Some(native) = self.native() {
+            native.set_min_size(width, height);
+        }
+    }
+
+    /// The largest content size the user can resize to; 0 in a dimension
+    /// leaves it unlimited.
+    pub fn set_max_size(&self, width: f32, height: f32) {
+        if let Some(native) = self.native() {
+            native.set_max_size(width, height);
+        }
+    }
+
+    /// Keeps the window above other apps' windows (not for `.panel` /
+    /// `.overlay`, which always float).
+    pub fn set_always_on_top(&self, on: bool) {
+        if let Some(native) = self.native() {
+            native.set_always_on_top(on);
+        }
+    }
+
+    /// Full screen: macOS in its own Space, Windows borderless over the
+    /// monitor.
+    pub fn set_fullscreen(&self, on: bool) {
+        if let Some(native) = self.native() {
+            native.set_fullscreen(on);
+        }
+    }
+
+    pub fn is_fullscreen(&self) -> bool {
+        self.native().is_some_and(|native| native.is_fullscreen())
+    }
+
     /// Focuses the node with `key` in this window after its next layout
     /// (`ui::focus` from an app event — a hotkey, the tray — has no window).
     pub fn focus(&self, key: &str) {

@@ -131,3 +131,18 @@ fn a_non_square_windows_icon_is_an_error() {
     );
     let _ = std::fs::remove_dir_all(&root);
 }
+
+#[test]
+fn framework_features_come_from_zants_build_script() {
+    assert_eq!(
+        crate::framework_features(Some("markdown,math,pdf")),
+        Some(vec![
+            "markdown".to_owned(),
+            "math".to_owned(),
+            "pdf".to_owned()
+        ])
+    );
+    assert_eq!(crate::framework_features(Some("")), Some(Vec::new()));
+    // no direct `zant` dependency: unknown, nothing is rejected
+    assert_eq!(crate::framework_features(None), None);
+}

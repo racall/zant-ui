@@ -132,9 +132,6 @@ fn closure_body(
             format!("{params} {{\n{finished}}}")
         }
         ast::Body::Block(statements) => {
-            if !stmt::returns_all(statements) {
-                return fail(g, callback.loc, "array callback must return on every path");
-            }
             let label = aggregate::temporary(g, &mut c, b"_callback")?;
             match annotation {
                 Some(annotation) => {
@@ -147,6 +144,10 @@ fn closure_body(
                 }
             }
             let mut body = stmt::statements(g, &mut c, statements, false)?;
+            // checked after generating: an exhaustive switch is known then
+            if !stmt::returns_all(statements) {
+                return fail(g, callback.loc, "array callback must return on every path");
+            }
             if annotation.is_none() {
                 let returned = c.return_values.take().unwrap_or_default();
                 if returned.is_empty() {

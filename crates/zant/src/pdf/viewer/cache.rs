@@ -11,7 +11,7 @@ use std::rc::Rc;
 
 use crate::Str;
 use crate::core::node::ImageFit;
-use crate::layout::flex;
+use crate::flex;
 use crate::pdf::annotations::Kind;
 use crate::pdf::document::Document;
 use crate::pdf::renderer::{self as renderer_mod, Key as RenderKey, Renderer};

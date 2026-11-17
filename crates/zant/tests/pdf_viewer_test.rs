@@ -107,7 +107,7 @@ impl zant::ui::App for ViewerApp {
     fn render(&mut self) -> Node {
         zant::ui::column(zant::ui::BoxOptions {
             grow: 1.0,
-            align_items: zant::layout::flex::Align::Stretch,
+            align_items: zant::flex::Align::Stretch,
             children: vec![zant::pdf::view(
                 &self.viewer,
                 zant::pdf::ViewOptions {
@@ -578,7 +578,7 @@ impl zant::ui::App for CallbackApp {
     fn render(&mut self) -> Node {
         zant::ui::column(zant::ui::BoxOptions {
             grow: 1.0,
-            align_items: zant::layout::flex::Align::Stretch,
+            align_items: zant::flex::Align::Stretch,
             children: vec![zant::pdf::view(
                 &self.viewer,
                 zant::pdf::ViewOptions {

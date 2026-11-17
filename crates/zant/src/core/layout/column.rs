@@ -8,7 +8,7 @@ use crate::core::layout::intrinsic::{
     clamp_dim, effective_align, gap_main, intrinsic_height, intrinsic_width, resolve_width,
 };
 use crate::core::node::NodeId;
-use crate::layout::flex;
+use crate::flex;
 use crate::theme::tokens::Theme;
 
 /// Lays out a vertical flex line (also used for scroll

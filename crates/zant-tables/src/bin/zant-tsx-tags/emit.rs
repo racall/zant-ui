@@ -52,12 +52,12 @@ const HEADER: &str = "\
 //! One entry per `ui::*` builder.
 //!
 //! ```text
-//! cargo run -p zant-tsx --bin zant-tsx-tags -- crates/zant-tsx/src/ui_tags.rs
-//! cargo run -p zant-tsx --bin zant-tsx-tags -- --check crates/zant-tsx/src/ui_tags.rs
+//! cargo run -p zant-tables --bin zant-tsx-tags -- crates/zant-tsx/src/ui_tags.rs
+//! cargo run -p zant-tables --bin zant-tsx-tags -- --check crates/zant-tsx/src/ui_tags.rs
 //! ```
 //!
 //! Tags whose builder the derive metadata does not describe are carried by
-//! `src/bin/zant-tsx-tags/pending.rs`.
+//! `crates/zant-tables/src/bin/zant-tsx-tags/pending.rs`.
 ";
 
 /// The builders left out of the table, with the reason for each.

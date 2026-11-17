@@ -105,6 +105,9 @@ impl Runtime {
             self.apply_view_state();
         }
         self.run_commands();
+        if !nested {
+            self.update_focus_scopes();
+        }
         let paint_start = self.stats_clock();
         canvas.clear(self.clear_color);
         self.tree.paint(canvas);

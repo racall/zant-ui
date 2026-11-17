@@ -128,6 +128,6 @@ pub(super) fn js_string(value: f64) -> String {
         .into();
     }
     let mut out = String::new();
-    crate::tsx::builtins_format::write_js_number(&mut out, value);
+    crate::number::write_js_number(&mut out, value);
     out
 }

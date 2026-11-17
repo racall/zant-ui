@@ -58,7 +58,7 @@ pub fn path(importer: &str, source: &str) -> String {
 pub fn key(importer: &str, source: &str) -> String {
     let full = path(importer, source);
     let normalized = normalize(&full.replace('\\', "/"));
-    let hash = zant::core::hash::Wyhash::hash(0, normalized.as_bytes());
+    let hash = zant_base::hash::Wyhash::hash(0, normalized.as_bytes());
     let hash = hash as u32;
     let base = source.rsplit(['/', '\\']).next().unwrap_or(source);
     format!("_assets/{hash:08x}-{base}")

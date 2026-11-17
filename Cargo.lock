@@ -1980,8 +1980,19 @@ dependencies = [
  "serde_json",
  "thiserror",
  "tokio",
+ "zant-base",
  "zant-macros",
  "zant-sys",
+]
+
+[[package]]
+name = "zant-base"
+version = "0.2.11"
+dependencies = [
+ "regress",
+ "ryu-js",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -2004,7 +2015,6 @@ version = "0.2.11"
 dependencies = [
  "clap",
  "notify",
- "png",
  "serde",
  "serde_json",
  "thiserror",
@@ -2055,6 +2065,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "zant-tables"
+version = "0.2.11"
+dependencies = [
+ "syn 3.0.10",
+ "zant",
+ "zant-tsx",
+]
+
+[[package]]
 name = "zant-tsx"
 version = "0.2.11"
 dependencies = [
@@ -2068,6 +2087,7 @@ dependencies = [
  "syn 3.0.10",
  "thiserror",
  "zant",
+ "zant-base",
 ]
 
 [[package]]

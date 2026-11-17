@@ -108,8 +108,9 @@ pub fn computed_construction(call: &ast::Call) -> bool {
 
 /// A literal pattern, checked now and compiled once per site.
 fn cached(g: &mut Generator<'_>, loc: ast::Loc, pattern: &str, flags: &str) -> Result<Value> {
-    if let Err(thrown) = zant::tsx::RegExp::new(pattern, flags) {
-        return fail(g, loc, thrown.to_string());
+    // the runtime's `RegExp` constructor compiles with the same check
+    if let Err(message) = zant_base::regexp::compile(pattern, flags) {
+        return fail(g, loc, format!("SyntaxError: {message}"));
     }
     let ty = regexp_type(g)?;
     Ok(Value::new(

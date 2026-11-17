@@ -592,6 +592,47 @@ impl Window {
         unsafe { ffi::zant_window_is_maximized(self.handle) != 0 }
     }
 
+    /// The system title (title bar, Dock / taskbar).
+    pub fn set_title(&self, title: &str) {
+        let Ok(title) = CString::new(title) else {
+            return;
+        };
+        // SAFETY: live window handle, NUL-terminated UTF-8.
+        unsafe { ffi::zant_window_set_title(self.handle, title.as_ptr()) }
+    }
+
+    /// Resizes the content area (points), keeping the top-left corner.
+    pub fn set_size(&self, width: f32, height: f32) {
+        // SAFETY: live window handle.
+        unsafe { ffi::zant_window_set_size(self.handle, width, height) }
+    }
+
+    pub fn set_min_size(&self, width: f32, height: f32) {
+        // SAFETY: live window handle.
+        unsafe { ffi::zant_window_set_min_size(self.handle, width, height) }
+    }
+
+    /// 0 in a dimension: no limit.
+    pub fn set_max_size(&self, width: f32, height: f32) {
+        // SAFETY: live window handle.
+        unsafe { ffi::zant_window_set_max_size(self.handle, width, height) }
+    }
+
+    pub fn set_always_on_top(&self, on: bool) {
+        // SAFETY: live window handle.
+        unsafe { ffi::zant_window_set_always_on_top(self.handle, i32::from(on)) }
+    }
+
+    pub fn set_fullscreen(&self, on: bool) {
+        // SAFETY: live window handle.
+        unsafe { ffi::zant_window_set_fullscreen(self.handle, i32::from(on)) }
+    }
+
+    pub fn is_fullscreen(&self) -> bool {
+        // SAFETY: live window handle.
+        unsafe { ffi::zant_window_is_fullscreen(self.handle) != 0 }
+    }
+
     /// Asks the window to close; the close-request hook may veto it.
     pub fn close(&self) {
         // SAFETY: live window handle.

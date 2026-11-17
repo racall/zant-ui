@@ -42,7 +42,7 @@ TSX → zant-tsx → Rust ui::Node
 ui/、components/   声明式 builder、样式、组件
 runtime/           协调、事件、焦点、IME、帧调度
 core/tree/         保留树、命中测试、绘制
-core/layout/       布局遍历；layout/flex.rs 分配 Flex 尺寸
+core/layout/       布局遍历；flex.rs（`zant::flex`）分配 Flex 尺寸
 motion/            状态过渡、presence、FLIP
 renderer/          Skia 文本与绘制桥
 platform/          Rust 平台接口

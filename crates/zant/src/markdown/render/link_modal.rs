@@ -3,7 +3,7 @@
 
 use crate::core::geometry::Edges;
 use crate::core::node::{ButtonSize, ButtonType};
-use crate::layout::flex;
+use crate::flex;
 use crate::markdown::render::options::Labels;
 use crate::markdown::theme;
 use crate::motion::motion;
