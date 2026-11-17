@@ -203,6 +203,17 @@ impl Runtime {
                         data.invalidate_layout();
                         paint_changed = true;
                     }
+                    if data.danger != element.danger {
+                        data.danger = element.danger;
+                        paint_changed = true;
+                    }
+                    // the spinner widens the button and starts its frames
+                    if data.loading != element.loading {
+                        data.loading = element.loading;
+                        layout_changed = true;
+                        paint_changed = true;
+                        self.tree.poke(id);
+                    }
                 }
             }
             crate::core::node::NodeKind::Input => {

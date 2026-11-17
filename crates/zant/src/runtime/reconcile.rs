@@ -336,6 +336,8 @@ impl Runtime {
                     data.hover_text_color = element.hover_text_color;
                     data.icon = element.icon;
                     data.icon_size = element.icon_size;
+                    data.danger = element.danger;
+                    data.loading = element.loading;
                     data.invalidate_layout();
                 }
                 crate::core::node::NodeData::Input(data) => {
@@ -395,6 +397,10 @@ impl Runtime {
                 crate::core::node::NodeData::Text(_) => {}
                 crate::core::node::NodeData::Root => {}
             }
+        }
+        // a button mounted loading starts its spinner frames
+        if element.kind == NodeKind::Button && element.loading {
+            self.tree.poke(id);
         }
         if let Some(key) = element.key.as_deref() {
             self.tree.set_key(id, Some(key));

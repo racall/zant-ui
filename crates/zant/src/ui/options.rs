@@ -279,6 +279,13 @@ pub struct ButtonOptions {
     /// false: clicking does not take keyboard focus (toolbar buttons that act
     /// on the focused input).
     pub focusable: bool,
+    /// antd `danger`: error colours (primary: red fill; default: red border
+    /// and text; text / link: red text).
+    pub danger: bool,
+    /// antd `block`: as wide as the parent (`width` still wins).
+    pub block: bool,
+    /// antd `loading`: a spinner before the label, clicks are ignored.
+    pub loading: bool,
 }
 
 impl Default for ButtonOptions {
@@ -302,6 +309,9 @@ impl Default for ButtonOptions {
             index_action: None,
             index: 0,
             focusable: true,
+            danger: false,
+            block: false,
+            loading: false,
         }
     }
 }

@@ -490,7 +490,7 @@ mod tests {
 
     // ── generated table (`crates/zant-tsx/src/ui_tags.rs`) ─────────────────
 
-    /// The pinned size of the table: 38 tags / 469 props / 854 spellings / 46
+    /// The pinned size of the table: 38 tags / 472 props / 854 spellings / 48
     /// theme fields / 10 skipped. Whoever moves a composite / markdown / pdf
     /// builder out of the generator's `pending.rs` (or adds a tag) also
     /// updates these counts.
@@ -498,7 +498,7 @@ mod tests {
     fn the_generated_table_has_the_pinned_counts() {
         let tags = native_all();
         assert_eq!(38, tags.len());
-        assert_eq!(469, tags.iter().map(|tag| tag.props.len()).sum::<usize>());
+        assert_eq!(472, tags.iter().map(|tag| tag.props.len()).sum::<usize>());
         assert_eq!(
             854,
             tags.iter()
@@ -506,7 +506,7 @@ mod tests {
                 .map(|prop| prop.values.len())
                 .sum::<usize>()
         );
-        assert_eq!(46, theme_fields().len());
+        assert_eq!(48, theme_fields().len());
         assert_eq!(10, skipped().len());
     }
 

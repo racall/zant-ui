@@ -258,6 +258,8 @@ declare module "zant" {
     colorSuccess: number;
     colorWarning: number;
     colorError: number;
+    colorErrorHover: number;
+    colorErrorActive: number;
     colorSuccessBg: number;
     colorSuccessText: number;
     colorWarningBg: number;
@@ -1097,6 +1099,9 @@ declare module "zant" {
     indexAction?: (index: number) => void;
     index?: number;
     focusable?: boolean;
+    danger?: boolean;
+    block?: boolean;
+    loading?: boolean;
     onPress?: () => void;
     children?: InlineChildren;
     style?: Partial<Omit<ButtonProps, "style" | "key" | "children">>;

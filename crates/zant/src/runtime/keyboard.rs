@@ -161,6 +161,8 @@ impl Runtime {
         let (index_action, index, action) = {
             let node = self.tree.get(id);
             match &node.data {
+                // a loading button ignores activation (antd)
+                NodeData::Button(data) if data.loading => (None, 0, None),
                 NodeData::Button(data) => {
                     (data.index_action.clone(), data.index, data.action.clone())
                 }

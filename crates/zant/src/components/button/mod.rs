@@ -4,7 +4,11 @@
 //! variant fills and borders, the keyboard focus ring and the click wave. The
 //! transition values (`hover_t`, `press_t`, `wave_t`) are animated by the
 //! runtime through [`animate`]; painting never starts a transition.
+//! The palette lives in [`colors`], the `loading` spinner in [`spinner`].
 #![forbid(unsafe_code)]
+
+pub mod colors;
+pub mod spinner;
 
 use crate::core::geometry::Rect;
 use crate::core::icons;
@@ -23,9 +27,8 @@ pub const HORIZONTAL_PADDING_LARGE: f32 = 15.0;
 
 const ICON_GAP: f32 = 8.0;
 
-/// Windows 11 caption buttons: close hover #C42B1C, pressed at 90 %.
-const CAPTION_CLOSE_HOVER: u32 = 0xffc4_2b1c;
-const CAPTION_CLOSE_PRESSED: u32 = 0xe6c4_2b1c;
+/// antd `opacityLoading`.
+const LOADING_OPACITY: f32 = 0.65;
 
 pub fn control_height(size: ButtonSize) -> f32 {
     match size {
@@ -62,19 +65,6 @@ fn is_caption(button_type: ButtonType) -> bool {
     button_type == ButtonType::Caption || button_type == ButtonType::CaptionClose
 }
 
-fn text_color(data: &ButtonData, enabled: bool, theme: Theme) -> u32 {
-    if !enabled {
-        return theme.color_text_disabled;
-    }
-    match data.button_type {
-        ButtonType::Primary => theme.color_text_light,
-        ButtonType::Default => theme.color_text,
-        ButtonType::Text => theme.color_text,
-        ButtonType::Link => theme.color_primary,
-        ButtonType::Plain | ButtonType::Caption | ButtonType::CaptionClose => theme.color_text,
-    }
-}
-
 pub fn measure_width(
     data: &mut ButtonData,
     style: &FlexStyle,
@@ -87,13 +77,19 @@ pub fn measure_width(
         return width;
     }
     // same colour as paint, so measuring does not re-shape the label
-    let color = if enabled {
-        data.text_color
-            .unwrap_or_else(|| text_color(data, true, theme))
-    } else {
-        text_color(data, false, theme)
+    let color = match data.text_color {
+        Some(custom) if enabled => custom,
+        _ => colors::text_color(data, enabled, theme),
     };
-    // antd: an icon before the label, 8px apart
+    // antd `icon-only`: a square button (an empty label measures nothing)
+    if data.label.is_empty()
+        && (data.icon != Icon::None || data.loading)
+        && !is_caption(data.button_type)
+        && data.button_type != ButtonType::Plain
+    {
+        return control_height(data.size).min(style.max_width.unwrap_or(f32::INFINITY));
+    }
+    // antd: an icon (or the loading spinner) before the label, 8px apart
     let icon = if has_icon_and_label(data) {
         label_icon_size(data) + ICON_GAP
     } else {
@@ -112,96 +108,6 @@ pub fn measure_height(style: &FlexStyle, data: &ButtonData) -> f32 {
         return height;
     }
     control_height(data.size)
-}
-
-struct BaseColors {
-    bg: u32,
-    hover_bg: u32,
-    active_bg: u32,
-    border: u32,
-    hover_border: u32,
-    active_border: u32,
-}
-
-fn base_colors(data: &ButtonData, enabled: bool, theme: Theme) -> BaseColors {
-    if !enabled {
-        // antd: disabled text / link buttons have no fill or border
-        if data.button_type == ButtonType::Text
-            || data.button_type == ButtonType::Link
-            || data.button_type == ButtonType::Plain
-            || is_caption(data.button_type)
-        {
-            let clear = tokens::with_alpha(theme.color_fill_secondary, 0);
-            return BaseColors {
-                bg: clear,
-                hover_bg: clear,
-                active_bg: clear,
-                border: 0,
-                hover_border: 0,
-                active_border: 0,
-            };
-        }
-        return BaseColors {
-            bg: theme.color_fill_secondary,
-            hover_bg: theme.color_fill_secondary,
-            active_bg: theme.color_fill_secondary,
-            border: theme.color_border,
-            hover_border: theme.color_border,
-            active_border: theme.color_border,
-        };
-    }
-    match data.button_type {
-        ButtonType::Primary => BaseColors {
-            bg: theme.color_primary,
-            hover_bg: theme.color_primary_hover,
-            active_bg: theme.color_primary_active,
-            border: theme.color_primary,
-            hover_border: theme.color_primary_hover,
-            active_border: theme.color_primary_active,
-        },
-        ButtonType::Default => BaseColors {
-            bg: theme.color_bg_container,
-            hover_bg: theme.color_bg_container,
-            active_bg: theme.color_bg_container,
-            border: theme.color_border,
-            hover_border: theme.color_primary_hover,
-            active_border: theme.color_primary_active,
-        },
-        // antd: colorBgTextHover = fillSecondary, colorBgTextActive = fill
-        ButtonType::Text => BaseColors {
-            bg: tokens::with_alpha(theme.color_fill_secondary, 0),
-            hover_bg: theme.color_fill_secondary,
-            active_bg: theme.color_fill,
-            border: 0x0000_0000,
-            hover_border: 0x0000_0000,
-            active_border: 0x0000_0000,
-        },
-        // Windows caption buttons: a faint fill of the text colour
-        ButtonType::Caption => BaseColors {
-            bg: tokens::with_alpha(theme.color_text, 0),
-            hover_bg: tokens::with_alpha(theme.color_text, 0x12),
-            active_bg: tokens::with_alpha(theme.color_text, 0x0c),
-            border: 0x0000_0000,
-            hover_border: 0x0000_0000,
-            active_border: 0x0000_0000,
-        },
-        ButtonType::CaptionClose => BaseColors {
-            bg: tokens::with_alpha(CAPTION_CLOSE_HOVER, 0),
-            hover_bg: CAPTION_CLOSE_HOVER,
-            active_bg: CAPTION_CLOSE_PRESSED,
-            border: 0x0000_0000,
-            hover_border: 0x0000_0000,
-            active_border: 0x0000_0000,
-        },
-        ButtonType::Link | ButtonType::Plain => BaseColors {
-            bg: 0x0000_0000,
-            hover_bg: 0x0000_0000,
-            active_bg: 0x0000_0000,
-            border: 0x0000_0000,
-            hover_border: 0x0000_0000,
-            active_border: 0x0000_0000,
-        },
-    }
 }
 
 pub fn paint(node: &mut RetainedNode, canvas: Canvas, theme: Theme) {
@@ -225,22 +131,25 @@ pub fn paint(node: &mut RetainedNode, canvas: Canvas, theme: Theme) {
         }
         return;
     }
-    let colors = base_colors(data, enabled, theme);
+    let colors = colors::colors(data, enabled, theme);
     let hover_t = if enabled { data.hover_t } else { 0.0 };
     let press_t = if enabled { data.press_t } else { 0.0 };
-    let animated_bg = tokens::lerp(
-        tokens::lerp(colors.bg, colors.hover_bg, hover_t),
-        colors.active_bg,
-        press_t,
-    );
-    let animated_border = tokens::lerp(
-        tokens::lerp(colors.border, colors.hover_border, hover_t),
-        colors.active_border,
-        press_t,
-    );
+    let (animated_bg, animated_border, animated_text) = colors.at(hover_t, press_t);
     let bg = visual.background.unwrap_or(animated_bg);
     let border = visual.border_color.unwrap_or(animated_border);
     let rect = bounds;
+    // antd `.ant-btn-loading`: the whole button at 65 % opacity
+    if data.loading {
+        canvas.save_layer_alpha(
+            Rect::init(
+                rect.x - 8.0,
+                rect.y - 8.0,
+                rect.width + 16.0,
+                rect.height + 16.0,
+            ),
+            LOADING_OPACITY,
+        );
+    }
 
     if tokens::alpha(bg) > 0 {
         canvas.fill_round_rect(rect, visual.radius, bg);
@@ -260,11 +169,9 @@ pub fn paint(node: &mut RetainedNode, canvas: Canvas, theme: Theme) {
     }
 
     // disabled buttons always use the disabled text colour (antd)
-    let mut color = if enabled {
-        data.text_color
-            .unwrap_or_else(|| text_color(data, true, theme))
-    } else {
-        text_color(data, false, theme)
+    let mut color = match data.text_color {
+        Some(custom) if enabled => custom,
+        _ => animated_text,
     };
     // borderless icon buttons: hover / press recolour the glyph instead
     if enabled && let Some(hover) = data.hover_text_color {
@@ -275,8 +182,8 @@ pub fn paint(node: &mut RetainedNode, canvas: Canvas, theme: Theme) {
         color = tokens::lerp(color, 0xffff_ffff, hover_t.max(press_t));
     }
     if has_icon_and_label(data) {
-        paint_icon_label(data, bounds, visual.radius, canvas, color);
-    } else if data.icon != Icon::None {
+        paint_icon_label(data, bounds, canvas, color);
+    } else if data.icon != Icon::None || spinner_only(data) {
         paint_icon(data, bounds, canvas, color);
     } else {
         let padding = label_padding(data);
@@ -309,6 +216,9 @@ pub fn paint(node: &mut RetainedNode, canvas: Canvas, theme: Theme) {
     if data.wave_t < 1.0 {
         paint_wave(data, bounds, visual.radius, canvas, theme);
     }
+    if data.loading {
+        canvas.restore();
+    }
 }
 
 /// antd click wave: a primary-coloured ring spreading 6px and fading out.
@@ -321,7 +231,13 @@ fn paint_wave(data: &ButtonData, bounds: Rect, radius: f32, canvas: Canvas, them
     }
     let r = bounds;
     let half = spread * 0.5;
-    let color = tokens::with_alpha(theme.color_primary, (255.0 * fade) as u8);
+    // antd: the wave takes the button's colour
+    let base = if data.danger {
+        theme.color_error
+    } else {
+        theme.color_primary
+    };
+    let color = tokens::with_alpha(base, (255.0 * fade) as u8);
     canvas.stroke_round_rect(
         Rect::init(r.x - half, r.y - half, r.width + spread, r.height + spread),
         radius + half,
@@ -350,12 +266,19 @@ pub fn animate(data: &mut ButtonData, now: i64, theme: Theme) -> bool {
     data.hover_t = data.hover.value(now);
     data.press_t = data.press.value(now);
     data.wave_t = data.wave.value(now);
-    !(data.hover.done(now) && data.press.done(now) && data.wave.done(now))
+    // the loading spinner turns for as long as the button loads (and stays
+    // still with motion off)
+    data.spin_t = spinner::turn(now);
+    let spinning = data.loading && motion::enabled();
+    spinning || !(data.hover.done(now) && data.press.done(now) && data.wave.done(now))
 }
 
-/// Starts the click wave (primary / default buttons only).
+/// Starts the click wave (primary / default buttons only, not while
+/// loading).
 pub fn start_wave(data: &mut ButtonData, now: i64) {
-    if data.button_type != ButtonType::Primary && data.button_type != ButtonType::Default {
+    if data.button_type != ButtonType::Primary && data.button_type != ButtonType::Default
+        || data.loading
+    {
         return;
     }
     data.wave = motion::Animated::start(
@@ -390,7 +313,7 @@ pub fn set_enabled(node: &mut RetainedNode, enabled: bool, theme: Theme) {
         data.press_t = 0.0;
         data.wave_t = 1.0;
     }
-    let color = text_color(data, enabled, theme);
+    let color = colors::text_color(data, enabled, theme);
     let _ = data.ensure_layout(color);
 }
 
@@ -402,8 +325,16 @@ fn label_padding(data: &ButtonData) -> f32 {
     }
 }
 
+/// An icon or the loading spinner before a label.
 fn has_icon_and_label(data: &ButtonData) -> bool {
-    data.icon != Icon::None && !data.label.is_empty() && !is_caption(data.button_type)
+    (data.icon != Icon::None || data.loading)
+        && !data.label.is_empty()
+        && !is_caption(data.button_type)
+}
+
+/// A loading button with neither label nor icon: only the spinner.
+fn spinner_only(data: &ButtonData) -> bool {
+    data.loading && data.label.is_empty() && data.icon == Icon::None
 }
 
 /// Next to a label the icon matches the text (antd: the button font size).
@@ -412,11 +343,12 @@ fn label_icon_size(data: &ButtonData) -> f32 {
 }
 
 /// Icon and label as one group, aligned like a plain label.
-fn paint_icon_label(data: &mut ButtonData, rect: Rect, radius: f32, canvas: Canvas, color: u32) {
+fn paint_icon_label(data: &mut ButtonData, rect: Rect, canvas: Canvas, color: u32) {
     let size = label_icon_size(data);
     let padding = label_padding(data);
     let align = data.text_align;
     let icon = data.icon;
+    let (loading, turn) = (data.loading, data.spin_t);
     let Some(layout) = data.ensure_layout(color) else {
         return;
     };
@@ -426,25 +358,28 @@ fn paint_icon_label(data: &mut ButtonData, rect: Rect, radius: f32, canvas: Canv
         text::Align::Right => rect.right() - width - padding,
         text::Align::Center => rect.x + (rect.width - width) * 0.5,
     };
-    icons::paint(
-        canvas,
-        icon,
-        x + size * 0.5,
-        rect.y + rect.height * 0.5,
-        size,
-        color,
-        None,
-    );
+    let cy = rect.y + rect.height * 0.5;
+    if loading {
+        spinner::paint(canvas, x + size * 0.5, cy, size, turn, color);
+    } else {
+        icons::paint(canvas, icon, x + size * 0.5, cy, size, color, None);
+    }
     layout.paint(
         canvas,
         x + size + ICON_GAP,
         rect.y + (rect.height - layout.metrics().height) * 0.5,
     );
-    let _ = radius;
 }
 
 fn paint_icon(data: &ButtonData, rect: Rect, canvas: Canvas, color: u32) {
     let size = data.icon_size.min(rect.width.min(rect.height));
+    // antd: the loading spinner replaces the icon
+    if data.loading {
+        let size = label_icon_size(data).min(size);
+        let (cx, cy) = (rect.x + rect.width * 0.5, rect.y + rect.height * 0.5);
+        spinner::paint(canvas, cx, cy, size, data.spin_t, color);
+        return;
+    }
     // caption glyphs: 1px hairlines on the pixel grid, like Segoe Fluent Icons
     let stroke = if is_caption(data.button_type) {
         Some(1.0)

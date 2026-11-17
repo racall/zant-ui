@@ -11,7 +11,7 @@
 //! Tags whose builder the derive metadata does not describe are carried by
 //! `crates/zant-tables/src/bin/zant-tsx-tags/pending.rs`.
 //!
-//! 38 tags, 469 props, 854 spellings, 46 theme fields, 10 skipped.
+//! 38 tags, 472 props, 854 spellings, 48 theme fields, 10 skipped.
 use crate::tags::{Content, Kind, Prop, Sides, Skipped, Tag, Value};
 
 /// Every supported `ui::*` builder, in table order.
@@ -231,6 +231,9 @@ pub fn tags() -> Vec<Tag> {
             Prop { name: "indexAction", field: "index_action", kind: Kind::IndexAction, ..Default::default() },
             Prop { name: "index", field: "index", kind: Kind::Integer, int_type: "usize", ..Default::default() },
             Prop { name: "focusable", field: "focusable", kind: Kind::Boolean, ..Default::default() },
+            Prop { name: "danger", field: "danger", kind: Kind::Boolean, ..Default::default() },
+            Prop { name: "block", field: "block", kind: Kind::Boolean, ..Default::default() },
+            Prop { name: "loading", field: "loading", kind: Kind::Boolean, ..Default::default() },
         ], ..Default::default() },
         Tag { name: "Link", builder: "ui.link", props: vec![
             Prop { name: "key", field: "key", kind: Kind::String, ..Default::default() },
@@ -607,6 +610,8 @@ pub fn theme() -> Vec<Prop> {
         Prop { name: "colorSuccess", field: "color_success", kind: Kind::Color, ..Default::default() },
         Prop { name: "colorWarning", field: "color_warning", kind: Kind::Color, ..Default::default() },
         Prop { name: "colorError", field: "color_error", kind: Kind::Color, ..Default::default() },
+        Prop { name: "colorErrorHover", field: "color_error_hover", kind: Kind::Color, ..Default::default() },
+        Prop { name: "colorErrorActive", field: "color_error_active", kind: Kind::Color, ..Default::default() },
         Prop { name: "colorSuccessBg", field: "color_success_bg", kind: Kind::Color, ..Default::default() },
         Prop { name: "colorSuccessText", field: "color_success_text", kind: Kind::Color, ..Default::default() },
         Prop { name: "colorWarningBg", field: "color_warning_bg", kind: Kind::Color, ..Default::default() },

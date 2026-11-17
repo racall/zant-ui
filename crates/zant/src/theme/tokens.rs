@@ -32,6 +32,9 @@ pub struct Theme {
     pub color_success: u32,
     pub color_warning: u32,
     pub color_error: u32,
+    /// antd colorErrorHover / colorErrorActive (danger buttons).
+    pub color_error_hover: u32,
+    pub color_error_active: u32,
     // status surfaces (antd colorSuccessBg… / the Tag presets' text, which
     // stays readable on them)
     pub color_success_bg: u32,
@@ -97,6 +100,8 @@ impl Default for Theme {
             color_success: 0xff52c41a,
             color_warning: 0xfffaad14,
             color_error: 0xffff4d4f,
+            color_error_hover: 0xffff7875,
+            color_error_active: 0xffd9363e,
             color_success_bg: 0xfff6ffed,
             color_success_text: 0xff389e0d,
             color_warning_bg: 0xfffffbe6,
@@ -165,6 +170,11 @@ pub fn ant_dark() -> Theme {
         color_border: 0xff424242,
         color_border_secondary: 0xff303030,
         color_split: 0x0fffffff,
+        // antd dark algorithm: the red palette blended over #141414 (hover
+        // and active swap places, like the primary colours above)
+        color_error: 0xffdc4446,
+        color_error_hover: 0xffe86e6b,
+        color_error_active: 0xffad393a,
         color_success_bg: 0xff162312,
         color_success_text: 0xff49aa19,
         color_warning_bg: 0xff2b2111,
@@ -238,5 +248,25 @@ mod tests {
     fn is_dark() {
         assert!(!super::is_dark(super::ant_light()));
         assert!(super::is_dark(super::ant_dark()));
+    }
+
+    /// antd's dark algorithm mixes the light red palette (#ff4d4f, #ff7875)
+    /// over #141414: colorError 85 % of red-6, colorErrorHover 90 % of red-5,
+    /// colorErrorActive 65 % of red-6.
+    #[test]
+    fn dark_error_colours_follow_the_antd_dark_algorithm() {
+        // tinycolor's mix, rounded per channel
+        let mix = |color: u32, k: f32| {
+            let channel = |shift: u32| {
+                let (bg, fg) = (0x14 as f32, ((color >> shift) & 255) as f32);
+                ((bg + (fg - bg) * k).round() as u32) << shift
+            };
+            0xff00_0000 | channel(16) | channel(8) | channel(0)
+        };
+        let dark = super::ant_dark();
+        let light = super::ant_light();
+        assert_eq!(mix(light.color_error, 0.85), dark.color_error);
+        assert_eq!(mix(light.color_error_hover, 0.9), dark.color_error_hover);
+        assert_eq!(mix(light.color_error, 0.65), dark.color_error_active);
     }
 }

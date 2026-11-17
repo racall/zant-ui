@@ -82,6 +82,9 @@ pub struct Element {
     /// Buttons: the label / icon colour the hover and press states fade to.
     pub hover_text_color: Option<u32>,
     pub label_padding: f32,
+    /// Buttons: antd `danger` / `loading`.
+    pub danger: bool,
+    pub loading: bool,
     pub icon: ButtonIcon,
     pub icon_size: f32,
     pub on_click: Option<Action>,
@@ -162,6 +165,8 @@ impl Default for Element {
             text_color: None,
             hover_text_color: None,
             label_padding: 0.0,
+            danger: false,
+            loading: false,
             icon: ButtonIcon::None,
             icon_size: 18.0,
             on_click: None,

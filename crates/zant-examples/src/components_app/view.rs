@@ -156,6 +156,9 @@ pub(crate) fn render(app: &mut ComponentsApp) -> ui::Node {
                     }),
                 ],
             ),
+            row(8.0, super::buttons::danger_buttons()),
+            row(8.0, super::buttons::loading_buttons()),
+            super::buttons::block_button(),
         ],
     );
 

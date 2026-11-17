@@ -302,11 +302,12 @@ impl Runtime {
             Some(id) => match self.tree.get(id).kind() {
                 NodeKind::Input => Cursor::Ibeam,
                 NodeKind::Button => {
-                    let button_type = match &self.tree.get(id).data {
-                        NodeData::Button(data) => data.button_type,
-                        _ => ButtonType::Default,
+                    let (button_type, loading) = match &self.tree.get(id).data {
+                        NodeData::Button(data) => (data.button_type, data.loading),
+                        _ => (ButtonType::Default, false),
                     };
                     match button_type {
+                        _ if loading => Cursor::Arrow,
                         ButtonType::Plain | ButtonType::Caption | ButtonType::CaptionClose => {
                             Cursor::Arrow
                         }
@@ -526,7 +527,13 @@ impl Runtime {
             self.pressed_button = None;
             let (alive, inside, enabled) = {
                 let node = self.tree.get(id);
-                (node.alive, node.bounds.contains(p.x, p.y), node.enabled)
+                // a loading button ignores clicks (antd)
+                let loading = matches!(&node.data, NodeData::Button(data) if data.loading);
+                (
+                    node.alive,
+                    node.bounds.contains(p.x, p.y),
+                    node.enabled && !loading,
+                )
             };
             if alive {
                 if let NodeData::Button(data) = &mut self.tree.get_mut(id).data {

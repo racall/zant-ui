@@ -157,6 +157,12 @@ pub struct ButtonData {
     pub hover_text_color: Option<u32>,
     pub icon: crate::core::icons::Icon,
     pub icon_size: f32,
+    /// antd `danger`: the error colours instead of the primary ones.
+    pub danger: bool,
+    /// antd `loading`: a spinner replaces the icon and clicks are ignored.
+    pub loading: bool,
+    /// Spinner rotation, 0..1 per turn (sampled by `button::animate`).
+    pub spin_t: f32,
 }
 
 impl Default for ButtonData {
@@ -188,6 +194,9 @@ impl Default for ButtonData {
             hover_text_color: None,
             icon: crate::core::icons::Icon::None,
             icon_size: 18.0,
+            danger: false,
+            loading: false,
+            spin_t: 0.0,
         }
     }
 }

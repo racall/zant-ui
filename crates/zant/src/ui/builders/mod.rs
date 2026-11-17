@@ -211,7 +211,9 @@ pub fn button(options: ButtonOptions) -> Node {
         layout: FlexStyle {
             height: Some(height),
             width: options.width,
-            shrink: 0.0,
+            // antd `block` is `width: 100%`; an explicit width wins
+            width_percent: (options.block && options.width.is_none()).then_some(100.0),
+            shrink: if options.block { 1.0 } else { 0.0 },
             ..FlexStyle::default()
         },
         visual: Visual {
@@ -225,6 +227,8 @@ pub fn button(options: ButtonOptions) -> Node {
         },
         text_color: options.text_color,
         label_padding: options.label_padding,
+        danger: options.danger,
+        loading: options.loading,
         icon: options.icon,
         icon_size: options.icon_size,
         on_click: options.on_click,
