@@ -68,6 +68,10 @@ pub enum Kind {
     /// `&[T]` field with T a struct: an array of object literals whose keys
     /// are `item_props` (emits the item type `item_type`).
     StructList,
+    /// Struct field whose fields all have defaults (`labels`): one object
+    /// literal whose keys are `item_props` (emits `item_type { …,
+    /// ..Default::default() }`; omitted keys keep the struct's defaults).
+    Struct,
     /// `?zant::image::Image`: an in-memory image (TSX type `Image`, from a
     /// Rust module such as a thumbnail cache).
     Image,
@@ -148,7 +152,7 @@ pub struct Prop {
     pub int_type: &'static str,
     /// The field has no default value: the prop must be given.
     pub required: bool,
-    /// `.struct_list`: the element type (`ui::TabItem`) and its fields as
+    /// `.struct_list` / `.struct`: the element (or struct) type (`ui::TabItem`) and its fields as
     /// props (camelCase names, same kinds; nesting allowed).
     pub item_type: &'static str,
     pub item_props: Vec<Prop>,
@@ -490,7 +494,7 @@ mod tests {
 
     // ── generated table (`crates/zant-tsx/src/ui_tags.rs`) ─────────────────
 
-    /// The pinned size of the table: 38 tags / 472 props / 854 spellings / 48
+    /// The pinned size of the table: 38 tags / 474 props / 854 spellings / 48
     /// theme fields / 10 skipped. Whoever moves a composite / markdown / pdf
     /// builder out of the generator's `pending.rs` (or adds a tag) also
     /// updates these counts.
@@ -498,7 +502,7 @@ mod tests {
     fn the_generated_table_has_the_pinned_counts() {
         let tags = native_all();
         assert_eq!(38, tags.len());
-        assert_eq!(472, tags.iter().map(|tag| tag.props.len()).sum::<usize>());
+        assert_eq!(474, tags.iter().map(|tag| tag.props.len()).sum::<usize>());
         assert_eq!(
             854,
             tags.iter()

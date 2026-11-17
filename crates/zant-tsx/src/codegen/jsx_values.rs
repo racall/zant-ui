@@ -457,6 +457,18 @@ pub fn structs(
     Ok(format!("vec![{}]", codes.join(", ")))
 }
 
+/// One object literal for a struct prop (`labels={{ copy: "…" }}`); omitted
+/// keys keep the struct's defaults.
+pub fn object(
+    g: &mut Generator<'_>,
+    c: &mut scope::Context,
+    prop: &Prop,
+    e: &ast::Expr,
+) -> Result<String> {
+    let item_path = type_path(prop.item_type);
+    struct_item(g, c, prop, &item_path, e, prop.name)
+}
+
 /// Item keys use the same prop conversions recursively, with index/key diagnostics.
 fn struct_item(
     g: &mut Generator<'_>,

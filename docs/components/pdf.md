@@ -25,9 +25,12 @@ export default function App() {
 | `emptyText` | `"Choose a PDF to read"`，空路径时显示 |
 | `loadingText` | `"Opening PDF…"` |
 | `errorText` | `"This PDF can't be opened"` |
+| `labels` | 工具栏、选区菜单与错误提示文案，对象、各项可选：`search`、`noResults`、`previousPage`、`nextPage`、`zoomIn`、`zoomOut`、`fitWidth`、`fitPage`、`previousMatch`、`nextMatch`、`copy`、`cannotOpen`、`password`、`highlight`、`underline`、`strikeout`、`pen`、`note`、`select` |
 | `key` | 可选，设置外层节点；内部实例自动隔离 key |
 
-不接受子节点。相同输入保留阅读状态，失败路径不会每帧重试；卸载会释放文档和渲染线程。界面标签默认为英文，`labels` 仅 Rust 支持，可设 `pdf::Labels::ZH`。
+不接受子节点。相同输入保留阅读状态，失败路径不会每帧重试；卸载会释放文档和渲染线程。表中的默认文案与 `labels` 未给的项跟随应用语言（框架内置英文 / 简体中文，见 [i18n](../i18n.md#框架内置文案)），
+显式传入的优先。Rust：`pdf::Labels::default()` 是当前语言，`pdf::Labels::for_locale("zh-CN")` 取指定语言
+（旧的 `pdf::Labels::ZH` 已弃用）。
 
 ## 交互
 
@@ -66,4 +69,4 @@ export default function App() {
 }
 ```
 
-`src` 必填；`page=0`、`width=320`、`height=420`、`showToolbar=true`（翻页、复制本页文本）；`background` / `key` 默认未设。应用通过 `onPageChange(index)` 更新页码。宽高指页面图像，工具栏另占空间。Rust：`ui::pdf_preview(ui::PdfOptions { .. })`。
+`src` 必填；`page=0`、`width=320`、`height=420`、`showToolbar=true`（翻页、复制本页文本）；`background` / `key` 默认未设。应用通过 `onPageChange(index)` 更新页码。“复制文本”按钮与无法预览时的提示跟随应用语言。宽高指页面图像，工具栏另占空间。Rust：`ui::pdf_preview(ui::PdfOptions { .. })`。

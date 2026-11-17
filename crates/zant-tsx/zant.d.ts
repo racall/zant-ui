@@ -2167,6 +2167,21 @@ declare module "zant" {
     onLink?: (value: string) => void;
     baseDir?: string;
     selectable?: boolean;
+    labels?: {
+      copy?: string;
+      copyMarkdown?: string;
+      copyCsv?: string;
+      download?: string;
+      footnotes?: string;
+      image?: string;
+      loadingImage?: string;
+      openLink?: string;
+      copyLink?: string;
+      cancel?: string;
+      linkTitle?: string;
+      linkMessage?: string;
+      unsupportedDiagram?: string;
+    };
     children?: TextChildren;
     style?: Partial<Omit<MarkdownProps, "style" | "key" | "children">>;
   }
@@ -2193,6 +2208,27 @@ declare module "zant" {
     emptyText?: string;
     loadingText?: string;
     errorText?: string;
+    labels?: {
+      search?: string;
+      noResults?: string;
+      previousPage?: string;
+      nextPage?: string;
+      zoomIn?: string;
+      zoomOut?: string;
+      fitWidth?: string;
+      fitPage?: string;
+      previousMatch?: string;
+      nextMatch?: string;
+      copy?: string;
+      cannotOpen?: string;
+      password?: string;
+      highlight?: string;
+      underline?: string;
+      strikeout?: string;
+      pen?: string;
+      note?: string;
+      select?: string;
+    };
     style?: Partial<Omit<PdfViewerProps, "style" | "key" | "children">>;
   }
   export function PdfViewer(props: PdfViewerProps): JSX.Element;

@@ -339,11 +339,11 @@ return <View><Markdown streaming caret="block"># 回复</Markdown>
 | 组件 | 属性与行为 |
 |---|---|
 | Markdown | source 或文字子节点二选一；streaming 配合默认开启的 parseIncomplete 修复未完成语法，复用块缓存；caret=none/block/circle（只在 streaming 显示） |
-| Markdown 选项 | fontSize/contentWidth/lineNumbers/codeMaxHeight、codeCopy/codeDownload、tableCopy/tableDownload、mermaidCopy/mermaidDownload、onLink/baseDir/selectable/singleDollarMath/latexDelimiters |
+| Markdown 选项 | fontSize/contentWidth/lineNumbers/codeMaxHeight、codeCopy/codeDownload、tableCopy/tableDownload、mermaidCopy/mermaidDownload、onLink/baseDir/selectable/singleDollarMath/latexDelimiters、labels（文案对象，各项可选） |
 | PdfViewer | src 必填，空串显示提示，无子节点；src/password 改变重新打开，否则保留滚动 / 缩放 / 选择 / 搜索 / 批注；失败不逐帧重试，页面在后台分块渲染 |
-| PDF 选项 | toolbar/annotationTools/selectionMenu/pageGap/padding/background、onLink/onChange/onAnnotation、width/height/grow（指定 height 默认不伸长）、emptyText/loadingText/errorText |
+| PDF 选项 | toolbar/annotationTools/selectionMenu/pageGap/padding/background、onLink/onChange/onAnnotation、width/height/grow（指定 height 默认不伸长）、emptyText/loadingText/errorText、labels（工具栏文案对象，各项可选） |
 
-组件随主题切换；实例缓存卸载即释放，多文档互不影响，列表中给稳定 key。复杂 Markdown 扩展 / PDF labels 可从 Rust 传入；见 [Markdown](components/markdown.md)、[PDF](components/pdf.md)。
+组件随主题切换；实例缓存卸载即释放，多文档互不影响，列表中给稳定 key。内置文案默认跟随应用语言（[i18n](i18n.md#框架内置文案)）；复杂 Markdown 扩展可从 Rust 传入；见 [Markdown](components/markdown.md)、[PDF](components/pdf.md)。
 
 ## 应用 hooks
 

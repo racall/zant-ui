@@ -177,19 +177,24 @@ fn prop_type(out: &mut String, prop: &Prop, indent: &str) {
         Kind::StringList => Some("string[]"),
         Kind::Image => Some("Image | null"),
         Kind::Shortcut => Some("string | null"),
-        Kind::Enumeration | Kind::Flag | Kind::StructList => None,
+        Kind::Enumeration | Kind::Flag | Kind::StructList | Kind::Struct => None,
     };
     if let Some(scalar) = scalar {
         out.push_str(scalar);
         return;
     }
-    if prop.kind == Kind::StructList {
+    if matches!(prop.kind, Kind::StructList | Kind::Struct) {
         out.push_str("{\n");
         let nested = format!("{indent}  ");
         for item in &prop.item_props {
             property(out, item, !item.required, &nested);
         }
-        out.push_str(&format!("{indent}}}[]"));
+        let array = if prop.kind == Kind::StructList {
+            "[]"
+        } else {
+            ""
+        };
+        out.push_str(&format!("{indent}}}{array}"));
         return;
     }
     // One spelling per line also keeps large unions readable and below 120 columns.

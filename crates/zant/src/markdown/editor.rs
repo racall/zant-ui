@@ -11,6 +11,7 @@ use crate::core::geometry::Edges;
 use crate::core::icons::Icon;
 use crate::core::keys;
 use crate::flex;
+use crate::i18n::builtin::{self, Language};
 use crate::markdown::cache::Cache;
 use crate::markdown::edit;
 use crate::markdown::render::view::{self, Props as ViewProps};
@@ -51,66 +52,62 @@ pub struct Labels {
     pub tools: [Str; 15],
 }
 
-fn tool(label: &str, spec: &str) -> Str {
+fn tool(text: builtin::Text, language: Language, spec: &str) -> Str {
+    let label = text.get(language);
     if spec.is_empty() {
-        Str::copy(label)
+        Str::Static(label)
     } else {
         Str::from(format!("{label} {}", keys::label(spec)))
     }
 }
 
 impl Default for Labels {
+    /// The labels in the app's current language (`i18n::builtin`).
     fn default() -> Self {
-        Labels {
-            edit: "Edit".into(),
-            split: "Split".into(),
-            preview: "Preview".into(),
-            tools: [
-                tool("Bold", "mod+b"),
-                tool("Italic", "mod+i"),
-                tool("Strikethrough", "mod+shift+x"),
-                tool("Inline code", "mod+e"),
-                tool("Link", "mod+k"),
-                tool("Heading", ""),
-                tool("Quote", ""),
-                tool("Bulleted list", ""),
-                tool("Numbered list", ""),
-                tool("Task list", ""),
-                tool("Code block", ""),
-                tool("Inline math", ""),
-                tool("Math block", ""),
-                tool("Divider", ""),
-                tool("Table", ""),
-            ],
-        }
+        Labels::for_language(Language::current())
     }
 }
 
 impl Labels {
-    /// Chinese labels.
-    pub fn zh() -> Labels {
+    /// The built-in labels in `language`.
+    pub fn for_language(language: Language) -> Labels {
+        use builtin::*;
+        let tool = |text, spec| tool(text, language, spec);
         Labels {
-            edit: "编辑".into(),
-            split: "分栏".into(),
-            preview: "预览".into(),
+            edit: EDITOR_EDIT.str(language),
+            split: EDITOR_SPLIT.str(language),
+            preview: EDITOR_PREVIEW.str(language),
             tools: [
-                tool("粗体", "mod+b"),
-                tool("斜体", "mod+i"),
-                tool("删除线", "mod+shift+x"),
-                tool("行内代码", "mod+e"),
-                tool("链接", "mod+k"),
-                tool("标题", ""),
-                tool("引用", ""),
-                tool("无序列表", ""),
-                tool("有序列表", ""),
-                tool("任务列表", ""),
-                tool("代码块", ""),
-                tool("行内公式", ""),
-                tool("公式块", ""),
-                tool("分隔线", ""),
-                tool("表格", ""),
+                tool(EDITOR_BOLD, "mod+b"),
+                tool(EDITOR_ITALIC, "mod+i"),
+                tool(EDITOR_STRIKETHROUGH, "mod+shift+x"),
+                tool(EDITOR_INLINE_CODE, "mod+e"),
+                tool(EDITOR_LINK, "mod+k"),
+                tool(EDITOR_HEADING, ""),
+                tool(EDITOR_QUOTE, ""),
+                tool(EDITOR_BULLETED_LIST, ""),
+                tool(EDITOR_NUMBERED_LIST, ""),
+                tool(EDITOR_TASK_LIST, ""),
+                tool(EDITOR_CODE_BLOCK, ""),
+                tool(EDITOR_INLINE_MATH, ""),
+                tool(EDITOR_MATH_BLOCK, ""),
+                tool(EDITOR_DIVIDER, ""),
+                tool(EDITOR_TABLE, ""),
             ],
         }
+    }
+
+    /// The built-in labels for a BCP-47 tag (`"zh-CN"`).
+    pub fn for_locale(tag: &str) -> Labels {
+        Labels::for_language(Language::for_tag(tag))
+    }
+
+    /// Chinese labels.
+    #[deprecated(
+        note = "defaults follow the app locale; use `Labels::default()` or `Labels::for_locale(\"zh-CN\")`"
+    )]
+    pub fn zh() -> Labels {
+        Labels::for_language(Language::Chinese)
     }
 }
 

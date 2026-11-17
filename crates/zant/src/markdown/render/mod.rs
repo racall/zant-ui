@@ -13,6 +13,7 @@ pub mod context;
 pub mod controls;
 pub mod data_images;
 pub mod diagram;
+pub mod labels;
 pub mod link_modal;
 pub mod options;
 pub mod spans;

@@ -209,7 +209,7 @@ fn full_document_renders() {
         &doc,
         RenderOptions {
             theme: theme::dark(),
-            labels: Labels::zh(),
+            labels: Labels::for_locale("zh-CN"),
             ..Default::default()
         },
     );
@@ -301,7 +301,7 @@ fn editor_renders_in_every_mode() {
             value: "# Hi\n\n- a",
             mode,
             cache: Some(&mut cache),
-            labels: editor::Labels::zh(),
+            labels: editor::Labels::for_locale("zh-CN"),
             ..Default::default()
         });
         assert_eq!(node.element().children.len(), 2, "mode {mode:?}");
@@ -314,7 +314,7 @@ fn link_safety_modal_is_absolute() {
     ui::begin_frame();
     let node = link_safety_modal(LinkModalProps {
         url: "https://example.com".into(),
-        labels: Labels::zh(),
+        labels: Labels::for_locale("zh-CN"),
         ..Default::default()
     });
     ui::end_frame();

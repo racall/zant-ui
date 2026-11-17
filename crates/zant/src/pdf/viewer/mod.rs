@@ -39,12 +39,14 @@
 
 pub mod annotate;
 pub mod cache;
+pub mod labels;
 pub mod layout;
 pub mod search;
 pub mod select;
 pub mod zoom;
 
 pub use cache::view;
+pub use labels::Labels;
 
 use std::cell::{Ref, RefCell, RefMut};
 use std::rc::Rc;
@@ -104,81 +106,6 @@ pub enum Fit {
     Page,
     /// Manual zoom (`set_zoom`, zoom buttons, ⌘/Ctrl + wheel).
     None,
-}
-
-/// Interface strings (`Labels.zh` is the Chinese set).
-#[derive(Clone)]
-pub struct Labels {
-    pub search: Str,
-    pub no_results: Str,
-    pub previous_page: Str,
-    pub next_page: Str,
-    pub zoom_in: Str,
-    pub zoom_out: Str,
-    pub fit_width: Str,
-    pub fit_page: Str,
-    pub previous_match: Str,
-    pub next_match: Str,
-    pub copy: Str,
-    pub cannot_open: Str,
-    pub password: Str,
-    pub highlight: Str,
-    pub underline: Str,
-    pub strikeout: Str,
-    pub pen: Str,
-    pub note: Str,
-    pub select: Str,
-}
-
-impl Labels {
-    /// Chinese labels.
-    pub const ZH: Labels = Labels {
-        search: Str::Static("搜索"),
-        no_results: Str::Static("无结果"),
-        previous_page: Str::Static("上一页"),
-        next_page: Str::Static("下一页"),
-        zoom_in: Str::Static("放大"),
-        zoom_out: Str::Static("缩小"),
-        fit_width: Str::Static("适合宽度"),
-        fit_page: Str::Static("适合页面"),
-        previous_match: Str::Static("上一个"),
-        next_match: Str::Static("下一个"),
-        copy: Str::Static("复制"),
-        cannot_open: Str::Static("无法打开此 PDF"),
-        password: Str::Static("此 PDF 受密码保护"),
-        highlight: Str::Static("高亮"),
-        underline: Str::Static("下划线"),
-        strikeout: Str::Static("删除线"),
-        pen: Str::Static("画笔"),
-        note: Str::Static("便签"),
-        select: Str::Static("选择"),
-    };
-}
-
-impl Default for Labels {
-    fn default() -> Labels {
-        Labels {
-            search: Str::Static("Search"),
-            no_results: Str::Static("No results"),
-            previous_page: Str::Static("Previous page"),
-            next_page: Str::Static("Next page"),
-            zoom_in: Str::Static("Zoom in"),
-            zoom_out: Str::Static("Zoom out"),
-            fit_width: Str::Static("Fit width"),
-            fit_page: Str::Static("Fit page"),
-            previous_match: Str::Static("Previous match"),
-            next_match: Str::Static("Next match"),
-            copy: Str::Static("Copy"),
-            cannot_open: Str::Static("Cannot open this PDF"),
-            password: Str::Static("This PDF is password protected"),
-            highlight: Str::Static("Highlight"),
-            underline: Str::Static("Underline"),
-            strikeout: Str::Static("Strikethrough"),
-            pen: Str::Static("Pen"),
-            note: Str::Static("Note"),
-            select: Str::Static("Select"),
-        }
-    }
 }
 
 /// `zant.pdf.view` options.

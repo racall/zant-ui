@@ -31,6 +31,7 @@ use crate::core::events::{self, Key};
 use crate::core::geometry::Edges;
 use crate::core::node::Icon;
 use crate::flex;
+use crate::i18n::builtin;
 use crate::platform::platform::Cursor;
 use crate::renderer::text::Weight;
 use crate::ui::actions::{Action, ActionCx, KeyAction, PointerAction, PointerPhase};
@@ -92,8 +93,8 @@ impl Default for HotkeyInputOptions {
             recording: false,
             width: None,
             height: 32.0,
-            placeholder: Str::Static("Click to set a shortcut"),
-            recording_text: Str::Static("Press a shortcut…"),
+            placeholder: builtin::HOTKEY_PLACEHOLDER.current(),
+            recording_text: builtin::HOTKEY_RECORDING.current(),
             on_start: None,
             on_record: None,
             on_cancel: None,
@@ -175,7 +176,7 @@ pub fn hotkey_input(o: HotkeyInputOptions) -> Node {
             // antd's clear icon: quiet at rest, darker on hover, no fill
             color: Some(theme.color_text_disabled),
             hover_color: Some(theme.color_text_secondary),
-            tooltip: Some(Str::Static("Clear")),
+            tooltip: Some(builtin::HOTKEY_CLEAR.current()),
             on_click: Some(clear.clone()),
             ..Default::default()
         }));
@@ -472,6 +473,18 @@ mod tests {
         assert!(defaults.on_record.is_none());
         assert!(defaults.on_cancel.is_none());
         assert!(defaults.on_clear.is_none());
+
+        // the defaults follow the app locale; explicit texts win
+        crate::i18n::builtin::testing::use_locale("zh-CN");
+        let chinese = HotkeyInputOptions::default();
+        assert_eq!(chinese.placeholder, "点击设置快捷键");
+        assert_eq!(chinese.recording_text, "请按下快捷键…");
+        let explicit = HotkeyInputOptions {
+            placeholder: "Set".into(),
+            ..Default::default()
+        };
+        assert_eq!(explicit.placeholder, "Set");
+        assert_eq!(explicit.recording_text, "请按下快捷键…");
     }
 
     #[test]

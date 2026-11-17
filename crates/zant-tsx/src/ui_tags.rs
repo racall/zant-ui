@@ -11,7 +11,7 @@
 //! Tags whose builder the derive metadata does not describe are carried by
 //! `crates/zant-tables/src/bin/zant-tsx-tags/pending.rs`.
 //!
-//! 38 tags, 472 props, 854 spellings, 48 theme fields, 10 skipped.
+//! 38 tags, 474 props, 854 spellings, 48 theme fields, 10 skipped.
 use crate::tags::{Content, Kind, Prop, Sides, Skipped, Tag, Value};
 
 /// Every supported `ui::*` builder, in table order.
@@ -545,6 +545,7 @@ pub fn tags() -> Vec<Tag> {
             Prop { name: "onLink", field: "on_link", kind: Kind::TextAction, ..Default::default() },
             Prop { name: "baseDir", field: "base_dir", kind: Kind::String, ..Default::default() },
             Prop { name: "selectable", field: "selectable", kind: Kind::Boolean, ..Default::default() },
+            Prop { name: "labels", field: "labels", kind: Kind::Struct, item_type: "ui.MarkdownLabels", item_props: vec![Prop { name: "copy", field: "copy", kind: Kind::String, ..Default::default() }, Prop { name: "copyMarkdown", field: "copy_markdown", kind: Kind::String, ..Default::default() }, Prop { name: "copyCsv", field: "copy_csv", kind: Kind::String, ..Default::default() }, Prop { name: "download", field: "download", kind: Kind::String, ..Default::default() }, Prop { name: "footnotes", field: "footnotes", kind: Kind::String, ..Default::default() }, Prop { name: "image", field: "image", kind: Kind::String, ..Default::default() }, Prop { name: "loadingImage", field: "loading_image", kind: Kind::String, ..Default::default() }, Prop { name: "openLink", field: "open_link", kind: Kind::String, ..Default::default() }, Prop { name: "copyLink", field: "copy_link", kind: Kind::String, ..Default::default() }, Prop { name: "cancel", field: "cancel", kind: Kind::String, ..Default::default() }, Prop { name: "linkTitle", field: "link_title", kind: Kind::String, ..Default::default() }, Prop { name: "linkMessage", field: "link_message", kind: Kind::String, ..Default::default() }, Prop { name: "unsupportedDiagram", field: "unsupported_diagram", kind: Kind::String, ..Default::default() }], ..Default::default() },
         ], ..Default::default() },
         Tag { name: "PdfViewer", builder: "ui.pdfViewer", instance_id: true, props: vec![
             Prop { name: "src", field: "src", kind: Kind::String, required: true, ..Default::default() },
@@ -565,6 +566,7 @@ pub fn tags() -> Vec<Tag> {
             Prop { name: "emptyText", field: "empty_text", kind: Kind::String, ..Default::default() },
             Prop { name: "loadingText", field: "loading_text", kind: Kind::String, ..Default::default() },
             Prop { name: "errorText", field: "error_text", kind: Kind::String, ..Default::default() },
+            Prop { name: "labels", field: "labels", kind: Kind::Struct, item_type: "ui.PdfLabels", item_props: vec![Prop { name: "search", field: "search", kind: Kind::String, ..Default::default() }, Prop { name: "noResults", field: "no_results", kind: Kind::String, ..Default::default() }, Prop { name: "previousPage", field: "previous_page", kind: Kind::String, ..Default::default() }, Prop { name: "nextPage", field: "next_page", kind: Kind::String, ..Default::default() }, Prop { name: "zoomIn", field: "zoom_in", kind: Kind::String, ..Default::default() }, Prop { name: "zoomOut", field: "zoom_out", kind: Kind::String, ..Default::default() }, Prop { name: "fitWidth", field: "fit_width", kind: Kind::String, ..Default::default() }, Prop { name: "fitPage", field: "fit_page", kind: Kind::String, ..Default::default() }, Prop { name: "previousMatch", field: "previous_match", kind: Kind::String, ..Default::default() }, Prop { name: "nextMatch", field: "next_match", kind: Kind::String, ..Default::default() }, Prop { name: "copy", field: "copy", kind: Kind::String, ..Default::default() }, Prop { name: "cannotOpen", field: "cannot_open", kind: Kind::String, ..Default::default() }, Prop { name: "password", field: "password", kind: Kind::String, ..Default::default() }, Prop { name: "highlight", field: "highlight", kind: Kind::String, ..Default::default() }, Prop { name: "underline", field: "underline", kind: Kind::String, ..Default::default() }, Prop { name: "strikeout", field: "strikeout", kind: Kind::String, ..Default::default() }, Prop { name: "pen", field: "pen", kind: Kind::String, ..Default::default() }, Prop { name: "note", field: "note", kind: Kind::String, ..Default::default() }, Prop { name: "select", field: "select", kind: Kind::String, ..Default::default() }], ..Default::default() },
         ], ..Default::default() },
     ]
 }

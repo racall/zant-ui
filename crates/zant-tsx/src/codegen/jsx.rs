@@ -444,6 +444,10 @@ pub fn property(
             let code = jsx_values::structs(g, c, prop, e)?;
             put(fields, prop, code);
         }
+        Kind::Struct => {
+            let code = jsx_values::object(g, c, prop, e)?;
+            put(fields, prop, code);
+        }
         Kind::Flag => {
             let field = enum_value(g, c, owner, prop, e)?;
             if !field.is_empty() {

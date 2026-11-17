@@ -96,6 +96,12 @@ pub use crate::components::window_controls::{
 pub use crate::components::markdown::{MarkdownOptions, markdown};
 #[cfg(feature = "pdf")]
 pub use crate::components::pdf_viewer::{PdfViewerOptions, PdfViewerState, pdf_viewer};
+/// Their interface strings (TSX `labels={{ … }}`); the defaults follow the
+/// app locale (`i18n::builtin`).
+#[cfg(feature = "markdown")]
+pub use crate::markdown::render::labels::Labels as MarkdownLabels;
+#[cfg(feature = "pdf")]
+pub use crate::pdf::Labels as PdfLabels;
 
 #[cfg(test)]
 mod contract_tests {

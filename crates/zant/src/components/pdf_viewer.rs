@@ -8,6 +8,7 @@ use std::rc::Rc;
 use crate::Str;
 use crate::core::node::Icon;
 use crate::flex;
+use crate::i18n::builtin;
 use crate::pdf::{self, ViewOptions, Viewer};
 use crate::ui;
 use crate::ui::actions::{Action, TextAction};
@@ -56,9 +57,9 @@ impl Default for PdfViewerOptions {
             width: None,
             height: None,
             grow: None,
-            empty_text: Str::Static("Choose a PDF to read"),
-            loading_text: Str::Static("Opening PDF…"),
-            error_text: Str::Static("This PDF can't be opened"),
+            empty_text: builtin::PDF_EMPTY.current(),
+            loading_text: builtin::PDF_LOADING.current(),
+            error_text: builtin::PDF_ERROR.current(),
         }
     }
 }

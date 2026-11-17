@@ -901,9 +901,15 @@ fn scan_property(
     if is_action(prop.kind) {
         event(g, value, prop, loc)?;
     }
-    if prop.kind != Kind::StructList || !matches!(value.data, ast::ExprData::Array(_)) {
-        return scan_expr(g, value);
-    }
+    let items: Vec<(String, &ast::Expr)> = match (&value.data, prop.kind) {
+        (ast::ExprData::Array(items), Kind::StructList) => items
+            .iter()
+            .enumerate()
+            .map(|(index, item)| (format!("{}[{}]", prop.name, index), &**item))
+            .collect(),
+        (ast::ExprData::Object(_), Kind::Struct) => vec![(prop.name.to_owned(), value)],
+        _ => return scan_expr(g, value),
+    };
     let schema = tags::Tag {
         name: "",
         builder: "",
@@ -912,10 +918,7 @@ fn scan_property(
         content_field: "",
         props: prop.item_props.clone(),
     };
-    let ast::ExprData::Array(items) = &value.data else {
-        return Ok(());
-    };
-    for (index, item) in items.iter().enumerate() {
+    for (owner, item) in items {
         let ast::ExprData::Object(properties) = &item.data else {
             continue;
         };
@@ -928,12 +931,8 @@ fn scan_property(
             {
                 if let Err(err) = scan_property(g, field, &property.value, property.key.loc) {
                     if err == super::Error::Tsx {
-                        let prefix = format!(
-                            "in {}[{}].{}",
-                            prop.name,
-                            index,
-                            String::from_utf8_lossy(&property.key.name)
-                        );
+                        let prefix =
+                            format!("in {owner}.{}", String::from_utf8_lossy(&property.key.name));
                         let _ = super::contextualize(g, &prefix);
                     }
                     return Err(err);

@@ -84,7 +84,7 @@ fn preview(cache: &mut markdown::Cache, source: &str) -> ui::Node {
 |---|---|
 | `RenderOptions.image_loader` | 快速查图片缓存；后台加载解码后 `ui::post_wake()` |
 | `RenderOptions.block_renderers` | 按围栏语言自定义块；`BlockInfo` 提供 lang/meta/code/complete/key，返回 None 回退代码 |
-| `RenderOptions.policy` / `labels` | URL 安全策略 / 文案（`markdown::Labels::zh()`） |
+| `RenderOptions.policy` / `labels` | URL 安全策略 / 文案（默认跟随应用语言；`markdown::Labels::for_locale("zh-CN")`） |
 | `markdown::link_safety_modal` | 应用接管链接后显示确认框；不会自动弹出 |
 | `heading_key` / `block_key_at_offset` | 缓存中的标题 / 源码位置映射到 key，配合 `ui::scroll_into_view` |
 | `markdown::html::to_html` | HTML 导出；独立页面公式使用 KaTeX auto-render，原始 HTML 块转义 |

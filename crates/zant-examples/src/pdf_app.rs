@@ -45,7 +45,7 @@ impl PdfApp {
                 &self.viewer,
                 ViewOptions {
                     key: "pdf".into(),
-                    labels: pdf::Labels::ZH,
+                    labels: pdf::Labels::for_locale("zh-CN"),
                     annotation_tools: true,
                     ..ViewOptions::default()
                 },

@@ -283,7 +283,52 @@ fn an_effect_cleanup_runs_after_its_component_unmounts() {
     contains(&generated, "let mut _unmounted = Ticker::default();");
 }
 
+/// Struct props: `labels={{ … }}` on `Markdown` / `PdfViewer` lowers to the
+/// Rust `Labels` with the omitted fields left to the (locale) defaults.
+const STRUCT_LABELS: &str = r#"
+import { useState, View, Markdown, PdfViewer } from "zant";
+
+export default function App() {
+  const [copy, setCopy] = useState("Kopieren");
+  return <View>
+    <Markdown source="Hello" labels={{ copy: copy, download: "Herunterladen" }} />
+    <PdfViewer src="" labels={{ search: `Suche ${copy.length}` }} />
+  </View>;
+}
+"#;
+
+#[test]
+fn struct_props_lower_to_the_labels_struct() {
+    let generated = compile("struct_labels", STRUCT_LABELS);
+    contains(
+        &generated,
+        "labels: ui::MarkdownLabels { copy: self.copy.clone(), download: zant::Str::from(\"Herunterladen\"), ..Default::default() }",
+    );
+    contains(&generated, "labels: ui::PdfLabels { search:");
+    for (source, expected) in [
+        (
+            r#"<Markdown source="x" labels="Copy" />"#,
+            "labels must be an object literal",
+        ),
+        (
+            r#"<Markdown source="x" labels={{ kopieren: "x" }} />"#,
+            "labels: unknown key `kopieren`; valid keys: copy, copyMarkdown",
+        ),
+        (
+            r#"<PdfViewer src="" labels={{ search: 1 }} />"#,
+            "in labels.search",
+        ),
+    ] {
+        let module = format!(
+            "import {{ Markdown, PdfViewer }} from \"zant\";\nexport default function App() {{ return {source}; }}\n"
+        );
+        let error = zant_tsx::compile::compile(&module, "labels.tsx").unwrap_err();
+        assert!(error.msg.contains(expected), "{source}: {}", error.msg);
+    }
+}
+
 const MODULES: &[(&str, &str)] = &[
+    ("struct_labels", STRUCT_LABELS),
     ("effect_cleanup_unmount", EFFECT_CLEANUP_UNMOUNT),
     (
         "callback_defaults",
