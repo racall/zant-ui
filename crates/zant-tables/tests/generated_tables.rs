@@ -65,7 +65,7 @@ fn the_tag_generator_is_deterministic() {
     let second_source = std::fs::read_to_string(&second).expect("second run");
     assert_eq!(first_source, second_source, "two runs must be identical");
     assert!(
-        first_source.contains("38 tags, 468 props, 854 spellings"),
+        first_source.contains("38 tags, 469 props, 854 spellings"),
         "the generated header records the table counts"
     );
 }

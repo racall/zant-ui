@@ -15,7 +15,8 @@
 | `source` / 字符串子节点 | Markdown 源码，二者选一；`key` 为实例标识 |
 | `streaming`、`parseIncomplete` | false、true；流式模式缓存块并修复未闭合语法 |
 | `singleDollarMath`、`latexDelimiters` | true、false；后者启用 `\(…\)` / `\[…\]` |
-| `fontSize`、`contentWidth` | 16、680 |
+| `fontSize` | 16 |
+| `contentWidth` | 0：公式、图片、Mermaid 图跟随 Markdown 实际宽度（与正文一致）；正数为它们的最大宽度，但不超过实际宽度，窄窗口不溢出 |
 | `caret` | `"none"`；可选 `"block"` / `"circle"` |
 | `lineNumbers`、`codeMaxHeight` | true、400 |
 | `codeCopy` / `codeDownload` | 均为 true |

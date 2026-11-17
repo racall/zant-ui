@@ -34,7 +34,7 @@ export function Reply({ reply, busy }: Props) {
 | `source` | 文本；也可传字符串子节点 |
 | `streaming` / `parseIncomplete` | false / true；流式模式与未闭合语法修复 |
 | `caret` | none；另有 block / circle，流式时显示 |
-| `fontSize` / `contentWidth` | 16 / 680；正文大小与公式、图表适配宽度 |
+| `fontSize` / `contentWidth` | 16 / 0；正文大小；公式、图片、图表的最大宽度（0 跟随实际宽度，正数也不超过实际宽度） |
 | `lineNumbers` / `codeMaxHeight` | true / 400；代码限高，0 为不限高 |
 | `codeCopy` / `codeDownload` | 均为 true；表格、Mermaid 有同名 table / mermaid 前缀选项 |
 | `singleDollarMath` / `latexDelimiters` | true / false |
