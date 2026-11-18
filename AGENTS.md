@@ -2,6 +2,9 @@
 
 ## ★ 最高优先级：设计规范 [DESIGN.md](DESIGN.md)
 
+## 项目每个文件代码行数一定要控制在500行左右，要尽量工程化，模块化
+## 这是一个框架，框架中每一个功能都要符合框架应该有的通用性，可复用性，让使用这个框架的开发者开发起来更顺手
+
 所有界面与交互的设计、实现和评审都**必须**遵循同目录的 [DESIGN.md](DESIGN.md)（UI/UX 设计指导原则）。
 它的优先级高于本文件中的其他所有条目；与其他约定（包括 antd 风格规范）冲突时以 DESIGN.md 为准。
 改动界面前先读它；完成后按其第 6 条检查不同窗口尺寸、浅/深色主题和各交互状态。
@@ -87,7 +90,7 @@ crates/
   zant-macros/          proc macro：`#[derive(TsxProps)]`、`#[derive(Table)]`
   zant-base/            运行时与编译器共用、不依赖平台的部分：Wyhash、locale、CLDR 复数、JS 数字拼写、RegExp 校验
   zant-tsx/             TSX → Rust 编译器（lexer / parser / hooks / codegen / tags / d.ts）；不链接 `zant`，只依赖 `zant-base`
-  zant-tables/          生成并检查 `ui_tags.rs` / `zant.d.ts`（`zant-tsx-tags` / `zant-tsx-dts`，读 `zant` 的 TsxProps）
+  zant-tables/          生成并检查 `ui_tags/`（每个 tag 一个文件） / `zant.d.ts`（`zant-tsx-tags` / `zant-tsx-dts`，读 `zant` 的 TsxProps）
   zant-build/           应用 build.rs 辅助：TSX → OUT_DIR、图标、Windows manifest、pdfium
   zant-cli/             zant 命令：create / run / compile / package / build / sync / update
   zant-examples/        示例：demo、gallery、components、markdown、md-stream、math、pdf
@@ -364,7 +367,8 @@ ui::styled(node, ui::Style {
   - 弹出层跟随控件：`ui::key_bounds(key)`（上一帧的窗口坐标）。
   - 数据目录：`zant::core::paths::app_data_dir`；文件对话框：`zant::platform::dialog::*`
     （扩展名由调用方给）。
-- Windows 构建：`crates/zant-sys/build.rs` 用 MSVC 把 Skia 桥接、PDF 与 `window.c` 直接编进可执行文件
+- Windows 构建：`crates/zant-sys/build.rs` 用 MSVC 把 Skia 桥接、PDF 与
+  `crates/zant-sys/prebuilt/sources-windows.txt` 所列的 Win32 平台源码直接编进可执行文件
   （不再有 `zant_skia.dll`；预编译 Skia 是 MSVC STL，ICU 数据与 STIX Two Math 用 `include_bytes!` 嵌入）；
   应用的 `native/build.rs` 调 `zant_build::tsx_app()` 嵌入 manifest、把 `pdfium.dll` 拷到 exe 旁。
 - 测试机：主机与目录写在不提交的 `scripts/win/.env`（`ZANT_WIN_HOST` / `ZANT_WIN_DIR`）；
