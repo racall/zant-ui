@@ -109,8 +109,13 @@ cargo run -p zant-examples --bin zant-pdf -- a.pdf # PDF 阅读器（ZANT_PDF_PA
 - `ZANT_INPUT_TRACE=1`：在 stderr 记录指针按下 / 松开进入运行时、每帧开始的时间；macOS Metal 后端还记录
   从帧提交到实际呈现的间隔，用于定位输入到屏幕的延迟。需在启动前设置，日常测性能时关闭，避免日志影响结果。
 - `ZANT_FRAME_STATS=1`：每秒在 stderr 输出 `[frames]`：帧数、最慢一帧及其 rebuild / layout / paint
-  耗时（Rust 与 Skia 录制，不含 GPU）、最长帧间隔、缩放时画出的新尺寸帧数与「尺寸变化 → 出帧」最长延迟；
-  超过 8 ms 的帧另打一行 `[slow-frame]`（含当帧新建的文字排版数与耗时）。
+  耗时（Rust 与 Skia 录制，不含 GPU）、最长帧间隔、缩放时画出的新尺寸帧数与「尺寸变化 → 出帧」最长延迟、
+  这一秒收到的尺寸变化数（`resize_events`）；超过 8 ms 的帧另打一行 `[slow-frame]`：各阶段耗时、
+  未计时的其余部分（`other`）、当帧 rebuild 次数与布局遍数（`rebuilds` / `layouts`，`on_resize` 会让同一帧
+  多 rebuild）、新建的文字排版数与耗时、Markdown 流水线的 remend / 分块 / 解析耗时（`md_ms`）。
+- `ZANT_FRAME_TRACE=1`（Windows）：每次拖动缩放 / 移动窗口结束时打一行 `[frame-trace]`：期间收到的
+  `WM_SIZE` / `WM_MOVE` / wake 数、各来源（size / paint / 模态计时器）画的帧数、新尺寸与同尺寸帧数、
+  等待交换链和整帧耗时，用来定位模态循环里谁占了 vsync。
 - `ZANT_AUTOPLAY=1`（`zant-components`）：示例自己循环菜单、对话框、提示、主题等动画，
   用来无人值守地测帧率；`=quiet` 不打印 `[event]`。
 - `ZANT_WINDOW_SIZE=WxH`：覆盖初始窗口尺寸（自动化截图用）。
