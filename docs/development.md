@@ -132,6 +132,10 @@ Windows 上写 stderr 会影响帧耗时，不要在每帧都会执行的路径�
 - 两张截图的像素对比：`python3 scripts/lib/imgdiff.py a.png b.png [--diff out.png]`
   （默认像素通道差 > 2 的像素占比 ≤ 0.1% 算一致；纯标准库，不需要 Pillow）。
 - 时间相关测试注入假时钟（`runtime.clock = fake_clock`），不要 sleep。
+- 文件行数：`scripts/check-file-size.sh`（CI 也跑）。源码文件控制在 500 行左右；超过的新文件直接失败，
+  `scripts/file-size-baseline.txt` 里的旧文件只许变短。拆成模块后运行 `scripts/check-file-size.sh --update`
+  去掉它的条目。
+- Windows 同步：`scripts/win/sync.sh` 会附带文件清单，`scripts/win/prune.ps1` 删掉测试机上已移动 / 删除的源码文件。
 
 ## 帧基准
 

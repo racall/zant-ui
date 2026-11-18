@@ -28,9 +28,13 @@ pack() { # <source dir> <archive>
   if git -C "$src" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     # tracked + untracked files that exist: a file deleted but not yet
     # committed is skipped instead of failing the archive
+    # the list of files also ships as .zant-sync-manifest: prune.ps1 deletes
+    # remote source files that are no longer in it (moved / deleted here)
     (cd "$src" && git ls-files -co --exclude-standard -z |
-      while IFS= read -r -d '' f; do [ -e "$f" ] && printf '%s\0' "$f"; done |
-      xargs -0 tar --no-xattrs -cf "$out")
+      while IFS= read -r -d '' f; do [ -e "$f" ] && printf '%s\0' "$f"; done > "$out.list" &&
+      tr '\0' '\n' < "$out.list" > .zant-sync-manifest &&
+      { cat "$out.list"; printf '.zant-sync-manifest\0'; } | xargs -0 tar --no-xattrs -cf "$out";
+      status=$?; rm -f .zant-sync-manifest "$out.list"; exit $status)
   else
     tar --no-xattrs -cf "$out" -C "$src" --exclude target --exclude .git --exclude '._*' .
   fi
@@ -43,7 +47,7 @@ send() { # <source dir> [remote name]
   archive="$TMP/$name.tar"
   pack "$src" "$archive"
   scp -q ${ZANT_WIN_SSH_OPTS:-} "$archive" "$HOST:$DIR/cache/$name.tar"
-  ssh ${ZANT_WIN_SSH_OPTS:-} "$HOST" "\$ErrorActionPreference='Stop'; New-Item -ItemType Directory -Force '$DIR/$name' | Out-Null; tar -xf '$DIR/cache/$name.tar' -C '$DIR/$name'; Remove-Item '$DIR/cache/$name.tar'"
+  ssh ${ZANT_WIN_SSH_OPTS:-} "$HOST" "\$ErrorActionPreference='Stop'; New-Item -ItemType Directory -Force '$DIR/$name' | Out-Null; tar -xf '$DIR/cache/$name.tar' -C '$DIR/$name'; Remove-Item '$DIR/cache/$name.tar'; Set-Location '$DIR/$name'; if ((Test-Path .zant-sync-manifest) -and (Test-Path scripts/win/prune.ps1)) { powershell -NoProfile -File scripts/win/prune.ps1 -Manifest .zant-sync-manifest }"
   echo "synced $name -> $HOST:$DIR/$name"
 }
 
