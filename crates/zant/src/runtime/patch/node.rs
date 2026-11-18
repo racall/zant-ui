@@ -27,6 +27,7 @@ impl Runtime {
                     data.key_action = element.key_action.clone();
                     data.cursor = element.cursor;
                     data.resize_action = element.on_resize.clone();
+                    data.resize_step = element.resize_step;
                     if data.hover_visual != element.hover_visual {
                         paint_changed = true;
                     }

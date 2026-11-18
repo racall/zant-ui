@@ -10,6 +10,16 @@
 
 /* ---------- rendering ---------- */
 
+/* Monotonic microseconds (QueryPerformanceCounter). */
+long long zant_now_us(void) {
+    static LARGE_INTEGER frequency;
+    LARGE_INTEGER now;
+    if (!frequency.QuadPart) QueryPerformanceFrequency(&frequency);
+    QueryPerformanceCounter(&now);
+    return (long long)(now.QuadPart / frequency.QuadPart * 1000000 +
+                       now.QuadPart % frequency.QuadPart * 1000000 / frequency.QuadPart);
+}
+
 /* Hidden or minimized: Windows sends it no WM_PAINT. */
 bool zant_backgrounded(ZantWindow *w) {
     return !IsWindowVisible(w->hwnd) || IsIconic(w->hwnd);
@@ -48,6 +58,11 @@ static void zant_schedule_next(ZantWindow *w) {
     KillTimer(w->hwnd, ZANT_TIMER_REDRAW);
     if (w->animating && zant_backgrounded(w)) {
         SetTimer(w->hwnd, ZANT_TIMER_REDRAW, ZANT_HIDDEN_FRAME_MS, NULL);
+    } else if (w->animating && w->in_size_move) {
+        /* live resize / move: WM_SIZE draws each new size and ZANT_TIMER_MODAL
+           the animation frames between them. Requesting the next frame here
+           would draw one at the old size after every resize frame, each
+           waiting for a vsync: half the new sizes drawn, two vsyncs late. */
     } else if (w->animating) {
         zant_request(w);
     } else if (delay > 0) {
@@ -85,6 +100,7 @@ void zant_render(ZantWindow *w, HDC dc) {
         if (!dc) ReleaseDC(w->hwnd, target);
     }
     w->in_draw = false;
+    w->last_frame_us = zant_now_us();
     zant_schedule_next(w);
     /* raster animation frames wait for the next composition (vsync) */
     if (w->animating && !gpu && !w->in_size_move && !background) DwmFlush();

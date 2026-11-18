@@ -241,8 +241,12 @@ LRESULT CALLBACK zant_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 w->close_approved = true;
                 DestroyWindow(hwnd);
             } else if (wp == ZANT_TIMER_MODAL) {
-                /* live resize / move runs its own loop: keep animations going */
-                if (w->animating) {
+                /* live resize / move runs its own loop: keep animations going.
+                   While the size keeps changing, every WM_SIZE frame advances
+                   them: an extra animation frame would take the next resize
+                   frame's vsync (half the sizes drawn, two vsyncs late). */
+                const long long now = zant_now_us();
+                if (w->animating && now - w->last_resize_us >= 50000 && now - w->last_frame_us >= 8000) {
                     InvalidateRect(hwnd, NULL, FALSE);
                     UpdateWindow(hwnd);
                 }
@@ -251,7 +255,9 @@ LRESULT CALLBACK zant_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 
         case WM_ENTERSIZEMOVE:
             w->in_size_move = true;
-            SetTimer(hwnd, ZANT_TIMER_MODAL, 16, NULL);
+            /* 10 ms: fires at every system timer tick (15.6 ms by default; a
+               16 ms timer would wait for two of them) */
+            SetTimer(hwnd, ZANT_TIMER_MODAL, 10, NULL);
             return 0;
         case WM_EXITSIZEMOVE:
             w->in_size_move = false;
@@ -268,6 +274,7 @@ LRESULT CALLBACK zant_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             const int previous_w = w->width_px, previous_h = w->height_px;
             zant_update_client_size(w);
             if (wp != SIZE_MINIMIZED && (previous_w != w->width_px || previous_h != w->height_px)) {
+                w->last_resize_us = zant_now_us();
                 zant_send_simple(w, ZANT_EVENT_WINDOW_RESIZE);
                 /* draw now so live resize never shows stretched content */
                 InvalidateRect(hwnd, NULL, FALSE);

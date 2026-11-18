@@ -80,6 +80,11 @@ struct ZantWindow {
     bool in_draw;
     bool animating;
     bool in_size_move;
+    /* zant_now_us() of the last drawn frame: a live resize draws at each
+       WM_SIZE, and the modal timer adds animation frames only between them */
+    long long last_frame_us;
+    /* zant_now_us() of the last WM_SIZE that changed the size */
+    long long last_resize_us;
     bool close_approved;
     bool suppress_char;
     bool tracking_mouse;
@@ -133,6 +138,7 @@ LRESULT zant_custom_hit(ZantWindow *w, int x, int y);
 HCURSOR zant_cursor_handle(int cursor);
 
 bool zant_backgrounded(ZantWindow *w);
+long long zant_now_us(void);
 void zant_request(ZantWindow *w);
 void zant_render(ZantWindow *w, HDC dc);
 void zant_take_snapshot(ZantWindow *w);

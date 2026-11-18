@@ -39,10 +39,12 @@ pub use text::TextData;
 
 mod controls;
 mod media;
+mod resize;
 mod retained;
 
 pub use self::controls::*;
 pub use self::media::*;
+pub use self::resize::ResizeStep;
 pub use self::retained::*;
 
 /// Per-node animation state, allocated lazily (`Tree::ensure_anim`).
@@ -90,6 +92,8 @@ pub struct ContainerData {
     pub key_action: Option<KeyAction>,
     /// Called after layout when the container's size changed (`on_resize`).
     pub resize_action: Option<Action>,
+    /// Granularity of the `resize_action` reports (`None`: every change).
+    pub resize_step: Option<ResizeStep>,
     pub reported_width: f32,
     pub reported_height: f32,
     /// Cursor shown over the container (pointer areas).
@@ -113,6 +117,7 @@ impl Default for ContainerData {
             hover_t: 0.0,
             key_action: None,
             resize_action: None,
+            resize_step: None,
             reported_width: -1.0,
             reported_height: -1.0,
             cursor: None,

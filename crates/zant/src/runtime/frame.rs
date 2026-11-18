@@ -146,9 +146,14 @@ impl Runtime {
                 };
                 let action = data.resize_action.clone()?;
                 let bounds = node.bounds;
-                if (bounds.width - data.reported_width).abs() < 0.5
-                    && (bounds.height - data.reported_height).abs() < 0.5
-                {
+                let reported = (data.reported_width, data.reported_height);
+                if !data.resize_step.map_or_else(
+                    || {
+                        (bounds.width - reported.0).abs() >= 0.5
+                            || (bounds.height - reported.1).abs() >= 0.5
+                    },
+                    |step| step.changed(reported, (bounds.width, bounds.height)),
+                ) {
                     return None;
                 }
                 Some((action, bounds.width, bounds.height))

@@ -10,7 +10,7 @@ use std::rc::Rc;
 use crate::Str;
 use crate::core::node::{
     ButtonIcon, ButtonSize, ButtonType, FlexStyle, HoverVisual, ImageFit, MotionStyle, NodeKind,
-    PointerArea, RichSpan, ToggleKind, Visual,
+    PointerArea, ResizeStep, RichSpan, ToggleKind, Visual,
 };
 use crate::core::vector::DrawingRef;
 use crate::image::Image;
@@ -128,6 +128,8 @@ pub struct Element {
     pub cursor: Option<Cursor>,
     /// Container size changes (`BoxOptions::on_resize`).
     pub on_resize: Option<Action>,
+    /// How coarse `on_resize` reports are (`None`: every change).
+    pub resize_step: Option<ResizeStep>,
     /// Container hover look (`BoxOptions::hover_*`).
     pub hover_visual: Option<HoverVisual>,
     /// Image already decoded in memory (`ImageOptions::image`); the node
@@ -196,6 +198,7 @@ impl Default for Element {
             key_action: None,
             cursor: None,
             on_resize: None,
+            resize_step: None,
             hover_visual: None,
             image_handle: None,
             image_id: 0,

@@ -3,6 +3,7 @@
 //! unmount, with its caches (`markdown` feature).
 
 use crate::Str;
+use crate::core::node::ResizeStep;
 use crate::markdown::cache::{Cache, Mode};
 use crate::markdown::parser;
 use crate::markdown::render::options::{
@@ -95,14 +96,17 @@ pub struct MarkdownState {
 /// Before the first layout the width is unknown: Streamdown's column width.
 const UNMEASURED_WIDTH: f32 = 680.0;
 
+/// Block widths follow the layout in steps of this many points.
+const BLOCK_STEP: f32 = 16.0;
+
 /// The widest formulas / images / diagrams may be: `content_width` (0 =
 /// unlimited) within the laid-out width, in 16 pt steps so resizing a window
 /// re-lays the blocks out a few times rather than every frame.
 fn block_width(content_width: f32, laid_out: Option<f32>) -> f32 {
     let available = laid_out
         .filter(|width| *width > 1.0)
-        .map(|width| (width / 16.0).floor() * 16.0)
-        .map(|width| width.max(16.0));
+        .map(|width| (width / BLOCK_STEP).floor() * BLOCK_STEP)
+        .map(|width| width.max(BLOCK_STEP));
     match (content_width > 0.0, available) {
         (true, Some(available)) => content_width.min(available),
         (true, None) => content_width,
@@ -197,8 +201,11 @@ pub fn markdown(id: u64, options: MarkdownOptions) -> Node {
     let root = node.make_mut();
     root.layout.width_percent = None;
     root.key = Some(Str::from(root_key));
-    // a new width rebuilds with formulas / images fitted to it
+    // a width in another `BLOCK_STEP` rebuilds with formulas /
+    // images fitted to it; height changes (streaming) and moves within a step
+    // do not rebuild the app
     root.on_resize = Some(Action::new(|_cx| ()));
+    root.resize_step = Some(ResizeStep::width(BLOCK_STEP));
     node
 }
 
