@@ -13,7 +13,8 @@ executable by `crates/zant-sys/build.rs` (MSVC, C11):
 | `window_render.c` | Frame pacing, drawing, and snapshots |
 | `clipboard.c` | Clipboard text, images, files, and change notifications |
 | `desktop_services.c` | Native dialogs (`IFileOpenDialog`, `IFileSaveDialog`, `TaskDialogIndirect`), shell actions (`ShellExecuteW`), launch at login, and system settings |
-| `pdf_win.cpp` | PDF backend: PDFium (loaded at runtime), pages rendered to memory pixels |
+| `pdf_win_preview.cpp` | PDFium runtime loading, cached PNG previews, and preview text |
+| `pdf_win_document.cpp` | PDF viewer document API, tile rendering, glyphs, links, bookmarks, and annotated export |
 | `zant.manifest` | Common-Controls v6 manifest embedded by `zant-build` |
 | `platform.h` / `pdf.h` (in `..`) | The C ABI both platforms implement |
 

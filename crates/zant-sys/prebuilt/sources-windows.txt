@@ -16,7 +16,9 @@ crates/zant-sys/native/skia/skia_bridge.h
 crates/zant-sys/native/skia/skia_bridge_internal.h
 crates/zant-sys/native/skia/skia_bridge_text_internal.h
 crates/zant-sys/native/skia/skia_bridge_win.cpp
-crates/zant-sys/native/platform/windows/pdf_win.cpp
+crates/zant-sys/native/platform/windows/pdf_win_preview.cpp
+crates/zant-sys/native/platform/windows/pdf_win_document.cpp
+crates/zant-sys/native/platform/windows/pdf_win_internal.h
 crates/zant-sys/native/platform/windows/app.c
 crates/zant-sys/native/platform/windows/clipboard.c
 crates/zant-sys/native/platform/windows/desktop_services.c

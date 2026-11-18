@@ -9,8 +9,8 @@
 //!          ObjC AppKit sources listed in `prebuilt/sources-macos.txt`;
 //!          static Skia archives in `third_party/skia/skia-binaries/`;
 //!          14 system frameworks + z + c++.
-//! Windows: C++ `skia_bridge_win.cpp` + `pdf_win.cpp`,
-//!          C Win32 sources listed in `prebuilt/sources-windows.txt`;
+//! Windows: C++ Skia and PDFium backends and C Win32 sources listed in
+//!          `prebuilt/sources-windows.txt`;
 //!          static Skia archives in
 //!          `third_party/skia-win/skia-binaries/`; system DLL import libs.
 //!          There is no bridge DLL: the native code is linked

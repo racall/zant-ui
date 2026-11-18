@@ -8,5 +8,4 @@
 576 crates/zant-examples/src/gallery_app/gallery.rs
 622 crates/zant-examples/src/stream_app.rs
 599 crates/zant-sys/build.rs
-757 crates/zant-sys/native/platform/windows/pdf_win.cpp
 531 crates/zant-sys/prebuilt.rs

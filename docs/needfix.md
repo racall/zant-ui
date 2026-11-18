@@ -307,7 +307,7 @@ TSX 只有 39 个组件/原语（见 [zant.d.ts](../crates/zant-tsx/zant.d.ts)�
 
 - [pdf_preview.rs](../crates/zant/src/ui/builders/pdf_preview.rs#L28-L42)：节点构造时同步调 `pdf::page_count` 和 `pdf::render_page`；
 - 原生层有一份 PNG 文件缓存（macOS： [pdf.mm](../crates/zant-sys/native/platform/macos/pdf.mm#L18-L22)，按路径 / 页码 / 尺寸命名的临时文件，存在即返回；
-  Windows： [pdf_win.cpp](../crates/zant-sys/native/platform/windows/pdf_win.cpp#L301-L310)），命中时不重新栅格化；
+  Windows： [pdf_win_preview.cpp](../crates/zant-sys/native/platform/windows/pdf_win_preview.cpp#L237-L246)），命中时不重新栅格化；
   但每次重建仍要同步打开文档、查页数，未命中时栅格化也阻塞在构造路径上，没有后台 worker；
 - macOS 的缓存 key 不含文件修改时间（Windows 的含）：同一路径的文件内容变了，macOS 上仍然拿到旧图；
 - 失败占位已有（“Can't preview this PDF”），但文案、占位颜色、`‹` / `›` 字形是硬编码（主题与文案部分见第 23、24 条）。
