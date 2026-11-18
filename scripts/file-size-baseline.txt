@@ -51,7 +51,6 @@
 671 crates/zant-tsx/src/hooks/resolve.rs
 819 crates/zant-tsx/src/hooks/rewrite.rs
 648 crates/zant-tsx/src/native_specs.rs
-1264 crates/zant-tsx/src/parser.rs
 687 crates/zant-tsx/src/tags.rs
 1422 crates/zant-tsx/tests/codegen_app.rs
 697 crates/zant-tsx/tests/codegen_components.rs
@@ -60,7 +59,6 @@
 894 crates/zant-tsx/tests/compile_regressions.rs
 732 crates/zant/src/components/hotkey_input.rs
 922 crates/zant/src/components/input.rs
-1743 crates/zant/src/components/list.rs
 670 crates/zant/src/components/menu.rs
 923 crates/zant/src/components/select.rs
 614 crates/zant/src/components/toggle.rs
