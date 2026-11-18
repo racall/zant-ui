@@ -72,8 +72,9 @@ pub use app::{
 };
 pub use app_event::AppEvent;
 pub use clipboard::{
-    ClipboardPrivacy, clipboard_change_count, clipboard_files, clipboard_image, clipboard_privacy,
-    clipboard_text, set_clipboard_files, set_clipboard_image, set_clipboard_text, watch_clipboard,
+    ClipboardPrivacy, clear_clipboard, clipboard_change_count, clipboard_files, clipboard_image,
+    clipboard_privacy, clipboard_text, set_clipboard_files, set_clipboard_image,
+    set_clipboard_text, watch_clipboard,
 };
 pub use hotkey::{Shortcut, register_hotkey, unregister_hotkey};
 pub use screen::{

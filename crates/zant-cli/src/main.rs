@@ -116,27 +116,7 @@ pub fn path_exists(path: &Path) -> bool {
     std::fs::metadata(path).is_ok()
 }
 
-/// Reads `app.config.json`, exiting with a readable message when it is
-/// missing or invalid.
-pub fn load_config(root: &str) -> std::io::Result<app_config::AppConfig> {
-    let path = Path::new(root).join("app.config.json");
-    let data =
-        read_file(&path).unwrap_or_else(|_| fail(tr!(en: "app.config.json not found; run zant create first", zh: "找不到 app.config.json（请先运行 zant create）")));
-    let text = String::from_utf8_lossy(&data);
-    match app_config::parse(&text, app_config::Os::current()) {
-        Ok(cfg) => Ok(cfg),
-        Err(app_config::ParseError::InvalidJson(why)) => fail(
-            tr!(en: "Could not parse app.config.json: {why}", zh: "app.config.json 解析失败: {why}", why = why),
-        ),
-        Err(app_config::ParseError::InvalidEntitlements) => fail(
-            tr!(en: "app.config.json macos.entitlements must be an object, e.g. { \"com.apple.security.network.client\": true }", zh: "app.config.json 的 macos.entitlements 要是对象，如 { \"com.apple.security.network.client\": true }"),
-        ),
-        Err(app_config::ParseError::InvalidBundleId(why)) => fail(
-            tr!(en: "Invalid bundle_id in app.config.json: {why} (e.g. com.xx.test)", zh: "app.config.json 的 bundle_id 不符合规范：{why}（如 com.xx.test）",
-         why = app_config::bundle_reason(&why)),
-        ),
-    }
-}
+pub use app_config::load_config;
 
 // ---- child processes ----
 

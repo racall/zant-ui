@@ -171,7 +171,8 @@ let _ = desktop::register_hotkey(
 最后图片。
 `clipboard_image()` 可以在后台线程调用，大图应当这样做：剪贴板里是位图时（Windows 截图和很多应用）要在这里
 编码成 PNG，耗时取决于图像大小。
-TSX：`clipboard.text()/setText/image/setImage/files/setFiles/changeCount()`。
+TSX：`clipboard.text()/setText/clear/image/setImage/files/setFiles/changeCount()`。
+`clear()` / `desktop::clear_clipboard()` 清空系统剪贴板（只清当前内容，不动剪贴板历史）。
 
 ## 屏幕、窗口与截图
 

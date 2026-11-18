@@ -76,6 +76,28 @@ fn what_json_cannot_hold_is_a_diagnostic() {
 }
 
 #[test]
+fn a_struct_holding_an_image_has_no_json_form() {
+    let source = "import type { Image } from \"zant\";\n\
+interface Entry { id: number; thumbnail: Image | null }\n\
+interface Plain { id: number }";
+    let rust = compile_module(source).unwrap();
+    let flat = squash(&rust);
+    assert!(
+        !flat.contains(&squash("impl tsx::json::Json for Entry")),
+        "{rust}"
+    );
+    assert!(
+        flat.contains(&squash("impl tsx::json::Json for Plain")),
+        "{rust}"
+    );
+    let message = compile_module(&format!(
+        "{source}\nfunction f(e: Entry): string {{ return JSON.stringify(e); }}"
+    ))
+    .unwrap_err();
+    assert!(message.contains("`Image` is decoded pixels"), "{message}");
+}
+
+#[test]
 fn global_number_constants() {
     let rust = compile_module(
         "function f(): number { return NaN + Infinity + Number.POSITIVE_INFINITY + Number.MIN_SAFE_INTEGER; }",

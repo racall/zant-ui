@@ -121,6 +121,23 @@ pub fn check(g: &Generator<'_>, ty: Type) -> std::result::Result<(), String> {
     check_in(g, ty, &mut Vec::new())
 }
 
+/// Runtime objects TSX sees as plain objects that have no JSON form (no
+/// `impl Json`): a struct holding one gets no JSON impl either.
+fn runtime_object(rust: &str) -> Option<&'static str> {
+    match rust {
+        "std::rc::Rc<zant::image::Image>" => {
+            Some("an `Image` is decoded pixels, not data: keep the file path or the encoded bytes")
+        }
+        "zant::platform::platform::TitlebarInsets" => Some(
+            "titlebar insets are measured by the platform: copy `left` / `right` into your own object",
+        ),
+        "tsx::KeyEvent" => {
+            Some("a key event is not data: copy the fields you need into your own object")
+        }
+        _ => None,
+    }
+}
+
 /// `seen`: compound types being checked (recursive types: `Tree.children`).
 fn check_in(g: &Generator<'_>, ty: Type, seen: &mut Vec<Type>) -> std::result::Result<(), String> {
     if seen.contains(&ty) {
@@ -152,6 +169,9 @@ fn check_in(g: &Generator<'_>, ty: Type, seen: &mut Vec<Type>) -> std::result::R
         InfoKind::Object => {
             if info.rust == "zant::theme::tokens::Theme" {
                 return Err("the theme cannot be written as JSON".to_owned());
+            }
+            if let Some(why) = runtime_object(&info.rust) {
+                return Err(why.to_owned());
             }
             if info.rust.starts_with("zant::tsx::Promise") || info.rust.starts_with("zant::tsx::fetch") {
                 return Err("promises, responses and fetch objects are not data: write the values they hold".to_owned());

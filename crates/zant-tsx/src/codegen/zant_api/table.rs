@@ -47,6 +47,13 @@ pub(super) const NAMESPACES: [Namespace; 3] = [
                 effect: true,
             },
             Function {
+                name: "clear",
+                rust: "clear",
+                params: &[],
+                ret: Kind::Boolean,
+                effect: true,
+            },
+            Function {
                 name: "image",
                 rust: "image",
                 params: &[],

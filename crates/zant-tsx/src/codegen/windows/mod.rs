@@ -10,7 +10,7 @@
 //! `pub fn panel_with(..)` accessor that opens the window on first use:
 //!
 //! ```ignore
-//! pub fn panel_with<R>(apply: impl FnOnce(&mut tsx::window::Window<Panel>) -> R) -> R
+//! pub fn panel_with<R>(apply: impl FnOnce(&tsx::window::Window<Panel>) -> R) -> R
 //! ```
 //!
 //! A window's component keeps its state while the window exists and its app
@@ -147,13 +147,12 @@ pub fn collect(g: &mut Generator<'_>, module: &ast::Module) -> Result<String> {
         }
         let window_type = format!("{struct_name}Window");
         code.push_str(&format!(
-            "thread_local! {{\n    static {slot}: std::cell::RefCell<Option<tsx::window::Window<{window_type}>>> = const {{ std::cell::RefCell::new(None) }};\n}}\n\n\
-             pub fn {accessor}<R>(apply: impl FnOnce(&mut tsx::window::Window<{window_type}>) -> R) -> R {{\n\
-             {slot}.with(|slot| {{\n\
-             let mut slot = slot.borrow_mut();\n\
-             let window = slot.get_or_insert_with(|| tsx::window::Window::new({options}));\n\
-             apply(window)\n\
-             }})\n\
+            "thread_local! {{\n    static {slot}: tsx::window::Slot<{window_type}> = const {{ tsx::window::Slot::new() }};\n}}\n\n\
+             pub fn {accessor}<R>(apply: impl FnOnce(&tsx::window::Window<{window_type}>) -> R) -> R {{\n\
+             // no borrow is held while `apply` runs: a native call may send\n\
+             // this window's focus hook, which may use the window again\n\
+             let window = {slot}.with(|slot| slot.get(|| {options}));\n\
+             apply(&window)\n\
              }}\n\n"
         ));
         app_state::with_module(|state| {

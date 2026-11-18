@@ -74,15 +74,16 @@ pub fn generate_info_plist_for(cfg: &AppConfig, extras: &PlistExtras) -> String 
             escape_xml(&cfg.copyright)
         ));
     }
-    // app.config.json macos.info_plist: extra string keys (usage descriptions)
+    // app.config.json macos.info_plist: extra keys (usage descriptions,
+    // LSEnvironment, …)
     for (key, value) in &cfg.info_plist {
         if out.contains(&format!("<key>{}</key>", escape_xml(key))) {
             continue;
         }
         out.push_str(&format!(
-            "<key>{}</key><string>{}</string>\n",
+            "<key>{}</key>{}\n",
             escape_xml(key),
-            escape_xml(value)
+            plist_value(value)
         ));
     }
     // Integrated GPU unless the app asks for more: better battery life.
@@ -90,6 +91,31 @@ pub fn generate_info_plist_for(cfg: &AppConfig, extras: &PlistExtras) -> String 
     out.push_str("<key>NSPrincipalClass</key><string>NSApplication</string>\n");
     out.push_str("</dict></plist>\n");
     out
+}
+
+/// A JSON value as a property list value (null, which config parsing
+/// rejects, becomes an empty string).
+fn plist_value(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::Bool(v) => (if *v { "<true/>" } else { "<false/>" }).to_owned(),
+        serde_json::Value::Number(n) if n.is_i64() || n.is_u64() => {
+            format!("<integer>{n}</integer>")
+        }
+        serde_json::Value::Number(n) => format!("<real>{n}</real>"),
+        serde_json::Value::String(v) => format!("<string>{}</string>", escape_xml(v)),
+        serde_json::Value::Array(items) => {
+            let items: String = items.iter().map(plist_value).collect();
+            format!("<array>{items}</array>")
+        }
+        serde_json::Value::Object(map) => {
+            let entries: String = map
+                .iter()
+                .map(|(key, value)| format!("<key>{}</key>{}", escape_xml(key), plist_value(value)))
+                .collect();
+            format!("<dict>{entries}</dict>")
+        }
+        serde_json::Value::Null => "<string></string>".to_owned(),
+    }
 }
 
 /// The app's entitlements: app-sandbox when `macos.sandbox` is on, the

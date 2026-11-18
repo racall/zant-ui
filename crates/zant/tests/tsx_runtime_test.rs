@@ -371,7 +371,7 @@ impl tsx::WindowComponent for Panel {
 #[test]
 fn window_components_keep_a_local_state_and_open_lazily() {
     use tsx::WindowComponent as _;
-    let mut window = tsx::Window::<Panel>::new(zant::desktop::OpenOptions {
+    let window = tsx::Window::<Panel>::new(zant::desktop::OpenOptions {
         title: String::from("Panel"),
         ..Default::default()
     });

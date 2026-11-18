@@ -36,6 +36,15 @@ pub fn set_clipboard(text: &str) -> bool {
     unsafe { ffi::zant_clipboard_set_text(text.as_ptr().cast(), text.len()) != 0 }
 }
 
+/// Empties the clipboard.
+pub fn clear_clipboard() -> bool {
+    if !SUPPORTED {
+        return false;
+    }
+    // SAFETY: no arguments.
+    unsafe { ffi::zant_clipboard_clear() != 0 }
+}
+
 /// Text on the clipboard (empty when it holds no text).
 pub fn clipboard_text() -> Option<String> {
     if !SUPPORTED {

@@ -30,6 +30,33 @@ fn extra_info_plist_keys_are_written_but_cannot_override() {
 }
 
 #[test]
+fn info_plist_values_can_be_dictionaries_lists_and_numbers() {
+    let cfg = parse(
+        "{\"title\": \"Demo\", \"bundle_id\": \"io.x.demo\",
+              \"macos\": {\"info_plist\": {\"LSEnvironment\": {\"MallocLargeCache\": \"0\"},
+                                       \"LSUIElement\": true, \"Level\": 2, \"Kinds\": [\"a\", 1.5]}}}",
+        Os::Macos,
+    )
+    .expect("parse");
+    let plist = generate_info_plist(&cfg);
+    for needle in [
+        "<key>LSEnvironment</key><dict><key>MallocLargeCache</key><string>0</string></dict>",
+        "<key>LSUIElement</key><true/>",
+        "<key>Level</key><integer>2</integer>",
+        "<key>Kinds</key><array><string>a</string><real>1.5</real></array>",
+    ] {
+        assert!(plist.contains(needle), "missing {needle} in {plist}");
+    }
+    assert!(
+        parse(
+            "{\"title\": \"Demo\", \"bundle_id\": \"io.x.demo\", \"macos\": {\"info_plist\": {\"X\": null}}}",
+            Os::Macos
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn app_metadata_reaches_the_info_plist() {
     let cfg = parse(
         "{\"title\": \"Demo\", \"bundle_id\": \"io.x.demo\", \"copyright\": \"© 2026 Acme\",

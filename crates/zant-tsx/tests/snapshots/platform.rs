@@ -68,12 +68,18 @@ impl App {
         tsx::platform::main_window::hide();
     }
     fn _on_click3(&mut self) {
+        let _ = tsx::platform::clipboard::clear();
+    }
+    fn _on_click4(&mut self) {
         let draft: zant::Str = self._render_draft.clone();
         let _ = tsx::platform::clipboard::set_text((draft.clone()).as_str());
         self.copied = tsx::platform::clipboard::change_count();
     }
-    fn _on_click4(&mut self) {
+    fn _on_click5(&mut self) {
         tsx::platform::main_window::hide();
+    }
+    fn _on_click6(&mut self) {
+        let _ = tsx::platform::clipboard::clear();
     }
 }
 impl ui::App for App {

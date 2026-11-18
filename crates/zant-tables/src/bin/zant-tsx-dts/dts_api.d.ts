@@ -116,6 +116,8 @@
   export const clipboard: {
     text(): string;
     setText(text: string): boolean;
+    /** Empties the clipboard (not a clipboard manager's history). */
+    clear(): boolean;
     /** PNG bytes, null when the clipboard holds no image. */
     image(): Uint8Array | null;
     setImage(png: Uint8Array): boolean;
