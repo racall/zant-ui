@@ -24,7 +24,7 @@ zant-tsx.workspace = true
 
 [[bin]]
 name = "zant-demo"
-path = "src/bin/zant-demo.rs"
+path = "src/bin/zant-demo/main.rs"
 
 [[bin]]
 name = "zant-components"

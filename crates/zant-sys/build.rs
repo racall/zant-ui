@@ -3,11 +3,13 @@
 //! The native sources live under this crate (`native/skia/`,
 //! `native/platform/`).
 //!
-//! macOS  : C++ `skia_bridge.cpp`, ObjC++ `skia_bridge_mac.mm` + `pdf.mm`,
+//! Both platforms compile the portable Skia C++ sources in their source lists.
+//!
+//! macOS  : ObjC++ `skia_bridge_mac.mm` + `pdf.mm`,
 //!          ObjC AppKit sources listed in `prebuilt/sources-macos.txt`;
 //!          static Skia archives in `third_party/skia/skia-binaries/`;
 //!          14 system frameworks + z + c++.
-//! Windows: C++ `skia_bridge.cpp` + `skia_bridge_win.cpp` + `pdf_win.cpp`,
+//! Windows: C++ `skia_bridge_win.cpp` + `pdf_win.cpp`,
 //!          C Win32 sources listed in `prebuilt/sources-windows.txt`;
 //!          static Skia archives in
 //!          `third_party/skia-win/skia-binaries/`; system DLL import libs.
@@ -50,7 +52,7 @@ const IGNORING_PREBUILT: &str = "ignoring the prebuilt native library";
 
 /// `Path::canonicalize` returns an extended-length path (`\\?\E:\...`) on
 /// Windows. MSVC's `cl.exe` cannot open a source file through it (it reports
-/// `C1083: cannot open source file: "\skia_bridge.cpp"`), so strip the
+/// `C1083: cannot open source file: "\skia_bridge_renderer.cpp"`), so strip the
 /// verbatim prefix right after canonicalizing.
 #[cfg(windows)]
 fn plain_path(path: PathBuf) -> PathBuf {
