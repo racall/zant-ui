@@ -99,6 +99,33 @@ impl SourceFile {
 pub struct ProjectError {
     pub file: usize,
     pub diag: Diag,
+    /// Further independent errors (other components, other files), after
+    /// the first: `(file index, diagnostic)`.
+    pub more: Vec<(usize, Diag)>,
+}
+
+impl ProjectError {
+    /// The first error and the others, in report order.
+    pub fn all(&self) -> impl Iterator<Item = (usize, &Diag)> {
+        std::iter::once((self.file, &self.diag))
+            .chain(self.more.iter().map(|(file, diag)| (*file, diag)))
+    }
+
+    /// Every error rendered as `path:line:col: error: msg` with its source
+    /// line and caret ([`crate::error::render_diag`]), one after another.
+    pub fn render(&self, files: &[SourceFile]) -> String {
+        let mut out = String::new();
+        for (index, diag) in self.all() {
+            match files.get(index) {
+                Some(file) => out.push_str(&crate::error::render_diag(&file.path, &file.src, diag)),
+                None => {
+                    out.push_str(&diag.msg);
+                    out.push('\n');
+                }
+            }
+        }
+        out
+    }
 }
 
 impl std::fmt::Display for ProjectError {
@@ -209,6 +236,7 @@ pub fn compile_project_i18n(
                     loc: 0,
                     msg: format!("project output collision: `{name}`"),
                 },
+                more: Vec::new(),
             });
         }
         names.push(name);
@@ -225,6 +253,7 @@ pub fn compile_project_i18n(
                 loc: 0,
                 msg: error.to_string(),
             },
+            more: Vec::new(),
         })?;
         rust_sources.push(RustSource {
             name: file.stem(),
@@ -240,8 +269,16 @@ pub fn compile_project_i18n(
         if file.is_rust() {
             continue;
         }
-        let module = parse_module(&file.src).map_err(|diag| ProjectError { file: index, diag })?;
-        codegen::generics::validate(&module).map_err(|diag| ProjectError { file: index, diag })?;
+        let module = parse_module(&file.src).map_err(|diag| ProjectError {
+            file: index,
+            diag,
+            more: Vec::new(),
+        })?;
+        codegen::generics::validate(&module).map_err(|diag| ProjectError {
+            file: index,
+            diag,
+            more: Vec::new(),
+        })?;
         modules.push(ModuleFile {
             name: file.stem(),
             path: file.path.clone(),
@@ -286,6 +323,7 @@ pub fn compile_project_i18n(
                 loc: failure.loc,
                 msg: failure.msg,
             },
+            more: Vec::new(),
         });
     }
     for (unit_index, unit) in units.into_iter().enumerate() {
@@ -305,6 +343,7 @@ pub fn compile_project_i18n(
     let module_sources = project.module_sources();
     let mut outputs: Vec<String> = files.iter().map(|file| file.src.clone()).collect();
     // specs first: their errors are the ones to fix before the code using them
+    let mut failures: Vec<(usize, Diag)> = Vec::new();
     for natives in [true, false] {
         for (module_index, module) in project.modules.iter().enumerate() {
             if module.native != natives {
@@ -327,23 +366,34 @@ pub fn compile_project_i18n(
             ) {
                 Ok(generated) => outputs[index] = generated.source,
                 Err(_) => {
-                    let diag = generate::last_diag().unwrap_or(Diag {
-                        loc: 0,
-                        msg: "code generation error".to_owned(),
-                    });
-                    // code inlined from another file's hook is reported there
-                    if let Some(unit) = unit_files.iter().position(|file| *file == module_index) {
-                        let (unit_index, loc) = hooks::expand::decode(unit, diag.loc);
-                        let where_file = unit_files[unit_index];
-                        return Err(ProjectError {
-                            file: file_of_module[where_file],
-                            diag: Diag { loc, msg: diag.msg },
-                        });
+                    // every file is generated: independent errors are
+                    // reported together
+                    for diag in generate::last_diags() {
+                        // code inlined from another file's hook is reported there
+                        let located = match unit_files.iter().position(|file| *file == module_index)
+                        {
+                            Some(unit) => {
+                                let (unit_index, loc) = hooks::expand::decode(unit, diag.loc);
+                                (
+                                    file_of_module[unit_files[unit_index]],
+                                    Diag { loc, msg: diag.msg },
+                                )
+                            }
+                            None => (index, diag),
+                        };
+                        failures.push(located);
                     }
-                    return Err(ProjectError { file: index, diag });
                 }
             }
         }
+    }
+    if !failures.is_empty() {
+        let (file, diag) = failures.remove(0);
+        return Err(ProjectError {
+            file,
+            diag,
+            more: failures,
+        });
     }
     // The combined `native/spec.rs` root of the project's specs. The
     // per-spec outputs above stay available, but the app consumes this one
@@ -374,7 +424,11 @@ pub fn compile_project_i18n(
                     .position(|module| module.native)
                     .map(|module_index| file_of_module[module_index])
                     .unwrap_or(0);
-                return Err(ProjectError { file, diag });
+                return Err(ProjectError {
+                    file,
+                    diag,
+                    more: Vec::new(),
+                });
             }
         }
     };

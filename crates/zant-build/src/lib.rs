@@ -239,14 +239,8 @@ pub fn tsx_app_in(app_root: &Path, out_dir: &Path) -> Result<BuildReport, Error>
     codegen::app_state::set_framework_features(framework_features(
         std::env::var("DEP_ZANT_FEATURES").ok().as_deref(),
     ));
-    let generated = compile::compile_project_i18n(&files, None, index).map_err(|error| {
-        let file = &files[error.file];
-        Error::Compile(zant_tsx::error::render_diag(
-            &file.path,
-            &file.src,
-            &error.diag,
-        ))
-    })?;
+    let generated = compile::compile_project_i18n(&files, None, index)
+        .map_err(|error| Error::Compile(error.render(&files)))?;
 
     std::fs::create_dir_all(out_dir)?;
     let mut outputs = write_modules(&files, &generated, out_dir)?;

@@ -1385,3 +1385,38 @@ fn tags_of_a_feature_that_is_off_are_reported() {
     let src = "import { Markdown } from \"zant\";\nexport default function App() {\n  return <Markdown source=\"# a\" />;\n}\n";
     assert!(compile::compile(src, "app.tsx").is_ok());
 }
+
+// ── several errors at once ───────────────────────────────────────────
+
+/// Independent errors in two components of one file and in another file
+/// are reported together, in source order, each in its own file.
+#[test]
+fn independent_errors_are_reported_together() {
+    let first = "import { View, Text } from \"zant\";\n\
+                 function A() { return <Text>{missingA}</Text>; }\n\
+                 function B() { return <Text>{missingB}</Text>; }\n\
+                 export default function App() { return <View><A/><B/></View>; }\n";
+    let second = "import { Text } from \"zant\";\n\
+                  export function C() { return <Text>{missingC}</Text>; }\n";
+    let files = [
+        SourceFile::tsx("App.tsx", first),
+        SourceFile::tsx("C.tsx", second),
+    ];
+    let error = match compile::compile_project(&files) {
+        Ok(_) => panic!("expected errors"),
+        Err(error) => error,
+    };
+    let all: Vec<(usize, String)> = error
+        .all()
+        .map(|(file, diag)| (file, diag.msg.clone()))
+        .collect();
+    assert_eq!(all.len(), 3, "{all:?}");
+    assert!(all[0].0 == 0 && all[0].1.contains("missingA"), "{all:?}");
+    assert!(all[1].0 == 0 && all[1].1.contains("missingB"), "{all:?}");
+    assert!(all[2].0 == 1 && all[2].1.contains("missingC"), "{all:?}");
+    // the rendered report names each file and line
+    let report = error.render(&files);
+    assert!(report.contains("App.tsx:2:"), "{report}");
+    assert!(report.contains("App.tsx:3:"), "{report}");
+    assert!(report.contains("C.tsx:2:"), "{report}");
+}

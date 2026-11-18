@@ -144,11 +144,7 @@ fn project(out_dir: &str, rest: &[String]) -> ExitCode {
     let compiled: GeneratedProject = match compile::compile_project(&files) {
         Ok(compiled) => compiled,
         Err(error) => {
-            let file = &files[error.file];
-            eprint!(
-                "{}",
-                zant_tsx::error::render_diag(&file.path, &file.src, &error.diag)
-            );
+            eprint!("{}", error.render(&files));
             return ExitCode::FAILURE;
         }
     };

@@ -224,6 +224,16 @@ pub fn pdf_viewer(id: u64, options: PdfViewerOptions) -> Node {
     })
 }
 
+/// Renders a PDF reader with persistent state identified by `key`.
+/// Give each instance in a list a distinct, stable key. The key also identifies
+/// the root node unless `options.key` is set. [`pdf_viewer`] remains available
+/// for existing callers with numeric slot IDs.
+pub fn pdf_viewer_keyed(key: &str, mut options: PdfViewerOptions) -> Node {
+    let id = crate::tsx::child_id(0, "ui::pdf_viewer", key);
+    options.key.get_or_insert_with(|| Str::copy(key));
+    pdf_viewer(id, options)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -234,5 +244,47 @@ mod tests {
         assert!(!same_password(None, Some("")));
         assert!(same_password(Some("secret"), Some("secret")));
         assert!(!same_password(Some("secret"), Some("other")));
+    }
+
+    #[test]
+    fn keyed_pdf_viewer_uses_stable_slots_and_defaults_the_root_key() {
+        let store = Rc::new(RefCell::new(ui::LocalStateStore::new()));
+        ui::set_build_states(Some(Rc::clone(&store)));
+        store.borrow_mut().record();
+
+        let doc = pdf_viewer_keyed("doc", PdfViewerOptions::default());
+        let _ = pdf_viewer_keyed("doc", PdfViewerOptions::default());
+        let _ = pdf_viewer_keyed("other", PdfViewerOptions::default());
+        let renamed = pdf_viewer_keyed(
+            "doc",
+            PdfViewerOptions {
+                key: Some("root".into()),
+                ..PdfViewerOptions::default()
+            },
+        );
+
+        let slots = store.borrow_mut().end_record();
+        let [first, repeated, other, renamed_slot] = slots[..] else {
+            panic!("expected one slot per PDF viewer call, got {slots:?}");
+        };
+        assert_eq!(first, repeated);
+        assert_ne!(first, other);
+        assert_eq!(first, renamed_slot);
+        assert_eq!(doc.element().key.as_deref(), Some("doc"));
+        assert_eq!(renamed.element().key.as_deref(), Some("root"));
+
+        #[cfg(feature = "markdown")]
+        {
+            store.borrow_mut().record();
+            let _ = ui::markdown_keyed("doc", ui::MarkdownOptions::default());
+            let markdown_slots = store.borrow_mut().end_record();
+            let [markdown_slot] = markdown_slots[..] else {
+                panic!("expected one Markdown slot, got {markdown_slots:?}");
+            };
+            assert_ne!(first, markdown_slot);
+        }
+
+        ui::set_build_states(None);
+        ui::context::release_app();
     }
 }

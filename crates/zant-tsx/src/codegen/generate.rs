@@ -93,6 +93,20 @@ pub fn last_diag() -> Option<Diag> {
     LAST_DIAG.with(|diag| diag.borrow().clone())
 }
 
+thread_local! {
+    /// The diagnostics after the first of the last failed [`generate`]: one
+    /// per further component that failed.
+    static MORE_DIAGS: std::cell::RefCell<Vec<Diag>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Every diagnostic of the last [`generate`] that failed, in source order of
+/// the components (the first is [`last_diag`]).
+pub fn last_diags() -> Vec<Diag> {
+    let mut all: Vec<Diag> = last_diag().into_iter().collect();
+    MORE_DIAGS.with(|more| all.extend(more.borrow().iter().cloned()));
+    all
+}
+
 /// One generated Rust module.
 #[derive(Clone, Debug)]
 pub struct GeneratedFile {
@@ -190,6 +204,7 @@ pub fn generate_with(
     install_extra: Option<fn(&mut Generator<'_>)>,
 ) -> Result<GeneratedFile> {
     let mut diag: Option<Diag> = None;
+    MORE_DIAGS.with(|slot| slot.borrow_mut().clear());
     let result = generate_inner(source_name, module, options, install_extra, &mut diag);
     LAST_DIAG.with(|slot| *slot.borrow_mut() = diag);
     result
@@ -334,17 +349,35 @@ fn generate_inner(
     };
     let mut function_code = functions::emit_all(&mut g)?;
     // children first, then the root; the header needs every compound type
+    // a component with an error is recorded and the next one generated, so
+    // independent mistakes in several components are reported together
     let mut bodies = String::new();
+    let mut failures: Vec<Diag> = Vec::new();
     for index in 0..g.components.len() {
         if g.components[index].external {
             continue;
         }
         let function = (*g.components[index].func).clone();
-        bodies.push_str(&emit_component(&mut g, &function, Some(index))?);
-        bodies.push('\n');
+        match emit_component(&mut g, &function, Some(index)) {
+            Ok(body) => {
+                bodies.push_str(&body);
+                bodies.push('\n');
+            }
+            Err(_) => failures.extend(g.diag.take()),
+        }
     }
     if let Some(function) = &root {
-        bodies.push_str(&emit_component(&mut g, function, None)?);
+        match emit_component(&mut g, function, None) {
+            Ok(body) => bodies.push_str(&body),
+            Err(_) => failures.extend(g.diag.take()),
+        }
+    }
+    if !failures.is_empty() {
+        failures.sort_by_key(|diag| diag.loc);
+        let first = failures.remove(0);
+        MORE_DIAGS.with(|slot| *slot.borrow_mut() = failures);
+        *g.diag = Some(first);
+        return Err(super::Error::Tsx);
     }
     // generic function instances the components asked for
     function_code.push_str(&functions::emit_all(&mut g)?);

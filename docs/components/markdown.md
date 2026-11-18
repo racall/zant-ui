@@ -37,3 +37,5 @@ Rust：`ui::markdown(id, ui::MarkdownOptions { .. })` 按实例管理缓存；�
 `Labels::for_locale("zh-CN")` 取指定语言）、`image_loader`、`block_renderers`。
 编辑器用 `markdown::editor::editor(Props { value, on_change, mode, .. })`，支持 Edit / Split / Preview；
 `on_mode` 是模式下标回调（`IndexAction`），分栏 / 预览需提供 `cache`。
+
+Rust 也可用 `ui::markdown_keyed(key, options)` 按字符串 key 管理实例缓存。列表中每个实例须使用不同且稳定的 key；未设置 `options.key` 时，根节点也使用该 key。现有调用可继续使用数字 ID 版本 `ui::markdown`。

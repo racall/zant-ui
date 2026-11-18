@@ -93,9 +93,11 @@ pub use crate::components::window_controls::{
 /// `ui::pdf_viewer`). The PDF reader's options and slot state are exported
 /// alongside the builder.
 #[cfg(feature = "markdown")]
-pub use crate::components::markdown::{MarkdownOptions, markdown};
+pub use crate::components::markdown::{MarkdownOptions, markdown, markdown_keyed};
 #[cfg(feature = "pdf")]
-pub use crate::components::pdf_viewer::{PdfViewerOptions, PdfViewerState, pdf_viewer};
+pub use crate::components::pdf_viewer::{
+    PdfViewerOptions, PdfViewerState, pdf_viewer, pdf_viewer_keyed,
+};
 /// Their interface strings (TSX `labels={{ … }}`); the defaults follow the
 /// app locale (`i18n::builtin`).
 #[cfg(feature = "markdown")]

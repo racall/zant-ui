@@ -202,9 +202,22 @@ pub fn markdown(id: u64, options: MarkdownOptions) -> Node {
     node
 }
 
+/// Renders Markdown with a persistent block cache identified by `key`.
+/// Give each instance in a list a distinct, stable key. The key also identifies
+/// the root node unless `options.key` is set. [`markdown`] remains available
+/// for existing callers with numeric slot IDs.
+pub fn markdown_keyed(key: &str, mut options: MarkdownOptions) -> Node {
+    let id = crate::tsx::child_id(0, "ui::markdown", key);
+    options.key.get_or_insert_with(|| Str::copy(key));
+    markdown(id, options)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::block_width;
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    use super::{MarkdownOptions, block_width, markdown_keyed, ui};
 
     #[test]
     fn blocks_follow_the_laid_out_width_within_content_width() {
@@ -217,5 +230,34 @@ mod tests {
         // before the first layout
         assert_eq!(block_width(0.0, None), 680.0);
         assert_eq!(block_width(500.0, None), 500.0);
+    }
+
+    #[test]
+    fn keyed_markdown_uses_stable_slots_and_defaults_the_root_key() {
+        let store = Rc::new(RefCell::new(ui::LocalStateStore::new()));
+        ui::set_build_states(Some(Rc::clone(&store)));
+        store.borrow_mut().record();
+
+        let doc = markdown_keyed("doc", MarkdownOptions::default());
+        let _ = markdown_keyed("doc", MarkdownOptions::default());
+        let _ = markdown_keyed("other", MarkdownOptions::default());
+        let renamed = markdown_keyed(
+            "doc",
+            MarkdownOptions {
+                key: Some("root".into()),
+                ..MarkdownOptions::default()
+            },
+        );
+
+        let slots = store.borrow_mut().end_record();
+        ui::set_build_states(None);
+        let [first, repeated, other, renamed_slot] = slots[..] else {
+            panic!("expected one slot per Markdown call, got {slots:?}");
+        };
+        assert_eq!(first, repeated);
+        assert_ne!(first, other);
+        assert_eq!(first, renamed_slot);
+        assert_eq!(doc.element().key.as_deref(), Some("doc"));
+        assert_eq!(renamed.element().key.as_deref(), Some("root"));
     }
 }

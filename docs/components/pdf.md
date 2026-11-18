@@ -44,6 +44,8 @@ macOS 使用 PDFKit，Windows 使用 PDFium（需 `pdfium.dll`）。页面在后
 
 ## Rust 控制与导出
 
+`ui::pdf_viewer_keyed(key, options)` 按字符串 key 管理阅读状态。列表中每个实例须使用不同且稳定的 key；未设置 `options.key` 时，根节点也使用该 key。现有调用可继续使用数字 ID 版本 `ui::pdf_viewer`。
+
 需要跳页、保存批注时，由应用持有 `pdf::Viewer`，用 `pdf::view(&viewer, pdf::ViewOptions { .. })` 渲染；打开文件放在事件或 effect 中。
 
 ```rust
