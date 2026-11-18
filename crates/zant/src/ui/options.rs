@@ -822,7 +822,7 @@ impl Default for ProgressOptions {
 ///
 /// `#[derive(TsxProps)]` emits an `impl TsxProps` for each option struct; the
 /// `zant-tsx-tags` generator reads [`TSX_REGISTRY`] and writes
-/// `crates/zant-tsx/src/ui_tags.rs`. A `proc-macro` crate cannot export these
+/// `crates/zant-tsx/src/ui_tags/`. A `proc-macro` crate cannot export these
 /// types itself, so they live here, next to the structs they describe.
 ///
 /// Field *classification* (integer / enum / color / nested options …) stays

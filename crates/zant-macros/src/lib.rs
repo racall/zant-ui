@@ -17,7 +17,7 @@ mod tsx_props;
 /// name, doc comment, module path and every field in declaration order. Field
 /// types are emitted as token strings; the `zant-tsx-tags` generator resolves
 /// them against the `zant` sources and turns them into the TSX prop table
-/// (`crates/zant-tsx/src/ui_tags.rs`).
+/// (`crates/zant-tsx/src/ui_tags/`).
 ///
 /// Field attributes:
 /// - `#[tsx(required)]` — the TSX prop must be supplied. `impl Default` gives

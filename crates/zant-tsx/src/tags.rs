@@ -492,7 +492,7 @@ mod tests {
         assert_eq!(1, spellings("alreadyCamel").len());
     }
 
-    // ── generated table (`crates/zant-tsx/src/ui_tags.rs`) ─────────────────
+    // ── generated table (`crates/zant-tsx/src/ui_tags/`) ─────────────────
 
     /// The pinned size of the table: 38 tags / 474 props / 854 spellings / 48
     /// theme fields / 10 skipped. Whoever moves a composite / markdown / pdf

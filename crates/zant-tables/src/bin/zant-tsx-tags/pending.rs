@@ -2,13 +2,13 @@
 //! components, markdown, pdf viewer).
 //!
 //! These entries are written by hand so
-//! `crates/zant-tsx/src/ui_tags.rs` keeps all 38 tags and the alias layer
+//! `crates/zant-tsx/src/ui_tags/` keeps all 38 tags and the alias layer
 //! (`View`, `Markdown`) keeps working before those builders land. The
 //! generator fails loudly when a pending builder shows up in
 //! `crates/zant/src/ui/builders/` (or `crates/zant/src/ui/mod.rs` exports it),
 //! telling you to delete its entry here.
 //!
-//! When a tag is removed from here, `ui_tags.rs` must be regenerated.
+//! When a tag is removed from here, `ui_tags/` must be regenerated.
 //!
 //! An `icon` enumeration leaves `values` empty: the generator fills in the
 //! spellings of the `Icon` enum, so a new icon needs no edit here.

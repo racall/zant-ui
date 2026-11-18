@@ -15,11 +15,11 @@ BASELINE=scripts/file-size-baseline.txt
 
 current() {
   git ls-files -co --exclude-standard -- '*.rs' '*.m' '*.mm' '*.c' '*.cpp' '*.h' |
-    grep -v -E '^crates/zant-tsx/src/ui_tags\.rs$|^crates/zant-sys/src/(skia|platform|pdf)\.rs$|/testdata/|/snapshots/|/fixtures/|^third_party/' |
+    grep -v -E '^crates/zant-sys/src/(skia|platform|pdf)\.rs$|/testdata/|/snapshots/|/fixtures/|^third_party/' |
     while IFS= read -r file; do
       [ -f "$file" ] || continue
       lines=$(wc -l < "$file" | tr -d ' ')
-      [ "$lines" -gt "$LIMIT" ] && printf '%s %s\n' "$lines" "$file"
+      if [ "$lines" -gt "$LIMIT" ]; then printf '%s %s\n' "$lines" "$file"; fi
     done | sort -k2
 }
 

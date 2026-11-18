@@ -133,6 +133,8 @@ struct PropsResult {
 pub struct Table {
     pub tags: Vec<Tag>,
     pub theme: Vec<Prop>,
+    /// The TSX spellings of the `Icon` enum (every `icon` prop lists them).
+    pub icons: Vec<Value>,
 }
 
 /// Locate the `zant` crate: `$ZANT_HOME` (zant-ui root or the crate itself)
@@ -211,6 +213,7 @@ pub fn generate() -> Table {
     Table {
         tags,
         theme: build_theme(&index),
+        icons,
     }
 }
 

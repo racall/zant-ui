@@ -18,12 +18,11 @@
 1028 crates/zant-sys/native/skia/skia_bridge.cpp
 531 crates/zant-sys/prebuilt.rs
 502 crates/zant-tables/src/bin/zant-tsx-tags/source.rs
-663 crates/zant-tables/src/bin/zant-tsx-tags/table.rs
+666 crates/zant-tables/src/bin/zant-tsx-tags/table.rs
 687 crates/zant-tsx/src/codegen/aggregate.rs
 562 crates/zant-tsx/src/codegen/app_hooks.rs
 607 crates/zant-tsx/src/codegen/array_methods.rs
 520 crates/zant-tsx/src/codegen/builtins.rs
-1270 crates/zant-tsx/src/codegen/components.rs
 796 crates/zant-tsx/src/codegen/dicts.rs
 1166 crates/zant-tsx/src/codegen/events.rs
 644 crates/zant-tsx/src/codegen/exceptions.rs
@@ -32,7 +31,6 @@
 804 crates/zant-tsx/src/codegen/hooks.rs
 806 crates/zant-tsx/src/codegen/imports.rs
 658 crates/zant-tsx/src/codegen/jsx_values.rs
-1653 crates/zant-tsx/src/codegen/jsx.rs
 772 crates/zant-tsx/src/codegen/list.rs
 570 crates/zant-tsx/src/codegen/loops.rs
 692 crates/zant-tsx/src/codegen/mod.rs
@@ -74,7 +72,6 @@
 524 crates/zant/src/desktop/window.rs
 629 crates/zant/src/markdown/edit.rs
 611 crates/zant/src/markdown/editor.rs
-1529 crates/zant/src/markdown/mermaid.rs
 1110 crates/zant/src/markdown/parser/block.rs
 1252 crates/zant/src/markdown/parser/inline.rs
 654 crates/zant/src/markdown/remend/scan.rs
@@ -82,7 +79,6 @@
 529 crates/zant/src/markdown/scan.rs
 2061 crates/zant/src/math/layout.rs
 556 crates/zant/src/math/mhchem/regexes.rs
-1941 crates/zant/src/math/parser.rs
 656 crates/zant/src/math/symbols.rs
 639 crates/zant/src/pdf/text.rs
 653 crates/zant/src/pdf/viewer/annotate.rs
