@@ -99,11 +99,11 @@ export default function App() {
   const [n, setN] = useState<u32>(0);
   function inc() { setN(n + 1) }
   return (
-<View gap={8} style={{ padding: 4 }}>
-  <Text size={20}>Count: {n} {`x${n * 2}y`}</Text>
-  {/* comment */}
-  <Button onClick={() => setN(0)} disabled>Reset &amp; go</Button>
-</View>
+    <View gap={8} style={{ padding: 4 }}>
+      <Text size={20}>Count: {n} {`x${n * 2}y`}</Text>
+      {/* comment */}
+      <Button onClick={() => setN(0)} disabled>Reset &amp; go</Button>
+    </View>
   );
 }"#,
     );
@@ -242,8 +242,8 @@ function g(a: number, b?: string) {}"#,
 fn destructured_props_keep_property_names_local_names_and_defaults() {
     let m = parse_ok(
         r#"function Label({ id, title: label = "Untitled", onSave: save }: {
-            id: number; title?: string; onSave: () => void;
-        }) { return <Text>{label}</Text>; }"#,
+                id: number; title?: string; onSave: () => void;
+            }) { return <Text>{label}</Text>; }"#,
     );
     let p = &m.functions[0].func.params[0];
     assert_eq!(3, p.destructure.len());
@@ -285,10 +285,10 @@ fn destructured_defaults_accept_assignment_level_arrows() {
 fn typed_local_object_destructuring_keeps_keys_and_bindings() {
     let m = parse_ok(
         r#"function f() {
-            const item: Item = { title: "Hello", id: 1 };
-            const { title: label, id } = item;
-            let { title: other }: Item = item;
-        }"#,
+                const item: Item = { title: "Hello", id: 1 };
+                const { title: label, id } = item;
+                let { title: other }: Item = item;
+            }"#,
     );
     let body = block(&m.functions[0].func);
     let StmtData::Decl(d) = &body[1].data else {

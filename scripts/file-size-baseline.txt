@@ -24,9 +24,7 @@
 607 crates/zant-tsx/src/codegen/array_methods.rs
 520 crates/zant-tsx/src/codegen/builtins.rs
 796 crates/zant-tsx/src/codegen/dicts.rs
-1166 crates/zant-tsx/src/codegen/events.rs
 644 crates/zant-tsx/src/codegen/exceptions.rs
-970 crates/zant-tsx/src/codegen/expr.rs
 706 crates/zant-tsx/src/codegen/functions.rs
 804 crates/zant-tsx/src/codegen/hooks.rs
 806 crates/zant-tsx/src/codegen/imports.rs
@@ -40,13 +38,10 @@
 654 crates/zant-tsx/src/codegen/scope.rs
 587 crates/zant-tsx/src/codegen/stateful.rs
 664 crates/zant-tsx/src/codegen/stmt.rs
-1186 crates/zant-tsx/src/codegen/types.rs
 616 crates/zant-tsx/src/codegen/unions.rs
 608 crates/zant-tsx/src/codegen/windows.rs
 617 crates/zant-tsx/src/codegen/zant_api.rs
 800 crates/zant-tsx/src/compile.rs
-966 crates/zant-tsx/src/dump.rs
-1100 crates/zant-tsx/src/expr_parser.rs
 706 crates/zant-tsx/src/hooks/expand.rs
 671 crates/zant-tsx/src/hooks/resolve.rs
 819 crates/zant-tsx/src/hooks/rewrite.rs
@@ -70,7 +65,6 @@
 629 crates/zant/src/markdown/edit.rs
 611 crates/zant/src/markdown/editor.rs
 1110 crates/zant/src/markdown/parser/block.rs
-1252 crates/zant/src/markdown/parser/inline.rs
 654 crates/zant/src/markdown/remend/scan.rs
 657 crates/zant/src/markdown/render/blocks.rs
 529 crates/zant/src/markdown/scan.rs
