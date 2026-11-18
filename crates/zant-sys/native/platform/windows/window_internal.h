@@ -50,6 +50,24 @@
 struct ZantWindow;
 void zant_cover_now(struct ZantWindow *window, int index);
 
+typedef enum {
+    ZANT_FRAME_PAINT, ZANT_FRAME_SIZE, ZANT_FRAME_MODAL_TIMER,
+    ZANT_FRAME_HIDDEN, ZANT_FRAME_OTHER, ZANT_FRAME_SOURCE_COUNT
+} ZantFrameSource;
+
+typedef struct {
+    long long samples, total_us, max_us;
+} ZantFrameTiming;
+
+typedef struct {
+    bool active;
+    ZantFrameSource paint_source; /* source of the synchronous WM_PAINT from UpdateWindow */
+    long long start_us, size_msgs, move_msgs, wakes;
+    long long requests_in_draw, requests_outside_draw, timer_fired, timer_skipped;
+    long long frames[ZANT_FRAME_SOURCE_COUNT], new_size, same_size;
+    ZantFrameTiming begin, render;
+} ZantFrameTrace;
+
 struct ZantWindow {
     ZantHost host;
     ZantRenderer *renderer;
@@ -80,6 +98,8 @@ struct ZantWindow {
     bool in_draw;
     bool animating;
     bool in_size_move;
+    ZantFrameTrace trace;
+    int last_draw_width_px, last_draw_height_px; /* includes the frame before modal entry */
     /* zant_now_us() of the last drawn frame: a live resize draws at each
        WM_SIZE, and the modal timer adds animation frames only between them */
     long long last_frame_us;
@@ -140,7 +160,11 @@ HCURSOR zant_cursor_handle(int cursor);
 bool zant_backgrounded(ZantWindow *w);
 long long zant_now_us(void);
 void zant_request(ZantWindow *w);
-void zant_render(ZantWindow *w, HDC dc);
+void zant_frame_trace_enter(ZantWindow *w);
+void zant_frame_trace_exit(ZantWindow *w);
+void zant_update_frame(ZantWindow *w, ZantFrameSource source);
+void zant_modal_tick(ZantWindow *w);
+void zant_render(ZantWindow *w, HDC dc, ZantFrameSource source);
 void zant_take_snapshot(ZantWindow *w);
 
 #endif

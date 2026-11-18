@@ -213,17 +213,18 @@ LRESULT CALLBACK zant_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         case WM_PAINT: {
             PAINTSTRUCT ps;
             HDC dc = BeginPaint(hwnd, &ps);
-            zant_render(w, dc);
+            zant_render(w, dc, ZANT_FRAME_PAINT);
             EndPaint(hwnd, &ps);
             return 0;
         }
 
         case ZANT_WM_HIDDEN_FRAME:
             w->hidden_frame_pending = false;
-            if (zant_backgrounded(w)) zant_render(w, NULL);
+            if (zant_backgrounded(w)) zant_render(w, NULL, ZANT_FRAME_HIDDEN);
             return 0;
 
         case ZANT_WM_WAKE:
+            if (w->trace.active) ++w->trace.wakes;
             InterlockedExchange(&w->wake_pending, 0);
             if (!w->closing && w->host.wake) w->host.wake(w->host.userdata);
             zant_request(w);
@@ -241,26 +242,20 @@ LRESULT CALLBACK zant_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 w->close_approved = true;
                 DestroyWindow(hwnd);
             } else if (wp == ZANT_TIMER_MODAL) {
-                /* live resize / move runs its own loop: keep animations going.
-                   While the size keeps changing, every WM_SIZE frame advances
-                   them: an extra animation frame would take the next resize
-                   frame's vsync (half the sizes drawn, two vsyncs late). */
-                const long long now = zant_now_us();
-                if (w->animating && now - w->last_resize_us >= 50000 && now - w->last_frame_us >= 8000) {
-                    InvalidateRect(hwnd, NULL, FALSE);
-                    UpdateWindow(hwnd);
-                }
+                zant_modal_tick(w);
             }
             return 0;
 
         case WM_ENTERSIZEMOVE:
             w->in_size_move = true;
+            zant_frame_trace_enter(w);
             /* 10 ms: fires at every system timer tick (15.6 ms by default; a
                16 ms timer would wait for two of them) */
             SetTimer(hwnd, ZANT_TIMER_MODAL, 10, NULL);
             return 0;
         case WM_EXITSIZEMOVE:
             w->in_size_move = false;
+            zant_frame_trace_exit(w);
             KillTimer(hwnd, ZANT_TIMER_MODAL);
             /* remembered as soon as the user moved it: a process ended by
                sign-out or shutdown never reaches WM_CLOSE */
@@ -268,17 +263,20 @@ LRESULT CALLBACK zant_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             zant_request(w);
             return 0;
 
+        case WM_MOVE:
+            if (w->trace.active) ++w->trace.move_msgs;
+            break;
         case WM_SIZE: {
             /* minimized: the client area is empty, the layout keeps its size */
             if (wp == SIZE_MINIMIZED) return 0;
             const int previous_w = w->width_px, previous_h = w->height_px;
             zant_update_client_size(w);
             if (wp != SIZE_MINIMIZED && (previous_w != w->width_px || previous_h != w->height_px)) {
+                if (w->trace.active) ++w->trace.size_msgs;
                 w->last_resize_us = zant_now_us();
                 zant_send_simple(w, ZANT_EVENT_WINDOW_RESIZE);
                 /* draw now so live resize never shows stretched content */
-                InvalidateRect(hwnd, NULL, FALSE);
-                UpdateWindow(hwnd);
+                zant_update_frame(w, ZANT_FRAME_SIZE);
             } else if (wp == SIZE_MAXIMIZED || wp == SIZE_RESTORED) {
                 zant_send_simple(w, ZANT_EVENT_WINDOW_RESIZE);
             }

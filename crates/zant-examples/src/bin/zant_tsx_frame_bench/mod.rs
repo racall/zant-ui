@@ -33,15 +33,16 @@
 //! advanced 16 ms per frame, motion off, one untimed warm-up frame per
 //! harness. Each side gets a fresh runtime (and canvas) per round.
 //!
-//! `ZANT_BENCH_REPEAT` (default 3) rounds are timed, alternating which side
-//! runs first (load on a shared machine hits both sides evenly); the best
-//! round per side — the lowest average frame time — is compared, like
-//! `scripts/bench.sh`. The gate (`ZANT_BENCH_MAX_RATIO`, default 1.2)
-//! applies to every scenario and every app aggregate. `scripts/tsx/bench-tsx.sh`
-//! is the reproducible entry point; it formats the comparison table.
+//! Each of the `ZANT_BENCH_REPEAT` rounds (default 5) compares median frame
+//! times, alternating which side runs first. The median of those ratios is
+//! gated at `ZANT_BENCH_MAX_RATIO` (default 1.2). App rows pool frames within
+//! each round. Independent manual/manual pairs measure noise for each row.
+//! For sensitivity testing, `ZANT_BENCH_SLOW_TSX=1.3` busy-waits after each
+//! TSX frame until its elapsed time reaches 1.3 times the measured duration.
+//! `scripts/tsx/bench-tsx.sh` formats the comparison table.
 #![forbid(unsafe_code)]
 
-use std::cell::RefMut;
+use std::cell::{Cell, RefMut};
 use std::sync::atomic::{AtomicI64, Ordering};
 
 use zant::platform::platform::{self, WindowOptions};
@@ -115,10 +116,13 @@ mod settings;
 mod soak;
 mod todos;
 
+mod stats;
 mod suites;
 #[cfg(test)]
 mod tests;
 
+use self::stats::Row;
+pub use self::stats::Stats;
 pub use self::suites::*;
 
 /// The benchmark window size.
@@ -138,75 +142,9 @@ fn advance_clock(ms: i64) {
     FAKE_NOW.fetch_add(ms, Ordering::Relaxed);
 }
 
-/// One scenario's frame samples. `report` prints the average, p95 (index
-/// `len * 95 / 100` of the sorted list) and max.
-#[derive(Clone, Default)]
-pub struct Stats {
-    pub samples: Vec<f64>,
-}
-
-impl Stats {
-    pub fn new() -> Stats {
-        Stats::default()
-    }
-
-    pub fn add(&mut self, ms: f64) {
-        self.samples.push(ms);
-    }
-
-    pub fn extend(&mut self, other: &Stats) {
-        self.samples.extend_from_slice(&other.samples);
-    }
-
-    pub fn frames(&self) -> usize {
-        self.samples.len()
-    }
-
-    pub fn avg(&self) -> f64 {
-        if self.samples.is_empty() {
-            return 0.0;
-        }
-        self.samples.iter().sum::<f64>() / self.samples.len() as f64
-    }
-
-    fn sorted(&self) -> Vec<f64> {
-        let mut sorted = self.samples.clone();
-        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-        sorted
-    }
-
-    pub fn p95(&self) -> f64 {
-        let sorted = self.sorted();
-        match sorted.len() {
-            0 => 0.0,
-            len => sorted[usize::min(len - 1, (len * 95) / 100)],
-        }
-    }
-
-    pub fn max(&self) -> f64 {
-        self.sorted().last().copied().unwrap_or(0.0)
-    }
-
-    /// One machine-readable comparison line: the `zant-bench` fields (frames,
-    /// avg / p95 / max per frame) for both sides plus the TSX/manual ratio.
-    /// `scripts/tsx/bench-tsx.sh` formats the table from these.
-    pub fn report(&self, kind: &str, name: &str, other: &Stats) {
-        let tsx_avg = self.avg();
-        let manual_avg = other.avg();
-        let ratio = if manual_avg > 0.0 {
-            tsx_avg / manual_avg
-        } else {
-            f64::INFINITY
-        };
-        println!(
-            "{kind} {name} frames={} tsx_avg={tsx_avg:.4} manual_avg={manual_avg:.4} ratio={ratio:.4} tsx_p95={:.4} manual_p95={:.4} tsx_max={:.4} manual_max={:.4}",
-            self.frames(),
-            self.p95(),
-            other.p95(),
-            self.max(),
-            other.max(),
-        );
-    }
+// Each suite constructs its harnesses inside the side being measured.
+thread_local! {
+    static FRAME_TIME_FACTOR: Cell<f64> = const { Cell::new(1.0) };
 }
 
 /// One whole frame in milliseconds (`renderer.begin` → `render_frame` →
@@ -217,7 +155,16 @@ pub fn frame(rt: &mut Runtime, renderer: &mut Renderer) -> f64 {
     let canvas = renderer.begin(1.0).expect("a raster canvas");
     rt.render_frame(canvas, W, H, 1.0);
     renderer.end();
-    (platform::monotonic_us() - t0) as f64 / 1000.0
+    let mut elapsed = platform::monotonic_us() - t0;
+    let factor = FRAME_TIME_FACTOR.get();
+    if factor > 1.0 {
+        let target = elapsed as f64 * factor;
+        while (elapsed as f64) < target {
+            std::hint::spin_loop();
+            elapsed = platform::monotonic_us() - t0;
+        }
+    }
+    elapsed as f64 / 1000.0
 }
 
 /// A headless runtime on the fake clock with an untimed warm-up frame,
@@ -336,7 +283,7 @@ pub fn main() {
     let rounds = repeats();
     let gate = max_ratio();
     println!(
-        "zant-tsx-frame-bench: raster canvas {W}x{H}, best of {rounds} round(s) per side, gate <= {gate:.2}x manual"
+        "zant-tsx-frame-bench: raster canvas {W}x{H}, median of {rounds} paired round(s), gate <= {gate:.2}x manual"
     );
 
     let selected: Vec<&Suite> = SUITES
@@ -351,47 +298,24 @@ pub fn main() {
         std::process::exit(2);
     }
 
-    let mut rows: Vec<Row> = Vec::new();
+    let slow_tsx = std::env::var("ZANT_BENCH_SLOW_TSX")
+        .ok()
+        .and_then(|value| value.parse::<f64>().ok())
+        .filter(|factor| factor.is_finite() && *factor > 1.0)
+        .unwrap_or(1.0);
+    let mut failures = 0;
     let mut scenarios = 0;
     for suite in &selected {
-        let (tsx, manual) = measure(suite, rounds);
-        let mut app_tsx = Stats::new();
-        let mut app_manual = Stats::new();
-        for (index, name) in suite.scenarios.iter().enumerate() {
-            app_tsx.extend(&tsx[index]);
-            app_manual.extend(&manual[index]);
-            rows.push(Row {
-                kind: "scenario",
-                name,
-                tsx: tsx[index].clone(),
-                manual: manual[index].clone(),
-            });
-            scenarios += 1;
-        }
-        rows.insert(
-            rows.len() - suite.scenarios.len(),
-            Row {
-                kind: "app",
-                name: suite.app,
-                tsx: app_tsx,
-                manual: app_manual,
-            },
-        );
-    }
-
-    let mut failures = 0;
-    for row in &rows {
-        let ratio = row.ratio();
-        let ok = ratio <= gate;
-        if !ok {
-            failures += 1;
-        }
-        row.tsx.report(row.kind, row.name, &row.manual);
-        if !ok {
-            println!(
-                "over-budget {} {} ratio={ratio:.2}x > {gate:.2}x; profile with ZANT_FRAME_STATS=1",
-                row.kind, row.name
-            );
+        scenarios += suite.scenarios.len();
+        for row in measure(suite, rounds, slow_tsx) {
+            let ratio = row.report();
+            if ratio > gate {
+                failures += 1;
+                println!(
+                    "over-budget {} {} ratio={ratio:.2}x > {gate:.2}x; profile with ZANT_FRAME_STATS=1",
+                    row.kind, row.name
+                );
+            }
         }
     }
 
@@ -405,24 +329,5 @@ pub fn main() {
             "gate: FAIL — {failures} row(s) over {gate:.2}x (app rows and scenario rows); rerun with ZANT_FRAME_STATS=1"
         );
         std::process::exit(1);
-    }
-}
-
-/// One printed comparison row: an app aggregate or a scenario.
-struct Row {
-    kind: &'static str,
-    name: &'static str,
-    tsx: Stats,
-    manual: Stats,
-}
-
-impl Row {
-    fn ratio(&self) -> f64 {
-        let manual = self.manual.avg();
-        if manual > 0.0 {
-            self.tsx.avg() / manual
-        } else {
-            f64::INFINITY
-        }
     }
 }

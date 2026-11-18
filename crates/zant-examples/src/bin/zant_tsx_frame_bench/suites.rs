@@ -1,4 +1,4 @@
-//! The benchmark suites and measuring them (repeats, ratio limits, best-of rounds).
+//! The benchmark suites and measuring them (repeats, ratio limits, paired rounds).
 
 use super::*;
 
@@ -56,14 +56,13 @@ pub const SUITES: &[Suite] = &[
     },
 ];
 
-/// `ZANT_BENCH_REPEAT` rounds per suite, best round wins (`scripts/bench.sh`
-/// uses the same variable; default 3).
+/// Number of paired rounds per suite (default 5).
 pub(super) fn repeats() -> usize {
     std::env::var("ZANT_BENCH_REPEAT")
         .ok()
         .and_then(|value| value.parse::<usize>().ok())
         .filter(|value| *value > 0)
-        .unwrap_or(3)
+        .unwrap_or(5)
 }
 
 /// `ZANT_BENCH_MAX_RATIO`, the TSX/manual ratio gate (default 1.2).
@@ -97,58 +96,54 @@ pub(super) fn want(args: &[String], app: &str, scenarios: &[&str]) -> bool {
     })
 }
 
-/// Runs one suite for `rounds` rounds, alternating which side goes first, and
-/// keeps the best round per side and scenario (lowest average frame time).
-pub(super) fn measure(suite: &Suite, rounds: usize) -> (Vec<Stats>, Vec<Stats>) {
-    let mut best_tsx: Vec<Option<Stats>> = vec![None; suite.scenarios.len()];
-    let mut best_manual: Vec<Option<Stats>> = vec![None; suite.scenarios.len()];
-    for round in 0..rounds {
-        let (tsx, manual) = if round % 2 == 0 {
-            ((suite.tsx)(), (suite.manual)())
-        } else {
-            let manual = (suite.manual)();
-            let tsx = (suite.tsx)();
-            (tsx, manual)
-        };
-        assert_eq!(
-            tsx.len(),
-            suite.scenarios.len(),
-            "{}: the TSX side returned {} stats for {} scenarios",
-            suite.app,
-            tsx.len(),
-            suite.scenarios.len()
-        );
-        assert_eq!(
-            manual.len(),
-            suite.scenarios.len(),
-            "{}: the manual side returned {} stats for {} scenarios",
-            suite.app,
-            manual.len(),
-            suite.scenarios.len()
-        );
-        for (index, stats) in tsx.into_iter().enumerate() {
-            best_tsx[index] = Some(best_of(best_tsx[index].take(), stats));
-        }
-        for (index, stats) in manual.into_iter().enumerate() {
-            best_manual[index] = Some(best_of(best_manual[index].take(), stats));
-        }
+/// Return the app's pooled frames followed by its individual scenarios.
+fn with_app_row(suite: &Suite, scenarios: Vec<Stats>) -> impl Iterator<Item = Stats> {
+    assert_eq!(scenarios.len(), suite.scenarios.len(), "{}", suite.app);
+    let mut app = Stats::new();
+    for stats in &scenarios {
+        app.extend(stats);
     }
-    (
-        best_tsx
-            .into_iter()
-            .map(Option::unwrap_or_default)
-            .collect(),
-        best_manual
-            .into_iter()
-            .map(Option::unwrap_or_default)
-            .collect(),
-    )
+    std::iter::once(app).chain(scenarios)
 }
 
-/// The lower-average of two rounds (`None` before the first round).
-pub(super) fn best_of(best: Option<Stats>, stats: Stats) -> Stats {
-    match best {
-        Some(best) if best.avg() <= stats.avg() => best,
-        _ => stats,
+fn pair(
+    left: impl FnOnce() -> Vec<Stats>,
+    right: fn() -> Vec<Stats>,
+    round: usize,
+) -> (Vec<Stats>, Vec<Stats>) {
+    if round.is_multiple_of(2) {
+        (left(), right())
+    } else {
+        let second_side = right();
+        (left(), second_side)
     }
+}
+
+/// Run both comparisons with fresh harnesses, alternating order in each pair.
+pub(super) fn measure(suite: &Suite, rounds: usize, slow_tsx: f64) -> Vec<Row> {
+    let mut rows: Vec<_> = std::iter::once(Row::new("app", suite.app))
+        .chain(
+            suite
+                .scenarios
+                .iter()
+                .map(|name| Row::new("scenario", name)),
+        )
+        .collect();
+    let tsx = || {
+        FRAME_TIME_FACTOR.set(slow_tsx);
+        let result = (suite.tsx)();
+        FRAME_TIME_FACTOR.set(1.0);
+        result
+    };
+    for round in 0..rounds {
+        let (generated, manual) = pair(tsx, suite.manual, round);
+        let (a, b) = pair(suite.manual, suite.manual, round);
+        let comparison = with_app_row(suite, generated).zip(with_app_row(suite, manual));
+        let control = with_app_row(suite, a).zip(with_app_row(suite, b));
+        for ((row, ab), aa) in rows.iter_mut().zip(comparison).zip(control) {
+            row.comparison.rounds.push(ab);
+            row.control.rounds.push(aa);
+        }
+    }
+    rows
 }

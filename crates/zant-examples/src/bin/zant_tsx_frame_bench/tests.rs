@@ -15,14 +15,59 @@ fn p95_uses_the_clamped_95_percent_index() {
     assert_eq!(stats.max(), 100.0);
 }
 
+fn samples(values: &[f64]) -> Stats {
+    Stats {
+        samples: values.to_vec(),
+    }
+}
+
 #[test]
-fn best_round_per_side_is_kept() {
-    let slow = || Stats { samples: vec![2.0] };
-    let fast = || Stats { samples: vec![1.0] };
-    // a faster round replaces the best, a slower one does not
-    assert_eq!(best_of(Some(slow()), fast()).avg(), 1.0);
-    assert_eq!(best_of(Some(fast()), slow()).avg(), 1.0);
-    assert_eq!(best_of(None, Stats::default()).frames(), 0);
+fn median_handles_unsorted_odd_even_and_single_samples() {
+    assert_eq!(samples(&[30.0, 1.0, 3.0]).median(), 3.0);
+    assert_eq!(samples(&[50.0, 1.0, 4.0, 2.0]).median(), 3.0);
+    assert_eq!(samples(&[7.0]).median(), 7.0);
+}
+
+#[test]
+fn ratio_takes_frame_medians_before_comparing_paired_rounds() {
+    // Ratios 2, 1, 3. Dividing independent medians across rounds gives 30/10.
+    let pairs = stats::PairedRounds {
+        rounds: vec![
+            (samples(&[1.0, 2.0, 100.0]), samples(&[1.0])),
+            (samples(&[100.0]), samples(&[100.0])),
+            (samples(&[30.0]), samples(&[10.0])),
+        ],
+    };
+    assert_eq!(pairs.ratios().0, 2.0);
+}
+
+#[test]
+fn noise_includes_the_farthest_round_on_either_side_of_one() {
+    for (outlier, expected) in [(0.5, 0.5), (1.75, 0.75)] {
+        let pairs = stats::PairedRounds {
+            rounds: [0.875, 1.0, 1.0, 1.125, outlier]
+                .map(|value| (samples(&[value]), samples(&[1.0])))
+                .into(),
+        };
+        assert_eq!(pairs.ratios(), (1.0, expected));
+    }
+}
+
+#[test]
+fn app_pools_frames_within_each_round() {
+    let suite = Suite {
+        app: "example",
+        scenarios: &["long", "short"],
+        tsx: || vec![samples(&[2.0; 3]), samples(&[20.0])],
+        manual: || vec![samples(&[2.0; 3]), samples(&[4.0])],
+    };
+    let rows = measure(&suite, 2, 1.0);
+    assert_eq!(rows[0].comparison.ratios().0, 1.0);
+    assert_eq!(rows[2].comparison.ratios().0, 5.0);
+    for row in rows {
+        assert_eq!(row.control.rounds.len(), 2);
+        assert_eq!(row.control.ratios(), (1.0, 0.0));
+    }
 }
 
 #[test]

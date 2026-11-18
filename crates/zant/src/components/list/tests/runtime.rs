@@ -114,6 +114,7 @@ struct Chat {
     state: Rc<RefCell<ListState>>,
     lines: Rc<RefCell<Vec<usize>>>,
     n: usize,
+    builds: usize,
 }
 
 impl Chat {
@@ -122,12 +123,14 @@ impl Chat {
             state: Rc::new(RefCell::new(ListState::new())),
             lines: Rc::new(RefCell::new(vec![3; 64])),
             n,
+            builds: 0,
         }
     }
 }
 
 impl App for Chat {
     fn render(&mut self) -> Node {
+        self.builds += 1;
         let state = Rc::clone(&self.state);
         let lines = Rc::clone(&self.lines);
         let item: ItemBuilder = Rc::new(move |i| {
@@ -279,4 +282,36 @@ fn list_a_short_list_sits_at_the_bottom_with_bottom_alignment() {
     );
     assert!(bounds(&runtime, "chat-i0").expect("first message").y > viewport.y + 100.0);
     assert_eq!(state.borrow().count(), 2);
+}
+
+#[test]
+fn list_a_streaming_tail_grows_in_place_without_rebuilding_the_app() {
+    let chat = Chat::new(20);
+    let lines = Rc::clone(&chat.lines);
+    let mut runtime = Runtime::init(chat, RunOptions::default());
+    let mut renderer = Renderer::create_raster(400, 600).expect("raster renderer");
+    for _ in 0..4 {
+        frame(&mut runtime, &mut renderer);
+    }
+    let viewport = bounds(&runtime, "chat").expect("viewport");
+    // one more line per frame, like a streaming reply: the tail is in view in
+    // the same frame, and the frame builds the app once (the item's size
+    // report does not rebuild it again)
+    for grown in 4..16 {
+        lines.borrow_mut()[19] = grown;
+        runtime.invalidate();
+        let before = runtime.app_state_mut::<Chat>().builds;
+        frame(&mut runtime, &mut renderer);
+        let last = bounds(&runtime, "chat-i19").expect("last message");
+        approx(viewport.bottom(), last.bottom(), 1.0);
+        assert_eq!(
+            runtime.app_state_mut::<Chat>().builds - before,
+            1,
+            "{grown} lines: one build per streaming frame"
+        );
+    }
+    // the rows above moved up with it, without gaps
+    let above = bounds(&runtime, "chat-i18").expect("previous message");
+    let last = bounds(&runtime, "chat-i19").expect("last message");
+    approx(above.bottom() + 10.0, last.y, 1.0);
 }

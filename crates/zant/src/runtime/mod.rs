@@ -30,6 +30,7 @@ pub mod frame;
 pub mod host;
 pub mod ime;
 pub mod keyboard;
+mod layout_file;
 pub mod overlay;
 pub mod patch;
 pub mod pointer;

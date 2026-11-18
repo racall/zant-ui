@@ -27,18 +27,17 @@
 #
 #   scripts/tsx/bench-tsx.sh                     # all six apps
 #   scripts/tsx/bench-tsx.sh counter list        # some of them
-#   ZANT_BENCH_REPEAT=5 scripts/tsx/bench-tsx.sh # more rounds
+#   ZANT_BENCH_REPEAT=7 scripts/tsx/bench-tsx.sh # more rounds
 #
-# Each side runs `ZANT_BENCH_REPEAT` (default 3) timed rounds, alternating which
-# side goes first; the best round per side (lowest average frame time) is
-# compared, like `scripts/bench.sh`, so shared-machine load does not
-# decide the gate. The gate applies to every app row and every scenario row:
-# ratio ≤ `ZANT_BENCH_MAX_RATIO` (default 1.2). When a row is over budget,
-# rerun with `ZANT_FRAME_STATS=1` to get the runtime's per-second `[frames]` /
-# `[slow-frame]` rebuild / layout / paint breakdown.
+# Each paired round compares median frame times, alternating which side goes
+# first. The gate uses the median of those ratios. App rows pool scenarios'
+# frames within each round. Independent manual/manual pairs give the A/A
+# ratio and noise (maximum absolute deviation from 1). Noise above 0.10 is
+# marked for reference. Rerun with ZANT_FRAME_STATS=1 for a phase breakdown.
 #
 # Environment:
-#   ZANT_BENCH_REPEAT      rounds per side, best round wins (default 3)
+#   ZANT_BENCH_REPEAT      paired rounds (default 5)
+#   ZANT_BENCH_SLOW_TSX    multiply TSX frame time by busy-waiting (testing only)
 #   ZANT_BENCH_MAX_RATIO   ratio gate (default 1.20)
 #   ZANT_FRAME_STATS=1     forward the runtime's frame-phase statistics (stderr)
 #   ZANT_RUST_BIN          directory with the binary (default target/release)
@@ -51,7 +50,7 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")/../.." && pwd)"
 
 if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
-    sed -n '2,48p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '1d; /^#/!q; p' "$0" | sed 's/^# \{0,1\}//'
     exit 0
 fi
 
@@ -71,7 +70,7 @@ if ! command -v "$python" >/dev/null 2>&1; then
     exit 2
 fi
 
-rounds="${ZANT_BENCH_REPEAT:-3}"
+rounds="${ZANT_BENCH_REPEAT:-5}"
 case "$rounds" in
     ''|*[!0-9]*) echo "bench-tsx.sh: ZANT_BENCH_REPEAT must be a positive integer (got '$rounds')" >&2; exit 2 ;;
 esac
@@ -108,7 +107,7 @@ if [ ! -x "$binary" ]; then
     exit 2
 fi
 
-echo "bench-tsx.sh: best of $rounds round(s) per side, gate <= ${gate}x hand-written Rust; raw log: $outdir/run.log" >&2
+echo "bench-tsx.sh: median of $rounds paired round(s), gate <= ${gate}x hand-written Rust; raw log: $outdir/run.log" >&2
 if env | grep -q '^ZANT_FRAME_STATS=1'; then
     echo "bench-tsx.sh: ZANT_FRAME_STATS=1 — frame-phase lines follow on stderr" >&2
 fi
@@ -131,72 +130,53 @@ fi
 
 table_status=0
 "$python" - "$outdir/run.log" "$gate" <<'PY' || table_status=$?
-import re
 import sys
 
 path, gate = sys.argv[1], float(sys.argv[2])
-row_re = re.compile(
-    r"^(app|scenario) (\S+) frames=(\d+) tsx_avg=([0-9.]+) manual_avg=([0-9.]+) "
-    r"ratio=([0-9.]+) tsx_p95=([0-9.]+) manual_p95=([0-9.]+) "
-    r"tsx_max=([0-9.]+) manual_max=([0-9.]+)$"
-)
 rows = []
+over_budget = set()
 gate_line = ""
 with open(path, encoding="utf-8") as log:
     for line in log:
-        line = line.strip()
-        if line.startswith("gate:"):
-            gate_line = line
+        fields = line.split()
+        if not fields:
             continue
-        match = row_re.match(line)
-        if not match:
-            continue
-        rows.append(
-            {
-                "kind": match.group(1),
-                "name": match.group(2),
-                "frames": int(match.group(3)),
-                "tsx_avg": float(match.group(4)),
-                "manual_avg": float(match.group(5)),
-                "ratio": float(match.group(6)),
-                "tsx_p95": float(match.group(7)),
-                "manual_p95": float(match.group(8)),
-                "tsx_max": float(match.group(9)),
-                "manual_max": float(match.group(10)),
-            }
-        )
-if not rows:
-    sys.exit("bench-tsx.sh: no result rows in the benchmark output")
+        if fields[0] in ("app", "scenario"):
+            kind, name, *values = fields
+            stats = dict(value.split("=", 1) for value in values if "=" in value)
+            rows.append((kind, name, stats, "noisy" in values))
+        elif fields[0] == "over-budget":
+            over_budget.add(tuple(fields[1:3]))
+        elif fields[0] == "gate:":
+            gate_line = line.strip()
+if not rows or not gate_line:
+    sys.exit("bench-tsx.sh: incomplete benchmark output")
 
 print()
 print(f"== bench-tsx: TSX-generated vs hand-written Rust frames, gate {gate:.2f}x ==")
 print(
-    f"{'row':<22} {'frames':>6}  {'tsx avg':>8} {'manual avg':>10} {'ratio':>6}"
-    f"  {'tsx p95':>8} {'manual p95':>10} {'tsx max':>8} {'manual max':>10}  verdict"
+    f"{'row':<22} {'frames':>6}  {'tsx median':>10} {'manual median':>13}"
+    f" {'paired ratio':>12} {'A/A ratio':>9} {'noise':>7}"
+    f"  {'tsx avg':>8} {'manual avg':>10} {'tsx p95':>8} {'manual p95':>10} {'tsx max':>8} {'manual max':>10}  verdict"
 )
-failures = 0
-for row in rows:
-    ok = row["ratio"] <= gate
-    if not ok:
-        failures += 1
-    # app rows are the six acceptance rows; scenario rows are indented details
-    label = row["name"] if row["kind"] == "app" else "  " + row["name"]
-    verdict = "PASS" if ok else f"FAIL (ratio > {gate:.2f}x)"
+for kind, name, stats, noisy in rows:
+    label = name if kind == "app" else "  " + name
+    # The binary compares the unrounded ratio.
+    verdict = "FAIL" if (kind, name) in over_budget else "PASS"
+    marker = " noisy" if noisy else ""
     print(
-        f"{label:<22} {row['frames']:>6}  {row['tsx_avg']:>8.3f} {row['manual_avg']:>10.3f}"
-        f" {row['ratio']:>5.2f}x  {row['tsx_p95']:>8.3f} {row['manual_p95']:>10.3f}"
-        f" {row['tsx_max']:>8.3f} {row['manual_max']:>10.3f}  {verdict}"
+        f"{label:<22} {stats['frames']:>6}  {stats['tsx_median']:>10} {stats['manual_median']:>13}"
+        f" {stats['ratio']:>11}x {stats['aa_ratio']:>8}x {stats['noise']:>7}"
+        f"  {stats['tsx_avg']:>8} {stats['manual_avg']:>10} {stats['tsx_p95']:>8} {stats['manual_p95']:>10} {stats['tsx_max']:>8}"
+        f" {stats['manual_max']:>10}  {verdict}{marker}"
     )
 
-apps = sum(1 for row in rows if row["kind"] == "app")
-scenarios = sum(1 for row in rows if row["kind"] == "scenario")
 print()
-if failures:
-    print(f"gate: FAIL — {failures} / {len(rows)} rows over {gate:.2f}x hand-written Rust")
+print(gate_line)
+if over_budget:
     print("profile a failing row with:")
     print("  ZANT_FRAME_STATS=1 scripts/tsx/bench-tsx.sh <row-prefix>")
     sys.exit(1)
-print(f"gate: PASS — {apps} apps, {scenarios} scenarios within {gate:.2f}x hand-written Rust")
 PY
 
 echo

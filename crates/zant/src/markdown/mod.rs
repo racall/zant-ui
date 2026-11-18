@@ -40,6 +40,7 @@ pub mod scan;
 pub mod stats;
 pub mod table_utils;
 pub mod theme;
+pub mod timing;
 
 pub use ast::{Block, Document, Span, Style};
 pub use cache::{Cache, Mode as CacheMode, Options as CacheOptions};

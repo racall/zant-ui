@@ -52,6 +52,7 @@
 #![forbid(unsafe_code)]
 
 mod build;
+mod resize;
 mod state;
 #[cfg(test)]
 mod tests;

@@ -10,39 +10,14 @@
 //! closures may rebuild the UI or touch the tree.
 #![forbid(unsafe_code)]
 
-use std::any::Any;
 use std::rc::Rc;
 
 use crate::core::events::{KeyEvent, Modifiers, PointerButton};
 
-/// The runtime context a callback runs in: the root application state plus,
-/// later, whatever the dispatcher needs.
-///
-/// Tests construct it from a `&mut dyn Any` root. `pub(crate)` fields
-/// (window, dispatcher, …) and extra constructors may be added without
-/// changing `new` / `state` / `Action::call`.
-pub struct ActionCx<'a> {
-    root: &'a mut dyn Any,
-}
+mod cx;
 
-impl<'a> ActionCx<'a> {
-    /// Builds the context around the current window's root state.
-    pub fn new(root: &'a mut dyn Any) -> ActionCx<'a> {
-        ActionCx { root }
-    }
-
-    /// The root application state; panics when the callback expects another
-    /// type (the state type is only known at run time, through `dyn Any`).
-    pub fn state<S: 'static>(&mut self) -> &mut S {
-        match self.root.downcast_mut::<S>() {
-            Some(state) => state,
-            None => panic!(
-                "Zant UI: action expects the root state to be `{}`, got another type",
-                std::any::type_name::<S>()
-            ),
-        }
-    }
-}
+pub use cx::ActionCx;
+pub(crate) use cx::Rebuild;
 
 thread_local! {
     /// An app callback ran since the last build: state it changed is not

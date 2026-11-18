@@ -8,13 +8,14 @@ use crate::core::events::KeyEvent;
 use crate::core::geometry::{Edges, Size};
 use crate::flex;
 use crate::theme::tokens;
-use crate::ui::actions::{Action, ActionCx, KeyAction, PointerAction, PointerInfo};
+use crate::ui::actions::{Action, ActionCx, KeyAction, PointerAction, PointerInfo, Rebuild};
 use crate::ui::builders::{column, pointer_area};
 use crate::ui::context::{current_theme, frame_string, key_bounds, wake_after};
 use crate::ui::element::Node;
 use crate::ui::options::{BoxOptions, PointerAreaOptions};
 use crate::ui::styled::{Style, styled};
 
+use super::resize::Placement;
 use super::state::Handled;
 use super::{Alignment, ListOptions, ListState, ScrollPosition};
 
@@ -50,6 +51,31 @@ fn run_bar(state: &Rc<RefCell<ListState>>, cx: &mut ActionCx<'_>, info: PointerI
     run_handled(handled, cx)
 }
 
+/// The size report of built item `index`: records its height and rebuilds the
+/// list only when the layout cannot place the change by itself (see
+/// `list/resize.rs`).
+fn item_resize_action(
+    state: &Rc<RefCell<ListState>>,
+    index: usize,
+    key: Str,
+    placement: Placement,
+) -> Action {
+    let state = Rc::clone(state);
+    Action::new(move |cx| {
+        let Some(bounds) = key_bounds(key.as_str()) else {
+            return;
+        };
+        let rebuild = state
+            .borrow_mut()
+            .item_resized(index, bounds.height, placement);
+        match rebuild {
+            Rebuild::Now => {}
+            Rebuild::NextFrame => cx.defer_rebuild(),
+            Rebuild::Skip => cx.skip_rebuild(),
+        }
+    })
+}
+
 /// The virtual list (see the module documentation).
 ///
 /// The app owns the state as `Rc<RefCell<ListState>>` and passes it here; the
@@ -67,6 +93,10 @@ pub fn list(state: &Rc<RefCell<ListState>>, options: ListOptions) -> Node {
     let mut first_index: usize = 0;
     let mut end_index: usize = 0;
     let mut content_top: f32 = 0.0;
+    let mut placement = Placement {
+        scrollbar: options.scrollbar,
+        ..Placement::default()
+    };
     let mut rows_built = false;
     let mut bar: Option<(f32, f32, u32)> = None;
     {
@@ -199,6 +229,11 @@ pub fn list(state: &Rc<RefCell<ListState>>, options: ListOptions) -> Node {
             first_index = first;
             end_index = end;
             content_top = shift + state.item_top(first) - top;
+            // following the tail: the rows hang from the bottom, so the last
+            // item growing (a streaming reply) needs no rebuild to stay in view
+            placement.bottom_anchored =
+                state.following && end == n && content_height > viewport_height + 0.5;
+            placement.shifted = shift > 0.0;
             let mut i = first;
             while i < end {
                 item_keys.push(state.item_key(i));
@@ -206,11 +241,9 @@ pub fn list(state: &Rc<RefCell<ListState>>, options: ListOptions) -> Node {
             }
             rows_built = true;
 
-            if options.scrollbar && content_height > viewport_height + 0.5 {
-                let track = viewport_height - 8.0;
-                let thumb = (track * viewport_height / content_height).max(28.0);
-                let max_top = (content_height - viewport_height).max(1.0);
-                let thumb_y = 4.0 + (track - thumb) * (top / max_top).clamp(0.0, 1.0);
+            if options.scrollbar
+                && let Some((thumb_y, thumb)) = state.thumb()
+            {
                 let color = tokens::with_alpha(
                     theme.color_text,
                     if state.bar_drag.is_some() { 0x70 } else { 0x40 },
@@ -241,20 +274,20 @@ pub fn list(state: &Rc<RefCell<ListState>>, options: ListOptions) -> Node {
         },
     ));
     if rows_built {
-        let resize_action = if options.item_height.is_none() {
-            Some(Action::new(|_cx| ()))
-        } else {
-            None
-        };
         let mut items: Vec<Node> = Vec::with_capacity(end_index - first_index);
         for i in first_index..end_index {
             let built = (options.item)(i);
+            let item_key = item_keys[i - first_index].clone();
+            let on_resize = options
+                .item_height
+                .is_none()
+                .then(|| item_resize_action(state, i, item_key.clone(), placement));
             items.push(column(BoxOptions {
-                key: Some(item_keys[i - first_index].clone()),
+                key: Some(item_key),
                 width_percent: Some(100.0),
                 align_items: flex::Align::Stretch,
                 height: options.item_height,
-                on_resize: resize_action.clone(),
+                on_resize,
                 children: vec![built],
                 ..Default::default()
             }));
@@ -278,7 +311,8 @@ pub fn list(state: &Rc<RefCell<ListState>>, options: ListOptions) -> Node {
                 absolute: Some(true),
                 left: Some(0.0),
                 right: Some(0.0),
-                top: Some(content_top),
+                top: (!placement.bottom_anchored).then_some(content_top),
+                bottom: placement.bottom_anchored.then_some(options.padding.bottom),
                 ..Default::default()
             },
         ));

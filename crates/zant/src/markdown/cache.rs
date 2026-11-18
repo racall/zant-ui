@@ -20,6 +20,7 @@ use crate::markdown::ast;
 use crate::markdown::blocks;
 use crate::markdown::parser;
 use crate::markdown::remend;
+use crate::markdown::timing::{self, Step};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum Mode {
@@ -90,11 +91,13 @@ impl Cache {
     /// Brings the cache up to date with `source`; returns the block entries
     /// (valid until the next update).
     pub fn update(&mut self, source: &str, options: Options) -> &[Entry] {
+        let started = timing::start();
         let healed: Cow<'_, str> = if options.mode == Mode::Streaming && options.parse_incomplete {
             Cow::Owned(remend::remend(source, &options.remend))
         } else {
             Cow::Borrowed(source)
         };
+        timing::finish(Step::Remend, started);
 
         let options_hash = hash::hash(1, &options.parse);
         if options_hash != self.options_hash {
@@ -103,7 +106,9 @@ impl Cache {
         }
 
         self.splitter.set_options(options.parse);
+        let started = timing::start();
         let raw_blocks = self.splitter.split(healed.as_ref());
+        timing::finish(Step::Split, started);
         // keep the common prefix and suffix; only the middle is re-parsed
         let old_len = self.entries.len();
         let mut p: usize = 0;
@@ -120,9 +125,11 @@ impl Cache {
 
         let middle_len = raw_blocks.len() - s - p;
         let mut fresh: Vec<Entry> = Vec::with_capacity(middle_len);
+        let started = timing::start();
         for raw in &raw_blocks[p..raw_blocks.len() - s] {
             fresh.push(self.create_entry(raw, options_hash, options.parse));
         }
+        timing::finish(Step::Parse, started);
 
         // changed blocks keep the identity (UI key) of the block they
         // replace, position by position, like Streamdown's index keys: the
