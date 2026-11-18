@@ -34,7 +34,6 @@
 772 crates/zant-tsx/src/codegen/list.rs
 570 crates/zant-tsx/src/codegen/loops.rs
 692 crates/zant-tsx/src/codegen/mod.rs
-1218 crates/zant-tsx/src/codegen/model.rs
 557 crates/zant-tsx/src/codegen/regexps.rs
 622 crates/zant-tsx/src/codegen/rust_imports.rs
 755 crates/zant-tsx/src/codegen/rust_text.rs
@@ -77,7 +76,6 @@
 654 crates/zant/src/markdown/remend/scan.rs
 657 crates/zant/src/markdown/render/blocks.rs
 529 crates/zant/src/markdown/scan.rs
-2061 crates/zant/src/math/layout.rs
 556 crates/zant/src/math/mhchem/regexes.rs
 656 crates/zant/src/math/symbols.rs
 639 crates/zant/src/pdf/text.rs
