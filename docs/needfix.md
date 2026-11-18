@@ -30,6 +30,17 @@
 - [ ] 39 [P2] Select / Tabs 与 antd 语义的缺口
 - [ ] 40 [P2] 文档与路线图缺少“✅ 必须有测试”的约束
 
+升级 vbox 到 v0.2.13 时发现（2026-11-18）：
+
+- [ ] 41 [P1] 热刷新的 UI 库含线程局部存储，旧版应用库卸载不掉
+- [ ] 42 [P1] 两份热刷新检查脚本已失效（mac `hot-check.py`、Windows `hot-check.ps1`）
+- [ ] 43 [P1] 跨文件的类型诊断报在错误的文件和行列
+- [ ] 44 [P2] `zant.d.ts` 导出的类型多数不能 `import type`
+- [ ] 45 [P2] 窗口运行时忙时，原生事件被静默丢弃
+- [ ] 46 [P2] 主窗口没有 `useWindowFocus`
+- [ ] 47 [P2] macOS 上大块临时内存释放后仍算在占用里，`release_unused()` 处理不了
+- [ ] 48 [P2] 自动化测试无法给 `panel` 窗口发键盘事件
+
 ---
 
 ### 10. 模板是否默认开启单实例
@@ -459,6 +470,189 @@ TSX 只有 39 个组件/原语（见 [zant.d.ts](../crates/zant-tsx/zant.d.ts)�
 - 每项标 ✅ 的能力都能在表里找到至少一个行为测试或 Node 对照探针；
 - 表里的测试名失效（改名、删除）时 CI 报错。
 
+### 41. 热刷新的 UI 库含线程局部存储，旧版应用库卸载不掉
+
+**位置**
+
+- `createStore`：[stores.rs](../crates/zant-tsx/src/codegen/stores.rs#L134) 生成 `thread_local!` + `RefCell<Store<T>>`；
+- `createWindow`：[windows/mod.rs](../crates/zant-tsx/src/codegen/windows/mod.rs#L150) 生成 `thread_local!` 的 `tsx::window::Slot`；
+- 文件级常量：[globals.rs](../crates/zant-tsx/src/codegen/globals.rs#L48) 生成 `thread_local!` 访问器。
+
+**现状**
+
+这些 `thread_local!` 都编进应用自己的 UI 库（`target/zant-hot/gen/libui-N.dylib`，`otool -l` 能看到 `__thread_vars`）。
+macOS 的 dyld 不卸载带 TLV 的镜像：每次热刷新后 `ZANT_HOT_TRACE=1` 都打出 `unloaded ui-N (still mapped)`，
+vbox 实测每次刷新常驻内存多约 4 MB（4 次从 197 MB 到 214 MB）。正式版 v0.2.12 就是这样（新建模板应用的
+`libui-1.dylib` 也有 2 个 `__thread_vars`：模板的 `SETTINGSWINDOW` 与 `PROFILE` store），不是 v0.2.13 引入的。
+只影响 `zant run` 开发会话，发布构建不受影响。
+
+**修复**
+
+- 应用状态的存放处移到框架（`zant-dylib` 只加载一次）：例如 `tsx::slots::get::<T>("模块::名字", init)`，
+  由框架持有按名字索引的表，UI 库里只有调用、没有 TLS；
+- 热刷新时这张表正好也是 store / 窗口跨代保留或重置的地方（与 `hot_save` / `hot_load` 统一）；
+- 第 42 条的检查脚本保留 `__thread` 断言。
+
+**验收**
+
+- 新建模板应用热刷新后 `otool -l libui-N.dylib` 不含 `__thread`，`ZANT_HOT_TRACE=1` 打出 `gone`；
+- 连续刷新 20 次常驻内存不随次数增长；store、`createWindow` 窗口与文件级常量的行为不变（现有测试全过）。
+
+### 42. 两份热刷新检查脚本已失效
+
+**位置**
+
+- [scripts/tsx/hot-check.py](../scripts/tsx/hot-check.py#L18)、[scripts/win/hot-check.ps1](../scripts/win/hot-check.ps1#L27)。
+
+**现状**
+
+两份脚本都先把模板的 `<Input value=` 改成 `<Input key="name" value=`、`<Text color=` 加 `key="count"`。
+模板换成英文版（`08667e9`）后输入框已经是 `<Input key="profile-name" value=…`，替换落空：mac 版在
+`click('name')` 处抛 `ValueError`，Windows 版报 `FAIL find 'name'`，并连带“输入内容保留”“输入焦点保留”失败。
+mac 版在此之前还先断言 UI 库不含 `__thread`，因为第 41 条一直失败，后面的检查一项都跑不到。
+其余检查项在 v0.2.13 上实测通过（同一宿主进程刷新、点击与滚动保留、编译错误时窗口保持、`native/*.rs` 原地刷新、
+`app.config.json` 触发重启、关窗结束会话）。
+
+**修复**
+
+- 脚本不再按源码文本替换，直接使用模板里稳定的 key（`profile-name` 等），模板改 key 时同步改脚本；
+- 把这两个脚本（或其中不依赖桌面的部分）放进 CI，模板改动后立刻发现脚本失效（与第 18 条一起做）。
+
+**验收**
+
+- 对新建模板应用，两份脚本都完整跑完并全部 PASS（`__thread` 断言在第 41 条修好后恢复为必过项）。
+
+### 43. 跨文件的类型诊断报在错误的文件和行列
+
+**现状**
+
+vbox 的 `src/actions/hud.ts` 写了 `import type { WindowPlace } from "zant"`，并在 `showHud(…, place: WindowPlace)` 里使用。
+编译器报出三条错误：`hud.ts:5:15 unknown import`（正确），另外两条是
+`src/actions/clipboard.ts:13:14` 和 `src/actions/events.ts:11:63`：“unsupported type `WindowPlace` in module ”（模块名为空）。
+这两处分别指向 `appState.update(…)` 一行和一行注释，和 `WindowPlace` 毫无关系。看起来是把 `hud.ts` 里签名的位置
+（或导入它的调用点）套到了调用方文件的源码上，模块名也是空的。
+
+**修复**
+
+- 诊断位置带上所属文件；导入函数的参数 / 返回类型解析失败时报在声明它的文件，调用方只报一条“该函数不可用”并指向调用点；
+- 错误信息里的模块名不能为空。
+
+**验收**
+
+- 双文件测试：A 导出一个签名含不支持类型的函数，B 调用它；诊断只出现在 A 的类型位置，B 的位置（如有）落在调用表达式上。
+
+### 44. `zant.d.ts` 导出的类型多数不能 `import type`
+
+**位置**
+
+- 可导入的名字是写死的列表：[generate/module.rs](../crates/zant-tsx/src/codegen/generate/module.rs#L222-L234)
+  （标签、hook、数值类型、`KeyEvent`、`Image` 等）；
+- `zant.d.ts` 还导出 `WindowPlace`、`WindowOptions`、`WindowHandle`、`TrayItem`、`TrayOptions`、`Locale`、`Theme`、`Color`、
+  `Edges`、各组件的 `XxxProps` 等。
+
+**现状**
+
+编辑器（tsc）认为 `import type { WindowPlace } from "zant"` 合法，编译器却报 `unknown import`，
+应用只能把参数退化成 `boolean` / `string` 再自己分支（vbox 的 `showHud` 就这样绕过）。
+
+**修复**
+
+- `zant.d.ts` 的每个导出类型要么能导入（字符串联合映射成对应的 Rust enum，`XxxProps` 映射到组件 props，`Theme` 已有类型），
+  要么不在 d.ts 里导出；用测试保证两边一致（d.ts 导出表 ⊆ 编译器可导入表）；
+- 第一批：`WindowPlace`、`Locale`、`Color`、`Theme`、`TrayItem`、`WindowOptions`。
+
+**验收**
+
+- `function show(at: WindowPlace) { panel.place(at, 8); }` 能编译，传错字面量是编译错误；
+- 一致性测试覆盖 d.ts 里所有 `export type` / `export interface`。
+
+### 45. 窗口运行时忙时，原生事件被静默丢弃
+
+**位置**
+
+- [runtime/host.rs](../crates/zant/src/runtime/host.rs#L42-L47)：`event()` 在 `try_borrow_mut` 失败时直接 `return false`。
+
+**现状**
+
+窗口在自己的回调里调用会同步触发系统事件的 API 时（`hide()` 触发失焦、`close()` 触发 `WindowClose` 等），
+新事件到达时运行时仍被借用，事件被丢掉。v0.2.13 已修了其中最严重的一种：`Window::close()` 自己补排释放，
+否则会泄漏整个窗口（vbox 截图遮罩每次约 400 MB）。其他事件仍会丢，例如面板在自己的 `useKeyDown` 里 `hide()`，
+它的 `useWindowFocus(false)` 就不会被调用。
+
+**修复**
+
+- 运行时忙时把事件放进该窗口的待处理队列，在当前回调返回后（或下一轮事件循环）补发；
+- 只合并可合并的事件（重复的 resize / 移动），焦点、关闭、按键不丢。
+
+**验收**
+
+- 测试：窗口在 `on_key` 里隐藏自己，随后能收到 `on_focus(false)`；在回调里关闭自己的窗口被释放（`open_count` 归零）。
+
+### 46. 主窗口没有 `useWindowFocus`
+
+**位置**
+
+- [app_hooks/table.rs](../crates/zant-tsx/src/codegen/app_hooks/table.rs#L49-L55)：`useWindowFocus` 是 `root: false`；
+- `ui::App` 没有焦点回调，主窗口的 `WindowFocus` / `WindowBlur` 在 [dispatch](../crates/zant/src/runtime/dispatch/mod.rs) 里只处理副窗口的 hooks。
+
+**现状**
+
+v0.2.13 起在根组件里写 `useWindowFocus` 会报编译错误（之前能编译，但回调从不执行）。应用常有“回到前台时刷新系统状态”
+的需求：vbox 想在用户从“系统设置”回来时刷新登录项状态、离开窗口时取消正在录制的快捷键，只能删掉这段逻辑。
+
+**修复**
+
+- `ui::App` 增加 `on_focus(&mut self, focused: bool) -> bool`（默认 false）；dispatch 对主窗口调用它；
+- `useWindowFocus` 改为 `root: true`，TSX `Shell` 转发；docs/tsx.md 表格同步。
+
+**验收**
+
+- 根组件的 `useWindowFocus` 在主窗口获得 / 失去焦点时各调用一次（运行时测试 + macOS / Windows 真机）。
+
+### 47. macOS 上大块临时内存释放后仍算在占用里，`release_unused()` 处理不了
+
+**位置**
+
+- [core/memory.rs](../crates/zant/src/core/memory.rs#L9)（v0.2.13 新增）。
+
+**现状**
+
+libmalloc 会缓存刚释放的大块（large cache），这些页仍计入 `phys_footprint`（活动监视器里的“内存”）。
+实测：分配并释放 4 × 59 MB 后占用仍是 237 MB，`malloc_zone_pressure_relief(NULL, 0)` 返回 0、毫无作用；
+用环境变量 `MallocLargeCache=0` 启动则立刻回到约 1 MB。vbox 截图（5K 屏的像素缓冲、裁剪、编码）因此在截图结束后
+仍占约 216 MB，只能在打包的 .app 里用 `macos.info_plist` 的 `LSEnvironment` 设置这个变量，`zant run` 下不生效。
+`release_unused()` 的文档写的是“把空闲内存还给系统”，对这类内存并不成立。
+
+**修复**
+
+- 框架里产生大块临时缓冲的地方（`desktop::capture_screens`、`Image::from_pixels` / 编码、PDF 栅格化）改用按页分配
+  （mmap / VirtualAlloc），释放即归还，不经过 malloc 的大块缓存；
+- 或者提供 `app.config.json` 开关，由打包流程与 `zant run` 都设置 `MallocLargeCache=0`；
+- 更正 `release_unused()` 的文档（说明对 large cache 无效），或在 macOS 上换成真正有效的实现。
+
+**验收**
+
+- 截图 / 打开大图后 5 秒内 `footprint` 回到基线附近，`zant run` 与打包后的 .app 一致。
+
+### 48. 自动化测试无法给 `panel` 窗口发键盘事件
+
+**现状**
+
+`createWindow` 的 `style: "panel"` 是不激活应用的浮窗。测试程序（从 SSH / 后台启动的二进制）不是前台应用时，
+`CGEvent.postToPid` 发出的按键既到不了面板，也到不了主窗口；点击面板只能让输入框显示光标，按键仍然到不了。
+走系统事件流（HID）又可能把按键打进用户正在用的其他应用（2026-11-16、2026-11-18 各发生过一次）。
+因此 vbox 历史面板的 ↑↓ / Enter / Esc 目前只能人工测试。`ZANT_HOT_CONTROL` 只在 `zant run` 会话里可用，并且只发给宿主主窗口。
+
+**修复**
+
+- 提供不依赖前台状态的测试输入通道：例如 `ZANT_TEST_CONTROL=<fifo>`，支持 `key <窗口 name> <键码> <修饰位>`，
+  由运行时直接派发到指定窗口（发布构建不编译）；
+- `scripts/mac/ui-scenario.swift` 增加 `windowkey <name> <key>`，通过该通道发送，绝不回退到 HID。
+
+**验收**
+
+- 能用脚本测试面板的 ↑↓ 选择、Enter 复制、Esc 关闭，全程不向其他应用发送任何输入。
+
 ## 建议执行顺序
 
 1. **诊断与检查**：15 → 16（先能一次报多个错误，再拆 check pass），之后 14。
@@ -466,6 +660,8 @@ TSX 只有 39 个组件/原语（见 [zant.d.ts](../crates/zant-tsx/zant.d.ts)�
 3. **框架 API**：19 菜单（复用内置文案 catalog）、24 主题 seed、25 PdfPreview 并入 PdfViewer。
 4. **组件**：22、39（富 Select 依赖 21，Tabs 溢出依赖 29），26 可访问性分阶段。
 5. **其余**：12（第三方控件需求出现时再做开放节点）、18、30、32、40、10。
+6. **v0.2.13 升级 vbox 时发现的**：43 → 44（先修诊断位置，再放开类型导入）；41 → 42（先去掉 UI 库的 TLS，
+   再修脚本并恢复 `__thread` 断言，进 CI）；45、46 一起做（都在窗口事件分发上）；47、48 随后。
 
 ## 验证命令
 
