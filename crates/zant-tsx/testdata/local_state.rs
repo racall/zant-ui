@@ -111,7 +111,7 @@ impl Counter {
         self._render_log = self.log.clone();
         return ui::row(ui::BoxOptions {
             gap: 8.0f32,
-            align_items: zant::layout::flex::Align::Center,
+            align_items: zant::flex::Align::Center,
             children: nodes![
                 ui::text(zant::Str::copy(& format!("{}: {} ({})", self.props.label
                 .clone(), tsx::builtins::string(self.count), tsx::builtins::string(self

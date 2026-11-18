@@ -15,6 +15,7 @@
 //!   displayed text keeps its previous value).
 #![forbid(unsafe_code)]
 
+mod buttons;
 mod view;
 
 use std::cell::RefCell;

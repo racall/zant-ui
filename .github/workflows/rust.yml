@@ -50,23 +50,47 @@ jobs:
       - name: cargo fmt
         run: cargo fmt --all -- --check
 
+      # files stay at about 500 lines; older long files may only shrink
+      - name: file sizes
+        if: runner.os == 'macOS'
+        run: ./scripts/check-file-size.sh
+
       - name: cargo clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 
       - name: cargo test
         run: cargo test --workspace
 
+      # The optional parts of `zant` (Markdown, math, PDF, SQLite, fetch)
+      # are Cargo features: the framework must build without them.
+      - name: zant without optional features
+        run: |
+          cargo check -p zant --no-default-features
+          cargo check -p zant --no-default-features --features markdown
+          cargo check -p zant --no-default-features --features pdf,db
+
       # The generated TSX tag table and zant.d.ts are checked in. They
       # are produced from the `#[derive(TsxProps)]` metadata of the `zant` crate,
       # not from a hand-maintained list, so a new option struct or builder must
       # come with a regenerated table:
-      #   cargo run -p zant-tsx --bin zant-tsx-tags -- crates/zant-tsx/src/ui_tags.rs
-      #   cargo run -p zant-tsx --bin zant-tsx-dts -- crates/zant-tsx/zant.d.ts
+      #   cargo run -p zant-tables --bin zant-tsx-tags -- crates/zant-tsx/src/ui_tags
+      #   cargo run -p zant-tables --bin zant-tsx-dts -- crates/zant-tsx/zant.d.ts
       # `--check` prints `run ...` when a file is stale; `git diff --exit-code`
       # additionally catches a file that is not tracked.
       - name: generated TSX tables are up to date
         if: runner.os == 'macOS'
         run: |
-          cargo run -p zant-tsx --bin zant-tsx-tags -- --check crates/zant-tsx/src/ui_tags.rs
-          cargo run -p zant-tsx --bin zant-tsx-dts -- --check crates/zant-tsx/zant.d.ts
-          git diff --exit-code -- crates/zant-tsx/src/ui_tags.rs crates/zant-tsx/zant.d.ts
+          cargo run -p zant-tables --bin zant-tsx-tags -- --check crates/zant-tsx/src/ui_tags
+          cargo run -p zant-tables --bin zant-tsx-dts -- --check crates/zant-tsx/zant.d.ts
+          git diff --exit-code -- crates/zant-tsx/src/ui_tags crates/zant-tsx/zant.d.ts
+
+      # TSX compiled to Rust must print what Node prints
+      # (crates/zant-tsx/tests/node_parity/*.ts; Node 22.6+ strips the types).
+      - uses: actions/setup-node@v4
+        if: runner.os == 'macOS'
+        with:
+          node-version: 22
+
+      - name: TSX output matches Node
+        if: runner.os == 'macOS'
+        run: ./scripts/tsx/node-parity.sh

@@ -67,20 +67,20 @@ impl ui::App for Layout {
             max_width: Some(1000.0f32),
             min_height: Some(100.0f32),
             max_height: Some(800.0f32),
-            direction: zant::layout::flex::Direction::Column,
+            direction: zant::flex::Direction::Column,
             gap: 10.0f32,
             row_gap: Some(4.0f32),
             column_gap: Some(6.0f32),
             justify_content: Some(
                 if self.wide {
-                    zant::layout::flex::Justify::SpaceBetween
+                    zant::flex::Justify::SpaceBetween
                 } else {
-                    zant::layout::flex::Justify::Start
+                    zant::flex::Justify::Start
                 },
             ),
-            align_items: zant::layout::flex::Align::Stretch,
-            align_content: zant::layout::flex::AlignContent::SpaceAround,
-            wrap: zant::layout::flex::Wrap::Wrap,
+            align_items: zant::flex::Align::Stretch,
+            align_content: zant::flex::AlignContent::SpaceAround,
+            wrap: zant::flex::Wrap::Wrap,
             background: Some(0xffaabbcc),
             border_color: Some(0xff123456),
             border_width: 1.0f32,
@@ -92,22 +92,21 @@ impl ui::App for Layout {
             radius: 12.0f32,
             children: nodes![
                 header.clone(), ui::row(ui::BoxOptions { grow : 2.0f32, shrink : 0.0f32,
-                basis : Some(10.0f32), align_self :
-                zant::layout::flex::AlignSelf::Center, padding : ui::inset(6.0f32),
-                margin : ui::inset(4.0f32), order : 1i32, clip : true, layout_transition
-                : true, children : nodes![ui::text(zant::Str::from("Row"),
-                ui::TextOptions { ..Default::default() })], ..Default::default() }),
-                ui::column(ui::BoxOptions { scroll : true, height : Some(100.0f32), width
-                : Some(200.0f32), justify : zant::layout::flex::Justify::End, wrap :
-                zant::layout::flex::Wrap::Nowrap, background : Some(if self.wide {
-                0xffffffff } else { 0xcc001122 }), children :
-                nodes![ui::view(ui::ViewOptions { absolute : true, top : Some(0.0f32),
-                right : Some(2.0f32), bottom : Some(4.0f32), left : Some(6.0f32),
+                basis : Some(10.0f32), align_self : zant::flex::AlignSelf::Center,
+                padding : ui::inset(6.0f32), margin : ui::inset(4.0f32), order : 1i32,
+                clip : true, layout_transition : true, children :
+                nodes![ui::text(zant::Str::from("Row"), ui::TextOptions {
                 ..Default::default() })], ..Default::default() }),
-                ui::text(zant::Str::from("Fragment expression"), ui::TextOptions {
-                ..Default::default() }), ui::view(ui::ViewOptions { padding :
-                zant::core::geometry::Edges { top : 0.0, right : 0.0, bottom : 5.0f32,
-                left : 0.0 }, ..Default::default() }), if self.wide {
+                ui::column(ui::BoxOptions { scroll : true, height : Some(100.0f32), width
+                : Some(200.0f32), justify : zant::flex::Justify::End, wrap :
+                zant::flex::Wrap::Nowrap, background : Some(if self.wide { 0xffffffff }
+                else { 0xcc001122 }), children : nodes![ui::view(ui::ViewOptions {
+                absolute : true, top : Some(0.0f32), right : Some(2.0f32), bottom :
+                Some(4.0f32), left : Some(6.0f32), ..Default::default() })],
+                ..Default::default() }), ui::text(zant::Str::from("Fragment expression"),
+                ui::TextOptions { ..Default::default() }), ui::view(ui::ViewOptions {
+                padding : zant::core::geometry::Edges { top : 0.0, right : 0.0, bottom :
+                5.0f32, left : 0.0 }, ..Default::default() }), if self.wide {
                 Some(ui::view(ui::ViewOptions { key : Some(zant::Str::from("panel")),
                 motion : zant::motion::motion::Presence::SlideUp, motion_origin :
                 zant::motion::motion::Origin::Top, children :

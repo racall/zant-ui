@@ -7,7 +7,8 @@
 
 use crate::Str;
 use crate::core::node::{ButtonSize, ImageFit};
-use crate::layout::flex;
+use crate::flex;
+use crate::i18n::builtin;
 use crate::platform::pdf;
 use crate::platform::platform::set_clipboard;
 
@@ -56,7 +57,7 @@ pub fn pdf_preview(options: PdfOptions) -> Node {
             background: Some(0xfff5_f5f5),
             radius: 4.0,
             children: vec![text(
-                "Can't preview this PDF",
+                builtin::PDF_PREVIEW_UNAVAILABLE.current(),
                 TextOptions {
                     size: 13.0,
                     color: Some(0xa600_0000),
@@ -132,7 +133,7 @@ pub fn pdf_preview(options: PdfOptions) -> Node {
             }),
             button(ButtonOptions {
                 key: Some("pdf-copy".into()),
-                text: "Copy text".into(),
+                text: builtin::PDF_PREVIEW_COPY_TEXT.current(),
                 size: ButtonSize::Small,
                 disabled: count == 0,
                 on_click: Some(copy_action),
@@ -214,6 +215,33 @@ mod tests {
         assert_eq!(message.content, "Can't preview this PDF");
         assert_eq!(message.text_style.font_size, 13.0);
         assert_eq!(message.text_style.color, 0xa600_0000);
+    }
+
+    #[test]
+    fn pdf_preview_texts_follow_the_app_locale() {
+        let texts = || {
+            let node = pdf_preview(PdfOptions {
+                src: "definitely-not-a-file.pdf".into(),
+                ..Default::default()
+            });
+            let element = node.element();
+            let toolbar = element.children[0].element();
+            let fallback = element.children[1].element();
+            (
+                toolbar.children[5].element().content.to_string(),
+                fallback.children[0].element().content.to_string(),
+            )
+        };
+        crate::i18n::builtin::testing::use_locale("zh-CN");
+        assert_eq!(
+            texts(),
+            ("复制文本".to_owned(), "无法预览此 PDF".to_owned())
+        );
+        crate::i18n::builtin::testing::use_locale("en");
+        assert_eq!(
+            texts(),
+            ("Copy text".to_owned(), "Can't preview this PDF".to_owned())
+        );
     }
 
     #[test]

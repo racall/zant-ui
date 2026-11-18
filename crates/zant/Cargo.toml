@@ -5,12 +5,20 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 description = "Native desktop UI framework for Zant"
+# Zant is used from source or the installed release, not crates.io
+# (zant-sys needs the prebuilt Skia / PDFium assets).
+publish = false
+# `DEP_ZANT_PDF` tells an app's build script (zant-build) whether to ship
+# pdfium.dll
+links = "zant"
+build = "build.rs"
 
 [dependencies]
 zant-sys.workspace = true
 zant-macros.workspace = true
+zant-base.workspace = true
 thiserror.workspace = true
-rusqlite.workspace = true
+rusqlite = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true
 regress = { workspace = true, features = ["utf16"] }
@@ -20,6 +28,18 @@ reqwest = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 
 [features]
-default = ["fetch"]
+# Everything by default, so existing apps keep building; an app that needs
+# less turns the defaults off and names what it uses:
+#   zant = { …, default-features = false, features = ["markdown"] }
+default = ["fetch", "markdown", "math", "pdf", "db"]
 # `fetch` in TSX / zant::net: reqwest on a private tokio thread
 fetch = ["dep:reqwest", "dep:tokio"]
+# `zant::markdown` and `ui::markdown` / `<Markdown>` (formulas need `math`)
+markdown = ["math"]
+# `zant::math`: LaTeX formulas and mhchem
+math = []
+# `zant::pdf`, `ui::pdf_viewer` / `<PdfViewer>` and `ui::pdf_preview` /
+# `<PdfPreview>`; on Windows the app ships pdfium.dll (see build.rs)
+pdf = []
+# `zant::db`: SQLite (bundled)
+db = ["dep:rusqlite"]

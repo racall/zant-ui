@@ -16,7 +16,7 @@
 
 use crate::Str;
 use crate::core::geometry::Edges;
-use crate::layout::flex;
+use crate::flex;
 use crate::ui::builders::{column, row, text};
 use crate::ui::context::current_theme;
 use crate::ui::element::Node;
@@ -59,11 +59,7 @@ impl Default for ShortcutListOptions {
             key: Str::Static("shortcuts"),
             groups: Vec::new(),
             columns: 2,
-            column_width: if crate::core::keys::IS_MACOS {
-                250.0
-            } else {
-                310.0
-            },
+            column_width: crate::core::keys::LABEL_COLUMN_WIDTH,
             column_gap: 40.0,
             row_height: 28.0,
             font_size: 13.0,

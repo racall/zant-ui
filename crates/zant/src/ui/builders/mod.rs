@@ -12,7 +12,7 @@
 
 use crate::Str;
 use crate::core::node::{FlexStyle, HoverVisual, MotionStyle, NodeKind, Visual};
-use crate::layout::flex;
+use crate::flex;
 use crate::motion::motion;
 use crate::renderer::text;
 
@@ -26,6 +26,7 @@ pub mod feedback;
 pub mod form;
 pub mod interaction;
 pub mod media;
+#[cfg(feature = "pdf")]
 pub mod pdf_preview;
 pub mod typography;
 
@@ -35,6 +36,7 @@ pub use feedback::{alert, avatar, progress};
 pub use form::{checkbox, input, r#switch};
 pub use interaction::{clickable, dismiss_layer, pointer_area, tooltip};
 pub use media::{icon, icon_button, image, vector};
+#[cfg(feature = "pdf")]
 pub use pdf_preview::pdf_preview;
 pub use typography::{heading, link, paragraph, rich_text, title};
 
@@ -209,7 +211,9 @@ pub fn button(options: ButtonOptions) -> Node {
         layout: FlexStyle {
             height: Some(height),
             width: options.width,
-            shrink: 0.0,
+            // antd `block` is `width: 100%`; an explicit width wins
+            width_percent: (options.block && options.width.is_none()).then_some(100.0),
+            shrink: if options.block { 1.0 } else { 0.0 },
             ..FlexStyle::default()
         },
         visual: Visual {
@@ -223,6 +227,8 @@ pub fn button(options: ButtonOptions) -> Node {
         },
         text_color: options.text_color,
         label_padding: options.label_padding,
+        danger: options.danger,
+        loading: options.loading,
         icon: options.icon,
         icon_size: options.icon_size,
         on_click: options.on_click,

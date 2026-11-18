@@ -18,7 +18,7 @@ pub mod config;
 mod entry;
 pub mod i18n;
 mod icons;
-mod png;
+pub mod png;
 #[cfg(test)]
 mod tests;
 #[cfg_attr(not(windows), allow(dead_code))]
@@ -234,14 +234,13 @@ pub fn tsx_app_in(app_root: &Path, out_dir: &Path) -> Result<BuildReport, Error>
 
     let translations = i18n::load(app_root)?;
     let index = translations.as_ref().map(i18n::AppI18n::index);
-    let generated = compile::compile_project_i18n(&files, None, index).map_err(|error| {
-        let file = &files[error.file];
-        Error::Compile(zant_tsx::error::render_diag(
-            &file.path,
-            &file.src,
-            &error.diag,
-        ))
-    })?;
+    // the app's `zant` features (its build script, `links = "zant"`): a tag
+    // of a feature that is off becomes a TSX error
+    codegen::app_state::set_framework_features(framework_features(
+        std::env::var("DEP_ZANT_FEATURES").ok().as_deref(),
+    ));
+    let generated = compile::compile_project_i18n(&files, None, index)
+        .map_err(|error| Error::Compile(error.render(&files)))?;
 
     std::fs::create_dir_all(out_dir)?;
     let mut outputs = write_modules(&files, &generated, out_dir)?;
@@ -537,4 +536,16 @@ fn project_relative(app_root: &Path, path: &str) -> String {
         .strip_prefix(app_root)
         .map(|rest| rest.to_string_lossy().into_owned())
         .unwrap_or_else(|_| path.to_owned())
+}
+
+/// `DEP_ZANT_FEATURES` (`"markdown,pdf"`) as a list; `None` when the build
+/// script cannot see it (no direct `zant` dependency): everything allowed.
+fn framework_features(value: Option<&str>) -> Option<Vec<String>> {
+    value.map(|value| {
+        value
+            .split(',')
+            .filter(|feature| !feature.is_empty())
+            .map(str::to_owned)
+            .collect()
+    })
 }

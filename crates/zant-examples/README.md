@@ -5,7 +5,7 @@ example apps live in [`tsx/`](tsx/README.md).
 
 | binary | source | what it shows |
 |---|---|---|
-| `zant-demo` | `src/bin/zant-demo.rs` | a small declarative `ui::App` |
+| `zant-demo` | `src/bin/zant-demo/` | a small declarative `ui::App` |
 | `zant-components` | `src/components_app/` + `src/bin/zant-components.rs` | the component showcase (inputs, menus, modal, list, PDF viewer, …) |
 | `zant-gallery` | `src/gallery_app/` + `src/bin/zant-gallery.rs` | the retained-mode gallery: a hand-built `core::tree::Tree` with its own event loop |
 | `zant-markdown` | `src/markdown_app.rs` + `src/bin/zant-markdown.rs` | Markdown rendering |

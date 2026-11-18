@@ -83,3 +83,99 @@ fn union_mistakes_are_reported() {
         assert!(message.contains(expected), "{src}: {message}");
     }
 }
+
+/// A component's own `function`, array callbacks, `renderItem` and promise
+/// reactions: the return-path check runs after the `switch` is generated, so
+/// covering every member is enough there too (not only in top-level functions).
+#[test]
+fn an_exhaustive_switch_needs_no_default_inside_components_and_callbacks() {
+    let component = |body: &str, view: &str| {
+        format!(
+            "import {{ useState, View, Text, Button, List }} from \"zant\";\n\
+             type Kind = \"a\" | \"b\";\n\
+             type Shape = {{ kind: \"circle\"; r: number }} | {{ kind: \"rect\"; w: number }};\n\
+             export default function App() {{\n\
+             const [k, setK] = useState<Kind>(\"a\");\n\
+             const [ks, setKs] = useState<Kind[]>([\"a\", \"b\"]);\n\
+             const [s, setS] = useState(\"\");\n\
+             {body}\n\
+             return {view};\n}}\n"
+        )
+    };
+    let cases = [
+        // a `function` declared in the component
+        component(
+            "function label(x: Kind): string { switch (x) { case \"a\": return \"A\"; case \"b\": return \"B\"; } }",
+            "<Text>{label(k)}</Text>",
+        ),
+        component(
+            "function area(x: Shape): number { switch (x.kind) { case \"circle\": return x.r; case \"rect\": return x.w; } }",
+            "<Text>{`${area({ kind: \"rect\", w: 2 })}`}</Text>",
+        ),
+        // array callbacks, with a value and with elements
+        component(
+            "const ls = ks.map((x) => { switch (x) { case \"a\": return \"A\"; case \"b\": return \"B\"; } });",
+            "<Text>{ls.join(\",\")}</Text>",
+        ),
+        component(
+            "",
+            "<View>{ks.map((x) => { switch (x) { case \"a\": return <Text key=\"a\">A</Text>; case \"b\": return <Text key=\"b\">B</Text>; } })}</View>",
+        ),
+        // `renderItem`
+        component(
+            "",
+            "<List data={ks} itemHeight={20} renderItem={(x: Kind) => { switch (x) { case \"a\": return <Text>A</Text>; case \"b\": return <Text>B</Text>; } }} />",
+        ),
+        // a promise reaction that returns a value
+        component(
+            "const go = () => { Promise.resolve(k).then((x) => { switch (x) { case \"a\": return \"A\"; case \"b\": return \"B\"; } }).then((v) => { setS(v); }); };",
+            "<Button onClick={go}>{s}</Button>",
+        ),
+    ];
+    for source in &cases {
+        if let Err(message) = compile::compile(source, "probe.tsx") {
+            panic!("{}\nsource:\n{source}", message.msg);
+        }
+    }
+    // leaving a member out still needs a default
+    let missing = [
+        (
+            component(
+                "function label(x: Kind): string { switch (x) { case \"a\": return \"A\"; } }",
+                "<Text>{label(k)}</Text>",
+            ),
+            "function must return a value on every path",
+        ),
+        (
+            component(
+                "const ls = ks.map((x) => { switch (x) { case \"a\": return \"A\"; } });",
+                "<Text>{ls.join(\",\")}</Text>",
+            ),
+            "array callback must return on every path",
+        ),
+        (
+            component(
+                "",
+                "<List data={ks} itemHeight={20} renderItem={(x: Kind) => { switch (x) { case \"a\": return <Text>A</Text>; } }} />",
+            ),
+            "renderItem must return an element on every path",
+        ),
+        (
+            component(
+                "const go = () => { Promise.resolve(k).then((x) => { switch (x) { case \"a\": return \"A\"; } }).then((v) => { setS(v); }); };",
+                "<Button onClick={go}>{s}</Button>",
+            ),
+            "this callback must return a value on every path",
+        ),
+    ];
+    for (source, expected) in &missing {
+        match compile::compile(source, "probe.tsx") {
+            Ok(_) => panic!("expected `{expected}`\nsource:\n{source}"),
+            Err(diag) => assert!(
+                diag.msg.contains(expected),
+                "{}\nsource:\n{source}",
+                diag.msg
+            ),
+        }
+    }
+}

@@ -10,7 +10,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use zant::Str;
-use zant::layout::flex;
+use zant::flex;
 use zant::ui::{self, App, BoxOptions, ButtonOptions, TextOptions, ViewOptions};
 
 fn counter_row(id: u32, odd: bool) -> ui::Node {

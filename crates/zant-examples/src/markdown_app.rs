@@ -5,7 +5,7 @@
 #![forbid(unsafe_code)]
 
 use zant::core::geometry::Edges;
-use zant::layout::flex;
+use zant::flex;
 use zant::markdown::render::options::Options as RenderOptions;
 use zant::markdown::render::view::Props as ViewProps;
 use zant::markdown::{self, cache::Cache};

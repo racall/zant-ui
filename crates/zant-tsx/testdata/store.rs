@@ -195,7 +195,7 @@ impl FontSize {
         let size: u32 = (|s: Settings| { s.clone().fontSize })(settings_read());
         return ui::row(ui::BoxOptions {
             gap: 8.0f32,
-            align_items: zant::layout::flex::Align::Center,
+            align_items: zant::flex::Align::Center,
             children: nodes![
                 ui::button(ui::ButtonOptions { key : Some(zant::Str::from("smaller")),
                 text : zant::Str::from("A-"), on_click : Some(ui::Action::new({ let

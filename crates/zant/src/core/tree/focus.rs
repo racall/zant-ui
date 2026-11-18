@@ -122,6 +122,58 @@ impl Tree {
         wanted(node).then_some(id)
     }
 
+    /// The focus scopes shown, outermost first: the topmost scope and the
+    /// scopes around it.
+    pub fn focus_scope_chain(&self) -> Vec<NodeId> {
+        let mut chain = Vec::new();
+        let mut current = self.active_focus_scope(self.root);
+        while let Some(id) = current {
+            chain.push(id);
+            current = self.nodes[id as usize]
+                .parent
+                .and_then(|parent| self.enclosing_scope(parent));
+        }
+        chain.reverse();
+        chain
+    }
+
+    fn enclosing_scope(&self, mut id: NodeId) -> Option<NodeId> {
+        loop {
+            let node = &self.nodes[id as usize];
+            if node.visual.focus_scope && node.in_flow() {
+                return Some(id);
+            }
+            id = node.parent?;
+        }
+    }
+
+    /// Whether `id` is `ancestor` or inside it.
+    pub fn is_inside(&self, mut id: NodeId, ancestor: NodeId) -> bool {
+        loop {
+            if id == ancestor {
+                return true;
+            }
+            match self.nodes[id as usize].parent {
+                Some(parent) => id = parent,
+                None => return false,
+            }
+        }
+    }
+
+    /// Whether `id` and all its ancestors are laid out (not exiting).
+    pub fn in_flow_path(&self, mut id: NodeId) -> bool {
+        loop {
+            let node = &self.nodes[id as usize];
+            if !node.alive || !node.in_flow() {
+                return false;
+            }
+            match node.parent {
+                Some(parent) => id = parent,
+                None => return true,
+            }
+        }
+    }
+
     /// The topmost (last painted) focus scope shown, if any.
     fn active_focus_scope(&self, id: NodeId) -> Option<NodeId> {
         let node = &self.nodes[id as usize];

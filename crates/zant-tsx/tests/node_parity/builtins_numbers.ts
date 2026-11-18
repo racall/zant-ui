@@ -16,6 +16,10 @@ export function run(): void {
   console.log("extrema-nan", Math.min(1, NaN, -1), Math.max(NaN, Infinity));
   console.log("pow", Math.pow(NaN, 0), Math.pow(1, Infinity), Math.pow(-1, Infinity), Math.pow(-0, -3));
   console.log("roots", String(Math.sqrt(-0)), 1 / Math.sqrt(-0), Math.sqrt(-1), Math.cbrt(-8));
+  const spread: number[] = [3, -7, 0.5, 4];
+  const none: number[] = [];
+  console.log("spread-extrema", Math.max(...spread), Math.min(...spread), Math.max(...none), Math.min(...none), Math.max(10, ...spread), Math.min(...spread, -10, ...none));
+  console.log("spread-hypot", Math.hypot(...[3, 4]), Math.hypot(...none), Math.max(...[1, NaN]));
   console.log("hypot", Math.hypot(3, 4), Math.hypot(Infinity, NaN), Math.hypot(NaN, Infinity));
   console.log("logs", Math.exp(0), Math.log(1), Math.log2(8), Math.log10(1000), Math.log(0), Math.log(-1));
   console.log("trig", Math.sin(0), Math.cos(0), Math.tan(0), Math.atan(Infinity), Math.atan2(-0, -0));

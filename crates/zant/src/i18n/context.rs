@@ -51,6 +51,10 @@ fn preference_file(setup: &Setup) -> Option<PathBuf> {
     if !setup.remember || setup.app_id.is_empty() {
         return None;
     }
+    #[cfg(test)]
+    if let Some(dir) = tests::DATA_DIR.with(|dir| dir.borrow().clone()) {
+        return Some(dir.join(&setup.app_id).join("locale"));
+    }
     Some(crate::core::paths::app_data_dir(&setup.app_id)?.join("locale"))
 }
 
@@ -379,22 +383,48 @@ mod tests {
         assert_ne!(hash(), english);
     }
 
+    thread_local! {
+        /// Where this thread's tests keep the saved locale instead of the
+        /// user's application data directory (which may be read-only, e.g.
+        /// in a sandbox, and must not collect test files).
+        pub(super) static DATA_DIR: std::cell::RefCell<Option<std::path::PathBuf>> =
+            const { std::cell::RefCell::new(None) };
+    }
+
+    /// A fresh directory under the system temp dir, removed on drop.
+    struct TempDataDir(std::path::PathBuf);
+
+    impl TempDataDir {
+        fn new(name: &str) -> TempDataDir {
+            let dir = std::env::temp_dir().join(format!("{name}-{}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&dir);
+            std::fs::create_dir_all(&dir).unwrap();
+            DATA_DIR.with(|slot| *slot.borrow_mut() = Some(dir.clone()));
+            TempDataDir(dir)
+        }
+    }
+
+    impl Drop for TempDataDir {
+        fn drop(&mut self) {
+            DATA_DIR.with(|slot| *slot.borrow_mut() = None);
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
     #[test]
     fn a_remembered_choice_is_read_on_the_first_install() {
-        let app_id = format!("zant-i18n-test-{}", std::process::id());
+        let data = TempDataDir::new("zant-i18n-test");
         let setup = Setup {
             remember: true,
-            app_id: app_id.clone(),
+            app_id: "dev.zant.i18n-test".to_owned(),
         };
-        let Some(file) = preference_file(&setup) else {
-            return; // no data directory on this machine
-        };
+        let file = preference_file(&setup).expect("a preference file");
+        assert!(file.starts_with(&data.0), "{}", file.display());
         std::fs::create_dir_all(file.parent().unwrap()).unwrap();
         std::fs::write(&file, "zh-CN\n").unwrap();
         install_with(&DESCRIPTION, setup.clone(), system(&["en"]));
         assert_eq!(&*locale(), "zh-CN");
         assert!(set_locale_with("en", system(&["en"])));
         assert_eq!(std::fs::read_to_string(&file).unwrap(), "en");
-        std::fs::remove_dir_all(file.parent().unwrap()).unwrap();
     }
 }

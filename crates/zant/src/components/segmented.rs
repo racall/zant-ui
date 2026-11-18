@@ -9,7 +9,7 @@
 use crate::Str;
 use crate::core::geometry::Edges;
 use crate::core::node::{ButtonType, Icon};
-use crate::layout::flex;
+use crate::flex;
 use crate::motion::easing::Easing;
 use crate::motion::motion;
 use crate::ui::actions::IndexAction;

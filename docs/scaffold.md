@@ -118,10 +118,10 @@ zant.d.ts / tsconfig.json   import … from "zant" 的类型与补全
 
 ```toml
 [dependencies]
-zant = { git = "https://github.com/racall/zant-ui", tag = "v0.2.11" }
+zant = { git = "https://github.com/racall/zant-ui", tag = "v0.2.12" }
 
 [build-dependencies]
-zant-build = { git = "https://github.com/racall/zant-ui", tag = "v0.2.11" }
+zant-build = { git = "https://github.com/racall/zant-ui", tag = "v0.2.12" }
 ```
 
 git 依赖只含源码，`zant-sys` / `zant-build` 的构建脚本从已安装的发布版
@@ -133,6 +133,28 @@ git 依赖只含源码，`zant-sys` / `zant-build` 的构建脚本从已安装�
 项目和 Zant UI 不在同一个盘时（Windows）用目录联接 `.zant/zant-ui` 引用 Zant UI。
 模板带一个示例原生模块 `native/system`（平台、CPU 核数、Rust 版本）。
 `zant.d.ts` 由框架的标签表生成（`zant-tsx-dts`），`zant create` 复制到项目里。
+
+### 可选功能（Cargo features）
+
+`zant` 的文档类能力是 Cargo feature，默认全部开启，现有项目不用改：
+
+| feature | 内容 |
+|---|---|
+| `markdown` | `<Markdown>` / `zant::markdown`（含 `math`） |
+| `math` | LaTeX 公式与 mhchem（`zant::math`） |
+| `pdf` | `<PdfViewer>` / `<PdfPreview>` / `zant::pdf`；Windows 上随应用发布 `pdfium.dll` |
+| `db` | SQLite（`zant::db`） |
+| `fetch` | TSX 的 `fetch` 与 `zant::net` |
+
+只用基础界面的应用可以在 `Cargo.toml` 里关掉默认 feature、只开需要的部分，编译更快、产物更小，
+Windows 上也不需要 `pdfium.dll`：
+
+```toml
+zant = { …, default-features = false, features = ["markdown"] }
+```
+
+TSX 用到没开启的部分时（例如写了 `<Markdown>` 却没开 `markdown`），编译器在该行报错并提示要开的 feature。
+`zant run` 的热刷新加载的是完整框架（`zant-dylib`），开发时这些功能始终可用；以 `zant run --no-hot` 或 `zant build` 验证裁剪后的构建。
 
 ## 运行
 

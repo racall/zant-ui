@@ -10,7 +10,7 @@ use std::rc::Rc;
 use crate::Str;
 use crate::core::node::{
     ButtonIcon, ButtonSize, ButtonType, FlexStyle, HoverVisual, ImageFit, MotionStyle, NodeKind,
-    PointerArea, RichSpan, ToggleKind, Visual,
+    PointerArea, ResizeStep, RichSpan, ToggleKind, Visual,
 };
 use crate::core::vector::DrawingRef;
 use crate::image::Image;
@@ -76,10 +76,15 @@ pub struct Element {
     pub password: bool,
     pub multiline: bool,
     pub focus_ring: bool,
+    /// Takes the keyboard focus when the node is created (`autoFocus`).
+    pub auto_focus: bool,
     pub text_color: Option<u32>,
     /// Buttons: the label / icon colour the hover and press states fade to.
     pub hover_text_color: Option<u32>,
     pub label_padding: f32,
+    /// Buttons: antd `danger` / `loading`.
+    pub danger: bool,
+    pub loading: bool,
     pub icon: ButtonIcon,
     pub icon_size: f32,
     pub on_click: Option<Action>,
@@ -123,6 +128,8 @@ pub struct Element {
     pub cursor: Option<Cursor>,
     /// Container size changes (`BoxOptions::on_resize`).
     pub on_resize: Option<Action>,
+    /// How coarse `on_resize` reports are (`None`: every change).
+    pub resize_step: Option<ResizeStep>,
     /// Container hover look (`BoxOptions::hover_*`).
     pub hover_visual: Option<HoverVisual>,
     /// Image already decoded in memory (`ImageOptions::image`); the node
@@ -156,9 +163,12 @@ impl Default for Element {
             password: false,
             multiline: false,
             focus_ring: true,
+            auto_focus: false,
             text_color: None,
             hover_text_color: None,
             label_padding: 0.0,
+            danger: false,
+            loading: false,
             icon: ButtonIcon::None,
             icon_size: 18.0,
             on_click: None,
@@ -188,6 +198,7 @@ impl Default for Element {
             key_action: None,
             cursor: None,
             on_resize: None,
+            resize_step: None,
             hover_visual: None,
             image_handle: None,
             image_id: 0,

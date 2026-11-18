@@ -195,7 +195,7 @@ impl TodoRow {
     pub fn render(&mut self) -> ui::Node {
         return ui::row(ui::BoxOptions {
             gap: 8.0f32,
-            align_items: zant::layout::flex::Align::Center,
+            align_items: zant::flex::Align::Center,
             children: nodes![
                 ui::checkbox(ui::ToggleOptions { key : Some(zant::Str::copy(&
                 format!("check-{}", tsx::builtins::string(self.props.todo.clone().id)))),

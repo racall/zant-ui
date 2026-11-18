@@ -173,6 +173,49 @@ pub mod main_window {
         }
     }
 
+    /// `mainWindow.setTitle(title)`.
+    pub fn set_title(title: &str) {
+        if let Some(window) = crate::desktop::main_window() {
+            window.set_title(title);
+        }
+    }
+
+    /// `mainWindow.setSize(width, height)`: the content size in points.
+    pub fn set_size(width: f64, height: f64) {
+        if let Some(window) = crate::desktop::main_window() {
+            window.set_size(width as f32, height as f32);
+        }
+    }
+
+    pub fn set_min_size(width: f64, height: f64) {
+        if let Some(window) = crate::desktop::main_window() {
+            window.set_min_size(width as f32, height as f32);
+        }
+    }
+
+    /// 0 in a dimension leaves it unlimited.
+    pub fn set_max_size(width: f64, height: f64) {
+        if let Some(window) = crate::desktop::main_window() {
+            window.set_max_size(width as f32, height as f32);
+        }
+    }
+
+    pub fn set_always_on_top(on: bool) {
+        if let Some(window) = crate::desktop::main_window() {
+            window.set_always_on_top(on);
+        }
+    }
+
+    pub fn set_fullscreen(on: bool) {
+        if let Some(window) = crate::desktop::main_window() {
+            window.set_fullscreen(on);
+        }
+    }
+
+    pub fn fullscreen() -> bool {
+        crate::desktop::main_window().is_some_and(|window| window.is_fullscreen())
+    }
+
     pub fn visible() -> bool {
         crate::desktop::main_window().is_some_and(|window| window.is_visible())
     }

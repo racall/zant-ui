@@ -7,12 +7,27 @@
 # SHA-256 over this whole list, headers included, in this order. Adding,
 # removing, reordering or editing any entry invalidates a prebuilt archive, and
 # build.rs falls back to compiling from source (with a warning).
-crates/zant-sys/native/skia/skia_bridge.cpp
+crates/zant-sys/native/skia/skia_bridge_renderer.cpp
+crates/zant-sys/native/skia/skia_bridge_canvas.cpp
+crates/zant-sys/native/skia/skia_bridge_image.cpp
+crates/zant-sys/native/skia/skia_bridge_text.cpp
+crates/zant-sys/native/skia/skia_bridge_text_geometry.cpp
 crates/zant-sys/native/skia/skia_bridge.h
 crates/zant-sys/native/skia/skia_bridge_internal.h
+crates/zant-sys/native/skia/skia_bridge_text_internal.h
 crates/zant-sys/native/skia/skia_bridge_win.cpp
-crates/zant-sys/native/platform/windows/pdf_win.cpp
-crates/zant-sys/native/platform/windows/window.c
+crates/zant-sys/native/platform/windows/pdf_win_preview.cpp
+crates/zant-sys/native/platform/windows/pdf_win_document.cpp
+crates/zant-sys/native/platform/windows/pdf_win_internal.h
+crates/zant-sys/native/platform/windows/app.c
+crates/zant-sys/native/platform/windows/clipboard.c
+crates/zant-sys/native/platform/windows/desktop_services.c
+crates/zant-sys/native/platform/windows/window_events.c
+crates/zant-sys/native/platform/windows/window_geometry.c
+crates/zant-sys/native/platform/windows/window_ime.c
+crates/zant-sys/native/platform/windows/window_lifecycle.c
+crates/zant-sys/native/platform/windows/window_render.c
 crates/zant-sys/native/platform/windows/capture.c
+crates/zant-sys/native/platform/windows/window_internal.h
 crates/zant-sys/native/platform/platform.h
 crates/zant-sys/native/platform/pdf.h

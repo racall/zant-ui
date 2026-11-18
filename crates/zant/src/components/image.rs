@@ -312,7 +312,7 @@ mod tests {
         let theme = ant_light();
         let mut tree = Tree::init(theme);
         let root = tree.root;
-        tree.get_mut(root).style.direction = crate::layout::flex::Direction::Row;
+        tree.get_mut(root).style.direction = crate::flex::Direction::Row;
         let id = tree.add_image(Some(root), "missing.png", ImageFit::Fill, 0.0);
         let data = image_data_mut(tree.get_mut(id));
         data.handle = Some(Rc::new(red_image(40, 20)));
@@ -349,7 +349,7 @@ mod tests {
 
     #[test]
     fn fit_codes_match_the_native_image_bridge() {
-        // skia_bridge.cpp: cover = 0, contain = 1, fill = anything else
+        // skia_bridge_image.cpp: cover = 0, contain = 1, fill = anything else
         assert_eq!(ImageFit::Cover as i32, 0);
         assert_eq!(ImageFit::Contain as i32, 1);
         assert_eq!(ImageFit::Fill as i32, 2);

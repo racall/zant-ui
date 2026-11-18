@@ -208,7 +208,7 @@ export default function App() {
 - 元组 `[string, number]`（含具名元素）：数组字面量按元组上下文构造、`p[0]` 字面量下标、`.length`、`const [a, b] = pair` 与 `for (const [k, v] of …)` 解构；不支持可选 / rest 元素。
 - 对象字面量无需注解即可推断（`const p = { x: 1, y: 2 }`，同形状共享一个结构体）；对象按结构赋值（TS 结构类型：有目标所需全部字段即可传入，多余字段丢弃、缺省的可选字段为 `null`）。
 - 对象支持字面量、`{ ...todo, done: true }`、成员、`?.`、`??`、带类型的解构（`const { title: label } = item`）；可选值上的方法用 `?.` 调用，结果仍是可选值（`title?.trim() ?? "未命名"`、`{tags?.map(t => <Text>{t}</Text>)}`）；状态可存数组 / 对象，字符串与集合可跨帧保存并廉价克隆。
-- 类型：`interface` / `type`、字符串联合、`readonly T[]` / `ReadonlyArray<T>`、`as const`、`as`、`satisfies`（按目标类型检查、不做转换）、`interface B extends A, C` 与交叉类型 `A & { .. }`（合并为一个结构体；同名字段类型必须一致，任一侧必选则必选）、泛型类型 `interface Box<T>` / `type Pair<A, B = A> = {…}`（生成一个 Rust 泛型结构体，各文件同一实例即同一类型；默认类型参数、`T extends {…}` 约束按 TS 检查）与泛型别名 `type Maybe<T> = T | null`（使用处代入）、泛型函数 `function first<T>(xs: T[]): T | null`（顶层 `function` 或 `const f = <T,>(…) =>`；按调用的类型参数单态化为具体 Rust 函数，类型参数可显式 `first<number>(…)` 或从实参推断，支持默认值与 `extends` 约束；泛型组件 / 自定义 hook 与跨文件调用泛型函数暂不支持）、`!`；`enum` / `const enum`（字符串 enum 即字符串字面量联合，数字 enum 即 `number`，按 tsc 自增；成员在读取处内联；不支持混合 enum、计算成员与反向映射 `E[0]`）；覆盖字符串联合全部成员的 `switch` 无需 `default`。`function` 声明支持 rest 参数 `...items: T[]`（调用处多余实参与 `...arr` 展开合成数组）。有返回值的函数是值（`(x: number) => number` 即 `Rc<dyn Fn(f64) -> f64>`）：可存进变量 / 字段 / 数组、作参数与返回值、调用（`f(x)`、`op.run(x)`、`make(1)(2)`），普通函数名可直接当值；箭头函数在创建时复制它读取的局部变量、state 与 props（与 React 每次渲染的闭包一致），读取之后会变的 `let` 会报错。无返回值的函数类型仍是界面回调。
+- 类型：`interface` / `type`、字符串联合、`readonly T[]` / `ReadonlyArray<T>`、`as const`、`as`、`satisfies`（按目标类型检查、不做转换）、`interface B extends A, C` 与交叉类型 `A & { .. }`（合并为一个结构体；同名字段类型必须一致，任一侧必选则必选）、泛型类型 `interface Box<T>` / `type Pair<A, B = A> = {…}`（生成一个 Rust 泛型结构体；只在声明它的文件里使用，从其他文件导入泛型类型暂不支持；默认类型参数、`T extends {…}` 约束按 TS 检查）与泛型别名 `type Maybe<T> = T | null`（使用处代入）、泛型函数 `function first<T>(xs: T[]): T | null`（顶层 `function` 或 `const f = <T,>(…) =>`；按调用的类型参数单态化为具体 Rust 函数，类型参数可显式 `first<number>(…)` 或从实参推断（含对象字面量实参 `id({ a: 1 })`；空数组 `first([])` 推断不出，需显式写），支持默认值与 `extends` 约束；泛型组件 / 自定义 hook 与跨文件调用泛型函数暂不支持）、`!`；`enum` / `const enum`（字符串 enum 即字符串字面量联合，数字 enum 即 `number`，按 tsc 自增；成员在读取处内联；不支持混合 enum、计算成员与反向映射 `E[0]`）；覆盖字符串联合全部成员的 `switch` 无需 `default`。`function` 声明支持 rest 参数 `...items: T[]`（调用处多余实参与 `...arr` 展开合成数组）；`...arr` 实参只能填 rest 参数，以及 `push` / `unshift` / `splice` 与 `Math.max` / `Math.min` / `Math.hypot`（空数组分别得到 `-Infinity` / `Infinity` / `0`），不能展开到固定参数。有返回值的函数是值（`(x: number) => number` 即 `Rc<dyn Fn(f64) -> f64>`）：可存进变量 / 字段 / 数组、作参数与返回值、调用（`f(x)`、`op.run(x)`、`make(1)(2)`），普通函数名可直接当值；箭头函数在创建时复制它读取的局部变量、state 与 props（与 React 每次渲染的闭包一致），读取之后会变的 `let` 会报错。无返回值的函数类型仍是界面回调。
 - JSON：`JSON.stringify(value, null?, indent?)` 的输出与 Node 逐字节一致（字段顺序、整数键在前、数字格式、转义、缩进；`x?: T` 缺省时省略，`T | null` 写 `null`，`NaN` / `Infinity` 写 `null`）。`JSON.parse(text)` 按上下文类型解码（同 Swift `Codable` / serde）：`JSON.parse(text) as Settings`、`const s: Settings = JSON.parse(text)`、参数或返回值位置；结构体、字符串联合、联合类型（可辨识联合按判别字段）、数组、元组、`Record`、可选值都可读写。非法 JSON 抛 `SyntaxError`（解析用 `serde_json`，消息为其措辞；`1e400`、孤立代理项 `"\uD800"`、超过 128 层的嵌套会被拒绝，JS 分别得到 Infinity / 原字符 / 正常解析），形状不符抛 `TypeError`（JS 会得到一个与类型不符的对象，这里在读入时就报出）。`Map` / `Set`（JS 写成 `{}`）、函数字段、replacer / reviver 参数是编译错误，并给出改法。全局 `NaN`、`Infinity` 与 `Number.NaN / POSITIVE_INFINITY / NEGATIVE_INFINITY / MAX_VALUE / MIN_VALUE / MIN_SAFE_INTEGER` 可用。
 - 异常：`throw`、`try { } catch (e) { } finally { }`（`catch` 可不写绑定）。做法同 Swift 的 `throws`：编译器推断哪些函数会让异常逃出（跨文件；递归本身不算抛出），它们返回 `Result`，调用处向上传递或交给外层 `try`；`finally` 按 ECMAScript 的完成记录执行，`return` / `break` / `continue` 穿过它时先执行 `finally`，`finally` 自己的 `return` / `throw` 覆盖原结果。可抛出 `new Error("…")`（及 `TypeError` / `RangeError` / `SyntaxError` 等，`new` 可省）、字符串、数字、布尔；`catch (e)` 的 `e` 是 `unknown`：`e instanceof Error` 后可读 `e.message` / `e.name`，`typeof e === "string"` 收窄为字符串，`String(e)` / `` `${e}` `` 显示任何值，`throw e` 原样重新抛出。事件处理、effect、定时器里没被捕获的异常打印为 `Uncaught …`，应用继续运行（同浏览器）；组件渲染时、作为值传递的函数（数组回调、函数值）里的异常须在原处 `try` / `catch`，否则编译报错。运行结果与 Node 的对照见 `scripts/tsx/node-parity.sh`。
 - 真假值同 JavaScript：`false`、`""`、`0`、`NaN`、`null` / `undefined` 为假，其余（对象、数组，包括空数组）为真；可直接写 `if (name)`、`!count`、`disabled={!title}`、`name || "未命名"`（返回值本身，不是布尔）、`user && user.name`（左边可选时结果可选）。JSX 里 `{count && <X/>}` 在 0 时不渲染（React 会渲染出 0，这里避开了这个常见坑）。联合类型做条件需写明比较（`typeof x === "string"`）。
@@ -339,11 +339,11 @@ return <View><Markdown streaming caret="block"># 回复</Markdown>
 | 组件 | 属性与行为 |
 |---|---|
 | Markdown | source 或文字子节点二选一；streaming 配合默认开启的 parseIncomplete 修复未完成语法，复用块缓存；caret=none/block/circle（只在 streaming 显示） |
-| Markdown 选项 | fontSize/contentWidth/lineNumbers/codeMaxHeight、codeCopy/codeDownload、tableCopy/tableDownload、mermaidCopy/mermaidDownload、onLink/baseDir/selectable/singleDollarMath/latexDelimiters |
+| Markdown 选项 | fontSize/contentWidth/lineNumbers/codeMaxHeight、codeCopy/codeDownload、tableCopy/tableDownload、mermaidCopy/mermaidDownload、onLink/baseDir/selectable/singleDollarMath/latexDelimiters、labels（文案对象，各项可选） |
 | PdfViewer | src 必填，空串显示提示，无子节点；src/password 改变重新打开，否则保留滚动 / 缩放 / 选择 / 搜索 / 批注；失败不逐帧重试，页面在后台分块渲染 |
-| PDF 选项 | toolbar/annotationTools/selectionMenu/pageGap/padding/background、onLink/onChange/onAnnotation、width/height/grow（指定 height 默认不伸长）、emptyText/loadingText/errorText |
+| PDF 选项 | toolbar/annotationTools/selectionMenu/pageGap/padding/background、onLink/onChange/onAnnotation、width/height/grow（指定 height 默认不伸长）、emptyText/loadingText/errorText、labels（工具栏文案对象，各项可选） |
 
-组件随主题切换；实例缓存卸载即释放，多文档互不影响，列表中给稳定 key。复杂 Markdown 扩展 / PDF labels 可从 Rust 传入；见 [Markdown](components/markdown.md)、[PDF](components/pdf.md)。
+组件随主题切换；实例缓存卸载即释放，多文档互不影响，列表中给稳定 key。内置文案默认跟随应用语言（[i18n](i18n.md#框架内置文案)）；复杂 Markdown 扩展可从 Rust 传入；见 [Markdown](components/markdown.md)、[PDF](components/pdf.md)。
 
 ## 应用 hooks
 
@@ -409,7 +409,8 @@ return <View paddingLeft={insets.left} paddingRight={insets.right}>
 | app.launchedAtLogin/deviceName/downloadsDir/dataDir | boolean / string / string 或 null / string 或 null（按 bundle_id） |
 | app.quit | 直接退出，不再询问关闭 / 退出 hook |
 | mainWindow.show/hide/activate/focus(key) | 显示 / 隐藏 / 激活 / 聚焦带 key 控件 |
-| mainWindow.visible/active/minimized | boolean |
+| mainWindow.visible/active/minimized/fullscreen | boolean |
+| mainWindow.setTitle(title) / setSize(w, h) / setMinSize / setMaxSize / setAlwaysOnTop(on) / setFullscreen(on) | 改标题、内容区尺寸（点）、尺寸上下限（最大值 0 表示不限）、置顶、全屏，见[桌面集成](desktop.md) |
 | t / useLocale / setLocale / locales / localeName | 多语言：`t("键", { 参数 })` 按 `locales/*.json` 在编译期检查，见 [i18n](i18n.md) |
 | keyLabel/shortcutLabel | 平台快捷键文字；keyLabel 参数须字面量（mod+f → ⌘F / Ctrl+F），shortcutLabel 无效时为 "" |
 | titlebarInsets / isMacos / isWindows | 渲染时读 `{ left, right }` / 平台布尔常量 |
@@ -483,7 +484,7 @@ useEffect(() => {
 - `async function`、`async () => …` 都可以写在组件里、effect 里（React 文档的 `async function fetchData() { … } fetchData();` 写法）、事件属性里（`onClick={async () => { … }}`）。
 - 编译时改写成 `.then` 链（同 TypeScript 降级到 ES5 的做法）：`await` 之后的语句成为前一个 Promise 的回调，`try / catch / finally` 对应 `.catch` / `.finally`，`await` 的 Promise 失败就进 `catch`。`await` 之间对局部变量的赋值按顺序生效。
 - 声明了返回类型 `Promise<T>` 的 async 函数返回它的 Promise，可以被另一个 async 函数 `await`（`return res.json()` 按 `T` 解码）；没写返回类型的 async 函数只负责启动，返回 nothing。
-- 暂不支持：`if` / 循环 / `switch` 里的 `await`、`&& || ?? ?:` 右侧的 `await`、`catch` / `finally` 块里的 `await`、手写 `new Promise((resolve) => …)`。编译时报错并指出位置；把这部分写成单独的 async 函数或先 `const x = await …`。
+- 暂不支持：`if` / 循环 / `switch` 里的 `await`、`&& || ?? ?:` 右侧的 `await`、`catch` / `finally` 块里的 `await`、含 `await` 的 `try` 里写 `return` 而 `try` 后面还有语句、手写 `new Promise((resolve) => …)`。编译时报错并指出位置；把这部分写成单独的 async 函数或先 `const x = await …`。
 - effect 和事件里定义的函数（async 或普通）会编译成组件方法，读取的局部变量在定义时复制（同 React 闭包）；参数需写类型。
 
 ### 多窗口：`createWindow`
@@ -500,7 +501,7 @@ export default function App() { return <View><Button onClick={() => panel.toggle
 
 - 首次使用时创建，初始隐藏，之后窗口与状态保留；任一窗口动作重建所有窗口，共享数据用 store。窗口组件的关闭 / 按键 / 焦点 hook 作用于该窗口。
 - createWindow 接受无 props 的窗口组件；选项：title、style（native/hidden-titlebar/borderless/panel）、width/height/minWidth/minHeight、background、resizable、alwaysOnTop、movableByBackground、center、titlebarHeight。
-- 句柄：show/hide/toggle/activate/visible/active/minimized/focus；`place("center"|"topLeft"|"topRight"|"bottomLeft"|"bottomRight"|"trayCorner"|"pointer", margin?)` 定位，trayCorner 靠托盘，pointer 在鼠标旁（放不下时翻到另一侧，不出工作区；快捷键打开的浮窗）。详见[桌面集成](desktop.md)。
+- 句柄：show/hide/toggle/activate/visible/active/minimized/fullscreen/focus，setTitle/setSize/setMinSize/setMaxSize/setAlwaysOnTop/setFullscreen（同 mainWindow）；`place("center"|"topLeft"|"topRight"|"bottomLeft"|"bottomRight"|"trayCorner"|"pointer", margin?)` 定位，trayCorner 靠托盘，pointer 在鼠标旁（放不下时翻到另一侧，不出工作区；快捷键打开的浮窗）。详见[桌面集成](desktop.md)。
 
 ### 资源文件
 

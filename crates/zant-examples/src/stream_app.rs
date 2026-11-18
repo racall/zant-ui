@@ -25,7 +25,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
 use zant::Str;
-use zant::layout::flex;
+use zant::flex;
 use zant::markdown::cache::{Cache, Mode};
 use zant::markdown::parser::Options as ParseOptions;
 use zant::markdown::render::options::{Caret, Options as RenderOptions};

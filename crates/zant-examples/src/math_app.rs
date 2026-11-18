@@ -7,7 +7,7 @@
 //! centred full-width row.
 #![forbid(unsafe_code)]
 
-use zant::layout::flex;
+use zant::flex;
 use zant::math::block;
 use zant::math::layout::Options as LayoutOptions;
 use zant::platform::platform::WindowOptions;

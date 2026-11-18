@@ -4,8 +4,9 @@
 //! Frame timing: prints one `[frames]` line per second (frames drawn, slowest
 //! frame and its phases, longest gap between frames, resize latency) and one
 //! `[slow-frame]` line for frames over half the 60 Hz budget. The
-//! `ZANT_LAYOUT_FILE` writer dumps `key\tx\ty\twidth\theight` of every keyed
-//! in-flow node after each frame so automation can find controls.
+//! `ZANT_LAYOUT_FILE` dump lists `key\tx\ty\twidth\theight` of every keyed
+//! in-flow node after each frame so automation can find controls (written by
+//! `runtime/layout_file.rs` off the UI thread).
 #![forbid(unsafe_code)]
 
 use crate::core::tree::Tree;
@@ -46,8 +47,13 @@ pub struct FrameStats {
     resize_frames: u32,
     pending_resize: i64,
     max_resize_latency_us: i64,
+    /// Size changes the window reported this second (`window_resize`).
+    resize_events: u32,
     /// Phases of the frame being drawn (for the slow-frame line).
     cur_phase_us: [i64; 3],
+    /// App rebuilds and layout passes of the frame being drawn.
+    cur_rebuilds: u32,
+    cur_layouts: u32,
 }
 
 impl FrameStats {
@@ -69,8 +75,19 @@ impl FrameStats {
         self.max_phase_us[index] = self.max_phase_us[index].max(us);
     }
 
+    /// The current frame rebuilt the app once more.
+    pub fn rebuilt(&mut self) {
+        self.cur_rebuilds += 1;
+    }
+
+    /// The current frame laid the tree out once more.
+    pub fn laid_out(&mut self) {
+        self.cur_layouts += 1;
+    }
+
     /// A window resize was requested (`window_resize` event).
     pub fn resize_requested(&mut self, now_us: i64) {
+        self.resize_events += 1;
         if self.pending_resize == 0 {
             self.pending_resize = now_us;
         }
@@ -104,26 +121,38 @@ impl FrameStats {
         self.max_frame_us = self.max_frame_us.max(end - start);
         // frames over half the 60 Hz budget, one line each
         let (text_layouts, text_us) = crate::renderer::text::LAYOUT_STATS.take();
+        let [remend_us, split_us, parse_us] = markdown_us();
         if end - start > 8_000 {
+            // `other`: the untimed rest of the frame (animation tick, view
+            // state, commands, focus scopes, the layout file)
+            let timed: i64 = self.cur_phase_us.iter().sum();
             eprintln!(
-                "[slow-frame{}] ms={:.2} rebuild={:.2} layout={:.2} paint={:.2} text_layouts={} text_ms={:.2}",
+                "[slow-frame{}] ms={:.2} rebuild={:.2} layout={:.2} paint={:.2} other={:.2} rebuilds={} layouts={} text_layouts={} text_ms={:.2} md_ms={:.2}/{:.2}/{:.2}",
                 self.label,
                 Self::ms(end - start),
                 Self::ms(self.cur_phase_us[0]),
                 Self::ms(self.cur_phase_us[1]),
                 Self::ms(self.cur_phase_us[2]),
+                Self::ms(end - start - timed),
+                self.cur_rebuilds,
+                self.cur_layouts,
                 text_layouts,
                 Self::ms(text_us),
+                Self::ms(remend_us),
+                Self::ms(split_us),
+                Self::ms(parse_us),
             );
         }
         self.cur_phase_us = [0; 3];
+        self.cur_rebuilds = 0;
+        self.cur_layouts = 0;
         let elapsed = end - self.window_start;
         if elapsed < 1_000_000 {
             return;
         }
         let fps = f64::from(self.frames) * 1_000_000.0 / elapsed as f64;
         eprintln!(
-            "[frames{}] fps={:.1} max_frame_ms={:.2} (rebuild={:.2} layout={:.2} paint={:.2}) max_gap_ms={:.2} resize_frames={} max_resize_latency_ms={:.2} size={:.0}x{:.0}",
+            "[frames{}] fps={:.1} max_frame_ms={:.2} (rebuild={:.2} layout={:.2} paint={:.2}) max_gap_ms={:.2} resize_frames={} max_resize_latency_ms={:.2} size={:.0}x{:.0} resize_events={}",
             self.label,
             fps,
             Self::ms(self.max_frame_us),
@@ -135,6 +164,7 @@ impl FrameStats {
             Self::ms(self.max_resize_latency_us),
             width,
             height,
+            self.resize_events,
         );
         let label = self.label;
         let pending_resize = self.pending_resize;
@@ -144,6 +174,19 @@ impl FrameStats {
             pending_resize,
             ..FrameStats::default()
         };
+    }
+}
+
+/// Microseconds of the Markdown pipeline (remend, split, parse) since the
+/// last frame.
+fn markdown_us() -> [i64; 3] {
+    #[cfg(feature = "markdown")]
+    {
+        crate::markdown::timing::take()
+    }
+    #[cfg(not(feature = "markdown"))]
+    {
+        [0; 3]
     }
 }
 
@@ -166,13 +209,6 @@ pub fn layout_file_contents(tree: &Tree) -> String {
         ));
     }
     out
-}
-
-/// Dumps the boxes of all keyed nodes (UI automation).
-/// Write errors are ignored.
-pub fn write_layout_file(tree: &Tree, path: &str) {
-    let contents = layout_file_contents(tree);
-    let _ = crate::platform::dialog::write_file(path, contents.as_bytes());
 }
 
 #[cfg(test)]
@@ -255,13 +291,6 @@ mod tests {
         assert!(!contents.contains("hidden"), "invisible nodes are skipped");
         assert!(!contents.contains("unkeyed"));
         let _ = unkeyed;
-        // the writer itself goes through the platform file helper
-        let path = std::env::temp_dir().join("zant-wp14-layout.txt");
-        let path = path.to_string_lossy().into_owned();
-        write_layout_file(&tree, &path);
-        let written =
-            std::fs::read_to_string(&path).expect("ZANT_LAYOUT_FILE exists after the frame");
-        assert_eq!(written, contents);
-        let _ = std::fs::remove_file(&path);
+        // writing the file: runtime/layout_file.rs (background writer)
     }
 }

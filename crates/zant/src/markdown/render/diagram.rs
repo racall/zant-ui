@@ -6,7 +6,7 @@ use std::rc::Rc;
 use crate::Str;
 use crate::core::geometry::Edges;
 use crate::core::vector::Drawing;
-use crate::layout::flex;
+use crate::flex;
 use crate::markdown::ast;
 use crate::markdown::mermaid;
 use crate::markdown::render::actions::{Copy, Download};

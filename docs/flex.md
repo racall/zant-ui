@@ -30,7 +30,7 @@ export default function App() {
 
 百分比取 0–100。横向多项的百分比宽度还需给 gap 留空间；不要用三个 33% 再加间距。
 固定高度控件默认不收缩；长文本用 `Paragraph`。Rust 对应用 `ui::BoxOptions` 与 `ui::Style`
-的 snake_case 字段，Flex 枚举位于 `zant::layout::flex`。
+的 snake_case 字段，Flex 枚举位于 `zant::flex`。
 
 ## 绝对定位
 

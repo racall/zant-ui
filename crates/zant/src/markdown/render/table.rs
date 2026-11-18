@@ -3,7 +3,7 @@
 
 use crate::Str;
 use crate::core::geometry::Edges;
-use crate::layout::flex;
+use crate::flex;
 use crate::markdown::ast;
 use crate::markdown::render::actions::{Copy, Download};
 use crate::markdown::render::context::Ctx;

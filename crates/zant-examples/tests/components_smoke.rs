@@ -285,7 +285,7 @@ impl zant::ui::App for PdfHost {
     fn render(&mut self) -> zant::ui::Node {
         zant::ui::column(BoxOptions {
             grow: 1.0,
-            align_items: zant::layout::flex::Align::Stretch,
+            align_items: zant::flex::Align::Stretch,
             padding: zant::ui::inset(8.0),
             children: vec![pdf_viewer(
                 0x77,

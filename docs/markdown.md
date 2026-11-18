@@ -34,7 +34,7 @@ export function Reply({ reply, busy }: Props) {
 | `source` | 文本；也可传字符串子节点 |
 | `streaming` / `parseIncomplete` | false / true；流式模式与未闭合语法修复 |
 | `caret` | none；另有 block / circle，流式时显示 |
-| `fontSize` / `contentWidth` | 16 / 680；正文大小与公式、图表适配宽度 |
+| `fontSize` / `contentWidth` | 16 / 0；正文大小；公式、图片、图表的最大宽度（0 跟随实际宽度，正数也不超过实际宽度） |
 | `lineNumbers` / `codeMaxHeight` | true / 400；代码限高，0 为不限高 |
 | `codeCopy` / `codeDownload` | 均为 true；表格、Mermaid 有同名 table / mermaid 前缀选项 |
 | `singleDollarMath` / `latexDelimiters` | true / false |
@@ -84,7 +84,7 @@ fn preview(cache: &mut markdown::Cache, source: &str) -> ui::Node {
 |---|---|
 | `RenderOptions.image_loader` | 快速查图片缓存；后台加载解码后 `ui::post_wake()` |
 | `RenderOptions.block_renderers` | 按围栏语言自定义块；`BlockInfo` 提供 lang/meta/code/complete/key，返回 None 回退代码 |
-| `RenderOptions.policy` / `labels` | URL 安全策略 / 文案（`markdown::Labels::zh()`） |
+| `RenderOptions.policy` / `labels` | URL 安全策略 / 文案（默认跟随应用语言；`markdown::Labels::for_locale("zh-CN")`） |
 | `markdown::link_safety_modal` | 应用接管链接后显示确认框；不会自动弹出 |
 | `heading_key` / `block_key_at_offset` | 缓存中的标题 / 源码位置映射到 key，配合 `ui::scroll_into_view` |
 | `markdown::html::to_html` | HTML 导出；独立页面公式使用 KaTeX auto-render，原始 HTML 块转义 |

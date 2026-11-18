@@ -374,7 +374,7 @@ mod tests {
         canvas.clear(0xffff_ffff);
         let mut tree = Tree::init(ant_light());
         let root = tree.root;
-        tree.get_mut(root).style.direction = crate::layout::flex::Direction::Row;
+        tree.get_mut(root).style.direction = crate::flex::Direction::Row;
         tree.add_button(
             Some(root),
             "Save",
@@ -406,7 +406,7 @@ mod tests {
                 width: Some(50.0),
                 height: Some(50.0),
                 scroll: true,
-                direction: crate::layout::flex::Direction::Column,
+                direction: crate::flex::Direction::Column,
                 ..Default::default()
             },
         );
@@ -434,7 +434,7 @@ mod tests {
         let theme = ant_light();
         let mut tree = Tree::init(theme);
         let root = tree.root;
-        tree.get_mut(root).style.direction = crate::layout::flex::Direction::Row;
+        tree.get_mut(root).style.direction = crate::flex::Direction::Row;
         let spans = [RichSpan {
             text: Str::from("Hello rich text"),
             font_size: 16.0,

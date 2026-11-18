@@ -95,7 +95,7 @@ impl ui::App for Counter {
         return ui::view(ui::ViewOptions {
             padding: ui::inset(24.0f32),
             gap: 14.0f32,
-            align_items: zant::layout::flex::Align::Start,
+            align_items: zant::flex::Align::Start,
             children: nodes![
                 ui::text(zant::Str::copy(& format!("Hello, {}!", self.name.clone())),
                 ui::TextOptions { key : Some(zant::Str::from("title")), size : if self
@@ -109,7 +109,7 @@ impl ui::App for Counter {
                 placeholder : zant::Str::from("Your name"), width : Some(240.0f32),
                 on_change : Some(ui::text_action(| s : & mut Counter, v : & str | s
                 ._set_name(v))), ..Default::default() }), ui::row(ui::BoxOptions { gap :
-                8.0f32, align_items : zant::layout::flex::Align::Center, children :
+                8.0f32, align_items : zant::flex::Align::Center, children :
                 nodes![ui::button(ui::ButtonOptions { key : Some(zant::Str::from("inc")),
                 text : zant::Str::copy(& format!("+{}", tsx::builtins::string(self
                 .step))), variant : zant::core::node::ButtonType::Primary, on_click :

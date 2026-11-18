@@ -22,3 +22,4 @@ target/
 # PDFs used for manual tests; only the fixture is tracked
 *.pdf
 !tests/fixtures/widgets.pdf
+.zant-sync-manifest

@@ -5,6 +5,9 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 description = "Build-script helpers for Zant applications (replaces addTsxApp / configureApp)"
+# Zant is used from source or the installed release, not crates.io
+# (zant-sys needs the prebuilt Skia / PDFium assets).
+publish = false
 
 [dependencies]
 zant-tsx.workspace = true

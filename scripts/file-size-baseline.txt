@@ -1,0 +1,11 @@
+# Files over 500 lines that predate scripts/check-file-size.sh, with their
+# line count when recorded. They may only shrink; split them into modules.
+544 crates/zant-base/src/hash.rs
+519 crates/zant-build/src/config.rs
+551 crates/zant-build/src/lib.rs
+505 crates/zant-cli/src/main.rs
+649 crates/zant-examples/src/bin/zant_bench/bench_app.rs
+576 crates/zant-examples/src/gallery_app/gallery.rs
+622 crates/zant-examples/src/stream_app.rs
+599 crates/zant-sys/build.rs
+531 crates/zant-sys/prebuilt.rs

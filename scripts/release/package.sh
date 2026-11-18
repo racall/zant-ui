@@ -89,15 +89,19 @@ if [ "${ZANT_DRY_RUN:-0}" = 1 ]; then
   # The archive must contain the Rust workspace and the native sources /
   # headers crates/zant-sys compiles. A file that is not committed would be
   # silently missing from `git archive`, so fail instead.
+  sources_file="crates/zant-sys/prebuilt/sources-macos.txt"
   for want in Cargo.toml Cargo.lock rust-toolchain.toml \
     crates/zant/Cargo.toml crates/zant-sys/Cargo.toml crates/zant-cli/Cargo.toml \
-    crates/zant-sys/native/platform/platform.h \
-    crates/zant-sys/native/skia/skia_bridge.h \
-    crates/zant-sys/native/skia/skia_bridge.cpp scripts/fetch_skia.sh \
-    crates/zant-sys/prebuilt/sources-macos.txt crates/zant-sys/prebuilt.rs; do
+    scripts/fetch_skia.sh "$sources_file" crates/zant-sys/prebuilt.rs; do
     printf '%s\n' "$tracked" | grep -Fqx "$want" ||
       die "the archive would miss $want (is it committed?)"
   done
+  native_sources="$(git show "HEAD:$sources_file" |
+    sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e '/^#/d' -e '/^$/d')"
+  while IFS= read -r want; do
+    printf '%s\n' "$tracked" | grep -Fqx "$want" ||
+      die "the archive would miss $want (is it committed?)"
+  done <<< "$native_sources"
   grep -Eq '^[[:space:]]*name[[:space:]]*=[[:space:]]*"zant"' crates/zant-cli/Cargo.toml ||
     die "crates/zant-cli/Cargo.toml has no [[bin]] name = \"zant\""
   if command -v "$CARGO" >/dev/null 2>&1; then

@@ -11,7 +11,7 @@
 use crate::Str;
 use crate::core::geometry::Edges;
 use crate::core::node::Icon;
-use crate::layout::flex;
+use crate::flex;
 use crate::motion::motion;
 use crate::ui::builders::{icon, row, text};
 use crate::ui::context::current_theme;

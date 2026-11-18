@@ -21,7 +21,7 @@
 use crate::Str;
 use crate::core::geometry::Edges;
 use crate::core::node::Icon;
-use crate::layout::flex;
+use crate::flex;
 use crate::motion::motion;
 use crate::renderer::text::Weight;
 use crate::ui::actions::Action;

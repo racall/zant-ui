@@ -127,6 +127,16 @@ pub mod zant_api;
 
 use crate::ast;
 
+mod extensions;
+mod generator;
+mod records;
+#[cfg(test)]
+mod tests;
+
+pub use self::extensions::*;
+pub use self::generator::*;
+pub use self::records::*;
+
 pub type Diag = crate::error::Diag;
 
 /// A code generation failure. The message lives in [`Diag`].
@@ -161,455 +171,6 @@ pub fn contextualize(g: &mut Generator<'_>, prefix: &str) -> Result<()> {
     Ok(())
 }
 
-/// A top-level `const` that is not a component.
-#[derive(Clone, Debug)]
-pub struct Constant {
-    pub name: String,
-    pub value: types::Value,
-}
-
-/// `interface` / `type` alias already resolved.
-#[derive(Clone, Debug)]
-pub struct TypeAlias {
-    pub name: String,
-    pub ty: types::Type,
-}
-
-/// A resolved structured type, keyed by the AST detail of its `TypeRef`.
-///
-/// The key is the detail value, not its address: the AST owns its nodes and
-/// the code generator clones functions (`functions::signature`,
-/// `expr::call_value`, `components::collect`), which allocates fresh detail
-/// boxes with the same source location; an address cache would then either
-/// miss (duplicate anonymous structs with different `Type`s) or, worse, hit a
-/// recycled address (a wrong type).
-#[derive(Clone, Debug)]
-pub struct ResolvedType {
-    pub detail: ast::TypeDetail,
-    pub ty: types::Type,
-}
-
-/// `useState` or `useRef` (read and written through `.current`).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum StateKind {
-    #[default]
-    State,
-    Ref,
-}
-
-/// A `useState` field of the component being generated.
-#[derive(Clone, Debug)]
-pub struct State {
-    pub name: String,
-    /// Empty for a ref.
-    pub setter: String,
-    pub ty: types::Type,
-    pub initial: String,
-    pub kind: StateKind,
-}
-
-/// A typed binding of the enclosing render, kept while a captured handler
-/// method is emitted (see `captures`); a snapshot of the enclosing `Context`.
-#[derive(Clone, Debug)]
-pub struct ScopeEntry {
-    pub name: String,
-    pub ty: types::Type,
-    pub code: String,
-}
-
-/// A render local captured by a handler method: its name, the field that
-/// carries it, its type and the expression it is read from.
-#[derive(Clone, Debug, Default)]
-pub struct Capture {
-    pub name: String,
-    pub field: String,
-    pub ty: types::Type,
-    pub source: String,
-}
-
-/// An arrow function registered as a method.
-#[derive(Clone, Debug)]
-pub struct Method {
-    pub name: String,
-    pub func: Option<Box<ast::Function>>,
-    pub action: Option<tags_kind::Kind>,
-    pub setter: Option<usize>,
-    pub ret: types::Type,
-    pub user: bool,
-    pub capture_name: Option<String>,
-    pub captures: Vec<Capture>,
-    pub emitted: Option<String>,
-    /// Passed as a child component's callback prop: the parameter types of
-    /// that prop (unannotated arrow params take them; missing ones become `_`).
-    pub callback_params: Option<Vec<types::Type>>,
-    /// An effect with a cleanup (`return () => …` stores the cleanup there).
-    pub effect_field: Option<String>,
-    /// An effect's cleanup function (runs later; can't read props).
-    pub cleanup: bool,
-    /// A component function that reads render locals: not a method of its
-    /// own, emitted like an inline arrow wherever it is passed.
-    pub inline_only: bool,
-    /// A promise reaction (`.then(v => …)`): returns `Result<ret, Thrown>`
-    /// (a throw rejects the next promise); an expression body's type is
-    /// inferred into `ret` (`promises`).
-    pub promise_callback: bool,
-    /// A function declared inside a handler or effect (`async function
-    /// load() { … }` in `useEffect`): a method with captures, called in
-    /// place (`local_functions`).
-    pub local_function: bool,
-}
-
-impl Default for Method {
-    fn default() -> Self {
-        Method {
-            name: String::new(),
-            func: None,
-            action: None,
-            setter: None,
-            ret: types::Type::Void,
-            user: false,
-            capture_name: None,
-            captures: Vec::new(),
-            emitted: None,
-            callback_params: None,
-            effect_field: None,
-            cleanup: false,
-            inline_only: false,
-            promise_callback: false,
-            local_function: false,
-        }
-    }
-}
-
-/// `tags::Kind` lives in [`crate::tags`]; re-exported under a short name for
-/// the signatures in this module.
-pub mod tags_kind {
-    pub use crate::tags::Kind;
-}
-
-/// The enclosing render context of an inline method (`captures.nested`).
-#[derive(Clone, Debug, Default)]
-pub struct NestedCall {
-    pub receiver: String,
-    pub target: String,
-}
-
-// ── extension points ──────────────────────────────────────────────────
-
-/// `components::try_call`, `imports::try_call`, `stores::try_call`,
-/// `windows::try_call` (the first dispatch chain of `expr::call_value`).
-pub type TryCall = fn(
-    &mut Generator<'_>,
-    &mut scope::Context,
-    ast::Loc,
-    &ast::Call,
-) -> Result<Option<types::Value>>;
-
-/// `jsx::emit`.
-pub type EmitJsx = fn(&mut Generator<'_>, &mut scope::Context, &ast::Jsx) -> Result<types::Value>;
-
-/// `captures::read` / `zant_api::read` / `components::read_prop`.
-pub type ReadName =
-    fn(&mut Generator<'_>, &mut scope::Context, &str) -> Result<Option<types::Value>>;
-pub type ReadNameAt =
-    fn(&mut Generator<'_>, &mut scope::Context, &str, ast::Loc) -> Result<Option<types::Value>>;
-pub type ReadProp = fn(&mut Generator<'_>, &str) -> Result<Option<types::Value>>;
-
-/// `hooks::ref_read` / `hooks::ref_write`.
-pub type ReadRef =
-    fn(&mut Generator<'_>, &mut scope::Context, &ast::Member) -> Result<Option<types::Value>>;
-pub type WriteRef =
-    fn(&mut Generator<'_>, &mut scope::Context, &ast::Expr) -> Result<Option<String>>;
-
-/// `hooks::bare_ref`.
-pub type BareRef = fn(&mut Generator<'_>, usize, ast::Loc) -> Result<types::Value>;
-
-/// A hook call in statement position (`app_hooks`, `desktop_hooks`,
-/// `hooks::effect`), or a hook declaration (`useMemo`, `useStore`, desktop
-/// hooks).
-pub type HookStatement =
-    fn(&mut Generator<'_>, &mut scope::Context, &ast::Expr, bool) -> Result<String>;
-pub type HookDeclaration =
-    fn(&mut Generator<'_>, &mut scope::Context, ast::Loc, &ast::Decl, bool) -> Result<String>;
-
-/// `hooks::cleanup_return` (a `return () => …` inside an effect).
-pub type CleanupReturn = fn(&mut Generator<'_>, &mut scope::Context, &ast::Expr) -> Result<String>;
-
-/// `events::method_param_type`.
-pub type MethodParam = fn(&mut Generator<'_>, &Method, usize, &ast::Param) -> Result<types::Type>;
-
-/// `captures::nested`.
-pub type Nested =
-    fn(&mut Generator<'_>, &mut scope::Context, ast::Loc, usize) -> Result<NestedCall>;
-
-/// `app_hooks::key_event_type` / `jsx::image_type`.
-pub type TypeHook = fn(&mut Generator<'_>) -> Result<types::Type>;
-
-/// `events::scan_body` (register the handlers of a body before emitting it).
-pub type ScanBody = fn(&mut Generator<'_>, &ast::Body) -> Result<()>;
-
-/// `events::scan_expr` (register the handlers of an expression before it is
-/// emitted).
-pub type ScanExpr = fn(&mut Generator<'_>, &ast::Expr) -> Result<()>;
-
-/// `events::emit_setter` (the adapter method reused by every setter action).
-pub type EmitSetter = fn(&mut Generator<'_>, &Method) -> Result<String>;
-
-/// `events::forward_arrow` (`fn` passed as a handler, wrapped as an arrow).
-pub type ForwardArrow = fn(&mut Generator<'_>, &ast::Expr, usize) -> Result<Box<ast::Expr>>;
-
-/// `events::parameter_type` (an event / callback parameter's type).
-pub type ParameterType =
-    fn(&mut Generator<'_>, &ast::Param, Option<tags_kind::Kind>) -> Result<types::Type>;
-
-/// `components::callback_type` (the default [`model`] implementation returns
-/// `Rc<dyn Fn(..)>`; `components` maps UI event signatures to `ui::Action`).
-pub type CallbackType = fn(&mut Generator<'_>, ast::Loc, &ast::FuncType) -> Result<types::Type>;
-
-/// `imports::named` / `rust_imports::named` / `imports::external_name`.
-pub type NamedType = fn(&mut Generator<'_>, &str) -> Result<Option<types::Type>>;
-pub type ExternalName = fn(&mut Generator<'_>, &str) -> Result<Option<String>>;
-
-/// `array_methods::emit`.
-pub type ArrayMethod = fn(
-    &mut Generator<'_>,
-    &mut scope::Context,
-    ast::Loc,
-    &ast::Call,
-    Option<types::Type>,
-) -> Result<types::Value>;
-
-/// `imports::process`: resolves relative imports.
-pub type ProcessImports = fn(&mut Generator<'_>, &ast::Module) -> Result<()>;
-
-/// `windows::collect`: the `createWindow` declarations of the file.
-pub type CollectWindows = fn(&mut Generator<'_>, &ast::Module) -> Result<String>;
-
-/// `app_hooks::lifecycle`: the `impl ui::App` lifecycle methods.
-pub type AppLifecycle = fn(&mut Generator<'_>) -> Result<String>;
-
-/// `windows::is_create`: a constant built by `createWindow`.
-pub type IsWindowConst = fn(&ast::Expr) -> bool;
-
-/// Hook points filled in by the other code generation modules. Everything
-/// here has an inert default, so the core is testable on its own.
-#[derive(Clone)]
-pub struct Extensions {
-    /// `hooks::extra_hook` (custom hooks from `hooks/`).
-    pub extra_hook: fn(&str) -> bool,
-    /// `app_hooks::is_app_hook`.
-    pub is_app_hook: fn(&str) -> bool,
-    /// `desktop_hooks::is_hook`.
-    pub is_desktop_hook: fn(&str) -> bool,
-    /// Whether a child component's prop shadows a global (`components`).
-    pub component_shadow: fn(&Generator<'_>, &str) -> bool,
-    /// `imports::process`.
-    pub process_imports: Option<ProcessImports>,
-    /// `windows::collect`.
-    pub collect_windows: Option<CollectWindows>,
-    /// `app_hooks::lifecycle`.
-    pub app_lifecycle: Option<AppLifecycle>,
-    /// `windows::is_create`.
-    pub is_window_const: Option<IsWindowConst>,
-    pub call_before_functions: Vec<TryCall>,
-    pub call_before_builtins: Vec<TryCall>,
-    pub array_methods: Option<ArrayMethod>,
-    pub hooks: Hooks,
-}
-
-impl Default for Extensions {
-    fn default() -> Self {
-        Extensions {
-            extra_hook: |_| false,
-            is_app_hook: |_| false,
-            is_desktop_hook: |_| false,
-            component_shadow: |_, _| false,
-            process_imports: None,
-            collect_windows: None,
-            app_lifecycle: None,
-            is_window_const: None,
-            call_before_functions: Vec::new(),
-            call_before_builtins: Vec::new(),
-            array_methods: None,
-            hooks: Hooks::default(),
-        }
-    }
-}
-
-/// Optional hooks; `None` until the owning module installs it.
-#[derive(Clone, Default)]
-pub struct Hooks {
-    pub emit_jsx: Option<EmitJsx>,
-    pub captures_read: Option<ReadName>,
-    pub components_read_prop: Option<ReadProp>,
-    pub zant_api_read: Option<ReadNameAt>,
-    pub ref_read: Option<ReadRef>,
-    pub ref_write: Option<WriteRef>,
-    pub bare_ref: Option<BareRef>,
-    pub hook_statement: Option<HookStatement>,
-    pub hook_declaration: Option<HookDeclaration>,
-    pub cleanup_return: Option<CleanupReturn>,
-    pub method_param: Option<MethodParam>,
-    /// Handler scanning of a render body / event arrow (`events`).
-    pub scan_body: Option<ScanBody>,
-    /// Handler scanning of a single expression (`events`).
-    pub scan_expr: Option<ScanExpr>,
-    /// Setter adapter methods (`events::emit_setter`).
-    pub emit_setter: Option<EmitSetter>,
-    /// `fn` handlers wrapped as arrows (`events::forward_arrow`).
-    pub forward_arrow: Option<ForwardArrow>,
-    /// An event / callback parameter's type (`events::parameter_type`).
-    pub parameter_type: Option<ParameterType>,
-    pub nested: Option<Nested>,
-    pub key_event_type: Option<TypeHook>,
-    pub image_type: Option<TypeHook>,
-    pub callback_type: Option<CallbackType>,
-    pub imported_type: Option<NamedType>,
-    pub rust_type: Option<NamedType>,
-    pub external_name: Option<ExternalName>,
-}
-
-/// State shared by the whole module: type declarations, constants and import
-/// aliases, plus per-component state.
-pub struct Generator<'a> {
-    pub diag: &'a mut Option<Diag>,
-    pub name: String,
-    pub states: Vec<State>,
-    pub methods: Vec<Method>,
-    pub render_names: Vec<String>,
-    pub hook_names: Vec<String>,
-    pub type_aliases: Vec<TypeAlias>,
-    pub module_names: [String; 4],
-    pub counter: usize,
-    pub managed_strings: bool,
-    pub compounds: Vec<model::Info>,
-    pub type_decls: Vec<ast::TypeDecl>,
-    /// React bindings used for qualified element type annotations.
-    pub react_imports: Vec<ast::Import>,
-    pub resolving: Vec<bool>,
-    pub resolved_types: Vec<ResolvedType>,
-    /// Type parameters bound while a generic declaration is instantiated
-    /// (`generic_types`): innermost last.
-    pub type_env: Vec<(Vec<u8>, types::Type)>,
-    /// Instantiated generic types (`Box<number>`), by declaration and arguments.
-    pub generic_instances: Vec<generic_types::Instance>,
-    /// `enum` declarations of this file (`enums`).
-    pub enums: Vec<ast::EnumDecl>,
-    /// Top-level constants of this file, for `typeof name` in types.
-    pub const_decls: Vec<ast::TopConst>,
-    /// Generic function templates of this file (`generic_functions`).
-    pub generic_functions: Vec<generic_functions::Template>,
-    /// How many of `functions` were emitted (`functions::emit_all`).
-    pub emitted_functions: usize,
-    /// The project's throwing functions (`throws`) and this file's stem,
-    /// the key it is analyzed under.
-    pub throwing: throws::Throwing,
-    pub module_stem: String,
-    pub constants: Vec<Constant>,
-    /// Plain functions of this file and imported ones (`functions`).
-    pub functions: Vec<functions::Function>,
-    /// Handler expressions registered before emission (`events`).
-    pub events: Vec<events::Event>,
-    /// `<List>` elements of the component being generated (`list`).
-    pub lists: Vec<list::ListInfo>,
-    /// Key-less instance ids handed out to stateful child tags (`stateful`).
-    pub child_sites: usize,
-    /// How many scrolling containers enclose the element being generated.
-    pub scroll_depth: usize,
-    /// How many loops enclose the element being generated (keys, callbacks).
-    pub loop_depth: usize,
-    /// Extra lines of the file header.
-    pub header: String,
-    /// Child components of the module, and the one being generated
-    /// (`components`; `None` while generating the root component).
-    pub components: Vec<components::Component>,
-    pub current_component: Option<usize>,
-    /// Whether emission of the current component has read its props.
-    pub component_props_read: bool,
-    /// Inline arrows passed to a child component's callback props.
-    pub callback_events: Vec<components::CallbackEvent>,
-    /// `useMemo` caches and `useEffect` dependency lists of the current
-    /// component (fields next to its state), and its effects.
-    pub hook_fields: Vec<hooks::Field>,
-    pub effects: Vec<hooks::Effect>,
-    pub cleanups: Vec<hooks::Cleanup>,
-    /// Stores declared in or imported into this file (`stores`).
-    pub stores: Vec<stores::Store>,
-    /// The enclosing render's typed bindings while a captured method is
-    /// emitted (`captures`).
-    pub capture_scope: Option<Vec<ScopeEntry>>,
-    /// Generating a child component: its state lives outside `self`.
-    pub child_component: bool,
-    /// Whether imported type declarations are being resolved.
-    pub type_scope: bool,
-    /// Names of stores, windows and child components: they shadow locals
-    /// like the module-level declarations of `scope::global_name`.
-    pub extra_globals: Vec<String>,
-    /// A local `Weak<RefCell<Component>>` that generated actions must capture
-    /// instead of `self._state`: `<List>` row closures cannot borrow `self`
-    /// (the closures outlive the `&mut self` build). Set by `list.rs`.
-    pub handler_state: Option<String>,
-    pub extensions: Extensions,
-}
-
-impl<'a> Generator<'a> {
-    pub fn new(diag: &'a mut Option<Diag>) -> Self {
-        *diag = None;
-        Generator {
-            diag,
-            name: String::new(),
-            states: Vec::new(),
-            methods: Vec::new(),
-            render_names: Vec::new(),
-            hook_names: Vec::new(),
-            type_aliases: Vec::new(),
-            module_names: [
-                "std".to_owned(),
-                "zant".to_owned(),
-                "ui".to_owned(),
-                "tsx".to_owned(),
-            ],
-            counter: 0,
-            managed_strings: false,
-            compounds: Vec::new(),
-            type_decls: Vec::new(),
-            react_imports: Vec::new(),
-            resolving: Vec::new(),
-            resolved_types: Vec::new(),
-            type_env: Vec::new(),
-            generic_instances: Vec::new(),
-            enums: Vec::new(),
-            const_decls: Vec::new(),
-            generic_functions: Vec::new(),
-            emitted_functions: 0,
-            throwing: throws::Throwing::default(),
-            module_stem: String::new(),
-            constants: Vec::new(),
-            functions: Vec::new(),
-            events: Vec::new(),
-            lists: Vec::new(),
-            child_sites: 0,
-            scroll_depth: 0,
-            loop_depth: 0,
-            header: String::new(),
-            components: Vec::new(),
-            current_component: None,
-            component_props_read: false,
-            callback_events: Vec::new(),
-            hook_fields: Vec::new(),
-            effects: Vec::new(),
-            cleanups: Vec::new(),
-            stores: Vec::new(),
-            capture_scope: None,
-            child_component: false,
-            type_scope: false,
-            extra_globals: Vec::new(),
-            handler_state: None,
-            extensions: Extensions::default(),
-        }
-    }
-}
-
 /// `useState`, a custom hook, a store hook or an app / desktop hook.
 pub fn hook_name(g: &Generator<'_>, n: &str) -> bool {
     if n == "useState" || (g.extensions.extra_hook)(n) || n == "useStore" {
@@ -632,18 +193,42 @@ pub fn hook(g: &Generator<'_>, e: &ast::Expr) -> bool {
     }
 }
 
-/// Validate generated Rust with `syn::parse_file` and format it with
-/// `prettyplease`. A parse failure panics with the generated source: it is a
-/// compiler bug, never a user error. [`generate`] calls this once on the
-/// complete module.
-///
-/// The caller supplies the whole file, including the `// @generated` marker
-/// and the `#![allow(..)]` header; only the body is generated here.
+/// Formats a generated snippet with `prettyplease`; a snippet that does not
+/// parse is returned as written: [`check_and_format`] reports it once for the
+/// whole module.
 pub fn parse_and_format(source: &str) -> String {
     match syn::parse_file(source) {
         Ok(file) => prettyplease::unparse(&file),
-        Err(error) => panic!(
-            "zant-tsx: generated Rust does not parse: {error}\n--- generated source ---\n{source}"
-        ),
+        Err(_) => source.to_owned(),
     }
+}
+
+/// Validates a whole generated module with `syn::parse_file` and formats it.
+/// A parse failure is a compiler bug, never a user error: the message says so
+/// and where the generated code was saved (`ZANT_TSX_DUMP=<dir>`), instead
+/// of a panic in the app's build script.
+pub fn check_and_format(source: &str, source_name: &str) -> std::result::Result<String, String> {
+    let error = match syn::parse_file(source) {
+        Ok(file) => return Ok(prettyplease::unparse(&file)),
+        Err(error) => error,
+    };
+    let saved = std::env::var_os("ZANT_TSX_DUMP").and_then(|dir| {
+        let base = source_name
+            .rsplit(['/', '\\'])
+            .next()
+            .unwrap_or(source_name);
+        let path = std::path::Path::new(&dir).join(format!("{base}.generated.rs"));
+        std::fs::create_dir_all(&dir).ok()?;
+        std::fs::write(&path, source).ok()?;
+        Some(path)
+    });
+    let dump = match saved {
+        Some(path) => format!("the generated code is in {}", path.display()),
+        None => "set ZANT_TSX_DUMP=<directory> to save the generated code".to_owned(),
+    };
+    Err(format!(
+        "internal compiler error: the Rust generated for this file does not parse ({error}). \
+         This is a zant-tsx bug, not an error in your code; please report it with this file \
+         ({dump})"
+    ))
 }

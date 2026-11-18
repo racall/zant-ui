@@ -114,3 +114,24 @@ fn dictionary_mistakes_are_reported() {
         assert!(message.contains(expected), "{src}: {message}");
     }
 }
+
+#[test]
+fn unsupported_object_functions_name_the_supported_ones() {
+    for (src, expected) in [
+        (
+            "function f(a: { x: number }): number { const b = Object.assign({}, a); return 1; }",
+            "`Object.assign` is not supported; the Object functions are keys, values, entries and fromEntries (copy with a spread instead",
+        ),
+        (
+            "function f(r: Record<string, number>): boolean { return Object.hasOwn(r, \"a\"); }",
+            "`Object.hasOwn` is not supported; the Object functions are keys, values, entries and fromEntries (test a record key with `key in record`)",
+        ),
+        (
+            "function f(r: Record<string, number>): number { return Object.keys(r, 1).length; }",
+            "this Object function takes 1 argument",
+        ),
+    ] {
+        let message = compile_module(src).unwrap_err();
+        assert!(message.contains(expected), "{message}");
+    }
+}

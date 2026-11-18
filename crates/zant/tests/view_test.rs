@@ -5,7 +5,7 @@ use zant::components::view::{ViewOptions, view};
 use zant::core::events::{Event, PointerEvent};
 use zant::core::geometry::Rect;
 use zant::core::node::{NodeData, NodeKind};
-use zant::layout::flex;
+use zant::flex;
 use zant::renderer::renderer::Renderer;
 use zant::runtime::Runtime;
 use zant::ui::actions::{action, index_action};

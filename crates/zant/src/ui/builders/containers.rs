@@ -6,7 +6,7 @@
 #![forbid(unsafe_code)]
 
 use crate::core::node::{FlexStyle, NodeKind, Visual};
-use crate::layout::flex;
+use crate::flex;
 use crate::renderer::text as text_mod;
 
 use super::super::context::current_theme;

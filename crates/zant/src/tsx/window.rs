@@ -61,6 +61,9 @@ pub trait Component: Sized + 'static {
 /// Another window of the app rendering `C`.
 pub struct Window<C: Component> {
     options: desktop::OpenOptions,
+    /// `setMaxSize` before the window opened (the open options have no
+    /// maximum): applied when it opens.
+    max_size: Option<(f32, f32)>,
     handle: Option<desktop::Window>,
     local: Rc<RefCell<C::Local>>,
 }
@@ -70,6 +73,7 @@ impl<C: Component> Window<C> {
     pub fn new(options: desktop::OpenOptions) -> Window<C> {
         Window {
             options,
+            max_size: None,
             handle: None,
             local: Rc::new(RefCell::new(C::Local::default())),
         }
@@ -101,6 +105,9 @@ impl<C: Component> Window<C> {
         };
         match desktop::open_window(hooks, options.clone()) {
             Ok(window) => {
+                if let Some((width, height)) = self.max_size {
+                    window.set_max_size(width, height);
+                }
                 self.handle = Some(window.clone());
                 Some(window)
             }
@@ -172,6 +179,59 @@ impl<C: Component> Window<C> {
         if let Some(window) = self.window() {
             window.focus(key);
         }
+    }
+
+    /// `setTitle`: the system title; an unopened window opens with it.
+    pub fn set_title(&mut self, title: &str) {
+        self.options.title = title.to_owned();
+        if let Some(window) = &self.handle {
+            window.set_title(title);
+        }
+    }
+
+    /// `setSize`: the content size in points.
+    pub fn set_size(&mut self, width: f64, height: f64) {
+        self.options.window.width = width as f32;
+        self.options.window.height = height as f32;
+        if let Some(window) = &self.handle {
+            window.set_size(width as f32, height as f32);
+        }
+    }
+
+    pub fn set_min_size(&mut self, width: f64, height: f64) {
+        self.options.window.min_width = width as f32;
+        self.options.window.min_height = height as f32;
+        if let Some(window) = &self.handle {
+            window.set_min_size(width as f32, height as f32);
+        }
+    }
+
+    /// `setMaxSize`: 0 in a dimension leaves it unlimited.
+    pub fn set_max_size(&mut self, width: f64, height: f64) {
+        self.max_size = Some((width as f32, height as f32));
+        if let Some(window) = &self.handle {
+            window.set_max_size(width as f32, height as f32);
+        }
+    }
+
+    pub fn set_always_on_top(&mut self, on: bool) {
+        self.options.window.always_on_top = on;
+        if let Some(window) = &self.handle {
+            window.set_always_on_top(on);
+        }
+    }
+
+    /// `setFullscreen`: opens the window when needed.
+    pub fn set_fullscreen(&mut self, on: bool) {
+        if let Some(window) = self.window() {
+            window.set_fullscreen(on);
+        }
+    }
+
+    pub fn fullscreen(&self) -> bool {
+        self.handle
+            .as_ref()
+            .is_some_and(desktop::Window::is_fullscreen)
     }
 
     /// The theme windows of the app use now.

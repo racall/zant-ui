@@ -4,16 +4,13 @@
 //! The `RichSpan`s own `Str`s and `Rc<Drawing>`s, so the result lives as long
 //! as the node that holds it (block caches included).
 
-use std::rc::Rc;
-
 use crate::Str;
 use crate::core::node::RichSpan;
-use crate::core::vector::{Drawing, DrawingRef};
 use crate::markdown::ast;
 use crate::markdown::remend;
 use crate::markdown::render::context::Ctx;
 use crate::markdown::safety;
-use crate::math::layout;
+use crate::math::{inline_drawing, layout};
 use crate::renderer::text;
 use crate::ui;
 use crate::ui::options::{RichTextOptions, SpaceOptions};
@@ -134,20 +131,6 @@ pub fn to_rich(ctx: &Ctx, spans: &[ast::Span], base: Base, with_caret: bool) -> 
     out
 }
 
-/// An inline (text-style) formula for embedding in rich text (also exported
-/// as `math::inline_drawing`).
-pub fn inline_drawing(source: &str, options: layout::Options) -> DrawingRef {
-    let opts = layout::Options {
-        display: false,
-        ..options
-    };
-    let mut drawing: Drawing = layout::layout(source, opts);
-    // keep line metrics stable: never shorter than the surrounding text
-    drawing.ascent = drawing.ascent.max(0.75 * opts.size);
-    drawing.descent = drawing.descent.max(0.22 * opts.size);
-    Rc::new(drawing)
-}
-
 pub fn rich_node(ctx: &Ctx, spans: &[ast::Span], base: Base, with_caret: bool) -> ui::Node {
     if spans.is_empty() && !with_caret {
         return ui::space(SpaceOptions {
@@ -183,6 +166,7 @@ pub fn body(ctx: &Ctx, spans: &[ast::Span], with_caret: bool) -> ui::Node {
 mod tests {
     use super::*;
     use crate::markdown::ast::Style;
+    use std::rc::Rc;
 
     fn base() -> Base {
         Base {

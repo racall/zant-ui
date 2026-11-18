@@ -1,0 +1,16 @@
+[package]
+name = "zant-base"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Platform-free building blocks shared by the Zant runtime and the TSX compiler (hashing, locales, plural rules, JS number spelling, RegExp checks)"
+# Zant is used from source or the installed release, not crates.io
+# (zant-sys needs the prebuilt Skia / PDFium assets).
+publish = false
+
+[dependencies]
+regress = { workspace = true, features = ["utf16"] }
+ryu-js.workspace = true
+serde.workspace = true
+serde_json.workspace = true

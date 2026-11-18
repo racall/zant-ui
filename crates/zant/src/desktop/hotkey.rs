@@ -50,37 +50,34 @@ impl Shortcut {
     /// Display label for this platform: "⌥⌘V" on macOS, "Ctrl+Alt+V" on
     /// Windows.
     pub fn label(&self) -> String {
-        let mut out = String::new();
-        let modifiers = self.modifiers;
+        let caps = self.key_caps();
         if platform::IS_MACOS {
-            if modifiers.control {
-                out.push('⌃');
-            }
-            if modifiers.alt {
-                out.push('⌥');
-            }
-            if modifiers.shift {
-                out.push('⇧');
-            }
-            if modifiers.meta {
-                out.push('⌘');
-            }
+            caps.concat()
         } else {
-            if modifiers.control {
-                out.push_str("Ctrl+");
-            }
-            if modifiers.alt {
-                out.push_str("Alt+");
-            }
-            if modifiers.shift {
-                out.push_str("Shift+");
-            }
-            if modifiers.meta {
-                out.push_str("Win+");
-            }
+            caps.join("+")
         }
-        write_key_name(&mut out, self.key);
-        out
+    }
+
+    /// The parts of [`Shortcut::label`], one key cap each: a cap per modifier
+    /// ("⌃ ⌥ ⇧ ⌘" on macOS, "Ctrl Alt Shift Win" on Windows) and one for the
+    /// key ("V", "F7", "Space").
+    pub fn key_caps(&self) -> Vec<String> {
+        let modifiers = self.modifiers;
+        let names: [(bool, &str, &str); 4] = [
+            (modifiers.control, "⌃", "Ctrl"),
+            (modifiers.alt, "⌥", "Alt"),
+            (modifiers.shift, "⇧", "Shift"),
+            (modifiers.meta, "⌘", "Win"),
+        ];
+        let mut caps: Vec<String> = names
+            .iter()
+            .filter(|(on, _, _)| *on)
+            .map(|(_, mac, windows)| if platform::IS_MACOS { *mac } else { *windows }.to_owned())
+            .collect();
+        let mut key = String::new();
+        write_key_name(&mut key, self.key);
+        caps.push(key);
+        caps
     }
 
     /// Text form for settings files: "ctrl+alt+shift+meta+v" (any subset).
@@ -281,6 +278,24 @@ pub fn unregister_hotkey(id: u32) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn key_caps_are_one_per_modifier_and_one_for_the_key() {
+        let shortcut = Shortcut::parse("shift+meta+f7").expect("parsed");
+        let expected: &[&str] = if platform::IS_MACOS {
+            &["⇧", "⌘", "F7"]
+        } else {
+            &["Shift", "Win", "F7"]
+        };
+        assert_eq!(shortcut.key_caps(), expected);
+        let space = Shortcut::parse("ctrl+space").expect("parsed");
+        let expected: &[&str] = if platform::IS_MACOS {
+            &["⌃", "Space"]
+        } else {
+            &["Ctrl", "Space"]
+        };
+        assert_eq!(space.key_caps(), expected);
+    }
 
     #[test]
     fn shortcut_text_form_and_labels() {

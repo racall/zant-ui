@@ -15,6 +15,7 @@ export default function App() {
 | `placeholder` | 空字符串 |
 | `disabled`、`readOnly`、`password`、`multiline` | 均为 false |
 | `focusRing` | true，聚焦时显示激活边框 |
+| `autoFocus` | false；true 时出现即获得键盘焦点（弹窗里的输入框、搜索框），同 React 的 autoFocus |
 | `width`、`height` | 自动、32；多行需要给足高度 |
 | `fontSize`、`lineHeight` | 14、0（字体自身行高） |
 | `contentMaxWidth` | 可选：多行文字居中成列，滚动条仍在右侧 |

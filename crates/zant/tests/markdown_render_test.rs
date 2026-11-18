@@ -322,3 +322,70 @@ fn markdown_widget_passes_line_numbers_and_code_max_height() {
     let (_, uncapped) = code_doc_shape(true, 0.0);
     assert!(uncapped > 400.0, "uncapped body height {uncapped}");
 }
+
+/// A Markdown widget that counts the app's builds.
+struct SizedDoc {
+    source: String,
+    builds: usize,
+}
+
+impl App for SizedDoc {
+    fn render(&mut self) -> Node {
+        self.builds += 1;
+        ui::column(BoxOptions {
+            grow: 1.0,
+            children: zant::nodes![ui::markdown_keyed(
+                "doc",
+                ui::MarkdownOptions {
+                    source: zant::Str::copy(&self.source),
+                    ..Default::default()
+                }
+            )],
+            ..Default::default()
+        })
+    }
+}
+
+#[test]
+fn layout_size_changes_rebuild_only_across_block_width_steps() {
+    fn frame(runtime: &mut Runtime, renderer: &mut zant::renderer::renderer::Renderer, width: f32) {
+        let canvas = renderer.begin(1.0).expect("canvas");
+        runtime.render_frame(canvas, width, 400.0, 1.0);
+        renderer.end();
+    }
+    let mut renderer =
+        zant::renderer::renderer::Renderer::create_raster(600, 400).expect("raster renderer");
+    let mut runtime = Runtime::init(
+        SizedDoc {
+            source: "# Title\n\nOne paragraph.".to_owned(),
+            builds: 0,
+        },
+        RunOptions::default(),
+    );
+    frame(&mut runtime, &mut renderer, 400.0);
+    let builds = |runtime: &mut Runtime| runtime.app_state_mut::<SizedDoc>().builds;
+    // the first layout reports the width: formulas / images get fitted to it
+    let first = builds(&mut runtime);
+    assert!(
+        first >= 2,
+        "the first layout rebuilds with the measured width"
+    );
+
+    // a live resize within one 16 pt step does not rebuild the app
+    frame(&mut runtime, &mut renderer, 405.0);
+    frame(&mut runtime, &mut renderer, 410.0);
+    assert_eq!(builds(&mut runtime), first);
+    // crossing a step does, once
+    frame(&mut runtime, &mut renderer, 420.0);
+    assert_eq!(builds(&mut runtime), first + 1);
+
+    // content that grows taller (streaming) rebuilds for the new source only,
+    // not again for the new height
+    runtime
+        .app_state_mut::<SizedDoc>()
+        .source
+        .push_str("\n\nTwo.\n\nThree.\n\nFour.");
+    runtime.needs_build = true;
+    frame(&mut runtime, &mut renderer, 420.0);
+    assert_eq!(builds(&mut runtime), first + 2);
+}

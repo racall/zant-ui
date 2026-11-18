@@ -14,6 +14,8 @@ use crate::markdown::theme as theme_mod;
 use crate::ui::actions::TextAction;
 use crate::ui::element::Node;
 
+pub use super::labels::Labels;
+
 // `markdown::safety::Policy` keeps borrowed slices and has no `Clone`;
 // `Options` is cloned for every memoised block, so the renderer adds the impl.
 impl<'a> Clone for safety::Policy<'a> {
@@ -174,65 +176,6 @@ impl Controls {
     }
 }
 
-/// Streamdown `translations`.
-#[derive(Clone, Debug)]
-pub struct Labels {
-    pub copy: Str,
-    pub copy_markdown: Str,
-    pub copy_csv: Str,
-    pub download: Str,
-    pub footnotes: Str,
-    pub image: Str,
-    pub loading_image: Str,
-    pub open_link: Str,
-    pub copy_link: Str,
-    pub cancel: Str,
-    pub link_title: Str,
-    pub link_message: Str,
-    pub unsupported_diagram: Str,
-}
-
-impl Default for Labels {
-    fn default() -> Self {
-        Labels {
-            copy: "Copy".into(),
-            copy_markdown: "Copy Markdown".into(),
-            copy_csv: "Copy CSV".into(),
-            download: "Download".into(),
-            footnotes: "Footnotes".into(),
-            image: "Image".into(),
-            loading_image: "Loading image…".into(),
-            open_link: "Open link".into(),
-            copy_link: "Copy link".into(),
-            cancel: "Cancel".into(),
-            link_title: "Open external link?".into(),
-            link_message: "You're about to visit an external website.".into(),
-            unsupported_diagram: "Diagram type not supported".into(),
-        }
-    }
-}
-
-impl Labels {
-    /// Chinese labels.
-    pub fn zh() -> Labels {
-        Labels {
-            copy: "复制".into(),
-            copy_markdown: "复制 Markdown".into(),
-            copy_csv: "复制 CSV".into(),
-            download: "下载".into(),
-            footnotes: "脚注".into(),
-            image: "图片".into(),
-            loading_image: "图片加载中…".into(),
-            open_link: "打开链接".into(),
-            copy_link: "复制链接".into(),
-            cancel: "取消".into(),
-            link_title: "打开外部链接？".into(),
-            link_message: "即将访问外部网站，请确认链接可信。".into(),
-            unsupported_diagram: "暂不支持此图表类型".into(),
-        }
-    }
-}
-
 /// Every renderer option (Streamdown's props).
 #[derive(Clone)]
 pub struct Options {
@@ -320,21 +263,7 @@ fn hash_policy(h: &mut Wyhash, policy: &safety::Policy<'_>) {
 }
 
 fn hash_labels(h: &mut Wyhash, labels: &Labels) {
-    for value in [
-        &labels.copy,
-        &labels.copy_markdown,
-        &labels.copy_csv,
-        &labels.download,
-        &labels.footnotes,
-        &labels.image,
-        &labels.loading_image,
-        &labels.open_link,
-        &labels.copy_link,
-        &labels.cancel,
-        &labels.link_title,
-        &labels.link_message,
-        &labels.unsupported_diagram,
-    ] {
+    for value in labels.values() {
         hash_str(h, value);
     }
 }
@@ -432,7 +361,7 @@ mod tests {
         assert_ne!(hash, theme_changed.hash());
 
         let labels_changed = Options {
-            labels: Labels::zh(),
+            labels: Labels::for_language(crate::i18n::builtin::Language::Chinese),
             ..Options::default()
         };
         assert_ne!(hash, labels_changed.hash());

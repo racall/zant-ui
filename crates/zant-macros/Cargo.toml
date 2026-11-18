@@ -5,6 +5,9 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 description = "Procedural macros for Zant UI: #[derive(TsxProps)] and #[derive(Table)]"
+# Zant is used from source or the installed release, not crates.io
+# (zant-sys needs the prebuilt Skia / PDFium assets).
+publish = false
 
 [lib]
 proc-macro = true

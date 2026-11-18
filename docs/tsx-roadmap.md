@@ -12,7 +12,7 @@ export default function App() {
 ```
 
 TSX 是推荐的应用写法，编译期生成 Rust，无 JS 运行时。此表只记录本仓库实现；
-具体语法见 [TSX](tsx.md)，原生接口见 [原生模块](tsx-native.md)。✅ 已实现，⬜ 未实现。
+具体语法见 [TSX](tsx.md)，原生接口见 [原生模块](tsx-native.md)。✅ 已实现，🚧 部分实现，⬜ 未实现。
 
 ## 语言与组件
 
@@ -28,12 +28,12 @@ TSX 是推荐的应用写法，编译期生成 Rust，无 JS 运行时。此表�
 | ✅ | Image 内存图片、HotkeyInput、isMacos/isWindows、keyLabel、titlebarInsets、wakeAfter |
 | ✅ | TypeScript `enum` / `const enum`（成员内联）、穷尽的联合 `switch` |
 | ✅ | 基本类型联合与可辨识联合（Rust 枚举）、`typeof` / 判别字段收窄 |
-| ✅ | `Record` / 索引签名 / `Map` / `Set` / `Object.*`、元组、`keyof` / `typeof` / `T["k"]`、对象字面量推断与结构赋值 |
+| ✅ | `Record` / 索引签名 / `Map` / `Set` / `Object.keys / values / entries / fromEntries`、元组、`keyof` / `typeof` / `T["k"]`、对象字面量推断与结构赋值 |
 | ✅ | 泛型类型（Rust 泛型结构体）与泛型函数（单态化、实参推断、默认值、约束） |
-| ✅ | `satisfies`、`interface extends` / 交叉类型、rest 参数与展开实参 |
+| ✅ | `satisfies`、`interface extends` / 交叉类型、rest 参数，以及展开到 rest 参数 / `push` / `Math.max` 等的 `...arr` |
 | ✅ | 数组 / 对象原地修改（可变值语义：push/splice/sort/字段赋值，共享时报错） |
 | ✅ | 函数作为值（`Rc<dyn Fn>`，闭包按创建时复制捕获） |
-| ⬜ | 泛型组件、跨文件泛型函数 |
+| ⬜ | 泛型组件、跨文件泛型函数与泛型类型 |
 | ✅ | `throw` / `try` / `catch` / `finally`、`Error` 及其子类、`instanceof` 收窄（Swift 式 `Result`，推断会抛出的函数） |
 | ⬜ | `class`（引用语义） |
 | ✅ | `JSON.parse` / `JSON.stringify`（按类型编解码，输出与 Node 一致，`SyntaxError` / `TypeError`） |
@@ -41,7 +41,7 @@ TSX 是推荐的应用写法，编译期生成 Rust，无 JS 运行时。此表�
 | ✅ | `let` 的控制流收窄（到下一次赋值为止，含 `while` / `for` 条件） |
 | ⬜ | `Date` |
 | ✅ | `Promise` 与 `.then` / `.catch` / `.finally`、`fetch`（UI 线程任务队列） |
-| ✅ | `async` / `await`（改写为 `.then` 链；`if` / 循环里的 `await` 待做） |
+| 🚧 | `async` / `await`（改写为 `.then` 链；`if` / 循环 / `switch` / 条件运算右侧 / `catch` 里的 `await` 等待做，见 [限制](tsx.md#async--await)） |
 
 ## 运行时与工具链
 
@@ -50,7 +50,7 @@ TSX 是推荐的应用写法，编译期生成 Rust，无 JS 运行时。此表�
 | ✅ | useState 组件本地状态、createStore/useStore 共享状态、系统主题 |
 | ✅ | 多语言：`locales/*.json`、编译期检查的 `t()`、ICU 复数 / select、语言协商与切换（[i18n](i18n.md)） |
 | ✅ | 关闭 / 退出 / 键盘 / 窗口焦点、托盘、全局快捷键、剪贴板、唤醒与退出 hooks |
-| ✅ | createWindow 多窗口、剪贴板文字 / 图片 / 文件、开机启动、单实例 |
+| ✅ | createWindow 多窗口、剪贴板文字 / 图片 / 文件、开机启动（打包的 .app，macOS 13+；Windows release 构建）、单实例（`app.config.json` 的 `single_instance`），见 [桌面集成](desktop.md) |
 | ✅ | setTimeout / setInterval 与 clear*；effect 清理函数在组件卸载时执行 |
 | ✅ | `zant create` 生成 `src/` TSX/TS + `native/` Rust 项目；模板带原生模块示例 |
 | ✅ | `native/main.rs` 用 `zant::app!()`；`native/build.rs` 调 `zant_build::tsx_app()` |

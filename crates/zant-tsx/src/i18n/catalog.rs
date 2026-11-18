@@ -62,7 +62,7 @@ pub fn canonical_tag(stem: &str) -> Result<String, String> {
         let suggestion = canonical_tag(&replacement).unwrap_or(replacement);
         return Err(format!("use `{suggestion}` with `-` separators"));
     }
-    match zant::i18n::locale::canonical(stem) {
+    match zant_base::locale::canonical(stem) {
         // 2–3 letter languages (4 is reserved; 5–8 are rare registrations
         // that no CLDR plural data covers)
         Some(tag)

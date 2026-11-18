@@ -3,7 +3,8 @@
 //! Only a successfully replaced, destroyed instance's library may be unloaded.
 //! There is deliberately no `Drop`: a failed start may leave callbacks behind,
 //! and a failed swap must keep the previous library available for restarting.
-//! Unloading is opt-in until the framework releases all pointers into app code.
+//! Unloading is the default ([`Library::unload`]); `ZANT_HOT_KEEP_LIBS=1` keeps
+//! every version mapped for diagnosis.
 
 use std::ffi::c_void;
 use std::path::{Path, PathBuf};

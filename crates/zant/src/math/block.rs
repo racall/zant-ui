@@ -7,7 +7,7 @@
 use std::rc::Rc;
 
 use crate::core::geometry::Edges;
-use crate::layout::flex;
+use crate::flex;
 use crate::math::layout::{self, Options};
 use crate::ui::{self, BoxOptions, VectorOptions};
 

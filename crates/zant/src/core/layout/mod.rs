@@ -33,7 +33,7 @@ const SCRATCH_POOL_MAX: usize = 64;
 
 thread_local! {
     static IDS_POOL: RefCell<Vec<Vec<NodeId>>> = const { RefCell::new(Vec::new()) };
-    static ITEMS_POOL: RefCell<Vec<Vec<crate::layout::flex::Item>>> = const { RefCell::new(Vec::new()) };
+    static ITEMS_POOL: RefCell<Vec<Vec<crate::flex::Item>>> = const { RefCell::new(Vec::new()) };
     static FLOATS_POOL: RefCell<Vec<Vec<f32>>> = const { RefCell::new(Vec::new()) };
 }
 
@@ -78,7 +78,7 @@ macro_rules! scratch_pool {
 }
 
 scratch_pool!(pub(crate) ScratchIds, NodeId, IDS_POOL);
-scratch_pool!(pub(crate) ScratchItems, crate::layout::flex::Item, ITEMS_POOL);
+scratch_pool!(pub(crate) ScratchItems, crate::flex::Item, ITEMS_POOL);
 scratch_pool!(pub(crate) ScratchFloats, f32, FLOATS_POOL);
 
 /// A mutable view of the node arena indexed by [`NodeId`] (see module docs).

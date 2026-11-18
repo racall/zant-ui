@@ -1,12 +1,12 @@
-// Internal C++ interface between the portable Skia bridge core
-// (skia_bridge.cpp) and the per-platform parts (skia_bridge_mac.mm,
-// skia_bridge_win.cpp): font manager, font names and the GPU swap chain.
+// Internal C++ interface shared by the portable Skia bridge and the
+// per-platform parts (skia_bridge_mac.mm and skia_bridge_win.cpp).
 #ifndef ZANT_SKIA_BRIDGE_INTERNAL_H
 #define ZANT_SKIA_BRIDGE_INTERNAL_H
 
 #include "skia_bridge.h"
 
 #include "include/core/SkCanvas.h"
+#include "include/core/SkColor.h"
 #include "include/core/SkFontMgr.h"
 #include "include/core/SkRefCnt.h"
 #include "include/core/SkString.h"
@@ -60,6 +60,14 @@ void gpu_destroy(ZantRenderer *renderer);
 const char *gpu_backend_name();
 
 }  // namespace zant_platform
+
+namespace zant_skia {
+
+void ensure_skia();
+SkColor make_color(uint32_t argb);
+SkRRect make_rrect(float x, float y, float w, float h, float radius);
+
+}  // namespace zant_skia
 
 /* Shared with the platform files. */
 void zant_skia_ensure();

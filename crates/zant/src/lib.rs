@@ -17,17 +17,27 @@ pub mod renderer;
 
 pub mod components;
 pub mod core;
+#[cfg(feature = "db")]
 pub mod db;
 pub mod desktop;
 pub mod error;
+pub mod flex;
 #[allow(unsafe_code)]
 pub mod hot;
 pub mod i18n;
 pub mod launch;
-pub mod layout;
+/// The old path of [`flex`] (`zant::layout::flex`), kept so existing code
+/// builds; new code uses `zant::flex`. The layout engine itself is
+/// `zant::core::layout`.
+pub mod layout {
+    pub use crate::flex;
+}
+#[cfg(feature = "markdown")]
 pub mod markdown;
+#[cfg(feature = "math")]
 pub mod math;
 pub mod motion;
+#[cfg(feature = "pdf")]
 pub mod pdf;
 pub mod runtime;
 pub mod store;

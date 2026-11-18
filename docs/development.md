@@ -109,8 +109,13 @@ cargo run -p zant-examples --bin zant-pdf -- a.pdf # PDF 阅读器（ZANT_PDF_PA
 - `ZANT_INPUT_TRACE=1`：在 stderr 记录指针按下 / 松开进入运行时、每帧开始的时间；macOS Metal 后端还记录
   从帧提交到实际呈现的间隔，用于定位输入到屏幕的延迟。需在启动前设置，日常测性能时关闭，避免日志影响结果。
 - `ZANT_FRAME_STATS=1`：每秒在 stderr 输出 `[frames]`：帧数、最慢一帧及其 rebuild / layout / paint
-  耗时（Rust 与 Skia 录制，不含 GPU）、最长帧间隔、缩放时画出的新尺寸帧数与「尺寸变化 → 出帧」最长延迟；
-  超过 8 ms 的帧另打一行 `[slow-frame]`（含当帧新建的文字排版数与耗时）。
+  耗时（Rust 与 Skia 录制，不含 GPU）、最长帧间隔、缩放时画出的新尺寸帧数与「尺寸变化 → 出帧」最长延迟、
+  这一秒收到的尺寸变化数（`resize_events`）；超过 8 ms 的帧另打一行 `[slow-frame]`：各阶段耗时、
+  未计时的其余部分（`other`）、当帧 rebuild 次数与布局遍数（`rebuilds` / `layouts`，`on_resize` 会让同一帧
+  多 rebuild）、新建的文字排版数与耗时、Markdown 流水线的 remend / 分块 / 解析耗时（`md_ms`）。
+- `ZANT_FRAME_TRACE=1`（Windows）：每次拖动缩放 / 移动窗口结束时打一行 `[frame-trace]`：期间收到的
+  `WM_SIZE` / `WM_MOVE` / wake 数、各来源（size / paint / 模态计时器）画的帧数、新尺寸与同尺寸帧数、
+  等待交换链和整帧耗时，用来定位模态循环里谁占了 vsync。
 - `ZANT_AUTOPLAY=1`（`zant-components`）：示例自己循环菜单、对话框、提示、主题等动画，
   用来无人值守地测帧率；`=quiet` 不打印 `[event]`。
 - `ZANT_WINDOW_SIZE=WxH`：覆盖初始窗口尺寸（自动化截图用）。
@@ -132,6 +137,10 @@ Windows 上写 stderr 会影响帧耗时，不要在每帧都会执行的路径�
 - 两张截图的像素对比：`python3 scripts/lib/imgdiff.py a.png b.png [--diff out.png]`
   （默认像素通道差 > 2 的像素占比 ≤ 0.1% 算一致；纯标准库，不需要 Pillow）。
 - 时间相关测试注入假时钟（`runtime.clock = fake_clock`），不要 sleep。
+- 文件行数：`scripts/check-file-size.sh`（CI 也跑）。源码文件控制在 500 行左右；超过的新文件直接失败，
+  `scripts/file-size-baseline.txt` 里的旧文件只许变短。拆成模块后运行 `scripts/check-file-size.sh --update`
+  去掉它的条目。
+- Windows 同步：`scripts/win/sync.sh` 会附带文件清单，`scripts/win/prune.ps1` 删掉测试机上已移动 / 删除的源码文件。
 
 ## 帧基准
 
@@ -270,7 +279,11 @@ cargo build -p zant-cli
 
 ## 发布
 
-开发者用一行命令安装（`install.sh` / `install.ps1`，见 README「安装」），装的是 GitHub Release 上的发布包：
+开发者用一行命令安装（`install.sh` / `install.ps1`，见 README「安装」），装的是 GitHub Release 上的发布包。
+Zant 不发布到 crates.io：所有 crate 都是 `publish = false`，应用从安装包（`$ZANT_HOME/zant-ui`）、源码路径或 git 依赖使用
+（`zant-sys` 依赖仓库外的 Skia / PDFium 预编译资产）。测试夹具因此可以继续放在仓库根 `tests/fixtures/`。
+
+发布步骤：
 
 1. 改根 `Cargo.toml` 的 `[workspace.package].version`（以及需要的话 `rust-version`；工具链由
    `rust-toolchain.toml` 固定，安装脚本装发布包里这个文件写的 channel，CI 用同一 channel，不用再改版本号），

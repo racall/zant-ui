@@ -1,5 +1,5 @@
-/* Zant UI platform C ABI, implemented by platform/macos/window.m
- * (AppKit) and platform/windows/window.c (Win32). An app has a main
+/* Zant UI platform C ABI, implemented by the sources in platform/macos/
+ * (AppKit) and platform/windows/ (Win32). An app has a main
  * window (the first one created; closing it ends the app) and may open more
  * (panels, tool windows) on the UI thread; zant_window_run runs the event
  * loop for all of them. Coordinates are logical points; dpr converts to
@@ -225,6 +225,25 @@ int zant_window_is_minimized(ZantWindow *window);
 void zant_window_activate(ZantWindow *window);
 /* Moves the window to a ZANT_PLACE_* spot, `margin` points from the edges. */
 void zant_window_place(ZantWindow *window, int place, float margin);
+
+/* ---- window properties after creation ----
+   Sizes are of the content area in logical units (macOS points; Windows
+   scales them by the window's DPI). */
+/* The system title (title bar, Dock / taskbar, window menus); UTF-8. */
+void zant_window_set_title(ZantWindow *window, const char *title);
+/* Resizes the content area; the top-left corner stays put. Clamped to the
+   minimum / maximum size. */
+void zant_window_set_size(ZantWindow *window, float width, float height);
+/* The smallest / largest content size the user can resize to. A maximum of 0
+   in a dimension leaves it unlimited. */
+void zant_window_set_min_size(ZantWindow *window, float width, float height);
+void zant_window_set_max_size(ZantWindow *window, float width, float height);
+/* Above the other apps' windows (not for panels / overlays, which float). */
+void zant_window_set_always_on_top(ZantWindow *window, int on);
+/* Full screen: macOS in its own Space, Windows borderless over the monitor.
+   Ignored for panels and overlays. */
+void zant_window_set_fullscreen(ZantWindow *window, int on);
+int zant_window_is_fullscreen(ZantWindow *window);
 
 /* ---- screens, other apps' windows, screen capture ----
    Desktop units: macOS points, Windows physical pixels; global coordinates

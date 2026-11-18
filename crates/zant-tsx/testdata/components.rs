@@ -167,7 +167,7 @@ impl ui::App for Components {
                 ui::radio_group(ui::RadioGroupOptions { options : vec![ui::RadioOption {
                 label : zant::Str::from("One"), ..Default::default() }, ui::RadioOption {
                 label : self.label.clone(), disabled : ! self.enabled, }], selected :
-                self.index, direction : zant::layout::flex::Direction::Row, on_change :
+                self.index, direction : zant::flex::Direction::Row, on_change :
                 Some(ui::index_action(| s : & mut Components, v : usize | s.select(v))),
                 ..Default::default() }), ui::tabs(ui::TabsOptions { items :
                 vec![ui::TabItem { label : zant::Str::from("Main"), content : content
@@ -193,7 +193,7 @@ impl ui::App for Components {
                 zant::Str::from("sample.png"), width : Some(96.0f32), height :
                 Some(96.0f32), fit : zant::core::node::ImageFit::Contain, radius :
                 8.0f32, ..Default::default() }), ui::space(ui::SpaceOptions { direction :
-                zant::layout::flex::Direction::Row, gap : 8.0f32, children :
+                zant::flex::Direction::Row, gap : 8.0f32, children :
                 nodes![ui::icon(ui::IconOptions { name : ui::Icon::ChevronDown,
                 ..Default::default() }), ui::icon(ui::IconOptions { name :
                 ui::Icon::ChevronDown, ..Default::default() }), ui::icon(ui::IconOptions
@@ -277,7 +277,7 @@ impl ui::App for Components {
                 ui::BoxOptions { key : Some(zant::Str::from("clickable")), padding :
                 zant::core::geometry::Edges { top : 8.0f32, right : 12.0f32, bottom :
                 8.0f32, left : 12.0f32 }, gap : 10.0f32, width : Some(240.0f32),
-                align_items : zant::layout::flex::Align::Center, children :
+                align_items : zant::flex::Align::Center, children :
                 nodes![ui::row(ui::BoxOptions { gap : 4.0f32, children :
                 nodes![ui::text(zant::Str::from("Grouped box children"), ui::TextOptions
                 { ..Default::default() })], ..Default::default() })],

@@ -235,6 +235,27 @@ unsafe extern "C" {
 unsafe extern "C" {
     pub fn zant_window_place(window: *mut ZantWindow, place: ::std::os::raw::c_int, margin: f32);
 }
+unsafe extern "C" {
+    pub fn zant_window_set_title(window: *mut ZantWindow, title: *const ::std::os::raw::c_char);
+}
+unsafe extern "C" {
+    pub fn zant_window_set_size(window: *mut ZantWindow, width: f32, height: f32);
+}
+unsafe extern "C" {
+    pub fn zant_window_set_min_size(window: *mut ZantWindow, width: f32, height: f32);
+}
+unsafe extern "C" {
+    pub fn zant_window_set_max_size(window: *mut ZantWindow, width: f32, height: f32);
+}
+unsafe extern "C" {
+    pub fn zant_window_set_always_on_top(window: *mut ZantWindow, on: ::std::os::raw::c_int);
+}
+unsafe extern "C" {
+    pub fn zant_window_set_fullscreen(window: *mut ZantWindow, on: ::std::os::raw::c_int);
+}
+unsafe extern "C" {
+    pub fn zant_window_is_fullscreen(window: *mut ZantWindow) -> ::std::os::raw::c_int;
+}
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct ZantScreenInfo {

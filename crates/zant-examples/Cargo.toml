@@ -5,6 +5,9 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 description = "Runnable examples for Zant UI (zant-demo, zant-components, zant-gallery, ...)"
+# Zant is used from source or the installed release, not crates.io
+# (zant-sys needs the prebuilt Skia / PDFium assets).
+publish = false
 
 [build-dependencies]
 # `build.rs` compiles the TSX benchmark pages of `zant-tsx-frame-bench` into
@@ -21,7 +24,7 @@ zant-tsx.workspace = true
 
 [[bin]]
 name = "zant-demo"
-path = "src/bin/zant-demo.rs"
+path = "src/bin/zant-demo/main.rs"
 
 [[bin]]
 name = "zant-components"

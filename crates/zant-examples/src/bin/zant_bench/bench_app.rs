@@ -27,7 +27,7 @@ use std::sync::atomic::{AtomicI64, Ordering as AtomicOrdering};
 use zant::Str;
 use zant::core::events::{Event, Modifiers, PointerEvent, Scroll};
 use zant::core::node::ButtonSize;
-use zant::layout::flex;
+use zant::flex;
 use zant::markdown;
 use zant::markdown::cache::{Cache, Mode};
 use zant::markdown::render::options::{Caret, Options as RenderOptions};

@@ -288,7 +288,7 @@ impl App for HoverApp {
         self.builds += 1;
         let rows = column(BoxOptions {
             key: Some("rows".into()),
-            align_items: zant::layout::flex::Align::Stretch,
+            align_items: zant::flex::Align::Stretch,
             children: zant::nodes![
                 row(BoxOptions {
                     key: Some("row-a".into()),
@@ -313,14 +313,14 @@ impl App for HoverApp {
         if !self.modal {
             return column(BoxOptions {
                 grow: 1.0,
-                align_items: zant::layout::flex::Align::Stretch,
+                align_items: zant::flex::Align::Stretch,
                 children: zant::nodes![rows],
                 ..Default::default()
             });
         }
         column(BoxOptions {
             grow: 1.0,
-            align_items: zant::layout::flex::Align::Stretch,
+            align_items: zant::flex::Align::Stretch,
             children: zant::nodes![rows, zant::ui::modal(Default::default())],
             ..Default::default()
         })

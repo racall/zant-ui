@@ -8,7 +8,7 @@ use crate::core::layout::intrinsic::{
     resolve_width,
 };
 use crate::core::node::NodeId;
-use crate::layout::flex;
+use crate::flex;
 use crate::theme::tokens::Theme;
 
 struct WrapLine {

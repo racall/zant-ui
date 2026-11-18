@@ -81,29 +81,8 @@ fn advance(units: &[u16], i: usize, unicode: bool) -> usize {
 }
 impl RegExp {
     pub fn new(source: &str, flags: &str) -> Result<Self, Thrown> {
-        let mut seen = String::new();
-        for c in flags.chars() {
-            if !"dgimsuvy".contains(c) || seen.contains(c) {
-                return Err(errors::flags(flags));
-            }
-            seen.push(c);
-        }
-        if seen.contains('u') && seen.contains('v') {
-            return Err(errors::flags(flags));
-        }
-        let full_unicode = flags.contains('u') || flags.contains('v');
-        let engine_flags = regress::Flags {
-            unicode: full_unicode,
-            ..flags.into()
-        };
-        // Legacy patterns operate on code units, including literal astral characters.
-        let pattern: Vec<u32> = if full_unicode {
-            source.chars().map(u32::from).collect()
-        } else {
-            source.encode_utf16().map(u32::from).collect()
-        };
-        let regex = regress::Regex::from_unicode(pattern.into_iter(), engine_flags)
-            .map_err(|e| errors::pattern(source, flags, &e.to_string()))?;
+        let regex = zant_base::regexp::compile(source, flags)
+            .map_err(|message| errors::error("SyntaxError", message))?;
         Ok(Self(Rc::new(Inner {
             program: Rc::new(Program {
                 regex,

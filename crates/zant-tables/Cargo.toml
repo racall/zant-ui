@@ -1,0 +1,23 @@
+[package]
+name = "zant-tables"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Generators of the checked-in TSX tag table and zant.d.ts (reads the zant crate's TsxProps metadata)"
+publish = false
+
+# `zant-tsx` itself does not link `zant`: these tools read the framework's
+# option structs, so they live in their own package.
+[[bin]]
+name = "zant-tsx-tags"
+path = "src/bin/zant-tsx-tags/main.rs"
+
+[[bin]]
+name = "zant-tsx-dts"
+path = "src/bin/zant-tsx-dts/main.rs"
+
+[dependencies]
+zant.workspace = true
+zant-tsx.workspace = true
+syn.workspace = true

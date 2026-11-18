@@ -5,6 +5,9 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 description = "Raw FFI bindings and native build (Skia, AppKit/Win32, PDF) for Zant UI"
+# Zant is used from source or the installed release, not crates.io
+# (zant-sys needs the prebuilt Skia / PDFium assets).
+publish = false
 build = "build.rs"
 
 [dependencies]

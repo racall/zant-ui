@@ -77,6 +77,13 @@ fn fetch(
     loc: ast::Loc,
     call: &ast::Call,
 ) -> Result<Value> {
+    if let Some(feature) = super::super::app_state::missing_feature("fetch") {
+        return fail(
+            g,
+            loc,
+            super::super::app_state::feature_message("fetch", feature),
+        );
+    }
     if c.render || c.constant {
         return fail(
             g,
