@@ -16,6 +16,13 @@ int zant_clipboard_set_text(const char *text, size_t length) {
     }
 }
 
+int zant_clipboard_clear(void) {
+    @autoreleasepool {
+        [[NSPasteboard generalPasteboard] clearContents];
+        return 1;
+    }
+}
+
 size_t zant_clipboard_get_text(char *out, size_t capacity) {
     @autoreleasepool {
         NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];

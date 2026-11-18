@@ -116,6 +116,11 @@ pub mod clipboard {
         crate::desktop::set_clipboard_text(value)
     }
 
+    /// Empties the clipboard.
+    pub fn clear() -> bool {
+        crate::desktop::clear_clipboard()
+    }
+
     /// PNG bytes, `None` when the clipboard holds no image.
     pub fn image() -> Option<Bytes> {
         crate::desktop::clipboard_image().map(Bytes::from)

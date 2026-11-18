@@ -402,6 +402,7 @@ return <View paddingLeft={insets.left} paddingRight={insets.right}>
 | clipboard.text/setText | string（无文字为 ""）/ boolean |
 | clipboard.image/setImage | PNG 运行时字节或 null / boolean（当前只接受静态字节） |
 | clipboard.files/setFiles | string 或 null（绝对路径，一行一个）/ boolean |
+| clipboard.clear | 清空剪贴板（之后没有可粘贴的内容） |
 | clipboard.changeCount | 变化计数，含自己写入 |
 | app.launchAtLogin/setLaunchAtLogin | off/on/needsApproval / boolean；needsApproval 表示已登记但要用户在系统设置里允许（macOS 登录项、Windows 任务管理器里被禁用）；设置后请重新读取 |
 | app.canLaunchAtLogin | 这个构建能否设置开机启动：打包的 .app（macOS 13+）、Windows release 构建；`zant run`（含 `--release` 热刷新）为 false |

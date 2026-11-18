@@ -63,3 +63,28 @@ pub fn downloads_dir() -> String {
     buffer.truncate(len);
     String::from_utf8_lossy(&buffer).into_owned()
 }
+
+/// Hands memory the allocator keeps but no longer uses back to the system.
+pub fn release_unused_memory() {
+    #[cfg(target_os = "macos")]
+    {
+        unsafe extern "C" {
+            fn malloc_zone_pressure_relief(zone: *mut std::ffi::c_void, goal: usize) -> usize;
+        }
+        // SAFETY: a null zone means every zone; a goal of 0 frees what it can.
+        unsafe {
+            malloc_zone_pressure_relief(std::ptr::null_mut(), 0);
+        }
+    }
+    #[cfg(target_os = "windows")]
+    {
+        unsafe extern "system" {
+            fn GetProcessHeap() -> *mut std::ffi::c_void;
+            fn HeapCompact(heap: *mut std::ffi::c_void, flags: u32) -> usize;
+        }
+        // SAFETY: the process heap handle is always valid.
+        unsafe {
+            HeapCompact(GetProcessHeap(), 0);
+        }
+    }
+}

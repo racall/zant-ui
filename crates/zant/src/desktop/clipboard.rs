@@ -50,6 +50,12 @@ pub fn set_clipboard_image(png_bytes: &[u8]) -> bool {
     platform::set_clipboard_image_png(png_bytes)
 }
 
+/// Empties the clipboard: nothing to paste until the next copy (the
+/// history of a clipboard manager is not touched). Counts as a change.
+pub fn clear_clipboard() -> bool {
+    platform::clear_clipboard()
+}
+
 /// Puts `text` on the clipboard (plain text).
 pub fn set_clipboard_text(text: &str) -> bool {
     platform::set_clipboard(text)

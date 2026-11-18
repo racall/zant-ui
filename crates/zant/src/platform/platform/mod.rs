@@ -28,15 +28,17 @@ pub use app::{
     quit, register_hotkey, set_app_handler, single_instance, unregister_hotkey,
 };
 pub use clipboard::{
-    clipboard_change_count, clipboard_files, clipboard_image_png, clipboard_privacy,
-    clipboard_text, set_clipboard, set_clipboard_files, set_clipboard_image_png, watch_clipboard,
+    clear_clipboard, clipboard_change_count, clipboard_files, clipboard_image_png,
+    clipboard_privacy, clipboard_text, set_clipboard, set_clipboard_files, set_clipboard_image_png,
+    watch_clipboard,
 };
 pub use events::{
     AppEvent, Event, app_event_type, event_command, event_has, event_text, event_type, hit, key,
     modifiers, pointer_button,
 };
 pub use system::{
-    device_name, downloads_dir, getenv, monotonic_ms, monotonic_us, reduce_motion, system_dark_mode,
+    device_name, downloads_dir, getenv, monotonic_ms, monotonic_us, reduce_motion,
+    release_unused_memory, system_dark_mode,
 };
 #[cfg(test)]
 pub(crate) use tests::native_test_lock;

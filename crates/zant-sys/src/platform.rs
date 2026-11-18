@@ -485,6 +485,9 @@ unsafe extern "C" {
     ) -> ::std::os::raw::c_int;
 }
 unsafe extern "C" {
+    pub fn zant_clipboard_clear() -> ::std::os::raw::c_int;
+}
+unsafe extern "C" {
     pub fn zant_clipboard_get_image_png(out_len: *mut usize) -> *mut u8;
 }
 unsafe extern "C" {

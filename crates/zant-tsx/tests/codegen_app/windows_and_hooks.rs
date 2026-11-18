@@ -7,7 +7,9 @@ fn a_window_becomes_a_thread_local_handle_and_a_window_component() {
     let source = generated(WINDOWS);
     // the `createWindow` constant: a lazy slot plus accessor
     contains(&source, "static PANEL");
-    contains(&source, "tsx::window::Window < PanelWindow");
+    contains(&source, "tsx::window::Slot < PanelWindow");
+    // no borrow is held while the window call runs (re-entrant focus hooks)
+    contains(&source, "apply(&window)");
     contains(&source, "pub fn panel_with<R>(");
     contains(&source, "zant::desktop::OpenOptions {");
     contains(&source, "name: Some(\"panel\".into())");
@@ -322,6 +324,7 @@ export default function App() {
       <Row key="actions" gap={8}>
         <Button key="copy" onClick={() => { clipboard.setText(draft); setCopied(clipboard.changeCount()); }}>Copy</Button>
         <Button key="hide" onClick={() => mainWindow.hide()}>Hide</Button>
+        <Button key="clear" onClick={() => { clipboard.clear(); }}>Clear</Button>
       </Row>
       <Text key="toast">Copied #{copied} · {app.dataDir() ?? "no data dir"}</Text>
     </View>
@@ -334,6 +337,7 @@ fn zant_api_names_map_to_tsx_platform() {
     let source = generated(PLATFORM);
     contains(&source, "tsx::platform::clipboard::set_text(");
     contains(&source, "tsx::platform::clipboard::change_count()");
+    contains(&source, "tsx::platform::clipboard::clear()");
     contains(&source, "tsx::platform::main_window::hide()");
     contains(&source, "tsx::platform::wake_after(");
     contains(&source, "tsx::platform::key_label(\"mod+f\")");

@@ -422,6 +422,8 @@ size_t zant_device_name(char *out, size_t capacity);
 int zant_system_dark_mode(void);
 
 int zant_clipboard_set_text(const char *text, size_t length);
+/* Empties the clipboard (nothing to paste afterwards); 1 on success. */
+int zant_clipboard_clear(void);
 /* The image on the clipboard as PNG bytes (malloc'd; free with
    zant_clipboard_free), or NULL when it holds no image. macOS: PNG or TIFF;
    Windows: the "PNG" format or a bitmap (CF_DIBV5 / CF_DIB). */

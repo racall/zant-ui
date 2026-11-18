@@ -49,6 +49,19 @@ int zant_clipboard_set_text(const char *text, size_t length) {
     return 0;
 }
 
+int zant_clipboard_clear(void) {
+    HWND owner = g_main ? g_main->hwnd : NULL;
+    for (int attempt = 0; attempt < 5; attempt++) {
+        if (OpenClipboard(owner)) {
+            const bool ok = EmptyClipboard() != 0;
+            CloseClipboard();
+            return ok ? 1 : 0;
+        }
+        Sleep(10);
+    }
+    return 0;
+}
+
 size_t zant_clipboard_get_text(char *out, size_t capacity) {
     HWND owner = g_main ? g_main->hwnd : NULL;
     size_t required = 1;

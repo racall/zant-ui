@@ -7,6 +7,7 @@ pub mod icons;
 pub mod keys;
 pub mod layout;
 pub mod local_state;
+pub mod memory;
 pub mod node;
 pub mod paths;
 pub mod text_select;

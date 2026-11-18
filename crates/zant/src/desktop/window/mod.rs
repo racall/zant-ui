@@ -291,10 +291,14 @@ impl Window {
         if self.is_main() {
             return;
         }
-        match self.native() {
-            Some(native) => native.close(),
-            None => runtime_window::request_close(self.owner()),
+        if let Some(native) = self.native() {
+            native.close();
         }
+        // the native close reports `WindowClose`, which frees the runtime; a
+        // window closing itself from inside its own callback cannot take that
+        // event (its runtime is busy), so the release is queued here as well
+        // (a window the event already released is skipped)
+        runtime_window::request_close(self.owner());
     }
 
     /// The runtime of this window (tests need to inspect the tree / state).

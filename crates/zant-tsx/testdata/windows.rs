@@ -32,17 +32,14 @@ impl tsx::window::Component for PanelWindow {
     }
 }
 thread_local! {
-    static PANEL : std::cell::RefCell < Option < tsx::window::Window < PanelWindow >>> =
-    const { std::cell::RefCell::new(None) };
+    static PANEL : tsx::window::Slot < PanelWindow > = const { tsx::window::Slot::new()
+    };
 }
-pub fn panel_with<R>(
-    apply: impl FnOnce(&mut tsx::window::Window<PanelWindow>) -> R,
-) -> R {
-    PANEL
+pub fn panel_with<R>(apply: impl FnOnce(&tsx::window::Window<PanelWindow>) -> R) -> R {
+    let window = PANEL
         .with(|slot| {
-            let mut slot = slot.borrow_mut();
-            let window = slot
-                .get_or_insert_with(|| tsx::window::Window::new(zant::desktop::OpenOptions {
+            slot
+                .get(|| zant::desktop::OpenOptions {
                     name: Some("panel".into()),
                     title: "Panel".into(),
                     window: zant::desktop::WindowOptions {
@@ -55,9 +52,9 @@ pub fn panel_with<R>(
                         ..Default::default()
                     },
                     ..Default::default()
-                }));
-            apply(window)
-        })
+                })
+        });
+    apply(&window)
 }
 pub struct Panel {
     _id: u64,
