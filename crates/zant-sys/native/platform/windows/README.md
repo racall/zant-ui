@@ -5,7 +5,14 @@ executable by `crates/zant-sys/build.rs` (MSVC, C11):
 
 | File | Purpose |
 |---|---|
-| `window.c` | Win32 window: message loop, per-monitor DPI v2, mouse / keyboard / `WM_CHAR` (surrogate pairs), IMM32 composition and candidate placement, cursors, clipboard, app-drawn title bar (`WM_NCCALCSIZE` / `WM_NCHITTEST`, `HTMAXBUTTON` for snap layouts), DWM dark title bar, close-request veto, `IFileOpenDialog` / `IFileSaveDialog`, `TaskDialogIndirect`, `ShellExecuteW`, snapshots |
+| `app.c` | Process setup, message loop, single instance, tray icon and menus, global hotkeys |
+| `window_lifecycle.c` | Window creation and teardown, cursor updates, DWM title bar styling |
+| `window_events.c` | Window procedure, pointer and keyboard input, `WM_CHAR` surrogate pairs, app-drawn title bar messages (`WM_NCCALCSIZE` / `WM_NCHITTEST`, `HTMAXBUTTON` for snap layouts), close-request veto |
+| `window_geometry.c` | Per-monitor DPI, window sizing, visibility, and persistent placement |
+| `window_ime.c` | IMM32 composition and candidate placement |
+| `window_render.c` | Frame pacing, drawing, and snapshots |
+| `clipboard.c` | Clipboard text, images, files, and change notifications |
+| `desktop_services.c` | Native dialogs (`IFileOpenDialog`, `IFileSaveDialog`, `TaskDialogIndirect`), shell actions (`ShellExecuteW`), launch at login, and system settings |
 | `pdf_win.cpp` | PDF backend: PDFium (loaded at runtime), pages rendered to memory pixels |
 | `zant.manifest` | Common-Controls v6 manifest embedded by `zant-build` |
 | `platform.h` / `pdf.h` (in `..`) | The C ABI both platforms implement |

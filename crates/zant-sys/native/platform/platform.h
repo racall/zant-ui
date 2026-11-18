@@ -1,5 +1,5 @@
-/* Zant UI platform C ABI, implemented by platform/macos/window.m
- * (AppKit) and platform/windows/window.c (Win32). An app has a main
+/* Zant UI platform C ABI, implemented by the sources in platform/macos/
+ * (AppKit) and platform/windows/ (Win32). An app has a main
  * window (the first one created; closing it ends the app) and may open more
  * (panels, tool windows) on the UI thread; zant_window_run runs the event
  * loop for all of them. Coordinates are logical points; dpr converts to

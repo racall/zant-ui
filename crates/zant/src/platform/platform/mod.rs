@@ -1,6 +1,6 @@
 //! Safe wrappers over the platform C ABI (`platform.h` in
-//! `zant-sys/native/platform/`, implemented by `macos/window.m` and
-//! `windows/window.c`):
+//! `zant-sys/native/platform/`, implemented by the AppKit sources in
+//! `macos/` and the Win32 sources in `windows/`):
 //! a main window plus optional extra windows, the `ZantHost` callback table
 //! forwarded to a Rust [`HostHandler`], window services, clipboard, tray /
 //! status bar item, global hotkeys, launch-at-login and native dialogs.

@@ -12,7 +12,15 @@ crates/zant-sys/native/skia/skia_bridge.h
 crates/zant-sys/native/skia/skia_bridge_internal.h
 crates/zant-sys/native/skia/skia_bridge_win.cpp
 crates/zant-sys/native/platform/windows/pdf_win.cpp
-crates/zant-sys/native/platform/windows/window.c
+crates/zant-sys/native/platform/windows/app.c
+crates/zant-sys/native/platform/windows/clipboard.c
+crates/zant-sys/native/platform/windows/desktop_services.c
+crates/zant-sys/native/platform/windows/window_events.c
+crates/zant-sys/native/platform/windows/window_geometry.c
+crates/zant-sys/native/platform/windows/window_ime.c
+crates/zant-sys/native/platform/windows/window_lifecycle.c
+crates/zant-sys/native/platform/windows/window_render.c
 crates/zant-sys/native/platform/windows/capture.c
+crates/zant-sys/native/platform/windows/window_internal.h
 crates/zant-sys/native/platform/platform.h
 crates/zant-sys/native/platform/pdf.h

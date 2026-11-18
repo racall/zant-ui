@@ -166,7 +166,7 @@ unsafe extern "C" fn trampoline_wake(userdata: *mut std::ffi::c_void) {
     host.handler.wake();
 }
 
-/// One native window (`window.m` on macOS, `window.c` on Windows).
+/// One native window (an `NSWindow` on macOS, a Win32 `HWND` on Windows).
 pub struct Window {
     handle: *mut ffi::ZantWindow,
     /// Keeps the boxed handler (and therefore the `ZantHost.userdata` pointer)

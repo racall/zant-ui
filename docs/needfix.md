@@ -181,7 +181,7 @@ CI（[rust.yml](../.github/workflows/rust.yml)）已跑 bindings 同步、fmt、
 
 **位置**
 
-- [window.m](../crates/zant-sys/native/platform/macos/window.m#L960-L1037)：固定菜单，`zant_menu_text(en, zh)` 按系统首选语言二选一；
+- [app.m](../crates/zant-sys/native/platform/macos/app.m#L105-L183)：固定菜单，`zant_menu_text(en, zh)` 按系统首选语言二选一；
 - `App` trait 没有菜单钩子： [app.rs](../crates/zant/src/ui/app.rs#L70-L140)；
 - 平台 ABI 也没有菜单导出。
 
