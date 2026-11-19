@@ -25,7 +25,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.2.13"
+version = "0.2.14"
 edition = "2024"
 rust-version = "1.94"
 license = "MIT"
@@ -63,13 +63,13 @@ notify = "8.2"
 toml = "1.2"
 
 # internal crates
-zant-sys = { path = "crates/zant-sys", version = "0.2.13" }
-zant-macros = { path = "crates/zant-macros", version = "0.2.13" }
-zant-base = { path = "crates/zant-base", version = "0.2.13" }
-zant = { path = "crates/zant", version = "0.2.13" }
-zant-dylib = { path = "crates/zant-dylib", version = "0.2.13" }
-zant-tsx = { path = "crates/zant-tsx", version = "0.2.13" }
-zant-build = { path = "crates/zant-build", version = "0.2.13" }
+zant-sys = { path = "crates/zant-sys", version = "0.2.14" }
+zant-macros = { path = "crates/zant-macros", version = "0.2.14" }
+zant-base = { path = "crates/zant-base", version = "0.2.14" }
+zant = { path = "crates/zant", version = "0.2.14" }
+zant-dylib = { path = "crates/zant-dylib", version = "0.2.14" }
+zant-tsx = { path = "crates/zant-tsx", version = "0.2.14" }
+zant-build = { path = "crates/zant-build", version = "0.2.14" }
 
 # Integer overflow panics in release builds too.
 [profile.release]
