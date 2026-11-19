@@ -110,6 +110,14 @@ static NSArray<NSString *> *zant_split_extensions(const char *extensions) {
     return result.count > 0 ? result : nil;
 }
 
+/* A modal dialog takes the keyboard only when the app is active. A menu bar
+   app working from non-activating panels (overlays, tray panels) often is
+   not, and its dialog would open behind the active app without focus:
+   Esc / Return / typing would go elsewhere. */
+static void zant_activate_for_dialog(void) {
+    if (!NSApp.isActive) [NSApp activateIgnoringOtherApps:YES];
+}
+
 /* extensions: comma separated list ("md,txt"); NULL or "" allows any type. */
 char *zant_open_file_dialog_ext(const char *extensions) {
     @autoreleasepool {
@@ -119,6 +127,7 @@ char *zant_open_file_dialog_ext(const char *extensions) {
         panel.allowsMultipleSelection = NO;
         NSArray<NSString *> *types = zant_split_extensions(extensions);
         if (types) panel.allowedFileTypes = types;
+        zant_activate_for_dialog();
         if ([panel runModal] != NSModalResponseOK) return NULL;
         NSURL *url = panel.URL;
         if (!url) return NULL;
@@ -136,6 +145,7 @@ char *zant_save_file_dialog_ext(const char *default_name, const char *extensions
         if (default_name) {
             panel.nameFieldStringValue = [NSString stringWithUTF8String:default_name];
         }
+        zant_activate_for_dialog();
         if ([panel runModal] != NSModalResponseOK) return NULL;
         NSURL *url = panel.URL;
         if (!url) return NULL;
@@ -153,6 +163,7 @@ int zant_confirm_dialog(const char *title, const char *message, const char *firs
         if (first) [alert addButtonWithTitle:[NSString stringWithUTF8String:first]];
         if (second) [alert addButtonWithTitle:[NSString stringWithUTF8String:second]];
         if (third) [alert addButtonWithTitle:[NSString stringWithUTF8String:third]];
+        zant_activate_for_dialog();
         const NSModalResponse response = [alert runModal];
         if (response == NSAlertFirstButtonReturn) return 0;
         if (response == NSAlertSecondButtonReturn) return 1;
